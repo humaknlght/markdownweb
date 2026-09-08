@@ -1,0 +1,151 @@
+# Markdown Preview — Apache production config
+# Deploy the entire dist/ folder to your document root (or VirtualHost Directory).
+
+DirectoryIndex index.html
+
+# Parent public_html sets DirectorySlash Off (SPA). Without a trailing slash,
+# Apache will not run DirectoryIndex and Options -Indexes yields 403 for
+# /markdown vs /markdown/. Turn slash redirects back on for this app.
+DirectorySlash On
+
+Options -MultiViews -Indexes
+RewriteEngine On
+
+# Serve modern JS modules with the correct MIME type
+<IfModule mod_mime.c>
+  AddType text/javascript .js
+  AddType text/css .css
+  AddType image/jpeg .jpg .jpeg
+  AddType image/png .png
+  # Precompressed siblings keep the original MIME via ForceType below
+  AddEncoding br .br
+  AddEncoding gzip .gz
+</IfModule>
+
+# Prefer precompressed assets (brotli, then gzip) when the client accepts them.
+# Requires mod_rewrite. Do not also DEFLATE these responses (see RemoveOutputFilter).
+<IfModule mod_rewrite.c>
+  # Parent sets DirectorySlash Off. Force the canonical directory URL with a slash
+  # so relative CSS/JS URLs resolve under /markdown/.
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteCond %{REQUEST_URI} !/$
+  RewriteRule ^ %{REQUEST_URI}/ [R=301,L]
+
+  # Skip rewrite rules for physical directories (after slash redirect above)
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteRule ^ - [L]
+
+  # Brotli
+  RewriteCond %{HTTP:Accept-Encoding} br
+  RewriteCond %{REQUEST_FILENAME}.br -f
+  RewriteRule ^(.*)$ $1.br [L]
+
+  # Gzip fallback
+  RewriteCond %{HTTP:Accept-Encoding} gzip
+  RewriteCond %{REQUEST_FILENAME}.gz -f
+  RewriteRule ^(.*)$ $1.gz [L]
+</IfModule>
+
+# Correct Content-Type + Content-Encoding for rewritten .br / .gz files
+<FilesMatch "\.html\.br$">
+  ForceType "text/html"
+  Header set Content-Encoding "br"
+  Header append Vary "Accept-Encoding"
+  RemoveOutputFilter DEFLATE
+</FilesMatch>
+<FilesMatch "\.css\.br$">
+  ForceType "text/css"
+  Header set Content-Encoding "br"
+  Header append Vary "Accept-Encoding"
+  RemoveOutputFilter DEFLATE
+</FilesMatch>
+<FilesMatch "\.js\.br$">
+  ForceType "text/javascript"
+  Header set Content-Encoding "br"
+  Header append Vary "Accept-Encoding"
+  RemoveOutputFilter DEFLATE
+</FilesMatch>
+
+<FilesMatch "\.html\.gz$">
+  ForceType "text/html"
+  Header set Content-Encoding "gzip"
+  Header append Vary "Accept-Encoding"
+  RemoveOutputFilter DEFLATE
+</FilesMatch>
+<FilesMatch "\.css\.gz$">
+  ForceType "text/css"
+  Header set Content-Encoding "gzip"
+  Header append Vary "Accept-Encoding"
+  RemoveOutputFilter DEFLATE
+</FilesMatch>
+<FilesMatch "\.js\.gz$">
+  ForceType "text/javascript"
+  Header set Content-Encoding "gzip"
+  Header append Vary "Accept-Encoding"
+  RemoveOutputFilter DEFLATE
+</FilesMatch>
+
+# On-the-fly gzip only for responses that were not rewritten to .br/.gz
+<IfModule mod_deflate.c>
+  SetEnvIfNoCase Request_URI "\.(br|gz)$" no-gzip
+  AddOutputFilterByType DEFLATE text/html text/css text/javascript application/javascript application/json image/svg+xml
+</IfModule>
+
+<IfModule mod_expires.c>
+  ExpiresActive On
+  ExpiresByType text/html "access plus 0 seconds"
+  ExpiresByType text/css "access plus 1 year"
+  ExpiresByType text/javascript "access plus 1 year"
+  ExpiresByType application/javascript "access plus 1 year"
+  ExpiresByType image/jpeg "access plus 1 year"
+  ExpiresByType image/png "access plus 1 year"
+</IfModule>
+
+<IfModule mod_headers.c>
+  # Apply to every response (HTML, CSS, JS, images, etc.)
+  Header set Cross-Origin-Resource-Policy "same-origin"
+  Header append Vary "Accept-Encoding"
+
+  # Link-preview crawlers (and some clients) load og:image cross-origin.
+  <FilesMatch "^og-image\.[a-f0-9]+\.png$">
+    Header set Cross-Origin-Resource-Policy "cross-origin"
+  </FilesMatch>
+
+  <FilesMatch "\.(css|js)(\.(br|gz))?$">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+  <FilesMatch "\.(jpg|jpeg|png)$">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+
+  # Parent public_html/.htaccess sets CSP / Speculation-Rules / Link / etc. inside
+  # <FilesMatch "\.html">. Directory-level "Header unset" runs too early and loses.
+  # Use the same FilesMatch pattern so our unset runs in that same files scope.
+  <FilesMatch "\.html">
+    Header unset Speculation-Rules
+    Header always unset Speculation-Rules
+    Header unset Link
+    Header always unset Link
+    Header unset Content-Security-Policy
+    Header always unset Content-Security-Policy
+    Header unset Cross-Origin-Embedder-Policy
+    Header always unset Cross-Origin-Embedder-Policy
+    Header unset Referrer-Policy
+    Header always unset Referrer-Policy
+    Header unset X-UA-Compatible
+    Header always unset X-UA-Compatible
+    Header unset Cloudflare-CDN-Cache-Control
+    Header always unset Cloudflare-CDN-Cache-Control
+    Header unset Permissions-Policy
+    Header always unset Permissions-Policy
+
+    Header set Cache-Control "no-cache"
+    Header set Permissions-Policy "accelerometer=(), ambient-light-sensor=(), autoplay=(), camera=(), display-capture=(), encrypted-media=(), execution-while-not-rendered=(), execution-while-out-of-viewport=(), fullscreen=(), gamepad=(), geolocation=(), gyroscope=(), hid=(), identity-credentials-get=(), idle-detection=(), local-fonts=(), magnetometer=(), microphone=(), midi=(), otp-credentials=(), payment=(), picture-in-picture=(), publickey-credentials-create=(), publickey-credentials-get=(), screen-wake-lock=(), serial=(), speaker-selection=(), storage-access=(), usb=(), web-share=(), window-management=(), xr-spatial-tracking=(), interest-cohort=()"
+    Header set Strict-Transport-Security "max-age=31536000"
+    Header always set Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src __SCRIPT_SRC__; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self'; connect-src 'self'; worker-src 'self'; upgrade-insecure-requests"
+    Header set X-Frame-Options "DENY"
+    Header always set Cross-Origin-Embedder-Policy "require-corp"
+    Header set X-Content-Type-Options "nosniff"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+  </FilesMatch>
+</IfModule>

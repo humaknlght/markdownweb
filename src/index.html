@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="github-light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Markdown Preview</title>
+  <meta
+    name="description"
+    content="Paste or upload Markdown and see a live HTML preview in your browser."
+  />
+  <link rel="canonical" href="https://dev.ericperret.org/markdown/" />
+
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="Markdown Preview" />
+  <meta property="og:title" content="Markdown Preview" />
+  <meta
+    property="og:description"
+    content="Paste or upload Markdown and see a live HTML preview in your browser."
+  />
+  <meta property="og:url" content="https://dev.ericperret.org/markdown/" />
+  <meta
+    property="og:image"
+    content="https://dev.ericperret.org/markdown/og-image.png"
+  />
+  <meta property="og:image:type" content="image/png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="Markdown Preview" />
+
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Markdown Preview" />
+  <meta
+    name="twitter:description"
+    content="Paste or upload Markdown and see a live HTML preview in your browser."
+  />
+  <meta
+    name="twitter:image"
+    content="https://dev.ericperret.org/markdown/og-image.png"
+  />
+  <meta name="theme-color" content="#0d1117" />
+  <script>
+    (function () {
+      try {
+        var saved = localStorage.getItem("md-preview:theme");
+        var theme =
+          saved === "github-light" ||
+          saved === "github-dark" ||
+          saved === "sepia" ||
+          saved === "terminal" ||
+          saved === "salesforce" ||
+          saved === "fancy"
+            ? saved
+            : window.matchMedia("(prefers-color-scheme: dark)").matches
+              ? "github-dark"
+              : "github-light";
+        document.documentElement.setAttribute("data-theme", theme);
+      } catch (e) {
+        document.documentElement.setAttribute("data-theme", "github-light");
+      }
+    })();
+  </script>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="toolbar">
+    <h1 class="brand">Markdown Preview</h1>
+    <div class="toolbar-menu" id="toolbar-menu">
+      <button
+        type="button"
+        class="btn icon-btn overflow-btn"
+        id="overflow-btn"
+        aria-label="Open menu"
+        aria-haspopup="true"
+        aria-expanded="false"
+        aria-controls="toolbar-actions"
+      >
+        <span class="kebab" aria-hidden="true">
+          <span class="circle"></span>
+          <span class="circle"></span>
+          <span class="circle"></span>
+          <span class="circle"></span>
+          <span class="circle"></span>
+        </span>
+      </button>
+      <div class="toolbar-actions" id="toolbar-actions">
+        <label class="btn file-btn svg-btn" title="Upload">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+            <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" />
+            <path d="M14 2v4a2 2 0 0 0 2 2h4" />
+            <path d="M12 12v6" />
+            <path d="M9 15l3-3 3 3" />
+          </svg>
+          <input
+            type="file"
+            id="file-input"
+            aria-label="Upload"
+            accept=".md,.markdown,.txt,text/markdown,text/plain"
+            hidden
+          />
+        </label>
+        <div class="dropdown" id="history-dropdown">
+          <button type="button" class="btn svg-btn" id="history-btn" title="History" aria-label="History" aria-haspopup="listbox" aria-expanded="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+              <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+              <path d="M3 3v5h5" />
+              <path d="M12 7v5l4 2" />
+            </svg>
+          </button>
+          <ul class="dropdown-menu" id="history-menu" role="listbox" hidden></ul>
+        </div>
+        <label class="select-label">
+          Theme
+          <select id="theme-select" aria-label="Theme">
+            <option value="github-light">GitHub Light</option>
+            <option value="github-dark">GitHub Dark</option>
+            <option value="sepia">Sepia</option>
+            <option value="terminal">Terminal</option>
+            <option value="salesforce">Salesforce Cosmos</option>
+            <option value="fancy">Fancy</option>
+          </select>
+        </label>
+        <label class="select-label">
+          Width
+          <select id="width-select" aria-label="Preview width">
+            <option value="readable">Readable</option>
+            <option value="full">Full</option>
+          </select>
+        </label>
+        <button type="button" class="btn svg-btn" id="share-btn" title="Copy share URL" aria-label="Copy share URL">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+          </svg>
+        </button>
+        <button type="button" class="btn collapse-btn" id="collapse-editor" title="Collapse editor" aria-pressed="false"><span class="arrow side-collapse">◀</span><span class="arrow side-expand">▶</span><span class="arrow stacked-collapse">▲</span><span class="arrow stacked-expand">▼</span> Editor</button>
+        <button type="button" class="btn collapse-btn" id="collapse-preview" title="Collapse preview" aria-pressed="false"><span class="arrow side-collapse">▶</span><span class="arrow side-expand">◀</span><span class="arrow stacked-collapse">▼</span><span class="arrow stacked-expand">▲</span> Preview</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="panes" id="panes">
+    <section class="pane editor-pane" id="editor-pane" aria-label="Markdown editor">
+      <textarea
+        id="editor"
+        spellcheck="false"
+        placeholder="Paste or type Markdown here…"
+        aria-label="Markdown source"
+      ></textarea>
+    </section>
+    <div
+      class="splitter"
+      id="splitter"
+      role="separator"
+      aria-orientation="vertical"
+      aria-label="Resize editor and preview"
+      tabindex="0"
+    ></div>
+    <section class="pane preview-pane" id="preview-pane" aria-label="Rendered preview">
+      <article class="preview" id="preview"></article>
+    </section>
+  </main>
+
+  <div class="drop-overlay" id="drop-overlay" hidden aria-hidden="true">
+    <p class="drop-overlay-card">Drop a Markdown file to load it</p>
+  </div>
+
+  <div class="toast" id="toast" hidden role="status"></div>
+
+  <p class="photo-credit" id="photo-credit" hidden>
+    Photo by
+    <a href="https://unsplash.com/@jtbean" target="_blank" rel="noopener noreferrer">Josh Bean</a>
+  </p>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
