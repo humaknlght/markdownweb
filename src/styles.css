@@ -231,6 +231,21 @@ html[data-theme="salesforce"] .dropdown-menu {
   box-shadow: 0 1px 2px rgba(8, 7, 7, 0.06);
 }
 
+html[data-theme="salesforce"] .split-btn-group .btn {
+  border-radius: 0;
+  box-shadow: none;
+}
+
+html[data-theme="salesforce"] .split-btn-group .split-btn-main {
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+  box-shadow: 0 1px 2px rgba(8, 7, 7, 0.06);
+}
+
+html[data-theme="salesforce"] .split-btn-group .split-btn-toggle {
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  box-shadow: 0 1px 2px rgba(8, 7, 7, 0.06);
+}
+
 html[data-theme="salesforce"] .btn:hover,
 html[data-theme="salesforce"] .select-label select:hover {
   border-color: #0176d3;
@@ -514,13 +529,17 @@ html[data-theme="fancy"] .toast {
     grid-template-rows: minmax(0, var(--split, 50%)) 10px minmax(0, var(--split-rest, 50%));
   }
 
+  /* Stacked panes are one column; without this the wider side-by-side rule
+     above still zeroes out the first two columns and hides both panes. */
   html[data-theme="fancy"] .panes.editor-collapsed {
     row-gap: 0;
+    grid-template-columns: minmax(0, 1fr);
     grid-template-rows: 0 0 minmax(0, 1fr);
   }
 
   html[data-theme="fancy"] .panes.preview-collapsed {
     row-gap: 0;
+    grid-template-columns: minmax(0, 1fr);
     grid-template-rows: minmax(0, 1fr) 0 0;
   }
 
@@ -570,12 +589,34 @@ body {
   z-index: 100;
 }
 
+.brand-group {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
 .brand {
   margin: 0;
   font-size: 0.95rem;
   font-weight: 600;
   letter-spacing: -0.01em;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.brand-link {
+  font-size: 0.75rem;
+  color: var(--chrome-muted);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.brand-link:hover,
+.brand-link:focus-visible {
+  color: var(--chrome-text);
+  text-decoration: underline;
 }
 
 .toolbar-menu {
@@ -711,6 +752,72 @@ body {
 .svg-btn svg {
   width: 1rem;
   height: 1rem;
+}
+
+.speak-btn .icon-stop {
+  display: none;
+}
+
+.speak-btn[aria-pressed="true"] .icon-speak {
+  display: none;
+}
+
+.speak-btn[aria-pressed="true"] .icon-stop {
+  display: block;
+}
+
+.speak-pause-btn .icon-resume {
+  display: none;
+}
+
+.speak-pause-btn.is-paused .icon-pause {
+  display: none;
+}
+
+.speak-pause-btn.is-paused .icon-resume {
+  display: block;
+}
+
+.speak-pause-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.split-btn-group {
+  display: inline-flex;
+  align-items: stretch;
+}
+
+.split-btn-group .btn {
+  border-radius: 0;
+}
+
+.split-btn-group .split-btn-main {
+  border-radius: 4px 0 0 4px;
+  border-right-width: 0;
+}
+
+.split-btn-group .split-btn-pause {
+  border-right-width: 0;
+}
+
+.split-btn-group .split-btn-toggle {
+  border-radius: 0 4px 4px 0;
+  padding-inline: 0.2rem;
+  min-width: 1.35rem;
+}
+
+.split-btn-group .split-btn-toggle svg {
+  width: 0.85rem;
+  height: 0.85rem;
+}
+
+.dropdown-menu li button.is-selected {
+  background: var(--chrome-hover);
+}
+
+.dropdown-menu li button.is-selected .item-title::before {
+  content: "✓ ";
 }
 
 /* Each button carries all four arrows; exactly one is shown. The axis follows
@@ -916,13 +1023,6 @@ body {
   background: var(--preview-bg, #fff);
 }
 
-html[data-theme="fancy"] .editor-pane,
-html[data-theme="fancy"] .preview-pane {
-  background: var(--fancy-glass);
-  backdrop-filter: blur(20px) saturate(1.4);
-  -webkit-backdrop-filter: blur(20px) saturate(1.4);
-}
-
 .preview {
   padding: 1.25rem 1.5rem 2.5rem;
   max-width: 52rem;
@@ -933,6 +1033,19 @@ html[data-theme="fancy"] .preview-pane {
   font-size: var(--preview-size);
   line-height: 1.65;
   word-wrap: break-word;
+}
+
+::highlight(speech-word) {
+  background-color: color-mix(in srgb, var(--chrome-focus) 55%, transparent);
+  color: inherit;
+}
+
+mark.speech-word {
+  background-color: color-mix(in srgb, var(--chrome-focus) 55%, transparent);
+  color: inherit;
+  border-radius: 2px;
+  padding: 0.05em 0;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--chrome-focus) 35%, transparent);
 }
 
 .preview[data-width="full"] {
@@ -1012,6 +1125,34 @@ html[data-theme="fancy"] .preview-pane {
   font-size: 0.85em;
   line-height: 1.5;
   color: inherit;
+}
+
+.preview .mermaid {
+  overflow: auto;
+  margin: 1rem 0;
+}
+
+.preview .mermaid svg {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 0 auto;
+}
+
+.preview .mermaid[data-pending] {
+  position: relative;
+  min-height: 2.5rem;
+  color: transparent;
+}
+
+.preview .mermaid[data-pending]::before {
+  content: "Loading diagram…";
+  position: absolute;
+  left: 0;
+  top: 0;
+  color: var(--preview-muted);
+  font-family: var(--font-ui);
+  font-size: 0.875rem;
 }
 
 .preview .hljs-comment,
@@ -1247,6 +1388,14 @@ html[data-theme="fancy"] .photo-credit:not([hidden]) {
   .toolbar-actions .file-btn,
   .toolbar-actions .dropdown {
     width: 100%;
+  }
+
+  .toolbar-actions .split-btn-group {
+    width: 100%;
+  }
+
+  .toolbar-actions .split-btn-group .split-btn-main {
+    flex: 1;
   }
 
   .toolbar-actions .select-label {

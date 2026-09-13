@@ -9,8 +9,10 @@ A fast, client-side Markdown previewer. Paste or upload Markdown and see rendere
 - Upload `.md`, `.markdown`, or `.txt` files
 - Load content from the URL (`#md=` or `?md=`, base64url-encoded)
 - Copy a share URL for the current document
+- Read aloud with high-quality voice picking and word highlighting (in supported browsers)
 - Theme dropdown: GitHub Light, GitHub Dark, Sepia, Terminal, Salesforce Cosmos, Fancy
 - Syntax highlighting for fenced code blocks
+- Mermaid diagrams from fenced `mermaid` code blocks (library loaded on demand from jsDelivr with SRI)
 - Local history of recent Markdown (remembered in `localStorage`)
 
 ## Project layout
@@ -42,7 +44,7 @@ npm run build
 
 This writes a minified, bundled site to `dist/`:
 
-- Bundles and minifies JS (marked, DOMPurify, highlight.js inlined)
+- Bundles and minifies app JS (marked, DOMPurify, highlight.js, and Mermaid load from jsDelivr with Subresource Integrity)
 - Minifies CSS and HTML
 - Re-encodes `fancy.jpg` (mozjpeg, progressive)
 - **Content-hashes** JS, CSS, and images (`app.a1b2c3d4.js`, etc.) and rewrites HTML/CSS references for cache busting

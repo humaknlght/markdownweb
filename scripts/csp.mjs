@@ -1,5 +1,7 @@
 import { createHash } from "node:crypto";
 
+const CDN_SCRIPT_ORIGINS = ["https://cdn.jsdelivr.net"];
+
 /**
  * Extract bodies of inline <script> tags (no src attribute).
  * CSP sha256 hashes must match these bodies exactly (as served).
@@ -28,7 +30,7 @@ export function inlineScriptHashes(html) {
 }
 
 export function buildScriptSrc(hashes) {
-  const parts = ["'self'", ...hashes];
+  const parts = ["'self'", ...CDN_SCRIPT_ORIGINS, ...hashes];
   return parts.join(" ");
 }
 
@@ -42,9 +44,9 @@ export function buildContentSecurityPolicy(scriptSrc) {
     `script-src ${scriptSrc}`,
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob: https:",
-    "font-src 'self'",
-    "connect-src 'self'",
-    "worker-src 'self'",
+    "font-src 'self' https://cdn.jsdelivr.net",
+    "connect-src 'self' https://cdn.jsdelivr.net",
+    "worker-src 'self' blob:",
     "upgrade-insecure-requests",
   ].join("; ");
 }

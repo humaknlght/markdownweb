@@ -60,10 +60,45 @@
     })();
   </script>
   <link rel="stylesheet" href="styles.css" />
+  <link
+    rel="modulepreload"
+    href="https://cdn.jsdelivr.net/npm/marked@15.0.7/lib/marked.esm.js"
+    integrity="sha384-NpOwQJGB5x/x3LzpCM0reBj1wPu7ywvPZAm0T+dZA4G0cFx9ZQlFiDt8BcEOz0Xy"
+    crossorigin="anonymous"
+  />
+  <link
+    rel="modulepreload"
+    href="https://cdn.jsdelivr.net/npm/dompurify@3.2.4/dist/purify.es.mjs"
+    integrity="sha384-RCEh+A7Akp5nl/99z2StbCeVB26UcpvmsSBWlqw8EptGxUSmQgFsdbJKk1jVbsKL"
+    crossorigin="anonymous"
+  />
+  <link
+    rel="modulepreload"
+    href="https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.11.1/es/highlight.min.js"
+    integrity="sha384-oLdnQ1gMzlJ7B7Z/Z6BN+THM/9f4ttUFMNj67N4+UMLwJsyWeY6FrmRd/9UWYjdt"
+    crossorigin="anonymous"
+  />
+  <script type="importmap">
+  {
+    "imports": {
+      "marked": "https://cdn.jsdelivr.net/npm/marked@15.0.7/lib/marked.esm.js",
+      "dompurify": "https://cdn.jsdelivr.net/npm/dompurify@3.2.4/dist/purify.es.mjs",
+      "highlight.js": "https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.11.1/es/highlight.min.js"
+    },
+    "integrity": {
+      "https://cdn.jsdelivr.net/npm/marked@15.0.7/lib/marked.esm.js": "sha384-NpOwQJGB5x/x3LzpCM0reBj1wPu7ywvPZAm0T+dZA4G0cFx9ZQlFiDt8BcEOz0Xy",
+      "https://cdn.jsdelivr.net/npm/dompurify@3.2.4/dist/purify.es.mjs": "sha384-RCEh+A7Akp5nl/99z2StbCeVB26UcpvmsSBWlqw8EptGxUSmQgFsdbJKk1jVbsKL",
+      "https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.11.1/es/highlight.min.js": "sha384-oLdnQ1gMzlJ7B7Z/Z6BN+THM/9f4ttUFMNj67N4+UMLwJsyWeY6FrmRd/9UWYjdt"
+    }
+  }
+  </script>
 </head>
 <body>
   <header class="toolbar">
-    <h1 class="brand">Markdown Preview</h1>
+    <div class="brand-group">
+      <h1 class="brand">Markdown Preview</h1>
+      <a class="brand-link" href="https://www.ericperret.org" target="_blank" rel="noopener">ericperret.org</a>
+    </div>
     <div class="toolbar-menu" id="toolbar-menu">
       <button
         type="button"
@@ -132,6 +167,44 @@
             <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
           </svg>
         </button>
+        <div class="dropdown split-btn" id="speak-dropdown" hidden>
+          <div class="split-btn-group" role="group" aria-label="Read aloud">
+            <button type="button" class="btn svg-btn speak-btn split-btn-main" id="speak-btn" title="Read aloud" aria-label="Read aloud" aria-pressed="false">
+              <svg class="icon-speak" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+                <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+              </svg>
+              <svg class="icon-stop" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                <rect x="6" y="6" width="12" height="12" rx="1" />
+              </svg>
+            </button>
+            <button type="button" class="btn svg-btn speak-pause-btn split-btn-pause" id="speak-pause-btn" title="Pause" aria-label="Pause" aria-pressed="false" disabled>
+              <svg class="icon-pause" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                <rect x="6" y="4" width="4" height="16" />
+                <rect x="14" y="4" width="4" height="16" />
+              </svg>
+              <svg class="icon-resume" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                <polygon points="6 3 20 12 6 21 6 3" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              class="btn svg-btn split-btn-toggle"
+              id="voice-menu-btn"
+              title="Choose voice"
+              aria-label="Choose voice"
+              aria-haspopup="listbox"
+              aria-expanded="false"
+              aria-controls="voice-menu"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                <path d="m6 9 6 6 6-6" />
+              </svg>
+            </button>
+          </div>
+          <ul class="dropdown-menu" id="voice-menu" role="listbox" hidden></ul>
+        </div>
         <button type="button" class="btn collapse-btn" id="collapse-editor" title="Collapse editor" aria-pressed="false"><span class="arrow side-collapse">◀</span><span class="arrow side-expand">▶</span><span class="arrow stacked-collapse">▲</span><span class="arrow stacked-expand">▼</span> Editor</button>
         <button type="button" class="btn collapse-btn" id="collapse-preview" title="Collapse preview" aria-pressed="false"><span class="arrow side-collapse">▶</span><span class="arrow side-expand">◀</span><span class="arrow stacked-collapse">▼</span><span class="arrow stacked-expand">▲</span> Preview</button>
       </div>

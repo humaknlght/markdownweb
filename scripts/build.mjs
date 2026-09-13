@@ -127,6 +127,7 @@ async function buildJs() {
     legalComments: "none",
     treeShaking: true,
     metafile: true,
+    external: ["marked", "dompurify", "highlight.js"],
   });
 
   const output = result.outputFiles[0];
@@ -136,7 +137,7 @@ async function buildJs() {
   await writeFile(path.join(distDir, name), buffer);
 
   const bundledInputs = Object.keys(result.metafile?.inputs || {}).length;
-  return { bytes: buffer.length, name, hash, bundledInputs };
+  return { bytes: buffer.length, name, hash, chunks: [], bundledInputs };
 }
 
 async function buildHtml({ cssName, jsName, ogImageName }) {
@@ -154,7 +155,7 @@ async function buildHtml({ cssName, jsName, ogImageName }) {
     minifyJS: true,
     removeComments: true,
     removeRedundantAttributes: true,
-    removeScriptTypeAttributes: true,
+    removeScriptTypeAttributes: false,
     removeStyleLinkTypeAttributes: true,
     useShortDoctype: true,
   });
@@ -245,6 +246,9 @@ async function main() {
   console.log(
     `  ${js.name.padEnd(22)} ${formatBytes(js.bytes)}  (${js.bundledInputs} modules bundled)`
   );
+  for (const chunk of js.chunks || []) {
+    console.log(`  ${chunk.name.padEnd(22)} ${formatBytes(chunk.bytes)}  (lazy chunk)`);
+  }
   console.log(
     `  ${image.name.padEnd(22)} ${formatBytes(image.after)}  (from ${formatBytes(image.before)})`
   );
