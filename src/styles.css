@@ -30,6 +30,11 @@ html[data-theme="github-light"] {
   --preview-font: var(--font-ui);
   --preview-size: 1rem;
   --heading-color: inherit;
+  --alert-note: #0969da;
+  --alert-tip: #1a7f37;
+  --alert-important: #8250df;
+  --alert-warning: #9a6700;
+  --alert-caution: #cf222e;
   --toast-bg: #1a1d23;
   --toast-fg: #ffffff;
   --color-scheme: light;
@@ -48,6 +53,20 @@ html[data-theme="github-light"] {
   --syntax-meta: #6a737d;
   --syntax-deletion: #b31d28;
   --syntax-addition: #22863a;
+  --mermaid-bg: #ffffff;
+  --mermaid-fg: #333333;
+  --mermaid-node-bg: #ececff;
+  --mermaid-node-border: #9370db;
+  --mermaid-cluster-bg: #ffffde;
+  --mermaid-cluster-border: #aaaa33;
+  --mermaid-line: #333333;
+  --mermaid-label-bg: #e8e8e8;
+  --mermaid-note-bg: #fff5ad;
+  --install-fill: #2f5bb8;
+  --install-fill-hover: #244a96;
+  --install-fg: #ffffff;
+  --install-grad-a: #ffffff;
+  --install-grad-b: #ff4d8d;
 }
 
 html[data-theme="github-dark"] {
@@ -75,6 +94,11 @@ html[data-theme="github-dark"] {
   --preview-font: var(--font-ui);
   --preview-size: 1rem;
   --heading-color: inherit;
+  --alert-note: #4493f8;
+  --alert-tip: #3fb950;
+  --alert-important: #ab7df8;
+  --alert-warning: #d29922;
+  --alert-caution: #f85149;
   --toast-bg: #e6edf3;
   --toast-fg: #0d1117;
   --color-scheme: dark;
@@ -90,6 +114,20 @@ html[data-theme="github-dark"] {
   --syntax-meta: #8b949e;
   --syntax-deletion: #ffa198;
   --syntax-addition: #7ee787;
+  --mermaid-bg: transparent;
+  --mermaid-fg: #cccccc;
+  --mermaid-node-bg: #1f2020;
+  --mermaid-node-border: #cccccc;
+  --mermaid-cluster-bg: #302f3d;
+  --mermaid-cluster-border: rgba(255, 255, 255, 0.25);
+  --mermaid-line: #cccccc;
+  --mermaid-label-bg: #181818;
+  --mermaid-note-bg: #fff5ad;
+  --install-fill: var(--chrome-surface);
+  --install-fill-hover: var(--chrome-hover);
+  --install-fg: var(--chrome-text);
+  --install-grad-a: #58a6ff;
+  --install-grad-b: #ff7b72;
 }
 
 html[data-theme="sepia"] {
@@ -132,6 +170,11 @@ html[data-theme="sepia"] {
   --syntax-meta: #8a7760;
   --syntax-deletion: #9c2f2f;
   --syntax-addition: #3d6b4f;
+  --install-fill: #6f3610;
+  --install-fill-hover: #5a2c0c;
+  --install-fg: #fff8e7;
+  --install-grad-a: #ffe7a0;
+  --install-grad-b: #1b7a4a;
 }
 
 html[data-theme="terminal"] {
@@ -159,6 +202,11 @@ html[data-theme="terminal"] {
   --preview-font: var(--font-mono);
   --preview-size: 0.92rem;
   --heading-color: #d4ffcf;
+  --alert-note: #7dff7a;
+  --alert-tip: #b6f2b0;
+  --alert-important: #9ae89a;
+  --alert-warning: #d4e87a;
+  --alert-caution: #ff8a8a;
   --toast-bg: #b6f2b0;
   --toast-fg: #0c0f0c;
   --color-scheme: dark;
@@ -174,6 +222,20 @@ html[data-theme="terminal"] {
   --syntax-meta: #4d7a48;
   --syntax-deletion: #ff8a8a;
   --syntax-addition: #7dff7a;
+  --mermaid-bg: transparent;
+  --mermaid-fg: #b6f2b0;
+  --mermaid-node-bg: #121812;
+  --mermaid-node-border: #6f9f6a;
+  --mermaid-cluster-bg: #1a241a;
+  --mermaid-cluster-border: #2a4a2a;
+  --mermaid-line: #7dff7a;
+  --mermaid-label-bg: #0c0f0c;
+  --mermaid-note-bg: #1a241a;
+  --install-fill: var(--chrome-surface);
+  --install-fill-hover: var(--chrome-hover);
+  --install-fg: var(--chrome-text);
+  --install-grad-a: #b8ff6a;
+  --install-grad-b: #00e5ff;
 }
 
 html[data-theme="salesforce"] {
@@ -218,6 +280,11 @@ html[data-theme="salesforce"] {
   --syntax-meta: #a0cfff;
   --syntax-deletion: #ff8a8a;
   --syntax-addition: #7fd1a0;
+  --install-fill: #014486;
+  --install-fill-hover: #032d60;
+  --install-fg: #ffffff;
+  --install-grad-a: #ffffff;
+  --install-grad-b: #00c2a8;
 }
 
 html[data-theme="salesforce"] .brand {
@@ -354,6 +421,11 @@ html[data-theme="fancy"] {
   --preview-font: "Avenir Next", "Segoe UI", "Helvetica Neue", sans-serif;
   --preview-size: 1rem;
   --heading-color: #ffffff;
+  --alert-note: #7ed0ff;
+  --alert-tip: #9de0b0;
+  --alert-important: #d2b8ff;
+  --alert-warning: #f0b45a;
+  --alert-caution: #ff9eb5;
   --toast-bg: rgba(8, 28, 40, 0.75);
   --toast-fg: #f4f8fb;
   --color-scheme: dark;
@@ -372,6 +444,20 @@ html[data-theme="fancy"] {
   --syntax-meta: #8fb3c4;
   --syntax-deletion: #ff8a8a;
   --syntax-addition: #9de0b0;
+  --mermaid-bg: transparent;
+  --mermaid-fg: #f4f8fb;
+  --mermaid-node-bg: #0a2434;
+  --mermaid-node-border: #7ed0ff;
+  --mermaid-cluster-bg: rgba(8, 28, 42, 0.85);
+  --mermaid-cluster-border: rgba(255, 255, 255, 0.28);
+  --mermaid-line: #b7c9d4;
+  --mermaid-label-bg: #062436;
+  --mermaid-note-bg: #14384c;
+  --install-fill: rgba(8, 28, 42, 0.85);
+  --install-fill-hover: rgba(255, 255, 255, 0.22);
+  --install-fg: var(--chrome-text);
+  --install-grad-a: #7ed0ff;
+  --install-grad-b: #ff6b9d;
 }
 
 html[data-theme="fancy"],
@@ -438,19 +524,15 @@ html[data-theme="fancy"] #share-btn:hover {
 }
 
 html[data-theme="fancy"] .panes {
+  --splitter-track: 10px;
   margin: 0.7rem var(--fancy-margin) var(--fancy-margin);
   min-height: 0;
   column-gap: var(--fancy-margin);
-  grid-template-columns: minmax(0, var(--split, 50%)) 10px minmax(0, 1fr);
 }
 
-html[data-theme="fancy"] .panes.editor-collapsed {
-  grid-template-columns: 0 0 minmax(0, 1fr);
-  column-gap: 0;
-}
-
+html[data-theme="fancy"] .panes.editor-collapsed,
 html[data-theme="fancy"] .panes.preview-collapsed {
-  grid-template-columns: minmax(0, 1fr) 0 0;
+  --splitter-track: 0px;
   column-gap: 0;
 }
 
@@ -469,9 +551,8 @@ html[data-theme="fancy"] .editor-pane {
   overflow: hidden;
 }
 
-html[data-theme="fancy"] #editor {
+html[data-theme="fancy"] .editor-wrap {
   background: transparent;
-  color: var(--editor-text);
 }
 
 html[data-theme="fancy"] #editor::placeholder {
@@ -502,6 +583,12 @@ html[data-theme="fancy"] .preview pre {
   border-radius: 10px;
 }
 
+html[data-theme="fancy"] .preview .line-num {
+  background: transparent;
+  border-right-color: rgba(255, 255, 255, 0.14);
+  color: rgba(244, 248, 251, 0.5);
+}
+
 html[data-theme="fancy"] .splitter {
   background: rgba(255, 255, 255, 0.28);
   border-radius: 999px;
@@ -525,22 +612,11 @@ html[data-theme="fancy"] .toast {
   html[data-theme="fancy"] .panes {
     column-gap: 0;
     row-gap: var(--fancy-margin);
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: minmax(0, var(--split, 50%)) 10px minmax(0, var(--split-rest, 50%));
   }
 
-  /* Stacked panes are one column; without this the wider side-by-side rule
-     above still zeroes out the first two columns and hides both panes. */
-  html[data-theme="fancy"] .panes.editor-collapsed {
-    row-gap: 0;
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: 0 0 minmax(0, 1fr);
-  }
-
+  html[data-theme="fancy"] .panes.editor-collapsed,
   html[data-theme="fancy"] .panes.preview-collapsed {
     row-gap: 0;
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: minmax(0, 1fr) 0 0;
   }
 
   html[data-theme="fancy"] .splitter {
@@ -585,6 +661,7 @@ body {
   border-bottom: 1px solid var(--chrome-border);
   background: var(--chrome-bg);
   flex-shrink: 0;
+  flex-wrap: nowrap;
   position: relative;
   z-index: 100;
 }
@@ -632,6 +709,14 @@ body {
   gap: 0.4rem;
   flex-wrap: nowrap;
   justify-content: flex-end;
+  min-width: 0;
+}
+
+.toolbar-cluster {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: nowrap;
 }
 
 /* Keeping the row on one line means the selects shrink instead of wrapping. */
@@ -647,6 +732,7 @@ body {
   min-width: 2.25rem;
   min-height: 2rem;
   padding: 0.35rem;
+  flex-shrink: 0;
 }
 
 .kebab {
@@ -850,6 +936,10 @@ body {
   color: var(--chrome-muted);
 }
 
+.select-caption {
+  white-space: nowrap;
+}
+
 .dropdown {
   position: relative;
   z-index: 110;
@@ -919,49 +1009,81 @@ body {
 }
 
 .panes {
+  --collapse-duration: .5s;
+  --splitter-track: 6px;
+  --editor-track: var(--split, 50%);
+  --preview-track: calc(100% - var(--split, 50%));
   display: grid;
-  grid-template-columns: minmax(0, var(--split, 50%)) 6px minmax(0, 1fr);
+  grid-template-columns: minmax(0, var(--editor-track)) var(--splitter-track) minmax(0, var(--preview-track));
   flex: 1;
   min-height: 0;
+  transition: grid-template-columns var(--collapse-duration) ease,
+    grid-template-rows var(--collapse-duration) ease,
+    column-gap var(--collapse-duration) ease,
+    row-gap var(--collapse-duration) ease;
 }
 
+/* Collapsing only changes these track values, so every state keeps the same
+   track count and units. Track lists only interpolate when they match.
+   Both pane tracks are percentages that add up to 100%, so one always takes
+   over the width the other gives up instead of leaving a gap mid-animation. */
 .panes.editor-collapsed {
-  grid-template-columns: 0 0 minmax(0, 1fr);
+  --editor-track: 0%;
+  --preview-track: 100%;
+  --splitter-track: 0px;
 }
 
 .panes.preview-collapsed {
-  grid-template-columns: minmax(0, 1fr) 0 0;
+  --editor-track: 100%;
+  --preview-track: 0%;
+  --splitter-track: 0px;
 }
 
 .panes.editor-collapsed.preview-collapsed {
-  grid-template-columns: minmax(0, 1fr) 0 0;
+  --editor-track: 0%;
+  --preview-track: 0%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panes {
+    --collapse-duration: 0s;
+  }
+}
+
+/* app.js restores the stored collapse/split state after its modules load, which
+   is past the first paint. Stay hidden with the transition off until then, so
+   the default 50/50 layout is never shown and never has to animate away.
+   app.js drops the class once the restored layout is committed. */
+html.is-booting .panes {
+  --collapse-duration: 0s;
+  visibility: hidden;
 }
 
 .pane {
   min-width: 0;
   min-height: 0;
   overflow: hidden;
+  transition: visibility 0s;
 }
 
 .editor-pane {
   border-right: 0;
 }
 
+/* Delay hiding until the track has finished shrinking, so the pane stays
+   visible during the collapse and reappears immediately when expanding. */
 .panes.editor-collapsed .editor-pane,
-.panes.editor-collapsed .splitter {
-  visibility: hidden;
-  pointer-events: none;
-  overflow: hidden;
-}
-
+.panes.editor-collapsed .splitter,
 .panes.preview-collapsed .preview-pane,
 .panes.preview-collapsed .splitter {
   visibility: hidden;
   pointer-events: none;
   overflow: hidden;
+  transition-delay: var(--collapse-duration);
 }
 
 .splitter {
+  transition: visibility 0s;
   position: relative;
   z-index: 2;
   width: 100%;
@@ -996,6 +1118,7 @@ body {
 .panes.is-resizing {
   cursor: col-resize;
   user-select: none;
+  transition: none;
 }
 
 .panes.is-resizing #editor,
@@ -1003,19 +1126,72 @@ body {
   pointer-events: none;
 }
 
-#editor {
+.editor-wrap {
+  position: relative;
   width: 100%;
   height: 100%;
+  overflow: hidden;
+  background: var(--editor-bg);
+}
+
+.editor-highlight,
+#editor {
+  position: absolute;
+  inset: 0;
   margin: 0;
   border: 0;
-  resize: none;
   padding: 1rem 1.1rem;
   font-family: var(--font-mono);
   font-size: 0.875rem;
   line-height: 1.55;
-  color: var(--editor-text);
-  background: var(--editor-bg);
   tab-size: 2;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+}
+
+.editor-highlight {
+  overflow: auto;
+  scrollbar-width: none;
+  pointer-events: none;
+  z-index: 0;
+  color: var(--editor-text);
+  background: transparent;
+}
+
+.editor-highlight::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+.editor-highlight code {
+  display: block;
+  font: inherit;
+  color: inherit;
+  background: none;
+  padding: 0;
+  white-space: inherit;
+  overflow-wrap: inherit;
+  word-wrap: inherit;
+  tab-size: inherit;
+}
+
+#editor {
+  z-index: 1;
+  resize: none;
+  color: transparent;
+  caret-color: var(--editor-text);
+  background: transparent;
+  overflow: auto;
+}
+
+#editor::placeholder {
+  color: var(--chrome-muted);
+}
+
+#editor::selection {
+  color: transparent;
+  background: color-mix(in srgb, var(--chrome-focus) 35%, transparent);
 }
 
 .preview-pane {
@@ -1115,7 +1291,7 @@ mark.speech-word {
   background: var(--preview-pre-bg);
   border: 1px solid var(--preview-pre-border);
   border-radius: 6px;
-  padding: 0.85rem 1rem;
+  padding: 0.85rem 0;
   overflow: auto;
 }
 
@@ -1125,11 +1301,40 @@ mark.speech-word {
   font-size: 0.85em;
   line-height: 1.5;
   color: inherit;
+  display: grid;
+  grid-template-columns: max-content minmax(min-content, 1fr);
+  min-width: 100%;
+}
+
+.preview .code-line {
+  display: contents;
+}
+
+.preview .line-num {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  box-sizing: border-box;
+  padding: 0 1rem 0 0.75rem;
+  border-right: 1px solid var(--preview-pre-border);
+  color: var(--syntax-comment);
+  text-align: right;
+  white-space: nowrap;
+  user-select: none;
+  background: var(--preview-pre-bg);
+}
+
+.preview .line-src {
+  min-width: min-content;
+  min-height: 1.5em;
+  padding: 0 1rem;
+  white-space: pre;
 }
 
 .preview .mermaid {
   overflow: auto;
   margin: 1rem 0;
+  background: var(--mermaid-bg);
 }
 
 .preview .mermaid svg {
@@ -1137,6 +1342,7 @@ mark.speech-word {
   height: auto;
   display: block;
   margin: 0 auto;
+  background: var(--mermaid-bg);
 }
 
 .preview .mermaid[data-pending] {
@@ -1156,40 +1362,68 @@ mark.speech-word {
 }
 
 .preview .hljs-comment,
-.preview .hljs-quote {
+.preview .hljs-quote,
+.editor-highlight .hljs-comment,
+.editor-highlight .hljs-quote {
   color: var(--syntax-comment);
   font-style: italic;
 }
 
 .preview .hljs-keyword,
 .preview .hljs-selector-tag,
-.preview .hljs-doctag {
+.preview .hljs-doctag,
+.editor-highlight .hljs-keyword,
+.editor-highlight .hljs-selector-tag,
+.editor-highlight .hljs-doctag {
   color: var(--syntax-keyword);
 }
 
 .preview .hljs-string,
 .preview .hljs-regexp,
 .preview .hljs-addition,
-.preview .hljs-attribute {
+.preview .hljs-attribute,
+.editor-highlight .md-data-uri {
+  display: inline;
+  padding: 0.05em 0.25em;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--chrome-focus, #4c8bf5) 16%, transparent);
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+.editor-highlight .hljs-string,
+.editor-highlight .hljs-regexp,
+.editor-highlight .hljs-addition,
+.editor-highlight .hljs-attribute {
   color: var(--syntax-string);
 }
 
 .preview .hljs-number,
 .preview .hljs-literal,
 .preview .hljs-variable,
-.preview .hljs-template-variable {
+.preview .hljs-template-variable,
+.editor-highlight .hljs-number,
+.editor-highlight .hljs-literal,
+.editor-highlight .hljs-variable,
+.editor-highlight .hljs-template-variable {
   color: var(--syntax-number);
 }
 
 .preview .hljs-built_in,
 .preview .hljs-builtin-name,
-.preview .hljs-symbol {
+.preview .hljs-symbol,
+.editor-highlight .hljs-built_in,
+.editor-highlight .hljs-builtin-name,
+.editor-highlight .hljs-symbol {
   color: var(--syntax-built-in);
 }
 
 .preview .hljs-type,
 .preview .hljs-class .hljs-title,
-.preview .hljs-title.class_ {
+.preview .hljs-title.class_,
+.editor-highlight .hljs-type,
+.editor-highlight .hljs-class .hljs-title,
+.editor-highlight .hljs-title.class_ {
   color: var(--syntax-type);
 }
 
@@ -1197,36 +1431,82 @@ mark.speech-word {
 .preview .hljs-selector-attr,
 .preview .hljs-selector-class,
 .preview .hljs-selector-id,
-.preview .hljs-name {
+.preview .hljs-name,
+.editor-highlight .hljs-attr,
+.editor-highlight .hljs-selector-attr,
+.editor-highlight .hljs-selector-class,
+.editor-highlight .hljs-selector-id,
+.editor-highlight .hljs-name {
   color: var(--syntax-attr);
 }
 
 .preview .hljs-title,
 .preview .hljs-section,
-.preview .hljs-function .hljs-title {
+.preview .hljs-function .hljs-title,
+.editor-highlight .hljs-title,
+.editor-highlight .hljs-section,
+.editor-highlight .hljs-function .hljs-title {
   color: var(--syntax-title);
 }
 
 .preview .hljs-meta,
 .preview .hljs-meta .hljs-keyword,
-.preview .hljs-meta .hljs-string {
+.preview .hljs-meta .hljs-string,
+.editor-highlight .hljs-meta,
+.editor-highlight .hljs-meta .hljs-keyword,
+.editor-highlight .hljs-meta .hljs-string {
   color: var(--syntax-meta);
 }
 
-.preview .hljs-deletion {
+.preview .hljs-deletion,
+.editor-highlight .hljs-deletion {
   color: var(--syntax-deletion);
 }
 
-.preview .hljs-addition {
+.preview .hljs-addition,
+.editor-highlight .hljs-addition {
   color: var(--syntax-addition);
 }
 
-.preview .hljs-emphasis {
+.preview .hljs-emphasis,
+.editor-highlight .hljs-emphasis {
   font-style: italic;
 }
 
-.preview .hljs-strong {
+.preview .hljs-strong,
+.editor-highlight .hljs-strong {
   font-weight: 700;
+}
+
+.editor-highlight .hljs-section {
+  color: var(--syntax-title);
+  font-weight: 600;
+}
+
+.editor-highlight .hljs-strong {
+  color: var(--syntax-keyword);
+}
+
+.editor-highlight .hljs-emphasis {
+  color: var(--syntax-built-in);
+}
+
+.editor-highlight .hljs-bullet {
+  color: var(--syntax-literal);
+  font-weight: 700;
+}
+
+.editor-highlight .hljs-code {
+  color: var(--syntax-string);
+}
+
+.editor-highlight .hljs-link,
+.editor-highlight .hljs-symbol {
+  color: var(--syntax-attr);
+}
+
+.editor-highlight .hljs-quote {
+  color: var(--syntax-comment);
 }
 
 .preview blockquote {
@@ -1234,6 +1514,76 @@ mark.speech-word {
   padding: 0.15em 0 0.15em 1em;
   border-left: 3px solid var(--preview-quote);
   color: var(--preview-muted);
+}
+
+.preview .markdown-alert {
+  margin: 1em 0;
+  padding: 0.5em 1em;
+  color: inherit;
+  border-left: 0.25em solid var(--preview-quote);
+}
+
+.preview .markdown-alert > :first-child {
+  margin-top: 0;
+}
+
+.preview .markdown-alert > :last-child {
+  margin-bottom: 0;
+}
+
+.preview .markdown-alert-title {
+  display: flex;
+  align-items: center;
+  margin-bottom: 0.25em;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.preview .markdown-alert-title .octicon {
+  margin-right: 0.5rem;
+  fill: currentColor;
+  overflow: visible;
+  vertical-align: text-bottom;
+}
+
+.preview .markdown-alert-note {
+  border-left-color: var(--alert-note);
+}
+
+.preview .markdown-alert-note .markdown-alert-title {
+  color: var(--alert-note);
+}
+
+.preview .markdown-alert-tip {
+  border-left-color: var(--alert-tip);
+}
+
+.preview .markdown-alert-tip .markdown-alert-title {
+  color: var(--alert-tip);
+}
+
+.preview .markdown-alert-important {
+  border-left-color: var(--alert-important);
+}
+
+.preview .markdown-alert-important .markdown-alert-title {
+  color: var(--alert-important);
+}
+
+.preview .markdown-alert-warning {
+  border-left-color: var(--alert-warning);
+}
+
+.preview .markdown-alert-warning .markdown-alert-title {
+  color: var(--alert-warning);
+}
+
+.preview .markdown-alert-caution {
+  border-left-color: var(--alert-caution);
+}
+
+.preview .markdown-alert-caution .markdown-alert-title {
+  color: var(--alert-caution);
 }
 
 .preview hr {
@@ -1313,6 +1663,111 @@ mark.speech-word {
   box-shadow: var(--chrome-shadow);
 }
 
+.update-toast {
+  position: fixed;
+  bottom: 1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 55;
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.45rem 0.45rem 0.45rem 0.85rem;
+  background: var(--toast-bg);
+  color: var(--toast-fg);
+  font-size: 0.8125rem;
+  border-radius: 8px;
+  box-shadow: var(--chrome-shadow);
+}
+
+.update-toast[hidden] {
+  display: none;
+}
+
+.update-toast .btn {
+  background: var(--chrome-surface);
+  color: var(--chrome-text);
+  border-color: var(--chrome-border);
+  min-height: 1.75rem;
+  padding: 0.2rem 0.65rem;
+  font-size: 0.75rem;
+}
+
+.update-toast .btn:hover {
+  background: var(--chrome-hover);
+}
+
+#install-btn[hidden] {
+  display: none !important;
+}
+
+/* Animated gradient border — https://ibelick.com/blog/create-animated-gradient-borders-with-css */
+@property --install-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+
+#install-btn:not([hidden]) {
+  border: 3px solid transparent;
+  border-radius: 6px;
+  color: var(--install-fg);
+  font-weight: 600;
+  background:
+    linear-gradient(var(--install-fill), var(--install-fill)) padding-box,
+    conic-gradient(
+        from var(--install-angle),
+        var(--install-grad-a),
+        var(--install-grad-b),
+        var(--install-grad-a)
+      )
+      border-box;
+  animation: install-border-spin 2.5s linear infinite;
+}
+
+#install-btn:not([hidden]):hover {
+  color: var(--install-fg);
+  background:
+    linear-gradient(var(--install-fill-hover), var(--install-fill-hover)) padding-box,
+    conic-gradient(
+        from var(--install-angle),
+        var(--install-grad-a),
+        var(--install-grad-b),
+        var(--install-grad-a)
+      )
+      border-box;
+}
+
+html[data-theme="salesforce"] #install-btn:not([hidden]) {
+  border-radius: var(--radius-sm);
+  border-color: transparent;
+  box-shadow: none;
+}
+
+html[data-theme="salesforce"] #install-btn:not([hidden]):hover {
+  border-color: transparent;
+}
+
+html[data-theme="fancy"] #install-btn:not([hidden]) {
+  border-radius: 8px;
+  border-color: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+@keyframes install-border-spin {
+  to {
+    --install-angle: 360deg;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #install-btn:not([hidden]) {
+    animation: none;
+    --install-angle: 135deg;
+  }
+}
+
 .photo-credit {
   display: none;
   position: fixed;
@@ -1346,6 +1801,51 @@ html[data-theme="fancy"] .photo-credit:not([hidden]) {
   display: block;
 }
 
+@media (max-width: 1100px) {
+  .select-caption,
+  .collapse-btn .btn-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  .select-label {
+    position: relative;
+  }
+
+  .brand-link {
+    display: none;
+  }
+}
+
+/* Keep a single toolbar row above the overflow breakpoint.
+   Fancy loses side margins, so compact earlier there too. */
+@media (max-width: 900px) {
+  html[data-theme="fancy"] {
+    --fancy-margin: 0.45rem;
+  }
+
+  .toolbar {
+    gap: 0.5rem;
+    padding-inline: 0.55rem;
+  }
+
+  .toolbar-actions,
+  .toolbar-cluster {
+    gap: 0.3rem;
+  }
+
+  .brand {
+    font-size: 0.875rem;
+  }
+}
+
 @media (max-width: 800px) {
   .toolbar {
     height: var(--toolbar-h);
@@ -1376,11 +1876,17 @@ html[data-theme="fancy"] .photo-credit:not([hidden]) {
     border: 1px solid var(--chrome-border);
     border-radius: 8px;
     box-shadow: var(--chrome-shadow, 0 8px 24px rgba(26, 29, 35, 0.12));
-    width: 100%;
   }
 
   .toolbar-menu.is-open .toolbar-actions {
     display: flex;
+  }
+
+  .toolbar-cluster {
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+    gap: 0.45rem;
   }
 
   .toolbar-actions .btn,
@@ -1400,6 +1906,20 @@ html[data-theme="fancy"] .photo-credit:not([hidden]) {
 
   .toolbar-actions .select-label {
     justify-content: space-between;
+  }
+
+  /* Restore captions inside the overflow panel so selects stay labeled. */
+  .toolbar-actions .select-caption,
+  .toolbar-actions .collapse-btn .btn-label {
+    position: static;
+    width: auto;
+    height: auto;
+    margin: 0;
+    padding: 0;
+    overflow: visible;
+    clip: unset;
+    clip-path: none;
+    white-space: nowrap;
   }
 
   .toolbar-actions .select-label select {
@@ -1435,8 +1955,9 @@ html[data-theme="fancy"] .photo-credit:not([hidden]) {
   }
 
   .panes {
+    --splitter-track: 10px;
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: minmax(0, var(--split, 50%)) 10px minmax(0, var(--split-rest, 50%));
+    grid-template-rows: minmax(0, var(--editor-track)) var(--splitter-track) minmax(0, var(--preview-track));
   }
 
   .splitter {
@@ -1452,14 +1973,382 @@ html[data-theme="fancy"] .photo-credit:not([hidden]) {
     border-right: 0;
     border-bottom: 0;
   }
+}
 
-  .panes.editor-collapsed {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: 0 0 minmax(0, 1fr);
+/* View modes: edit (default), reader, present */
+body[data-view="edit"] .reader-only {
+  display: none !important;
+}
+
+body[data-view="reader"] .authoring-only,
+body[data-view="present"] .authoring-only {
+  display: none !important;
+}
+
+body[data-view="reader"] .panes,
+body[data-view="present"] .panes {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+}
+
+body[data-view="reader"] .editor-pane,
+body[data-view="reader"] .splitter,
+body[data-view="present"] .editor-pane,
+body[data-view="present"] .splitter {
+  display: none;
+}
+
+body[data-view="reader"] .preview-pane,
+body[data-view="present"] .preview-pane {
+  border: 0;
+}
+
+body[data-view="reader"] .preview {
+  padding-top: 2rem;
+  padding-bottom: 3.5rem;
+}
+
+body[data-view="present"] .toolbar {
+  display: none;
+}
+
+body[data-view="present"] .preview-pane {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  background: var(--preview-bg, #fff);
+}
+
+body[data-view="present"] .preview {
+  flex: 1;
+  width: 100%;
+  max-width: min(52rem, 92vw);
+  margin: 0 auto;
+  padding: 2.5rem 1.5rem 5rem;
+  overflow: auto;
+}
+
+body[data-view="present"] .preview[data-width="full"] {
+  max-width: none;
+}
+
+body[data-view="present"] .preview > [hidden] {
+  display: none !important;
+}
+
+.present-chrome {
+  position: absolute;
+  left: 50%;
+  bottom: 1rem;
+  transform: translateX(-50%);
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.35rem 0.5rem;
+  background: color-mix(in srgb, var(--chrome-surface) 92%, transparent);
+  border: 1px solid var(--chrome-border);
+  border-radius: 999px;
+  box-shadow: var(--chrome-shadow, 0 8px 24px rgba(26, 29, 35, 0.12));
+  backdrop-filter: blur(12px);
+}
+
+.present-chrome[hidden] {
+  display: none !important;
+}
+
+.present-progress {
+  min-width: 3.5rem;
+  text-align: center;
+  font-size: 0.75rem;
+  color: var(--chrome-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+#share-menu li button,
+#export-menu li button {
+  display: block;
+  width: 100%;
+  padding: 0.45rem 0.55rem;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  font: inherit;
+  font-size: 0.8125rem;
+  text-align: left;
+  cursor: pointer;
+  color: var(--chrome-text);
+}
+
+#share-menu li button:hover,
+#share-menu li button:focus-visible,
+#export-menu li button:hover,
+#export-menu li button:focus-visible {
+  background: var(--chrome-hover);
+  outline: none;
+}
+
+@media print {
+  /* Force GitHub Light tokens even if data-theme was not swapped (e.g. some PDF tools).
+     Specificity matches html[data-theme="…"] so these win when printing. */
+  html[data-theme] {
+    --chrome-bg: #f6f7f9;
+    --chrome-surface: #ffffff;
+    --chrome-border: #d8dce3;
+    --chrome-text: #1a1d23;
+    --chrome-muted: #5c6570;
+    --chrome-hover: #e8ebf0;
+    --chrome-focus: #3b6fd9;
+    --chrome-pressed-border: #aeb6c2;
+    --chrome-shadow: 0 8px 24px rgba(26, 29, 35, 0.12);
+    --editor-bg: #ffffff;
+    --editor-text: #1a1d23;
+    --preview-bg: #ffffff;
+    --preview-fg: #1f2328;
+    --preview-muted: #656d76;
+    --preview-link: #0969da;
+    --preview-link-hover: #0550ae;
+    --preview-rule: #d1d9e0;
+    --preview-code-bg: #f6f8fa;
+    --preview-pre-bg: #f6f8fa;
+    --preview-pre-border: #d1d9e0;
+    --preview-quote: #d1d9e0;
+    --preview-font: var(--font-ui);
+    --preview-size: 1rem;
+    --heading-color: inherit;
+    --toast-bg: #1a1d23;
+    --toast-fg: #ffffff;
+    --color-scheme: light;
+    --syntax-comment: #6a737d;
+    --syntax-keyword: #d73a49;
+    --syntax-string: #032f62;
+    --syntax-number: #005cc5;
+    --syntax-literal: #005cc5;
+    --syntax-built-in: #e36209;
+    --syntax-type: #6f42c1;
+    --syntax-attr: #005cc5;
+    --syntax-title: #6f42c1;
+    --syntax-meta: #6a737d;
+    --syntax-deletion: #b31d28;
+    --syntax-addition: #22863a;
+    --mermaid-bg: #ffffff;
+    --mermaid-fg: #333333;
+    --mermaid-node-bg: #ececff;
+    --mermaid-node-border: #9370db;
+    --mermaid-cluster-bg: #ffffde;
+    --mermaid-cluster-border: #aaaa33;
+    --mermaid-line: #333333;
+    --mermaid-label-bg: #e8e8e8;
+    --mermaid-note-bg: #fff5ad;
   }
 
-  .panes.preview-collapsed {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: minmax(0, 1fr) 0 0;
+  html,
+  body {
+    background: #fff !important;
+    background-image: none !important;
+    color: #1f2328 !important;
+    height: auto !important;
+    display: block !important;
+  }
+
+  .toolbar,
+  .splitter,
+  .editor-pane,
+  .drop-overlay,
+  .toast,
+  .update-toast,
+  .photo-credit,
+  .present-chrome,
+  .overflow-btn,
+  .authoring-only,
+  .reader-only,
+  .reader-visible,
+  #speak-dropdown,
+  #share-dropdown,
+  #export-dropdown,
+  #install-btn,
+  #toolbar-menu {
+    display: none !important;
+  }
+
+  .panes,
+  .preview-pane {
+    display: block !important;
+    height: auto !important;
+    overflow: visible !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    filter: none !important;
+  }
+
+  .preview {
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    color: var(--preview-fg) !important;
+    background: #fff !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+    filter: none !important;
+    font-family: var(--preview-font) !important;
+    font-size: var(--preview-size) !important;
+  }
+
+  .preview > [hidden] {
+    display: revert !important;
+  }
+
+  .preview a {
+    color: var(--preview-link) !important;
+    font-weight: inherit !important;
+    text-decoration: underline;
+  }
+
+  /* Neutralize theme-specific preview chrome (Salesforce / Fancy) */
+  .preview h1,
+  .preview h2 {
+    border-bottom-color: var(--preview-rule) !important;
+  }
+
+  .preview blockquote {
+    background: transparent !important;
+    border-left: 3px solid var(--preview-quote) !important;
+    border-radius: 0 !important;
+    padding: 0.15em 0 0.15em 1em !important;
+    color: var(--preview-muted) !important;
+  }
+
+  .preview .markdown-alert {
+    background: transparent !important;
+    border-left: 0.25em solid var(--preview-quote) !important;
+    color: inherit !important;
+  }
+
+  .preview .markdown-alert-note {
+    border-left-color: var(--alert-note) !important;
+  }
+
+  .preview .markdown-alert-tip {
+    border-left-color: var(--alert-tip) !important;
+  }
+
+  .preview .markdown-alert-important {
+    border-left-color: var(--alert-important) !important;
+  }
+
+  .preview .markdown-alert-warning {
+    border-left-color: var(--alert-warning) !important;
+  }
+
+  .preview .markdown-alert-caution {
+    border-left-color: var(--alert-caution) !important;
+  }
+
+  .preview .markdown-alert-note .markdown-alert-title {
+    color: var(--alert-note) !important;
+  }
+
+  .preview .markdown-alert-tip .markdown-alert-title {
+    color: var(--alert-tip) !important;
+  }
+
+  .preview .markdown-alert-important .markdown-alert-title {
+    color: var(--alert-important) !important;
+  }
+
+  .preview .markdown-alert-warning .markdown-alert-title {
+    color: var(--alert-warning) !important;
+  }
+
+  .preview .markdown-alert-caution .markdown-alert-title {
+    color: var(--alert-caution) !important;
+  }
+
+  .preview pre,
+  .preview pre code {
+    color: inherit !important;
+  }
+
+  .preview code:not(pre code) {
+    color: inherit !important;
+    background: var(--preview-code-bg) !important;
+    border-radius: 3px !important;
+  }
+
+  .preview pre {
+    background: var(--preview-pre-bg) !important;
+    border: 1px solid var(--preview-pre-border) !important;
+    border-radius: 6px !important;
+  }
+
+  .preview .line-num {
+    position: static;
+    white-space: nowrap;
+    background: var(--preview-pre-bg) !important;
+    border-right-color: var(--preview-pre-border) !important;
+    color: var(--syntax-comment) !important;
+  }
+
+  .preview pre,
+  .preview blockquote,
+  .preview .markdown-alert,
+  .preview table {
+    break-inside: avoid;
+  }
+
+  .preview pre,
+  .preview pre code {
+    overflow: visible !important;
+    white-space: pre-wrap !important;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  .preview pre code {
+    grid-template-columns: max-content minmax(0, 1fr);
+  }
+
+  .preview .line-src {
+    min-width: 0;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  .preview table {
+    display: table !important;
+    overflow: visible !important;
+    width: 100% !important;
+  }
+
+  .preview h1,
+  .preview h2,
+  .preview h3,
+  .preview h4 {
+    break-after: avoid;
+  }
+
+  .preview img,
+  .preview .mermaid {
+    break-inside: avoid;
+    max-width: 100% !important;
+    overflow: visible !important;
+  }
+
+  .preview .mermaid,
+  .preview .mermaid svg {
+    background: var(--mermaid-bg) !important;
+    background-color: var(--mermaid-bg) !important;
+    filter: none !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
 }

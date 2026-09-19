@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="github-light">
+<html lang="en" data-theme="github-light" class="is-booting">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -18,6 +18,7 @@
     content="Paste or upload Markdown and see a live HTML preview in your browser."
   />
   <meta property="og:url" content="https://dev.ericperret.org/markdown/" />
+  <meta property="og:type" content="website" />
   <meta
     property="og:image"
     content="https://dev.ericperret.org/markdown/og-image.png"
@@ -38,21 +39,42 @@
     content="https://dev.ericperret.org/markdown/og-image.png"
   />
   <meta name="theme-color" content="#0d1117" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Markdown" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="icon-192.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png" />
+  <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png" />
   <script>
     (function () {
       try {
+        var THEMES = {
+          "github-light": 1,
+          "github-dark": 1,
+          sepia: 1,
+          terminal: 1,
+          salesforce: 1,
+          fancy: 1,
+        };
+        var urlTheme = null;
+        try {
+          var hash = window.location.hash.slice(1);
+          if (hash) urlTheme = new URLSearchParams(hash).get("theme");
+          if (!urlTheme) urlTheme = new URLSearchParams(window.location.search).get("theme");
+        } catch (e) {
+          /* ignore */
+        }
         var saved = localStorage.getItem("md-preview:theme");
         var theme =
-          saved === "github-light" ||
-          saved === "github-dark" ||
-          saved === "sepia" ||
-          saved === "terminal" ||
-          saved === "salesforce" ||
-          saved === "fancy"
-            ? saved
-            : window.matchMedia("(prefers-color-scheme: dark)").matches
-              ? "github-dark"
-              : "github-light";
+          urlTheme && THEMES[urlTheme]
+            ? urlTheme
+            : saved && THEMES[saved]
+              ? saved
+              : window.matchMedia("(prefers-color-scheme: dark)").matches
+                ? "github-dark"
+                : "github-light";
         document.documentElement.setAttribute("data-theme", theme);
       } catch (e) {
         document.documentElement.setAttribute("data-theme", "github-light");
@@ -78,28 +100,191 @@
     integrity="sha384-oLdnQ1gMzlJ7B7Z/Z6BN+THM/9f4ttUFMNj67N4+UMLwJsyWeY6FrmRd/9UWYjdt"
     crossorigin="anonymous"
   />
+  <link
+    rel="modulepreload"
+    href="https://cdn.jsdelivr.net/npm/gemoji@8.1.0/+esm"
+    integrity="sha384-BxixXuX+Sw/FKnMEyJ+uFfpzgLCYpImf3Wks5yu6wYrASvTTUe4lmI+mXE9kKdAL"
+    crossorigin="anonymous"
+  />
   <script type="importmap">
   {
     "imports": {
       "marked": "https://cdn.jsdelivr.net/npm/marked@15.0.7/lib/marked.esm.js",
       "dompurify": "https://cdn.jsdelivr.net/npm/dompurify@3.2.4/dist/purify.es.mjs",
-      "highlight.js": "https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.11.1/es/highlight.min.js"
+      "highlight.js": "https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.11.1/es/highlight.min.js",
+      "gemoji": "https://cdn.jsdelivr.net/npm/gemoji@8.1.0/+esm"
     },
     "integrity": {
       "https://cdn.jsdelivr.net/npm/marked@15.0.7/lib/marked.esm.js": "sha384-NpOwQJGB5x/x3LzpCM0reBj1wPu7ywvPZAm0T+dZA4G0cFx9ZQlFiDt8BcEOz0Xy",
       "https://cdn.jsdelivr.net/npm/dompurify@3.2.4/dist/purify.es.mjs": "sha384-RCEh+A7Akp5nl/99z2StbCeVB26UcpvmsSBWlqw8EptGxUSmQgFsdbJKk1jVbsKL",
-      "https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.11.1/es/highlight.min.js": "sha384-oLdnQ1gMzlJ7B7Z/Z6BN+THM/9f4ttUFMNj67N4+UMLwJsyWeY6FrmRd/9UWYjdt"
+      "https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.11.1/es/highlight.min.js": "sha384-oLdnQ1gMzlJ7B7Z/Z6BN+THM/9f4ttUFMNj67N4+UMLwJsyWeY6FrmRd/9UWYjdt",
+      "https://cdn.jsdelivr.net/npm/gemoji@8.1.0/+esm": "sha384-BxixXuX+Sw/FKnMEyJ+uFfpzgLCYpImf3Wks5yu6wYrASvTTUe4lmI+mXE9kKdAL"
     }
   }
   </script>
 </head>
-<body>
+<body data-view="edit">
   <header class="toolbar">
     <div class="brand-group">
       <h1 class="brand">Markdown Preview</h1>
       <a class="brand-link" href="https://www.ericperret.org" target="_blank" rel="noopener">ericperret.org</a>
     </div>
     <div class="toolbar-menu" id="toolbar-menu">
+      <div class="toolbar-actions" id="toolbar-actions">
+        <div class="toolbar-cluster toolbar-secondary" id="toolbar-secondary">
+          <label class="btn file-btn svg-btn authoring-only" title="Upload">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+              <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" />
+              <path d="M14 2v4a2 2 0 0 0 2 2h4" />
+              <path d="M12 12v6" />
+              <path d="M9 15l3-3 3 3" />
+            </svg>
+            <input
+              type="file"
+              id="file-input"
+              aria-label="Upload"
+              accept=".md,.markdown,.txt,text/markdown,text/plain"
+              hidden
+            />
+          </label>
+          <div class="dropdown authoring-only" id="history-dropdown">
+            <button type="button" class="btn svg-btn" id="history-btn" title="History" aria-label="History" aria-haspopup="listbox" aria-expanded="false">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                <path d="M3 3v5h5" />
+                <path d="M12 7v5l4 2" />
+              </svg>
+            </button>
+            <ul class="dropdown-menu" id="history-menu" role="listbox" hidden></ul>
+          </div>
+        </div>
+        <div class="toolbar-cluster toolbar-primary">
+          <label class="select-label">
+            <span class="select-caption">Theme</span>
+            <select id="theme-select" aria-label="Theme">
+              <option value="github-light">GitHub Light</option>
+              <option value="github-dark">GitHub Dark</option>
+              <option value="sepia">Sepia</option>
+              <option value="terminal">Terminal</option>
+              <option value="salesforce">Salesforce Cosmos</option>
+              <option value="fancy">Fancy</option>
+            </select>
+          </label>
+          <label class="select-label reader-visible">
+            <span class="select-caption">Width</span>
+            <select id="width-select" aria-label="Preview width">
+              <option value="readable">Readable</option>
+              <option value="full">Full</option>
+            </select>
+          </label>
+          <div class="dropdown" id="share-dropdown">
+            <button type="button" class="btn svg-btn" id="share-btn" title="Copy reader link" aria-label="Copy reader link" aria-haspopup="menu" aria-expanded="false" aria-controls="share-menu">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+              </svg>
+            </button>
+            <ul class="dropdown-menu" id="share-menu" role="menu" hidden>
+              <li>
+                <button type="button" role="menuitem" id="share-reader-btn">Copy reader link</button>
+              </li>
+              <li>
+                <button type="button" role="menuitem" id="share-present-btn">Copy present link</button>
+              </li>
+            </ul>
+          </div>
+          <div class="dropdown" id="export-dropdown">
+            <button type="button" class="btn svg-btn" id="export-btn" title="Export" aria-label="Export" aria-haspopup="menu" aria-expanded="false" aria-controls="export-menu">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" x2="12" y1="15" y2="3" />
+              </svg>
+            </button>
+            <ul class="dropdown-menu" id="export-menu" role="menu" hidden>
+              <li>
+                <button type="button" role="menuitem" data-export="html">Export as HTML</button>
+              </li>
+              <li>
+                <button type="button" role="menuitem" data-export="pdf">Export as PDF…</button>
+              </li>
+              <li>
+                <button type="button" role="menuitem" data-export="markdown">Export as Markdown</button>
+              </li>
+              <li>
+                <button type="button" role="menuitem" data-export="docx">Export as DOCX</button>
+              </li>
+              <li>
+                <button type="button" role="menuitem" data-export="rtf">Export as RTF</button>
+              </li>
+            </ul>
+          </div>
+          <div class="dropdown split-btn" id="speak-dropdown" hidden>
+            <div class="split-btn-group" role="group" aria-label="Read aloud">
+              <button type="button" class="btn svg-btn speak-btn split-btn-main" id="speak-btn" title="Read aloud" aria-label="Read aloud" aria-pressed="false">
+                <svg class="icon-speak" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                  <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+                  <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+                </svg>
+                <svg class="icon-stop" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                  <rect x="6" y="6" width="12" height="12" rx="1" />
+                </svg>
+              </button>
+              <button type="button" class="btn svg-btn speak-pause-btn split-btn-pause" id="speak-pause-btn" title="Pause" aria-label="Pause" aria-pressed="false" disabled>
+                <svg class="icon-pause" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                  <rect x="6" y="4" width="4" height="16" />
+                  <rect x="14" y="4" width="4" height="16" />
+                </svg>
+                <svg class="icon-resume" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                  <polygon points="6 3 20 12 6 21 6 3" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                class="btn svg-btn split-btn-toggle"
+                id="voice-menu-btn"
+                title="Choose voice"
+                aria-label="Choose voice"
+                aria-haspopup="listbox"
+                aria-expanded="false"
+                aria-controls="voice-menu"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                  <path d="m6 9 6 6 6-6" />
+                </svg>
+              </button>
+            </div>
+            <ul class="dropdown-menu" id="voice-menu" role="listbox" hidden></ul>
+          </div>
+          <button type="button" class="btn reader-only" id="edit-view-btn" title="Open in editor">Edit</button>
+          <button type="button" class="btn reader-visible" id="present-view-btn" title="Present">Present</button>
+          <button type="button" class="btn svg-btn reader-visible" id="print-btn" title="Print" aria-label="Print">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+              <polyline points="6 9 6 2 18 2 18 9" />
+              <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+              <rect x="6" y="14" width="12" height="8" />
+            </svg>
+          </button>
+          <button type="button" class="btn svg-btn authoring-only" id="sync-scroll-btn" title="Sync scroll" aria-label="Sync scroll" aria-pressed="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+              <rect x="2" y="3" width="8" height="18" rx="1" />
+              <rect x="14" y="3" width="8" height="18" rx="1" />
+              <path d="M6 8v8" />
+              <path d="M4.5 9.5 6 8l1.5 1.5" />
+              <path d="M4.5 14.5 6 16l1.5-1.5" />
+              <path d="M18 8v8" />
+              <path d="M16.5 9.5 18 8l1.5 1.5" />
+              <path d="M16.5 14.5 18 16l1.5-1.5" />
+            </svg>
+          </button>
+          <button type="button" class="btn collapse-btn authoring-only" id="collapse-editor" title="Collapse editor" aria-pressed="false"><span class="arrow side-collapse">◀</span><span class="arrow side-expand">▶</span><span class="arrow stacked-collapse">▲</span><span class="arrow stacked-expand">▼</span><span class="btn-label"> Editor</span></button>
+          <button type="button" class="btn collapse-btn authoring-only" id="collapse-preview" title="Collapse preview" aria-pressed="false"><span class="arrow side-collapse">▶</span><span class="arrow side-expand">◀</span><span class="arrow stacked-collapse">▼</span><span class="arrow stacked-expand">▲</span><span class="btn-label"> Preview</span></button>
+        </div>
+      </div>
+      <button type="button" class="btn" id="install-btn" title="Install app" aria-label="Install app" hidden>
+        Install
+      </button>
       <button
         type="button"
         class="btn icon-btn overflow-btn"
@@ -117,108 +302,20 @@
           <span class="circle"></span>
         </span>
       </button>
-      <div class="toolbar-actions" id="toolbar-actions">
-        <label class="btn file-btn svg-btn" title="Upload">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
-            <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" />
-            <path d="M14 2v4a2 2 0 0 0 2 2h4" />
-            <path d="M12 12v6" />
-            <path d="M9 15l3-3 3 3" />
-          </svg>
-          <input
-            type="file"
-            id="file-input"
-            aria-label="Upload"
-            accept=".md,.markdown,.txt,text/markdown,text/plain"
-            hidden
-          />
-        </label>
-        <div class="dropdown" id="history-dropdown">
-          <button type="button" class="btn svg-btn" id="history-btn" title="History" aria-label="History" aria-haspopup="listbox" aria-expanded="false">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
-              <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
-              <path d="M3 3v5h5" />
-              <path d="M12 7v5l4 2" />
-            </svg>
-          </button>
-          <ul class="dropdown-menu" id="history-menu" role="listbox" hidden></ul>
-        </div>
-        <label class="select-label">
-          Theme
-          <select id="theme-select" aria-label="Theme">
-            <option value="github-light">GitHub Light</option>
-            <option value="github-dark">GitHub Dark</option>
-            <option value="sepia">Sepia</option>
-            <option value="terminal">Terminal</option>
-            <option value="salesforce">Salesforce Cosmos</option>
-            <option value="fancy">Fancy</option>
-          </select>
-        </label>
-        <label class="select-label">
-          Width
-          <select id="width-select" aria-label="Preview width">
-            <option value="readable">Readable</option>
-            <option value="full">Full</option>
-          </select>
-        </label>
-        <button type="button" class="btn svg-btn" id="share-btn" title="Copy share URL" aria-label="Copy share URL">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
-            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
-            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
-          </svg>
-        </button>
-        <div class="dropdown split-btn" id="speak-dropdown" hidden>
-          <div class="split-btn-group" role="group" aria-label="Read aloud">
-            <button type="button" class="btn svg-btn speak-btn split-btn-main" id="speak-btn" title="Read aloud" aria-label="Read aloud" aria-pressed="false">
-              <svg class="icon-speak" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
-                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-                <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
-                <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
-              </svg>
-              <svg class="icon-stop" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
-                <rect x="6" y="6" width="12" height="12" rx="1" />
-              </svg>
-            </button>
-            <button type="button" class="btn svg-btn speak-pause-btn split-btn-pause" id="speak-pause-btn" title="Pause" aria-label="Pause" aria-pressed="false" disabled>
-              <svg class="icon-pause" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
-                <rect x="6" y="4" width="4" height="16" />
-                <rect x="14" y="4" width="4" height="16" />
-              </svg>
-              <svg class="icon-resume" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
-                <polygon points="6 3 20 12 6 21 6 3" />
-              </svg>
-            </button>
-            <button
-              type="button"
-              class="btn svg-btn split-btn-toggle"
-              id="voice-menu-btn"
-              title="Choose voice"
-              aria-label="Choose voice"
-              aria-haspopup="listbox"
-              aria-expanded="false"
-              aria-controls="voice-menu"
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
-                <path d="m6 9 6 6 6-6" />
-              </svg>
-            </button>
-          </div>
-          <ul class="dropdown-menu" id="voice-menu" role="listbox" hidden></ul>
-        </div>
-        <button type="button" class="btn collapse-btn" id="collapse-editor" title="Collapse editor" aria-pressed="false"><span class="arrow side-collapse">◀</span><span class="arrow side-expand">▶</span><span class="arrow stacked-collapse">▲</span><span class="arrow stacked-expand">▼</span> Editor</button>
-        <button type="button" class="btn collapse-btn" id="collapse-preview" title="Collapse preview" aria-pressed="false"><span class="arrow side-collapse">▶</span><span class="arrow side-expand">◀</span><span class="arrow stacked-collapse">▼</span><span class="arrow stacked-expand">▲</span> Preview</button>
-      </div>
     </div>
   </header>
 
   <main class="panes" id="panes">
     <section class="pane editor-pane" id="editor-pane" aria-label="Markdown editor">
-      <textarea
-        id="editor"
-        spellcheck="false"
-        placeholder="Paste or type Markdown here…"
-        aria-label="Markdown source"
-      ></textarea>
+      <div class="editor-wrap">
+        <pre class="editor-highlight" id="editor-highlight" aria-hidden="true"><code></code></pre>
+        <textarea
+          id="editor"
+          spellcheck="false"
+          placeholder="Paste Markdown or an image…"
+          aria-label="Markdown source"
+        ></textarea>
+      </div>
     </section>
     <div
       class="splitter"
@@ -230,6 +327,12 @@
     ></div>
     <section class="pane preview-pane" id="preview-pane" aria-label="Rendered preview">
       <article class="preview" id="preview"></article>
+      <div class="present-chrome" id="present-chrome" hidden>
+        <button type="button" class="btn" id="present-prev-btn" title="Previous section" aria-label="Previous section">←</button>
+        <div class="present-progress" id="present-progress" aria-live="polite"></div>
+        <button type="button" class="btn" id="present-next-btn" title="Next section" aria-label="Next section">→</button>
+        <button type="button" class="btn" id="present-exit-btn" title="Exit present mode">Exit</button>
+      </div>
     </section>
   </main>
 
@@ -238,6 +341,11 @@
   </div>
 
   <div class="toast" id="toast" hidden role="status"></div>
+
+  <div class="update-toast" id="update-toast" hidden role="status">
+    <span>Update available</span>
+    <button type="button" class="btn" id="update-reload-btn">Reload</button>
+  </div>
 
   <p class="photo-credit" id="photo-credit" hidden>
     Photo by

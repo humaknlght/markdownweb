@@ -16,6 +16,13 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { inlineScriptHashes, buildScriptSrc } from "./csp.mjs";
+import {
+  CDN_PRECACHE,
+  ICON_FILES,
+  buildManifest,
+  buildServiceWorker,
+  precacheVersion,
+} from "./pwa.mjs";
 
 const zopfliGzipAsync = promisify(zopfliGzip);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -23,7 +30,7 @@ const root = path.resolve(__dirname, "..");
 const srcDir = path.join(root, "src");
 const distDir = path.join(root, "dist");
 
-const COMPRESS_EXTENSIONS = new Set([".html", ".css", ".js"]);
+const COMPRESS_EXTENSIONS = new Set([".html", ".css", ".js", ".webmanifest"]);
 const SCRIPT_SRC_PLACEHOLDER = "__SCRIPT_SRC__";
 
 function formatBytes(bytes) {
@@ -97,6 +104,29 @@ async function buildOgImage() {
   return { before, after: buffer.length, name, hash };
 }
 
+async function buildIcons() {
+  const results = [];
+  for (const base of ["icon-192", "icon-512"]) {
+    const input = path.join(srcDir, `${base}.png`);
+    const before = await fileSize(input);
+    if (!before) {
+      throw new Error(`Missing PWA icon: src/${base}.png`);
+    }
+    const buffer = await readFile(input);
+    const hash = contentHash(buffer);
+    const name = hashedName(base, ".png", hash);
+    await writeFile(path.join(distDir, name), buffer);
+    results.push({
+      name,
+      base: `${base}.png`,
+      bytes: buffer.length,
+      before,
+      hash,
+    });
+  }
+  return results;
+}
+
 async function buildCss(fancyFileName) {
   let css = await readFile(path.join(srcDir, "styles.css"), "utf8");
   css = css.replaceAll("url(\"fancy.jpg\")", `url("${fancyFileName}")`);
@@ -127,7 +157,7 @@ async function buildJs() {
     legalComments: "none",
     treeShaking: true,
     metafile: true,
-    external: ["marked", "dompurify", "highlight.js"],
+    external: ["marked", "dompurify", "highlight.js", "gemoji"],
   });
 
   const output = result.outputFiles[0];
@@ -140,11 +170,13 @@ async function buildJs() {
   return { bytes: buffer.length, name, hash, chunks: [], bundledInputs };
 }
 
-async function buildHtml({ cssName, jsName, ogImageName }) {
+async function buildHtml({ cssName, jsName, ogImageName, icon192Name, icon512Name }) {
   let html = await readFile(path.join(srcDir, "index.html"), "utf8");
   html = html.replace(/href="styles\.css"/, `href="${cssName}"`);
   html = html.replace(/src="app\.js"/, `src="${jsName}"`);
   html = html.replaceAll("og-image.png", ogImageName);
+  html = html.replaceAll("icon-192.png", icon192Name);
+  html = html.replaceAll("icon-512.png", icon512Name);
 
   const minified = await minifyHtml(html, {
     collapseBooleanAttributes: true,
@@ -173,6 +205,53 @@ async function buildHtml({ cssName, jsName, ogImageName }) {
     scriptSrc: buildScriptSrc(hashes),
     hashes,
   };
+}
+
+async function buildPwa({ cssName, jsName, fancyName, iconResults }) {
+  const icon192 = iconResults.find((icon) => icon.base === "icon-192.png");
+  const icon512 = iconResults.find((icon) => icon.base === "icon-512.png");
+  const iconNames = {
+    icon192: `./${icon192.name}`,
+    icon512: `./${icon512.name}`,
+  };
+  const localPrecache = [
+    "./",
+    "./index.html",
+    `./${cssName}`,
+    `./${jsName}`,
+    `./${fancyName}`,
+    "./manifest.webmanifest",
+    iconNames.icon192,
+    iconNames.icon512,
+  ];
+  const precacheUrls = [...localPrecache, ...CDN_PRECACHE];
+  const version = precacheVersion(precacheUrls);
+
+  const manifest = buildManifest(iconNames);
+  await writeFile(path.join(distDir, "manifest.webmanifest"), manifest);
+  // Keep src copies in sync for `npm run dev`.
+  await writeFile(path.join(srcDir, "manifest.webmanifest"), manifest);
+
+  const sw = buildServiceWorker({ precacheUrls, version });
+  await writeFile(path.join(distDir, "sw.js"), sw);
+  await writeFile(
+    path.join(srcDir, "sw.js"),
+    buildServiceWorker({
+      precacheUrls: [
+        "./",
+        "./index.html",
+        "./styles.css",
+        "./app.js",
+        "./fancy.jpg",
+        "./manifest.webmanifest",
+        ...ICON_FILES.map((name) => `./${name}`),
+        ...CDN_PRECACHE,
+      ],
+      version: `dev-${version}`,
+    })
+  );
+
+  return { version, precacheCount: precacheUrls.length, icons: iconResults };
 }
 
 async function precompressAssets() {
@@ -230,12 +309,23 @@ async function main() {
 
   const image = await optimizeImage();
   const ogImage = await buildOgImage();
+  const icons = await buildIcons();
   const css = await buildCss(image.name);
   const js = await buildJs();
+  const icon192 = icons.find((icon) => icon.base === "icon-192.png");
+  const icon512 = icons.find((icon) => icon.base === "icon-512.png");
   const html = await buildHtml({
     cssName: css.name,
     jsName: js.name,
     ogImageName: ogImage.name,
+    icon192Name: icon192.name,
+    icon512Name: icon512.name,
+  });
+  const pwa = await buildPwa({
+    cssName: css.name,
+    jsName: js.name,
+    fancyName: image.name,
+    iconResults: icons,
   });
   await writeApacheConfig(html.scriptSrc);
   const compressed = await precompressAssets();
@@ -255,6 +345,13 @@ async function main() {
   console.log(
     `  ${ogImage.name.padEnd(22)} ${formatBytes(ogImage.after)}  (from ${formatBytes(ogImage.before)})`
   );
+  for (const icon of icons) {
+    console.log(
+      `  ${icon.name.padEnd(22)} ${formatBytes(icon.bytes)}  (from ${formatBytes(icon.before)})`
+    );
+  }
+  console.log(`  manifest.webmanifest`);
+  console.log(`  sw.js                  cache ${pwa.version} (${pwa.precacheCount} urls)`);
   console.log(`\nCSP script-src: ${html.scriptSrc}`);
   console.log("\nPrecompressed (zopfli gzip + brotli)");
   for (const item of compressed) {

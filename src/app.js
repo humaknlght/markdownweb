@@ -1,4 +1,16 @@
-import { marked } from "marked";
+import { alertExtension } from "./alert.js";
+import { emojiExtension } from "./emoji.js";
+import {
+  buildDocxBlob,
+  buildHtmlDocument,
+  buildMarkdownFile,
+  buildRtfDocument,
+  cleanPreviewHtml,
+  downloadBlob,
+  exportBasename,
+  printPreviewAsPdf,
+} from "./export.js";
+import { marked, Renderer } from "marked";
 import DOMPurify from "dompurify";
 import hljs from "highlight.js";
 
@@ -11,6 +23,7 @@ const STORAGE_KEYS = {
   split: "md-preview:split",
   width: "md-preview:width",
   voice: "md-preview:voice",
+  syncScroll: "md-preview:sync-scroll",
 };
 
 const HISTORY_LIMIT = 20;
@@ -20,19 +33,43 @@ const HISTORY_DEBOUNCE_MS = 1000;
 const SPLIT_MIN = 15;
 const SPLIT_MAX = 85;
 const AUTO_HIGHLIGHT_MAX = 8_000;
+const EDITOR_HIGHLIGHT_MAX = 100_000;
 const NARROW_MQ = "(max-width: 800px)";
 const TEXT_FILE_RE = /\.(md|markdown|mdown|mkd|txt)$/i;
+const IMAGE_MIME_RE = /^image\/(png|jpe?g|gif|webp|bmp|svg\+xml)$/i;
+/** Raw clipboard image size cap before base64 (keeps drafts / history workable). */
+const IMAGE_PASTE_MAX_BYTES = 2 * 1024 * 1024;
+/** Collapse data-URI images longer than this into a one-line editor token. */
+const DATA_URI_COLLAPSE_MIN = 64;
+const DATA_URI_IMG_RE =
+  /!\[([^\]]*)\]\((data:image\/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/=\s]+)\)/gi;
+/** Truncated editor form: `![alt](data:image/png;base64,iVBORw0KGgo…#3)` */
+const EMBED_IMG_RE =
+  /!\[([^\]]*)\]\(data:image\/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/]*…#(\d+)\)/g;
 const THEMES = ["github-light", "github-dark", "sepia", "terminal", "salesforce", "fancy"];
 const WIDTHS = ["readable", "full"];
+const VIEWS = ["edit", "reader", "present"];
 
 const editor = document.getElementById("editor");
+const editorHighlight = document.getElementById("editor-highlight");
+const editorHighlightCode = editorHighlight.querySelector("code");
+/** @type {Map<number, string>} */
+const imageEmbeds = new Map();
+let nextEmbedId = 1;
 const preview = document.getElementById("preview");
 const panes = document.getElementById("panes");
 const splitter = document.getElementById("splitter");
 const themeSelect = document.getElementById("theme-select");
 const widthSelect = document.getElementById("width-select");
 const fileInput = document.getElementById("file-input");
+const shareDropdown = document.getElementById("share-dropdown");
 const shareBtn = document.getElementById("share-btn");
+const shareMenu = document.getElementById("share-menu");
+const shareReaderBtn = document.getElementById("share-reader-btn");
+const sharePresentBtn = document.getElementById("share-present-btn");
+const exportDropdown = document.getElementById("export-dropdown");
+const exportBtn = document.getElementById("export-btn");
+const exportMenu = document.getElementById("export-menu");
 const speakDropdown = document.getElementById("speak-dropdown");
 const speakBtn = document.getElementById("speak-btn");
 const speakPauseBtn = document.getElementById("speak-pause-btn");
@@ -40,6 +77,8 @@ const voiceMenuBtn = document.getElementById("voice-menu-btn");
 const voiceMenu = document.getElementById("voice-menu");
 const collapseEditorBtn = document.getElementById("collapse-editor");
 const collapsePreviewBtn = document.getElementById("collapse-preview");
+const syncScrollBtn = document.getElementById("sync-scroll-btn");
+const previewPane = document.getElementById("preview-pane");
 const historyBtn = document.getElementById("history-btn");
 const historyMenu = document.getElementById("history-menu");
 const historyDropdown = document.getElementById("history-dropdown");
@@ -48,13 +87,313 @@ const overflowBtn = document.getElementById("overflow-btn");
 const toastEl = document.getElementById("toast");
 const dropOverlay = document.getElementById("drop-overlay");
 const photoCredit = document.getElementById("photo-credit");
+const editViewBtn = document.getElementById("edit-view-btn");
+const presentViewBtn = document.getElementById("present-view-btn");
+const printBtn = document.getElementById("print-btn");
+const presentChrome = document.getElementById("present-chrome");
+const presentPrevBtn = document.getElementById("present-prev-btn");
+const presentNextBtn = document.getElementById("present-next-btn");
+const presentExitBtn = document.getElementById("present-exit-btn");
+const presentProgress = document.getElementById("present-progress");
+const installBtn = document.getElementById("install-btn");
+const updateToast = document.getElementById("update-toast");
+const updateReloadBtn = document.getElementById("update-reload-btn");
 
 const speechSupported = typeof window.SpeechSynthesisUtterance !== "undefined";
+
+function isStandaloneDisplay() {
+  return (
+    window.matchMedia("(display-mode: standalone)").matches ||
+    window.navigator.standalone === true
+  );
+}
+
+// Capture beforeinstallprompt as early as possible. ES modules often run after
+// `load`, and Chrome may fire BIP before init() wires listeners.
+let deferredInstallPrompt = null;
+window.addEventListener("beforeinstallprompt", (event) => {
+  event.preventDefault();
+  deferredInstallPrompt = event;
+  if (installBtn && !isStandaloneDisplay()) {
+    installBtn.hidden = false;
+  }
+});
+window.addEventListener("appinstalled", () => {
+  deferredInstallPrompt = null;
+  if (installBtn) installBtn.hidden = true;
+  showToast("App installed");
+});
 
 marked.setOptions({
   gfm: true,
   breaks: false,
 });
+
+marked.use(emojiExtension());
+marked.use(alertExtension());
+
+let editorHighlightRaf = 0;
+
+function updateEditorHighlight() {
+  const value = editor.value;
+  let html = "";
+  if (value) {
+    if (value.length > EDITOR_HIGHLIGHT_MAX) {
+      html = escapeHtml(value);
+    } else {
+      try {
+        html = hljs.highlight(value, { language: "markdown", ignoreIllegals: true }).value;
+      } catch {
+        html = escapeHtml(value);
+      }
+    }
+  }
+  // Trailing newline keeps the highlight layer height aligned with the textarea.
+  editorHighlightCode.innerHTML = `${decorateEmbedTokens(html)}\n`;
+  syncEditorHighlightScroll();
+}
+
+/** Mark collapsed data-URI tokens so they read as a single truncated chip. */
+function decorateEmbedTokens(html) {
+  return html.replace(
+    /(data:image\/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/]*…#\d+)/g,
+    '<span class="md-data-uri">$1</span>',
+  );
+}
+
+function scheduleEditorHighlight() {
+  if (editorHighlightRaf) return;
+  editorHighlightRaf = requestAnimationFrame(() => {
+    editorHighlightRaf = 0;
+    updateEditorHighlight();
+  });
+}
+
+function syncEditorHighlightScroll() {
+  // Match the textarea content box so wrapping stays aligned when a scrollbar
+  // occupies space (non-overlay scrollbars on Windows/Linux).
+  const dx = editor.offsetWidth - editor.clientWidth;
+  const dy = editor.offsetHeight - editor.clientHeight;
+  editorHighlight.style.inset = `0 ${dx}px ${dy}px 0`;
+  editorHighlight.scrollTop = editor.scrollTop;
+  editorHighlight.scrollLeft = editor.scrollLeft;
+}
+
+function setEditorValue(text) {
+  editor.value = collapseDataUris(text ?? "");
+  updateEditorHighlight();
+}
+
+/** Full Markdown with data-URI images expanded (for preview, draft, share, copy). */
+function getMarkdownSource() {
+  return expandEmbeds(editor.value);
+}
+
+function rememberEmbed(dataUrl) {
+  for (const [id, url] of imageEmbeds) {
+    if (url === dataUrl) return id;
+  }
+  const id = nextEmbedId++;
+  imageEmbeds.set(id, dataUrl);
+  return id;
+}
+
+function formatEmbedMarkdown(alt, dataUrl) {
+  const compact = String(dataUrl || "").replace(/\s+/g, "");
+  const match = compact.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,([A-Za-z0-9+/=]+)$/i);
+  if (!match || compact.length < DATA_URI_COLLAPSE_MIN) {
+    return `![${alt}](${compact})`;
+  }
+  const mime = match[1];
+  const head = match[2].slice(0, 12);
+  const id = rememberEmbed(compact);
+  return `![${alt}](data:${mime};base64,${head}…#${id})`;
+}
+
+function expandEmbeds(text) {
+  return String(text || "").replace(EMBED_IMG_RE, (full, alt, idStr) => {
+    const dataUrl = imageEmbeds.get(Number(idStr));
+    if (!dataUrl) return full;
+    return `![${alt}](${dataUrl})`;
+  });
+}
+
+function collapseDataUris(text) {
+  return String(text || "").replace(DATA_URI_IMG_RE, (_, alt, dataUrl) =>
+    formatEmbedMarkdown(alt, dataUrl),
+  );
+}
+
+function collapseDataUrisPreservingSelection(text, selStart, selEnd) {
+  let out = "";
+  let last = 0;
+  let caretStart = selStart;
+  let caretEnd = selEnd;
+  const src = String(text || "");
+
+  for (const match of src.matchAll(DATA_URI_IMG_RE)) {
+    const start = match.index ?? 0;
+    const end = start + match[0].length;
+    out += src.slice(last, start);
+    const replacement = formatEmbedMarkdown(match[1], match[2]);
+    const delta = replacement.length - match[0].length;
+
+    if (selStart >= end) caretStart += delta;
+    else if (selStart > start) caretStart = out.length + replacement.length;
+
+    if (selEnd >= end) caretEnd += delta;
+    else if (selEnd > start) caretEnd = out.length + replacement.length;
+
+    out += replacement;
+    last = end;
+  }
+  out += src.slice(last);
+  return { text: out, caretStart, caretEnd };
+}
+
+function syncCollapsedDataUris() {
+  const before = editor.value;
+  const { text, caretStart, caretEnd } = collapseDataUrisPreservingSelection(
+    before,
+    editor.selectionStart,
+    editor.selectionEnd,
+  );
+  if (text === before) return;
+
+  // Prefer execCommand so collapsing a pasted data URI stays on the Undo stack.
+  if (!replaceEditorRange(0, before.length, text, { notify: false })) {
+    editor.value = text;
+  }
+  editor.setSelectionRange(caretStart, caretEnd);
+}
+
+function onEditorCopyOrCut(e) {
+  let start = editor.selectionStart;
+  let end = editor.selectionEnd;
+  if (start === end) return;
+
+  // Partial selection through a truncated data URI takes the whole image token.
+  for (const emb of findCollapsedEmbeds(editor.value)) {
+    if (start < emb.uriEnd && end > emb.uriStart) {
+      start = Math.min(start, emb.fullStart);
+      end = Math.max(end, emb.fullEnd);
+    }
+  }
+
+  const selected = editor.value.slice(start, end);
+  const expanded = expandEmbeds(selected);
+  const rangeChanged = start !== editor.selectionStart || end !== editor.selectionEnd;
+  if (expanded === selected && !rangeChanged) return;
+
+  e.clipboardData.setData("text/plain", expanded);
+  e.preventDefault();
+
+  if (e.type === "cut") {
+    replaceEditorRange(start, end, "");
+  }
+}
+
+/** Collapsed `![alt](data:…#id)` tokens; uri* covers `(data:…#id)`. */
+function findCollapsedEmbeds(text) {
+  const embeds = [];
+  for (const match of String(text || "").matchAll(EMBED_IMG_RE)) {
+    const fullStart = match.index ?? 0;
+    const fullEnd = fullStart + match[0].length;
+    const paren = match[0].indexOf("](");
+    if (paren < 0) continue;
+    const uriStart = fullStart + paren + 1; // '('
+    const uriEnd = fullEnd; // after ')'
+    embeds.push({ fullStart, fullEnd, uriStart, uriEnd });
+  }
+  return embeds;
+}
+
+function collapsedEmbedUriTouched(emb, selStart, selEnd, inputType) {
+  if (selStart < emb.uriEnd && selEnd > emb.uriStart) return true;
+  if (selStart !== selEnd) return false;
+  if (inputType === "deleteContentBackward" && selStart === emb.uriEnd) return true;
+  if (inputType === "deleteContentForward" && selStart === emb.uriStart) return true;
+  return false;
+}
+
+/**
+ * Replace a textarea range via execCommand when possible so Ctrl+Z / Undo works.
+ * Falls back to setRangeText (not undoable) when execCommand is unavailable.
+ */
+let suppressEditorInput = false;
+
+function replaceEditorRange(start, end, text, { notify = true } = {}) {
+  editor.focus();
+  const from = Math.max(0, Math.min(start, end));
+  const to = Math.max(start, end);
+  const before = editor.value;
+  editor.setSelectionRange(from, to);
+
+  suppressEditorInput = true;
+  let ok = false;
+  try {
+    if (text === "") {
+      ok = from < to ? document.execCommand("delete") : true;
+    } else {
+      ok = document.execCommand("insertText", false, text);
+    }
+  } catch {
+    ok = false;
+  }
+  // Some browsers report success even when nothing changed (or the reverse).
+  if (from < to || text !== "") {
+    ok = editor.value !== before;
+  }
+  suppressEditorInput = false;
+
+  if (!ok) {
+    if (typeof editor.setRangeText === "function") {
+      editor.setRangeText(text, from, to, "end");
+    } else {
+      editor.value = editor.value.slice(0, from) + text + editor.value.slice(to);
+      editor.selectionStart = editor.selectionEnd = from + text.length;
+    }
+  }
+
+  if (notify) onEditorInput();
+  return ok;
+}
+
+/** Editing a truncated data URI removes the whole `![…](data:…)` token. */
+function onEditorBeforeInput(e) {
+  const inputType = e.inputType || "";
+  if (inputType === "historyUndo" || inputType === "historyRedo") return;
+  if (suppressEditorInput) return;
+
+  const embeds = findCollapsedEmbeds(editor.value);
+  if (!embeds.length) return;
+
+  const selStart = editor.selectionStart;
+  const selEnd = editor.selectionEnd;
+  const touched = embeds.filter((emb) =>
+    collapsedEmbedUriTouched(emb, selStart, selEnd, inputType),
+  );
+  if (!touched.length) return;
+
+  e.preventDefault();
+
+  const delStart = Math.min(selStart, ...touched.map((emb) => emb.fullStart));
+  const delEnd = Math.max(selEnd, ...touched.map((emb) => emb.fullEnd));
+
+  let insert = "";
+  if (
+    inputType.startsWith("insert") ||
+    inputType === "insertText" ||
+    inputType === "insertFromPaste" ||
+    inputType === "insertFromDrop" ||
+    inputType === "insertCompositionText" ||
+    inputType === "insertReplacementText"
+  ) {
+    insert = e.data ?? "";
+  }
+
+  replaceEditorRange(delStart, delEnd, insert);
+}
 
 function escapeHtml(text) {
   return text
@@ -64,6 +403,34 @@ function escapeHtml(text) {
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
 }
+
+/** Assign 1-based source line numbers to top-level block tokens. */
+function annotateSourceLines(tokens) {
+  let line = 1;
+  for (const token of tokens) {
+    if (token.type !== "space") {
+      token._sourceLine = line;
+      const newlines = (token.raw.match(/\n/g) || []).length;
+      // End line of the block content (inclusive). Trailing blank lines in
+      // `raw` still advance `line` below, but the visible block ends earlier.
+      token._sourceLineEnd = line + Math.max(newlines - 1, 0);
+    }
+    line += (token.raw.match(/\n/g) || []).length;
+  }
+  return tokens;
+}
+
+function withSourceLine(html, line, lineEnd) {
+  if (line == null || line < 1 || !html) return html;
+  const endAttr =
+    lineEnd != null && lineEnd > line ? ` data-source-line-end="${lineEnd}"` : "";
+  return html.replace(
+    /^(\s*<[a-zA-Z][a-zA-Z0-9-]*)/,
+    `$1 data-source-line="${line}"${endAttr}`,
+  );
+}
+
+const rendererProto = Renderer.prototype;
 
 function highlightCode(text, lang) {
   const language = (lang || "").trim().split(/\s+/)[0].toLowerCase();
@@ -87,18 +454,123 @@ function highlightCode(text, lang) {
   return { html: escapeHtml(text), language };
 }
 
+function wrapHighlightedLines(html) {
+  const lines = html.replace(/\n$/, "").split("\n");
+  const openTags = [];
+  let out = "";
+
+  for (const line of lines) {
+    const prefix = openTags.join("");
+    const tagRe = /<\/?([a-zA-Z][\w:-]*)\b[^>]*>/g;
+    let match = tagRe.exec(line);
+    while (match) {
+      const [tag, name] = match;
+      if (tag.startsWith("</")) {
+        openTags.pop();
+      } else if (!/\/\s*>$/.test(tag) && name.toLowerCase() !== "br") {
+        openTags.push(tag);
+      }
+      match = tagRe.exec(line);
+    }
+    const suffix = openTags
+      .map((tag) => `</${tag.match(/^<([a-zA-Z][\w:-]*)/)[1]}>`)
+      .reverse()
+      .join("");
+    out += `<span class="code-line"><span class="line-src">${prefix}${line}${suffix}</span></span>`;
+  }
+
+  return out || `<span class="code-line"><span class="line-src"></span></span>`;
+}
+
+function addCodeLineNumbers(root) {
+  root.querySelectorAll("pre > code").forEach((code) => {
+    const lines = code.querySelectorAll(":scope > .code-line");
+    lines.forEach((line, index) => {
+      if (line.querySelector(":scope > .line-num")) return;
+      const num = document.createElement("span");
+      num.className = "line-num";
+      num.setAttribute("aria-hidden", "true");
+      num.textContent = String(index + 1);
+      line.insertBefore(num, line.firstChild);
+    });
+  });
+}
+
 marked.use({
+  hooks: {
+    processAllTokens(tokens) {
+      return annotateSourceLines(tokens);
+    },
+  },
   renderer: {
-    code({ text, lang }) {
+    heading(token) {
+      return withSourceLine(
+        rendererProto.heading.call(this, token),
+        token._sourceLine,
+        token._sourceLineEnd,
+      );
+    },
+    paragraph(token) {
+      return withSourceLine(
+        rendererProto.paragraph.call(this, token),
+        token._sourceLine,
+        token._sourceLineEnd,
+      );
+    },
+    list(token) {
+      return withSourceLine(
+        rendererProto.list.call(this, token),
+        token._sourceLine,
+        token._sourceLineEnd,
+      );
+    },
+    blockquote(token) {
+      return withSourceLine(
+        rendererProto.blockquote.call(this, token),
+        token._sourceLine,
+        token._sourceLineEnd,
+      );
+    },
+    table(token) {
+      return withSourceLine(
+        rendererProto.table.call(this, token),
+        token._sourceLine,
+        token._sourceLineEnd,
+      );
+    },
+    hr(token) {
+      return withSourceLine(
+        rendererProto.hr.call(this, token),
+        token._sourceLine,
+        token._sourceLineEnd,
+      );
+    },
+    html(token) {
+      return withSourceLine(
+        rendererProto.html.call(this, token),
+        token._sourceLine,
+        token._sourceLineEnd,
+      );
+    },
+    code(token) {
+      const { text, lang, _sourceLine, _sourceLineEnd } = token;
       const language = (lang || "").trim().split(/\s+/)[0].toLowerCase();
       if (language === "mermaid") {
-        return `<div class="mermaid">${escapeHtml(text.replace(/\n$/, ""))}</div>\n`;
+        return withSourceLine(
+          `<div class="mermaid">${escapeHtml(text.replace(/\n$/, ""))}</div>\n`,
+          _sourceLine,
+          _sourceLineEnd,
+        );
       }
       const code = text.replace(/\n$/, "") + "\n";
       const { html, language: highlighted } = highlightCode(code, lang);
       const classes = ["hljs"];
       if (highlighted) classes.push(`language-${highlighted}`);
-      return `<pre><code class="${classes.join(" ")}">${html}</code></pre>\n`;
+      return withSourceLine(
+        `<pre><code class="${classes.join(" ")}">${wrapHighlightedLines(html)}</code></pre>\n`,
+        _sourceLine,
+        _sourceLineEnd,
+      );
     },
   },
 });
@@ -115,6 +587,17 @@ let speechQueue = [];
 let speechKeepalive = 0;
 let selectedVoiceURI = "";
 let speechMap = null;
+let currentView = "edit";
+let viewBeforePresent = "reader";
+let presentSections = [];
+let presentIndex = 0;
+let syncScrollEnabled = false;
+/** Which pane is driving sync; suppresses echo scroll events. */
+let syncScrollDriver = null;
+let syncScrollUnlockTimer = 0;
+let scrollAnchors = null;
+let lineMirror = null;
+let caretRevealRaf = 0;
 const SPEECH_CHUNK_MAX = 180;
 const SPEECH_HIGHLIGHT = "speech-word";
 const MERMAID_CDN =
@@ -122,23 +605,106 @@ const MERMAID_CDN =
 const MERMAID_SRI =
   "sha384-EOXBFmc3gx5mb+vn0vPvvGqACToJD24hhacX5Yx+8NUUQrHIle/Qi5Bg9o3zKwW2";
 
+// Map Mermaid SVG paints to CSS custom properties (Kirupa-style). Screen themes
+// and @media print then recolor diagrams by redefining the variables — no
+// live page theme swap and no baked-in dark fills stuck on paper.
+const MERMAID_THEME_CSS = `
+  .node rect,.node circle,.node polygon,.node path,.node ellipse {
+    fill: var(--mermaid-node-bg) !important;
+    stroke: var(--mermaid-node-border) !important;
+  }
+  .cluster rect,.cluster polygon {
+    fill: var(--mermaid-cluster-bg) !important;
+    stroke: var(--mermaid-cluster-border) !important;
+  }
+  .edgePath .path,.flowchart-link,path.flowchart-link,.edge.thickness-normal {
+    stroke: var(--mermaid-line) !important;
+  }
+  .edgeLabel rect,.labelBkg,.edgeLabel .labelBkg {
+    fill: var(--mermaid-label-bg) !important;
+  }
+  .nodeLabel,.edgeLabel,.label,.cluster-label,.cluster span,.node .label,
+  .edgeLabel foreignObject div,.nodeLabel foreignObject div {
+    color: var(--mermaid-fg) !important;
+    fill: var(--mermaid-fg) !important;
+  }
+  marker path,.marker path,defs marker path {
+    fill: var(--mermaid-line) !important;
+    stroke: var(--mermaid-line) !important;
+  }
+  .actor,.actor-man line,.actor-man circle,.actor-man path {
+    fill: var(--mermaid-node-bg) !important;
+    stroke: var(--mermaid-node-border) !important;
+  }
+  .actor-line,line.actor-line { stroke: var(--mermaid-line) !important; }
+  text.actor,.messageText,.labelText,.loopText,.noteText { fill: var(--mermaid-fg) !important; }
+  .messageLine0,.messageLine1,.loopLine,.sequenceNumber {
+    stroke: var(--mermaid-line) !important;
+  }
+  .note {
+    fill: var(--mermaid-note-bg) !important;
+    stroke: var(--mermaid-node-border) !important;
+  }
+  .activation0,.activation1,.activation2,.activation3,.activation4 {
+    fill: var(--mermaid-cluster-bg) !important;
+    stroke: var(--mermaid-node-border) !important;
+  }
+  .labelBox {
+    fill: var(--mermaid-node-bg) !important;
+    stroke: var(--mermaid-node-border) !important;
+  }
+  .statediagram-state rect,.stateGroup rect,.basic.label rect {
+    fill: var(--mermaid-node-bg) !important;
+    stroke: var(--mermaid-node-border) !important;
+  }
+  .statediagram-cluster rect {
+    fill: var(--mermaid-cluster-bg) !important;
+    stroke: var(--mermaid-cluster-border) !important;
+  }
+  .transition { stroke: var(--mermaid-line) !important; }
+  .classGroup rect,.classGroup line {
+    fill: var(--mermaid-node-bg) !important;
+    stroke: var(--mermaid-node-border) !important;
+  }
+  .classLabel .box { fill: var(--mermaid-label-bg) !important; }
+  .classLabel .label,.labelText tspan,.classText { fill: var(--mermaid-fg) !important; }
+  .relation { stroke: var(--mermaid-line) !important; }
+  .er.entityBox {
+    fill: var(--mermaid-node-bg) !important;
+    stroke: var(--mermaid-node-border) !important;
+  }
+  .er.attributeBoxOdd,.er.attributeBoxEven {
+    fill: var(--mermaid-cluster-bg) !important;
+    stroke: var(--mermaid-node-border) !important;
+  }
+  .er.relationshipLine { stroke: var(--mermaid-line) !important; }
+`;
+
 let mermaidModule;
 let mermaidGen = 0;
 
-function mermaidTheme() {
-  const scheme = getComputedStyle(document.documentElement)
-    .getPropertyValue("--color-scheme")
-    .trim();
-  return scheme === "dark" ? "dark" : "default";
+function mermaidConfig() {
+  return {
+    startOnLoad: false,
+    securityLevel: "strict",
+    theme: "base",
+    themeVariables: {
+      darkMode: false,
+      background: "#ffffff",
+      primaryColor: "#ECECFF",
+      primaryTextColor: "#333333",
+      primaryBorderColor: "#9370DB",
+      lineColor: "#333333",
+      secondaryColor: "#ffffde",
+      tertiaryColor: "#f4f4f4",
+    },
+    themeCSS: MERMAID_THEME_CSS,
+  };
 }
 
 function initMermaid(mermaid) {
   mermaid.startOnLoad = false;
-  mermaid.initialize({
-    startOnLoad: false,
-    securityLevel: "strict",
-    theme: mermaidTheme(),
-  });
+  mermaid.initialize(mermaidConfig());
   return mermaid;
 }
 
@@ -177,11 +743,7 @@ async function renderMermaidDiagrams() {
   try {
     const mermaid = await loadMermaid();
     if (gen !== mermaidGen) return;
-    mermaid.initialize({
-      startOnLoad: false,
-      securityLevel: "strict",
-      theme: mermaidTheme(),
-    });
+    mermaid.initialize(mermaidConfig());
     await mermaid.run({ nodes, suppressErrors: true });
   } catch {
     /* invalid diagrams render into their nodes; import failures are ignored */
@@ -202,8 +764,85 @@ function showToast(message) {
   }, 1800);
 }
 
-function utf8ToBase64Url(text) {
-  const bytes = new TextEncoder().encode(text);
+function registerServiceWorker() {
+  if (!("serviceWorker" in navigator)) return;
+
+  let waitingForUpdateReload = false;
+
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (waitingForUpdateReload) window.location.reload();
+  });
+
+  const watchRegistration = (registration) => {
+    const offerUpdate = (worker) => {
+      if (!updateToast || !worker) return;
+      updateToast.hidden = false;
+      updateReloadBtn.onclick = () => {
+        waitingForUpdateReload = true;
+        worker.postMessage("SKIP_WAITING");
+      };
+    };
+
+    if (registration.waiting && navigator.serviceWorker.controller) {
+      offerUpdate(registration.waiting);
+    }
+
+    registration.addEventListener("updatefound", () => {
+      const worker = registration.installing;
+      if (!worker) return;
+      worker.addEventListener("statechange", () => {
+        if (worker.state === "installed" && navigator.serviceWorker.controller) {
+          offerUpdate(worker);
+        }
+      });
+    });
+  };
+
+  navigator.serviceWorker
+    .register("./sw.js")
+    .then((registration) => {
+      watchRegistration(registration);
+      registration.update().catch(() => {});
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible") {
+          registration.update().catch(() => {});
+        }
+      });
+    })
+    .catch(() => {
+      /* SW optional — app still works online without it */
+    });
+}
+
+function setupPwa() {
+  if (installBtn) {
+    if (isStandaloneDisplay()) {
+      installBtn.hidden = true;
+    } else if (deferredInstallPrompt) {
+      // BIP may have fired before init finished.
+      installBtn.hidden = false;
+    }
+
+    installBtn.addEventListener("click", async () => {
+      if (!deferredInstallPrompt) return;
+      installBtn.hidden = true;
+      deferredInstallPrompt.prompt();
+      try {
+        await deferredInstallPrompt.userChoice;
+      } catch {
+        /* user dismissed or browser cancelled */
+      }
+      deferredInstallPrompt = null;
+    });
+  }
+
+  // Register immediately — module scripts often run after `load`.
+  registerServiceWorker();
+}
+
+const SHARE_URL_WARN_CHARS = 16_384;
+
+function bytesToBase64Url(bytes) {
   let binary = "";
   for (let i = 0; i < bytes.length; i++) {
     binary += String.fromCharCode(bytes[i]);
@@ -211,7 +850,7 @@ function utf8ToBase64Url(text) {
   return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
-function base64UrlToUtf8(value) {
+function base64UrlToBytes(value) {
   const padded = value.replace(/-/g, "+").replace(/_/g, "/");
   const padLen = (4 - (padded.length % 4)) % 4;
   const base64 = padded + "=".repeat(padLen);
@@ -220,44 +859,89 @@ function base64UrlToUtf8(value) {
   for (let i = 0; i < binary.length; i++) {
     bytes[i] = binary.charCodeAt(i);
   }
-  return new TextDecoder().decode(bytes);
+  return bytes;
 }
 
-function getMdFromUrl() {
+function base64UrlToUtf8(value) {
+  return new TextDecoder().decode(base64UrlToBytes(value));
+}
+
+async function pipeThroughCompression(bytes, TransformStreamCtor, format) {
+  const stream = new Blob([bytes]).stream().pipeThrough(new TransformStreamCtor(format));
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+
+async function compressUtf8ToBase64Url(text) {
+  const input = new TextEncoder().encode(text);
+  const compressed = await pipeThroughCompression(input, CompressionStream, "deflate-raw");
+  return bytesToBase64Url(compressed);
+}
+
+async function decompressBase64UrlToUtf8(value) {
+  const compressed = base64UrlToBytes(value);
+  const inflated = await pipeThroughCompression(compressed, DecompressionStream, "deflate-raw");
+  return new TextDecoder().decode(inflated);
+}
+
+function decodeMdParam(md) {
+  if (md == null || md === "") return null;
+  try {
+    return base64UrlToUtf8(md);
+  } catch {
+    try {
+      return decodeURIComponent(md);
+    } catch {
+      return md;
+    }
+  }
+}
+
+async function decodeMdzParam(mdz) {
+  if (mdz == null || mdz === "") return null;
+  try {
+    return await decompressBase64UrlToUtf8(mdz);
+  } catch {
+    return null;
+  }
+}
+
+async function readShareParams(searchParams) {
+  const mdz = searchParams.get("mdz");
+  let markdown = mdz ? await decodeMdzParam(mdz) : null;
+  if (markdown == null) {
+    markdown = decodeMdParam(searchParams.get("md"));
+  }
+  const themeRaw = searchParams.get("theme");
+  const viewRaw = searchParams.get("view");
+  return {
+    markdown,
+    theme: THEMES.includes(themeRaw) ? themeRaw : null,
+    view: VIEWS.includes(viewRaw) ? viewRaw : null,
+  };
+}
+
+async function getShareState() {
   const hash = window.location.hash.slice(1);
   if (hash) {
-    const params = new URLSearchParams(hash);
-    const md = params.get("md");
-    if (md != null && md !== "") {
-      try {
-        return base64UrlToUtf8(md);
-      } catch {
-        /* ignore invalid hash */
-      }
+    const fromHash = await readShareParams(new URLSearchParams(hash));
+    if (fromHash.markdown != null || fromHash.theme || fromHash.view) {
+      return fromHash;
     }
   }
 
-  const query = new URLSearchParams(window.location.search);
-  const md = query.get("md");
-  if (md != null && md !== "") {
-    try {
-      return base64UrlToUtf8(md);
-    } catch {
-      try {
-        return decodeURIComponent(md);
-      } catch {
-        return md;
-      }
-    }
-  }
-
-  return null;
+  return readShareParams(new URLSearchParams(window.location.search));
 }
 
-function buildShareUrl(markdown) {
+async function buildShareUrl({ markdown, theme, view } = {}) {
   const url = new URL(window.location.href);
   url.search = "";
-  url.hash = `md=${utf8ToBase64Url(markdown)}`;
+  const params = new URLSearchParams();
+  params.set("mdz", await compressUtf8ToBase64Url(markdown ?? getMarkdownSource()));
+  const nextTheme = theme || document.documentElement.dataset.theme || themeSelect.value;
+  if (THEMES.includes(nextTheme)) params.set("theme", nextTheme);
+  const nextView = view || "reader";
+  if (VIEWS.includes(nextView)) params.set("view", nextView);
+  url.hash = params.toString();
   return url.toString();
 }
 
@@ -266,22 +950,35 @@ function renderMarkdown(source) {
 
   const raw = marked.parse(source || "", { async: false });
   const clean = DOMPurify.sanitize(raw, {
-    USE_PROFILES: { html: true },
+    USE_PROFILES: { html: true, svg: true },
+    ADD_ATTR: ["data-source-line", "data-source-line-end"],
   });
 
   if (rafId) cancelAnimationFrame(rafId);
   rafId = requestAnimationFrame(() => {
     mermaidGen += 1;
     preview.innerHTML = clean;
+    addCodeLineNumbers(preview);
+    invalidateScrollAnchors();
     rafId = 0;
-    renderMermaidDiagrams();
+    syncPreviewFromEditor();
+    revealPreviewForEditorCaret();
+    renderMermaidDiagrams().finally(() => {
+      invalidateScrollAnchors();
+      syncPreviewFromEditor();
+      revealPreviewForEditorCaret();
+      if (currentView === "present") {
+        buildPresentSections();
+        showPresentSection(presentIndex);
+      }
+    });
   });
 }
 
 function scheduleRender() {
   window.clearTimeout(renderTimer);
   renderTimer = window.setTimeout(() => {
-    renderMarkdown(editor.value);
+    renderMarkdown(getMarkdownSource());
   }, RENDER_DEBOUNCE_MS);
 }
 
@@ -312,7 +1009,7 @@ function saveHistory(entries) {
 }
 
 function pushHistory(markdown) {
-  const content = markdown ?? editor.value;
+  const content = markdown ?? getMarkdownSource();
   if (!content.trim()) return;
   if (content.length > HISTORY_MAX_CHARS) return;
   if (content === lastHistoryContent) return;
@@ -375,7 +1072,7 @@ function renderHistoryMenu() {
 
     btn.append(title, meta);
     btn.addEventListener("click", () => {
-      editor.value = entry.content;
+      setEditorValue(entry.content);
       lastHistoryContent = entry.content;
       localStorage.setItem(STORAGE_KEYS.draft, entry.content);
       renderMarkdown(entry.content);
@@ -416,6 +1113,8 @@ function closeOverflowMenu() {
   overflowBtn.setAttribute("aria-label", "Open menu");
   closeHistory();
   closeVoiceMenu();
+  closeShareMenu();
+  closeExportMenu();
 }
 
 function toggleOverflowMenu() {
@@ -449,6 +1148,7 @@ function setPreviewWidth(width, { persist = true } = {}) {
   const next = WIDTHS.includes(width) ? width : "readable";
   preview.dataset.width = next;
   widthSelect.value = next;
+  invalidateScrollAnchors();
   if (persist) {
     try {
       localStorage.setItem(STORAGE_KEYS.width, next);
@@ -471,6 +1171,7 @@ function applyCollapseState() {
   collapsePreviewBtn.title = previewCollapsed ? "Expand preview" : "Collapse preview";
   splitter.setAttribute("aria-hidden", String(editorCollapsed || previewCollapsed));
   splitter.tabIndex = editorCollapsed || previewCollapsed ? -1 : 0;
+  invalidateScrollAnchors();
 }
 
 function clampSplit(value) {
@@ -484,8 +1185,8 @@ function isStackedLayout() {
 function applySplit(percent, { persist = true } = {}) {
   splitPercent = clampSplit(Number(percent) || 50);
   panes.style.setProperty("--split", `${splitPercent}%`);
-  panes.style.setProperty("--split-rest", `${100 - splitPercent}%`);
   splitter.setAttribute("aria-valuenow", String(Math.round(splitPercent)));
+  invalidateScrollAnchors();
   if (persist) {
     try {
       localStorage.setItem(STORAGE_KEYS.split, String(splitPercent));
@@ -599,11 +1300,365 @@ function togglePreviewCollapse() {
   applyCollapseState();
 }
 
+function scrollRatio(el) {
+  const max = el.scrollHeight - el.clientHeight;
+  if (max <= 0) return 0;
+  return el.scrollTop / max;
+}
+
+function applyScrollRatio(el, ratio) {
+  const max = el.scrollHeight - el.clientHeight;
+  if (max <= 0) {
+    el.scrollTop = 0;
+    return;
+  }
+  el.scrollTop = ratio * max;
+}
+
+function invalidateScrollAnchors() {
+  scrollAnchors = null;
+}
+
+function offsetWithin(el, container) {
+  const elRect = el.getBoundingClientRect();
+  const containerRect = container.getBoundingClientRect();
+  return elRect.top - containerRect.top + container.scrollTop;
+}
+
+function ensureLineMirror() {
+  if (lineMirror) return lineMirror;
+  lineMirror = document.createElement("div");
+  lineMirror.setAttribute("aria-hidden", "true");
+  lineMirror.style.cssText =
+    "position:absolute;visibility:hidden;pointer-events:none;height:auto;" +
+    "overflow:hidden;white-space:pre-wrap;overflow-wrap:break-word;word-wrap:break-word;" +
+    "top:0;left:-99999px;z-index:-1;";
+  document.body.appendChild(lineMirror);
+  return lineMirror;
+}
+
+/** Pixel offset of each source line start inside the editor (handles wrapping). */
+function measureEditorLineTops() {
+  const mirror = ensureLineMirror();
+  const cs = getComputedStyle(editor);
+  const copyProps = [
+    "boxSizing",
+    "borderTopWidth",
+    "borderRightWidth",
+    "borderBottomWidth",
+    "borderLeftWidth",
+    "fontFamily",
+    "fontSize",
+    "fontWeight",
+    "fontStyle",
+    "fontVariant",
+    "letterSpacing",
+    "lineHeight",
+    "textTransform",
+    "wordSpacing",
+    "textIndent",
+    "paddingTop",
+    "paddingRight",
+    "paddingBottom",
+    "paddingLeft",
+    "tabSize",
+  ];
+  for (const prop of copyProps) {
+    mirror.style[prop] = cs[prop];
+  }
+  mirror.style.width = `${editor.clientWidth}px`;
+
+  const lines = editor.value.split("\n");
+  mirror.replaceChildren();
+  const frag = document.createDocumentFragment();
+  for (const line of lines) {
+    const row = document.createElement("div");
+    row.textContent = line || " ";
+    frag.appendChild(row);
+  }
+  mirror.appendChild(frag);
+  return Array.from(mirror.children, (row) => row.offsetTop);
+}
+
+function buildScrollAnchors() {
+  const lineTops = measureEditorLineTops();
+  const anchors = [{ editor: 0, preview: 0 }];
+
+  for (const el of preview.querySelectorAll("[data-source-line]")) {
+    const line = Number(el.getAttribute("data-source-line"));
+    if (!Number.isFinite(line) || line < 1 || line > lineTops.length) continue;
+    const previewTop = offsetWithin(el, previewPane);
+    anchors.push({
+      editor: lineTops[line - 1],
+      preview: previewTop,
+    });
+
+    const endLine = Number(el.getAttribute("data-source-line-end"));
+    if (Number.isFinite(endLine) && endLine > line && endLine <= lineTops.length) {
+      anchors.push({
+        editor: lineTops[endLine - 1],
+        preview: previewTop + el.offsetHeight,
+      });
+    }
+  }
+
+  // Use max scrollTop (not scrollHeight) so both panes reach their bottoms
+  // together — client heights differ, so scrollHeight end-points desync.
+  anchors.push({
+    editor: Math.max(0, editor.scrollHeight - editor.clientHeight),
+    preview: Math.max(0, previewPane.scrollHeight - previewPane.clientHeight),
+  });
+
+  anchors.sort((a, b) => a.editor - b.editor || a.preview - b.preview);
+
+  const deduped = [];
+  for (const anchor of anchors) {
+    const prev = deduped[deduped.length - 1];
+    if (prev && Math.abs(prev.editor - anchor.editor) < 0.5) continue;
+    if (prev && anchor.preview < prev.preview) {
+      deduped.push({ editor: anchor.editor, preview: prev.preview });
+    } else {
+      deduped.push(anchor);
+    }
+  }
+  return deduped;
+}
+
+function getScrollAnchors() {
+  if (!scrollAnchors) scrollAnchors = buildScrollAnchors();
+  return scrollAnchors;
+}
+
+function interpolateAnchor(position, anchors, fromKey, toKey) {
+  if (!anchors.length) return 0;
+  if (position <= anchors[0][fromKey]) return anchors[0][toKey];
+  const last = anchors[anchors.length - 1];
+  if (position >= last[fromKey]) return last[toKey];
+
+  let lo = 0;
+  let hi = anchors.length - 1;
+  while (hi - lo > 1) {
+    const mid = (lo + hi) >> 1;
+    if (anchors[mid][fromKey] <= position) lo = mid;
+    else hi = mid;
+  }
+
+  const a = anchors[lo];
+  const b = anchors[hi];
+  const span = b[fromKey] - a[fromKey];
+  if (span <= 0) return a[toKey];
+  return a[toKey] + ((position - a[fromKey]) / span) * (b[toKey] - a[toKey]);
+}
+
+function clampScrollTop(el, top) {
+  const max = Math.max(0, el.scrollHeight - el.clientHeight);
+  el.scrollTop = Math.min(Math.max(0, top), max);
+}
+
+function beginSyncDriver(driver) {
+  syncScrollDriver = driver;
+  window.clearTimeout(syncScrollUnlockTimer);
+  syncScrollUnlockTimer = window.setTimeout(() => {
+    syncScrollDriver = null;
+  }, 80);
+}
+
+function setSyncScroll(enabled, { persist = true } = {}) {
+  syncScrollEnabled = Boolean(enabled);
+  syncScrollBtn.setAttribute("aria-pressed", String(syncScrollEnabled));
+  syncScrollBtn.title = syncScrollEnabled ? "Unsync scroll" : "Sync scroll";
+  if (persist) {
+    try {
+      localStorage.setItem(STORAGE_KEYS.syncScroll, syncScrollEnabled ? "1" : "0");
+    } catch {
+      /* storage may be unavailable */
+    }
+  }
+  if (syncScrollEnabled) {
+    invalidateScrollAnchors();
+    syncPreviewFromEditor();
+    revealPreviewForEditorCaret();
+  }
+}
+
+function syncPreviewFromEditor() {
+  if (!syncScrollEnabled || syncScrollDriver === "preview") return;
+  if (panes.classList.contains("editor-collapsed") || panes.classList.contains("preview-collapsed")) {
+    return;
+  }
+  beginSyncDriver("editor");
+  const anchors = getScrollAnchors();
+  if (anchors.length >= 2) {
+    clampScrollTop(
+      previewPane,
+      interpolateAnchor(editor.scrollTop, anchors, "editor", "preview"),
+    );
+  } else {
+    applyScrollRatio(previewPane, scrollRatio(editor));
+  }
+}
+
+function syncEditorFromPreview() {
+  if (!syncScrollEnabled || syncScrollDriver === "editor") return;
+  if (panes.classList.contains("editor-collapsed") || panes.classList.contains("preview-collapsed")) {
+    return;
+  }
+  beginSyncDriver("preview");
+  const anchors = getScrollAnchors();
+  if (anchors.length >= 2) {
+    clampScrollTop(
+      editor,
+      interpolateAnchor(previewPane.scrollTop, anchors, "preview", "editor"),
+    );
+  } else {
+    applyScrollRatio(editor, scrollRatio(previewPane));
+  }
+}
+
+/** 1-based source line of the editor caret (or selection start). */
+function editorCaretLine() {
+  const text = editor.value.slice(0, editor.selectionStart);
+  return (text.match(/\n/g) || []).length + 1;
+}
+
+/** Preview block that covers the given 1-based source line. */
+function previewElementForLine(line) {
+  let match = null;
+  let previous = null;
+  for (const el of preview.querySelectorAll("[data-source-line]")) {
+    const start = Number(el.getAttribute("data-source-line"));
+    if (!Number.isFinite(start) || start < 1) continue;
+    const endRaw = Number(el.getAttribute("data-source-line-end"));
+    const end = Number.isFinite(endRaw) && endRaw >= start ? endRaw : start;
+    if (line < start) return match || previous || el;
+    previous = el;
+    if (line <= end) match = el;
+  }
+  return match || previous;
+}
+
+/**
+ * Keep the rendered block for the editor caret in view. Uses nearest so we
+ * only scroll when the matching preview content is actually off-screen.
+ */
+function revealPreviewForEditorCaret() {
+  if (!syncScrollEnabled) return;
+  if (panes.classList.contains("editor-collapsed") || panes.classList.contains("preview-collapsed")) {
+    return;
+  }
+  const el = previewElementForLine(editorCaretLine());
+  if (!el) return;
+
+  const paneRect = previewPane.getBoundingClientRect();
+  const elRect = el.getBoundingClientRect();
+  const pad = 8;
+  if (elRect.top >= paneRect.top + pad && elRect.bottom <= paneRect.bottom - pad) {
+    return;
+  }
+
+  beginSyncDriver("editor");
+  const top = offsetWithin(el, previewPane);
+  if (elRect.bottom > paneRect.bottom - pad) {
+    clampScrollTop(previewPane, top + el.offsetHeight - previewPane.clientHeight + pad);
+  } else {
+    clampScrollTop(previewPane, top - pad);
+  }
+}
+
+function scheduleRevealPreviewForCaret() {
+  if (!syncScrollEnabled || caretRevealRaf) return;
+  caretRevealRaf = requestAnimationFrame(() => {
+    caretRevealRaf = 0;
+    revealPreviewForEditorCaret();
+  });
+}
+
+function toggleSyncScroll() {
+  setSyncScroll(!syncScrollEnabled);
+}
+
 function onEditorInput() {
-  localStorage.setItem(STORAGE_KEYS.draft, editor.value);
+  if (suppressEditorInput) return;
+  syncCollapsedDataUris();
+  const source = getMarkdownSource();
+  localStorage.setItem(STORAGE_KEYS.draft, source);
+  scheduleEditorHighlight();
+  invalidateScrollAnchors();
   scheduleRender();
   window.clearTimeout(historyTimer);
-  historyTimer = window.setTimeout(() => pushHistory(editor.value), HISTORY_DEBOUNCE_MS);
+  historyTimer = window.setTimeout(() => pushHistory(source), HISTORY_DEBOUNCE_MS);
+}
+
+/** Insert text at the caret (replacing any selection). Prefer execCommand so Undo works. */
+function insertAtCursor(text) {
+  replaceEditorRange(editor.selectionStart, editor.selectionEnd, text);
+}
+
+function readFileAsDataURL(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result ?? ""));
+    reader.onerror = () => reject(reader.error || new Error("read failed"));
+    reader.readAsDataURL(file);
+  });
+}
+
+function clipboardImageFile(clipboardData) {
+  if (!clipboardData) return null;
+  const items = clipboardData.items;
+  if (items) {
+    for (const item of items) {
+      if (item.kind === "file" && IMAGE_MIME_RE.test(item.type)) {
+        const file = item.getAsFile();
+        if (file) return file;
+      }
+    }
+  }
+  const files = clipboardData.files;
+  if (files?.length) {
+    for (const file of files) {
+      if (IMAGE_MIME_RE.test(file.type)) return file;
+    }
+  }
+  return null;
+}
+
+function imageAltFromSelection(selected, file) {
+  const fromSelection = selected.trim();
+  if (fromSelection) return fromSelection.replace(/[\[\]]/g, "");
+  const name = (file.name || "").replace(/\.[^.]+$/, "").trim();
+  if (name && !/^image$/i.test(name)) return name.replace(/[\[\]]/g, "");
+  return "image";
+}
+
+async function onEditorPaste(e) {
+  const file = clipboardImageFile(e.clipboardData);
+  if (!file) return;
+
+  e.preventDefault();
+
+  if (file.size > IMAGE_PASTE_MAX_BYTES) {
+    showToast("Image too large to paste (max 2 MB)");
+    return;
+  }
+
+  const start = editor.selectionStart;
+  const end = editor.selectionEnd;
+  const selected = editor.value.slice(start, end);
+
+  try {
+    const dataUrl = await readFileAsDataURL(file);
+    if (!dataUrl.startsWith("data:image/")) {
+      showToast("Could not paste image");
+      return;
+    }
+    editor.focus();
+    editor.setSelectionRange(start, end);
+    insertAtCursor(formatEmbedMarkdown(imageAltFromSelection(selected, file), dataUrl));
+    showToast("Image pasted");
+  } catch {
+    showToast("Could not paste image");
+  }
 }
 
 function handleFile(file) {
@@ -615,10 +1670,10 @@ function handleFile(file) {
   const reader = new FileReader();
   reader.onload = () => {
     const text = String(reader.result ?? "");
-    editor.value = text;
-    localStorage.setItem(STORAGE_KEYS.draft, text);
-    renderMarkdown(text);
-    pushHistory(text);
+    setEditorValue(text);
+    localStorage.setItem(STORAGE_KEYS.draft, getMarkdownSource());
+    renderMarkdown(getMarkdownSource());
+    pushHistory(getMarkdownSource());
     showToast(`Loaded ${file.name}`);
   };
   reader.onerror = () => showToast("Could not read file");
@@ -666,14 +1721,253 @@ function setupDragAndDrop() {
   });
 }
 
-async function copyShareUrl() {
-  const url = buildShareUrl(editor.value);
+async function copyText(url, toastMessage) {
   try {
     await navigator.clipboard.writeText(url);
-    showToast("Share URL copied");
+    showToast(toastMessage);
   } catch {
-    window.prompt("Copy share URL:", url);
+    window.prompt(toastMessage.replace(/copied\.?$/i, "").trim() + ":", url);
   }
+}
+
+async function copyShareUrl(view = "reader") {
+  const url = await buildShareUrl({
+    markdown: getMarkdownSource(),
+    theme: document.documentElement.dataset.theme,
+    view,
+  });
+  const tooLong = url.length > SHARE_URL_WARN_CHARS;
+  const label = tooLong
+    ? "Link copied — may be too long for some apps"
+    : view === "present"
+      ? "Present link copied"
+      : "Reader link copied";
+  await copyText(url, label);
+  closeShareMenu();
+}
+
+function openShareMenu() {
+  if (!shareMenu) return;
+  shareMenu.hidden = false;
+  shareBtn.setAttribute("aria-expanded", "true");
+}
+
+function closeShareMenu() {
+  if (!shareMenu || !shareBtn) return;
+  shareMenu.hidden = true;
+  shareBtn.setAttribute("aria-expanded", "false");
+}
+
+function toggleShareMenu() {
+  if (!shareMenu) return;
+  if (shareMenu.hidden) {
+    closeHistory();
+    closeVoiceMenu();
+    closeExportMenu();
+    openShareMenu();
+  } else {
+    closeShareMenu();
+  }
+}
+
+function openExportMenu() {
+  if (!exportMenu) return;
+  exportMenu.hidden = false;
+  exportBtn.setAttribute("aria-expanded", "true");
+}
+
+function closeExportMenu() {
+  if (!exportMenu || !exportBtn) return;
+  exportMenu.hidden = true;
+  exportBtn.setAttribute("aria-expanded", "false");
+}
+
+function toggleExportMenu() {
+  if (!exportMenu) return;
+  if (exportMenu.hidden) {
+    closeHistory();
+    closeVoiceMenu();
+    closeShareMenu();
+    openExportMenu();
+  } else {
+    closeExportMenu();
+  }
+}
+
+async function exportDocument(format) {
+  const markdown = getMarkdownSource();
+  if (!markdown.trim()) {
+    showToast("Nothing to export");
+    closeExportMenu();
+    return;
+  }
+
+  // Ensure Mermaid diagrams are finished before HTML/DOCX/RTF/PDF capture.
+  await renderMermaidDiagrams();
+
+  const title = titleFromMarkdown(markdown);
+  const base = exportBasename(title);
+
+  try {
+    if (format === "markdown") {
+      downloadBlob(buildMarkdownFile(markdown, title), `${base}.md`, "text/markdown;charset=utf-8");
+      showToast("Markdown downloaded");
+    } else if (format === "html") {
+      const html = buildHtmlDocument(cleanPreviewHtml(preview), title);
+      downloadBlob(html, `${base}.html`, "text/html;charset=utf-8");
+      showToast("HTML downloaded");
+    } else if (format === "pdf") {
+      showToast("Choose Save as PDF in the print dialog");
+      await printPreviewAsPdf(preview, title);
+    } else if (format === "docx") {
+      downloadBlob(buildDocxBlob(preview, title), `${base}.docx`);
+      showToast("DOCX downloaded");
+    } else if (format === "rtf") {
+      downloadBlob(buildRtfDocument(preview, title), `${base}.rtf`, "application/rtf;charset=utf-8");
+      showToast("RTF downloaded");
+    }
+  } catch {
+    showToast("Export failed");
+  }
+
+  closeExportMenu();
+}
+
+async function syncHashForView(view) {
+  const state = await getShareState();
+  const markdown = getMarkdownSource() || state.markdown || "";
+  if (!markdown.trim() && view !== "edit") return;
+  const url = new URL(window.location.href);
+  url.search = "";
+  if (!markdown.trim()) {
+    url.hash = "";
+    history.replaceState(null, "", url);
+    return;
+  }
+  const params = new URLSearchParams();
+  params.set("mdz", await compressUtf8ToBase64Url(markdown));
+  const theme = document.documentElement.dataset.theme;
+  if (THEMES.includes(theme)) params.set("theme", theme);
+  params.set("view", view);
+  url.hash = params.toString();
+  history.replaceState(null, "", url);
+}
+
+function buildPresentSections() {
+  const children = [...preview.children];
+  if (!children.length) {
+    presentSections = [];
+    return;
+  }
+
+  const sections = [];
+  let current = [];
+
+  const flush = () => {
+    if (!current.length) return;
+    sections.push(current);
+    current = [];
+  };
+
+  for (const child of children) {
+    const tag = child.tagName;
+    if ((tag === "H1" || tag === "H2") && current.length) flush();
+    current.push(child);
+  }
+  flush();
+  presentSections = sections;
+}
+
+function updatePresentProgress() {
+  if (!presentProgress) return;
+  if (!presentSections.length) {
+    presentProgress.textContent = "0 / 0";
+    return;
+  }
+  presentProgress.textContent = `${presentIndex + 1} / ${presentSections.length}`;
+}
+
+function showPresentSection(index) {
+  if (!presentSections.length) {
+    buildPresentSections();
+  }
+  if (!presentSections.length) {
+    presentIndex = 0;
+    updatePresentProgress();
+    return;
+  }
+
+  presentIndex = Math.max(0, Math.min(index, presentSections.length - 1));
+  const active = presentSections[presentIndex];
+  for (const child of preview.children) {
+    child.hidden = !active.includes(child);
+  }
+  updatePresentProgress();
+  preview.scrollTop = 0;
+  const pane = document.getElementById("preview-pane");
+  if (pane) pane.scrollTop = 0;
+}
+
+function clearPresentSectionFilter() {
+  for (const child of preview.children) {
+    child.hidden = false;
+  }
+}
+
+function setView(view, { syncUrl = true } = {}) {
+  const next = VIEWS.includes(view) ? view : "edit";
+  if (currentView === "present" && next !== "present") {
+    clearPresentSectionFilter();
+  }
+  if (next === "present" && currentView !== "present") {
+    viewBeforePresent = currentView === "edit" ? "edit" : "reader";
+  }
+
+  currentView = next;
+  document.body.dataset.view = next;
+
+  if (presentChrome) {
+    presentChrome.hidden = next !== "present";
+  }
+
+  if (next === "present") {
+    buildPresentSections();
+    showPresentSection(0);
+  }
+
+  if (syncUrl) {
+    if (editor.value.trim()) {
+      void syncHashForView(next);
+    } else {
+      void getShareState().then((state) => {
+        if (state.markdown) void syncHashForView(next);
+      });
+    }
+  }
+
+  closeShareMenu();
+  closeExportMenu();
+  closeHistory();
+  closeVoiceMenu();
+  closeOverflowMenu();
+}
+
+function enterPresentMode() {
+  setView("present");
+}
+
+function exitPresentMode() {
+  setView(viewBeforePresent === "edit" ? "edit" : "reader");
+}
+
+function presentNext() {
+  if (currentView !== "present") return;
+  showPresentSection(presentIndex + 1);
+}
+
+function presentPrev() {
+  if (currentView !== "present") return;
+  showPresentSection(presentIndex - 1);
 }
 
 function buildPreviewSpeechMap() {
@@ -683,7 +1977,7 @@ function buildPreviewSpeechMap() {
     acceptNode(node) {
       const parent = node.parentElement;
       if (!parent) return NodeFilter.FILTER_REJECT;
-      if (parent.closest("script, style, .mermaid")) return NodeFilter.FILTER_REJECT;
+      if (parent.closest("script, style, .mermaid, .line-num")) return NodeFilter.FILTER_REJECT;
       if (!node.data) return NodeFilter.FILTER_REJECT;
       return NodeFilter.FILTER_ACCEPT;
     },
@@ -707,7 +2001,7 @@ function getSpeakableText() {
   speechMap = buildPreviewSpeechMap();
   if (speechMap.text?.trim()) return speechMap.text;
   speechMap = null;
-  return (editor.value || "").trim();
+  return (getMarkdownSource() || "").trim();
 }
 
 function chunkSpeechText(text) {
@@ -1184,57 +2478,87 @@ function setupSpeech() {
   voiceMenuBtn.addEventListener("click", (e) => {
     e.stopPropagation();
     closeHistory();
+    closeShareMenu();
+    closeExportMenu();
     toggleVoiceMenu();
   });
   window.addEventListener("pagehide", stopSpeaking);
 }
 
-function init() {
-  const fromUrl = getMdFromUrl();
-  const savedTheme = localStorage.getItem(STORAGE_KEYS.theme);
-  if (savedTheme && THEMES.includes(savedTheme)) {
-    setTheme(savedTheme);
+async function init() {
+  const shareState = await getShareState();
+  const fromUrl = shareState.markdown;
+
+  if (shareState.theme) {
+    setTheme(shareState.theme, { persist: false });
   } else {
-    setTheme(preferredGithubTheme(), { persist: false });
-    const media = window.matchMedia("(prefers-color-scheme: dark)");
-    const onSchemeChange = () => {
-      if (!localStorage.getItem(STORAGE_KEYS.theme)) {
-        setTheme(preferredGithubTheme(), { persist: false });
-        renderMarkdown(editor.value);
+    const savedTheme = localStorage.getItem(STORAGE_KEYS.theme);
+    if (savedTheme && THEMES.includes(savedTheme)) {
+      setTheme(savedTheme);
+    } else {
+      setTheme(preferredGithubTheme(), { persist: false });
+      const media = window.matchMedia("(prefers-color-scheme: dark)");
+      const onSchemeChange = () => {
+        if (!localStorage.getItem(STORAGE_KEYS.theme)) {
+          setTheme(preferredGithubTheme(), { persist: false });
+          renderMarkdown(getMarkdownSource());
+        }
+      };
+      if (typeof media.addEventListener === "function") {
+        media.addEventListener("change", onSchemeChange);
+      } else if (typeof media.addListener === "function") {
+        media.addListener(onSchemeChange);
       }
-    };
-    if (typeof media.addEventListener === "function") {
-      media.addEventListener("change", onSchemeChange);
-    } else if (typeof media.addListener === "function") {
-      media.addListener(onSchemeChange);
     }
   }
+
   const savedWidth = localStorage.getItem(STORAGE_KEYS.width);
   setPreviewWidth(WIDTHS.includes(savedWidth) ? savedWidth : "readable", { persist: false });
   applyCollapseState();
   setupSplitter();
   setupDragAndDrop();
   setupSpeech();
+  setupPwa();
+
+  const savedSyncScroll = localStorage.getItem(STORAGE_KEYS.syncScroll) === "1";
+  setSyncScroll(savedSyncScroll, { persist: false });
 
   if (fromUrl != null) {
-    editor.value = fromUrl;
+    setEditorValue(fromUrl);
     localStorage.setItem(STORAGE_KEYS.draft, fromUrl);
     lastHistoryContent = fromUrl;
     pushHistory(fromUrl);
   } else {
     const draft = localStorage.getItem(STORAGE_KEYS.draft) || "";
-    editor.value = draft;
+    setEditorValue(draft);
     lastHistoryContent = draft;
   }
 
-  renderMarkdown(editor.value);
+  renderMarkdown(getMarkdownSource());
   renderHistoryMenu();
 
+  const initialView =
+    shareState.view ||
+    (fromUrl != null ? "reader" : "edit");
+  setView(initialView, { syncUrl: fromUrl != null });
+
+  // Commit the restored layout before revealing the panes, so the stored
+  // position is the first one shown and later collapses still animate.
+  void getComputedStyle(panes).gridTemplateColumns;
+  document.documentElement.classList.remove("is-booting");
+
   editor.addEventListener("input", onEditorInput);
+  editor.addEventListener("beforeinput", onEditorBeforeInput);
+  editor.addEventListener("paste", onEditorPaste);
+  editor.addEventListener("copy", onEditorCopyOrCut);
+  editor.addEventListener("cut", onEditorCopyOrCut);
 
   themeSelect.addEventListener("change", () => {
-    setTheme(themeSelect.value, { persist: true });
-    renderMarkdown(editor.value);
+    setTheme(themeSelect.value, { persist: currentView === "edit" });
+    // Mermaid colors follow --mermaid-* CSS variables, so no re-render is needed.
+    if (currentView !== "edit" && editor.value.trim()) {
+      void syncHashForView(currentView);
+    }
   });
 
   widthSelect.addEventListener("change", () => {
@@ -1247,12 +2571,76 @@ function init() {
     fileInput.value = "";
   });
 
-  shareBtn.addEventListener("click", copyShareUrl);
+  shareBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    toggleShareMenu();
+  });
+  shareReaderBtn?.addEventListener("click", () => copyShareUrl("reader"));
+  sharePresentBtn?.addEventListener("click", () => copyShareUrl("present"));
+
+  exportBtn?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    toggleExportMenu();
+  });
+  exportMenu?.addEventListener("click", (e) => {
+    const item = e.target.closest("[data-export]");
+    if (!item) return;
+    void exportDocument(item.getAttribute("data-export"));
+  });
+
+  editViewBtn?.addEventListener("click", () => setView("edit"));
+  presentViewBtn?.addEventListener("click", enterPresentMode);
+  printBtn?.addEventListener("click", () => window.print());
+  presentPrevBtn?.addEventListener("click", presentPrev);
+  presentNextBtn?.addEventListener("click", presentNext);
+  presentExitBtn?.addEventListener("click", exitPresentMode);
+
   collapseEditorBtn.addEventListener("click", toggleEditorCollapse);
   collapsePreviewBtn.addEventListener("click", togglePreviewCollapse);
+  syncScrollBtn.addEventListener("click", toggleSyncScroll);
+  editor.addEventListener(
+    "scroll",
+    () => {
+      syncEditorHighlightScroll();
+      syncPreviewFromEditor();
+    },
+    { passive: true },
+  );
+  previewPane.addEventListener("scroll", syncEditorFromPreview, { passive: true });
+  editor.addEventListener("click", scheduleRevealPreviewForCaret);
+  editor.addEventListener("keyup", (e) => {
+    if (
+      e.key === "ArrowUp" ||
+      e.key === "ArrowDown" ||
+      e.key === "ArrowLeft" ||
+      e.key === "ArrowRight" ||
+      e.key === "Home" ||
+      e.key === "End" ||
+      e.key === "PageUp" ||
+      e.key === "PageDown" ||
+      e.key === "Enter"
+    ) {
+      scheduleRevealPreviewForCaret();
+    }
+  });
+  editor.addEventListener("select", scheduleRevealPreviewForCaret);
+  if (typeof ResizeObserver === "function") {
+    const ro = new ResizeObserver(() => {
+      syncEditorHighlightScroll();
+      invalidateScrollAnchors();
+      if (syncScrollEnabled) {
+        syncPreviewFromEditor();
+        scheduleRevealPreviewForCaret();
+      }
+    });
+    ro.observe(editor);
+    ro.observe(previewPane);
+  }
   historyBtn.addEventListener("click", (e) => {
     e.stopPropagation();
     closeVoiceMenu();
+    closeShareMenu();
+    closeExportMenu();
     toggleHistory();
   });
 
@@ -1264,13 +2652,45 @@ function init() {
   document.addEventListener("click", (e) => {
     if (!historyDropdown.contains(e.target)) closeHistory();
     if (speakDropdown && !speakDropdown.contains(e.target)) closeVoiceMenu();
+    if (shareDropdown && !shareDropdown.contains(e.target)) closeShareMenu();
+    if (exportDropdown && !exportDropdown.contains(e.target)) closeExportMenu();
     if (!toolbarMenu.contains(e.target)) closeOverflowMenu();
   });
 
   document.addEventListener("keydown", (e) => {
+    if (currentView === "present") {
+      if (e.key === "Escape") {
+        exitPresentMode();
+        e.preventDefault();
+        return;
+      }
+      if (e.key === "ArrowRight" || e.key === "ArrowDown" || e.key === " " || e.key === "PageDown") {
+        presentNext();
+        e.preventDefault();
+        return;
+      }
+      if (e.key === "ArrowLeft" || e.key === "ArrowUp" || e.key === "PageUp") {
+        presentPrev();
+        e.preventDefault();
+        return;
+      }
+      if (e.key === "Home") {
+        showPresentSection(0);
+        e.preventDefault();
+        return;
+      }
+      if (e.key === "End") {
+        showPresentSection(presentSections.length - 1);
+        e.preventDefault();
+        return;
+      }
+    }
+
     if (e.key === "Escape") {
       closeHistory();
       closeVoiceMenu();
+      closeShareMenu();
+      closeExportMenu();
       closeOverflowMenu();
       if (speechActive) stopSpeaking();
     }

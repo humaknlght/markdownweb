@@ -17,6 +17,7 @@ RewriteEngine On
   AddType text/css .css
   AddType image/jpeg .jpg .jpeg
   AddType image/png .png
+  AddType application/manifest+json .webmanifest
   # Precompressed siblings keep the original MIME via ForceType below
   AddEncoding br .br
   AddEncoding gzip .gz
@@ -65,6 +66,12 @@ RewriteEngine On
   Header append Vary "Accept-Encoding"
   RemoveOutputFilter DEFLATE
 </FilesMatch>
+<FilesMatch "\.webmanifest\.br$">
+  ForceType "application/manifest+json"
+  Header set Content-Encoding "br"
+  Header append Vary "Accept-Encoding"
+  RemoveOutputFilter DEFLATE
+</FilesMatch>
 
 <FilesMatch "\.html\.gz$">
   ForceType "text/html"
@@ -84,11 +91,17 @@ RewriteEngine On
   Header append Vary "Accept-Encoding"
   RemoveOutputFilter DEFLATE
 </FilesMatch>
+<FilesMatch "\.webmanifest\.gz$">
+  ForceType "application/manifest+json"
+  Header set Content-Encoding "gzip"
+  Header append Vary "Accept-Encoding"
+  RemoveOutputFilter DEFLATE
+</FilesMatch>
 
 # On-the-fly gzip only for responses that were not rewritten to .br/.gz
 <IfModule mod_deflate.c>
   SetEnvIfNoCase Request_URI "\.(br|gz)$" no-gzip
-  AddOutputFilterByType DEFLATE text/html text/css text/javascript application/javascript application/json image/svg+xml
+  AddOutputFilterByType DEFLATE text/html text/css text/javascript application/javascript application/json application/manifest+json image/svg+xml
 </IfModule>
 
 <IfModule mod_expires.c>
@@ -97,6 +110,7 @@ RewriteEngine On
   ExpiresByType text/css "access plus 1 year"
   ExpiresByType text/javascript "access plus 1 year"
   ExpiresByType application/javascript "access plus 1 year"
+  ExpiresByType application/manifest+json "access plus 0 seconds"
   ExpiresByType image/jpeg "access plus 1 year"
   ExpiresByType image/png "access plus 1 year"
 </IfModule>
@@ -111,8 +125,19 @@ RewriteEngine On
     Header set Cross-Origin-Resource-Policy "cross-origin"
   </FilesMatch>
 
+  # PWA icons may be requested by the OS / browser outside the document COEP.
+  <FilesMatch "^icon-(192|512|maskable-512)(\.[a-f0-9]+)?\.png$">
+    Header set Cross-Origin-Resource-Policy "cross-origin"
+  </FilesMatch>
+
   <FilesMatch "\.(css|js)(\.(br|gz))?$">
     Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+  <FilesMatch "^(sw\.js)(\.(br|gz))?$">
+    Header set Cache-Control "no-cache"
+  </FilesMatch>
+  <FilesMatch "\.webmanifest(\.(br|gz))?$">
+    Header set Cache-Control "no-cache"
   </FilesMatch>
   <FilesMatch "\.(jpg|jpeg|png)$">
     Header set Cache-Control "public, max-age=31536000, immutable"

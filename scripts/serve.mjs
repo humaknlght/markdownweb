@@ -32,6 +32,7 @@ const MIME = {
   ".png": "image/png",
   ".svg": "image/svg+xml",
   ".json": "application/json",
+  ".webmanifest": "application/manifest+json",
   ".ico": "image/x-icon",
   ".woff": "font/woff",
   ".woff2": "font/woff2",
@@ -74,6 +75,7 @@ const HTML_HEADERS = {
 
 function headersFor(logicalPath, encoding) {
   const ext = path.extname(logicalPath).toLowerCase();
+  const base = path.basename(logicalPath);
   const headers = {
     "Cross-Origin-Resource-Policy": CORP,
     "Content-Type": MIME[ext] || "application/octet-stream",
@@ -84,11 +86,20 @@ function headersFor(logicalPath, encoding) {
     headers["Content-Encoding"] = encoding;
   }
 
+  if (
+    /^og-image\.[a-f0-9]+\.png$/i.test(base) ||
+    /^icon-(192|512|maskable-512)(\.[a-f0-9]+)?\.png$/i.test(base)
+  ) {
+    headers["Cross-Origin-Resource-Policy"] = "cross-origin";
+  }
+
   if (ext === ".html") {
     Object.assign(headers, HTML_HEADERS);
+  } else if (base === "sw.js" || ext === ".webmanifest") {
+    headers["Cache-Control"] = "no-cache";
   } else if (ext === ".css" || ext === ".js" || ext === ".mjs") {
     headers["Cache-Control"] = "public, max-age=31536000, immutable";
-  } else if (ext === ".jpg" || ext === ".jpeg") {
+  } else if (ext === ".jpg" || ext === ".jpeg" || ext === ".png") {
     headers["Cache-Control"] = "public, max-age=31536000, immutable";
   }
 
