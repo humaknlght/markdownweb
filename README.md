@@ -1,6 +1,6 @@
 # Markdown Preview
 
-A fast, client-side Markdown previewer. Paste or upload Markdown and see rendered HTML beside it. Everything runs in the browser — no server processing.
+A fast, client-side Markdown previewer. Paste upload, or open Markdown and see rendered HTML beside it. Everything runs in the browser — no server processing.
 
 ## Features
 
@@ -9,6 +9,7 @@ A fast, client-side Markdown previewer. Paste or upload Markdown and see rendere
 - Paste an image into the editor (inserted as a base64 data-URI Markdown image at the caret)
 - Upload `.md`, `.markdown`, or `.txt` files
 - Shareable **reader** and **present** links (`#mdz=` compressed Markdown + `theme` + `view`)
+- **External content** modal when Markdown arrived via share URL, upload, or OS file launch (Accept to keep, Reject to discard and clear `#md` / `#mdz`)
 - Present mode walks the doc by `h1`/`h2` sections (arrow keys / Space)
 - Print / Save as PDF styles that hide chrome and keep the article clean
 - Read aloud with high-quality voice picking and word highlighting (in supported browsers)
@@ -19,6 +20,7 @@ A fast, client-side Markdown previewer. Paste or upload Markdown and see rendere
 - Mermaid diagrams from fenced `mermaid` code blocks (library loaded on demand from jsDelivr with SRI)
 - Local history of recent Markdown (remembered in `localStorage`)
 - Progressive Web App: installable, offline (including CDN libs), update prompt
+- Installed PWA can open `.md` / `.markdown` (and related text) files via “Open with” / OS default-app settings (Chromium desktop)
 
 ## Project layout
 

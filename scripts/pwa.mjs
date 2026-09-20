@@ -49,6 +49,22 @@ export function buildManifest(iconNames) {
           purpose: "any",
         },
       ],
+      // Lets an installed Chromium PWA appear in “Open with” / default-app lists
+      // for Markdown (and related text) files. Requires launchQueue handling in-app.
+      file_handlers: [
+        {
+          action: "./",
+          accept: {
+            "text/markdown": [".md", ".markdown", ".mdown", ".mkd"],
+            "text/plain": [".txt"],
+            "text/html": [".html", ".htm"],
+          },
+          launch_type: "single-client",
+        },
+      ],
+      launch_handler: {
+        client_mode: "focus-existing",
+      },
     },
     null,
     2

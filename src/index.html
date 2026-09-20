@@ -126,7 +126,24 @@
 <body data-view="edit">
   <header class="toolbar">
     <div class="brand-group">
+      <button
+        type="button"
+        class="btn svg-btn authoring-only fs-only hamburger-btn"
+        id="files-toggle-btn"
+        title="Files"
+        aria-label="Files"
+        aria-pressed="false"
+        aria-controls="files-drawer"
+        hidden
+      >
+        <span class="hamburger" aria-hidden="true">
+          <span class="hamburger-line"></span>
+          <span class="hamburger-line"></span>
+          <span class="hamburger-line"></span>
+        </span>
+      </button>
       <h1 class="brand">Markdown Preview</h1>
+      <span id="current-file-name" class="current-file-name" hidden></span>
       <a class="brand-link" href="https://www.ericperret.org" target="_blank" rel="noopener">ericperret.org</a>
     </div>
     <div class="toolbar-menu" id="toolbar-menu">
@@ -143,10 +160,24 @@
               type="file"
               id="file-input"
               aria-label="Upload"
-              accept=".md,.markdown,.txt,text/markdown,text/plain"
+              accept=".md,.markdown,.txt,.html,.htm,text/markdown,text/plain,text/html"
               hidden
             />
           </label>
+          <button
+            type="button"
+            class="btn svg-btn authoring-only fs-only"
+            id="save-btn"
+            title="Save (Ctrl/Cmd+S)"
+            aria-label="Save"
+            hidden
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+              <path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z" />
+              <path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7" />
+              <path d="M7 3v4a1 1 0 0 0 1 1h7" />
+            </svg>
+          </button>
           <div class="dropdown authoring-only" id="history-dropdown">
             <button type="button" class="btn svg-btn" id="history-btn" title="History" aria-label="History" aria-haspopup="listbox" aria-expanded="false">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
@@ -289,7 +320,7 @@
         type="button"
         class="btn icon-btn overflow-btn"
         id="overflow-btn"
-        aria-label="Open menu"
+        title="Open menu"
         aria-haspopup="true"
         aria-expanded="false"
         aria-controls="toolbar-actions"
@@ -305,40 +336,115 @@
     </div>
   </header>
 
-  <main class="panes" id="panes">
-    <section class="pane editor-pane" id="editor-pane" aria-label="Markdown editor">
-      <div class="editor-wrap">
-        <pre class="editor-highlight" id="editor-highlight" aria-hidden="true"><code></code></pre>
-        <textarea
-          id="editor"
-          spellcheck="false"
-          placeholder="Paste Markdown or an image…"
-          aria-label="Markdown source"
-        ></textarea>
-      </div>
-    </section>
-    <div
-      class="splitter"
-      id="splitter"
-      role="separator"
-      aria-orientation="vertical"
-      aria-label="Resize editor and preview"
-      tabindex="0"
-    ></div>
-    <section class="pane preview-pane" id="preview-pane" aria-label="Rendered preview">
-      <article class="preview" id="preview"></article>
-      <div class="present-chrome" id="present-chrome" hidden>
-        <button type="button" class="btn" id="present-prev-btn" title="Previous section" aria-label="Previous section">←</button>
-        <div class="present-progress" id="present-progress" aria-live="polite"></div>
-        <button type="button" class="btn" id="present-next-btn" title="Next section" aria-label="Next section">→</button>
-        <button type="button" class="btn" id="present-exit-btn" title="Exit present mode">Exit</button>
-      </div>
-    </section>
-  </main>
+  <div class="workspace" id="workspace">
+    <aside class="files-drawer" id="files-drawer" aria-label="Files" hidden>
+      <section class="files-drawer-section files-section" aria-labelledby="files-drawer-title">
+        <div class="files-drawer-header">
+          <div class="files-drawer-title-row">
+            <strong class="files-drawer-title" id="files-drawer-title">Files</strong>
+          </div>
+          <div class="files-drawer-actions">
+            <button type="button" class="btn" id="files-open-folder-btn" title="Open folder">Open folder</button>
+            <button type="button" class="btn" id="files-new-file-btn" title="New untitled document">New</button>
+            <button type="button" class="btn" id="files-new-folder-btn" title="New folder" disabled>New folder</button>
+            <button type="button" class="btn svg-btn" id="files-refresh-btn" title="Refresh" aria-label="Refresh" disabled>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
+                <path d="M21 3v5h-5" />
+                <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
+                <path d="M8 16H3v5" />
+              </svg>
+            </button>
+          </div>
+        </div>
+        <div class="files-drawer-body">
+          <div class="files-empty" id="files-empty">
+            <p>Open a folder to browse Markdown, text, and HTML files.</p>
+            <button type="button" class="btn" id="files-empty-open-btn">Open folder</button>
+          </div>
+          <div class="files-permission" id="files-permission" hidden>
+            <p>Permission needed to access the saved folder.</p>
+            <button type="button" class="btn" id="files-regrant-btn">Allow access</button>
+            <button type="button" class="btn" id="files-reopen-btn">Choose folder</button>
+          </div>
+          <ul class="files-tree" id="files-tree" role="tree" hidden></ul>
+        </div>
+      </section>
+      <section class="files-drawer-section outline-section" aria-labelledby="outline-title">
+        <div class="outline-header">
+          <strong class="outline-title" id="outline-title">Outline</strong>
+        </div>
+        <nav class="outline-body" id="doc-outline" aria-label="Document outline">
+          <p class="outline-empty" id="outline-empty">No headings in this document.</p>
+          <ul class="outline-list" id="outline-list" hidden></ul>
+        </nav>
+      </section>
+    </aside>
+    <div class="files-backdrop" id="files-backdrop" hidden></div>
+
+    <main class="panes" id="panes">
+      <section class="pane editor-pane" id="editor-pane" aria-label="Markdown editor">
+        <div class="editor-wrap">
+          <pre class="editor-highlight" id="editor-highlight" aria-hidden="true"><code></code></pre>
+          <textarea
+            id="editor"
+            spellcheck="false"
+            placeholder="Paste Markdown or an image…"
+            aria-label="Markdown source"
+          ></textarea>
+        </div>
+      </section>
+      <div
+        class="splitter"
+        id="splitter"
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Resize editor and preview"
+        tabindex="0"
+      ></div>
+      <section class="pane preview-pane" id="preview-pane" aria-label="Rendered preview">
+        <article class="preview" id="preview"></article>
+        <div class="present-chrome" id="present-chrome" hidden>
+          <button type="button" class="btn" id="present-prev-btn" title="Previous section" aria-label="Previous section">←</button>
+          <div class="present-progress" id="present-progress" aria-live="polite"></div>
+          <button type="button" class="btn" id="present-next-btn" title="Next section" aria-label="Next section">→</button>
+          <button type="button" class="btn" id="present-exit-btn" title="Exit present mode">Exit</button>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <ul class="files-context-menu dropdown-menu" id="files-context-menu" role="menu" hidden>
+    <li><button type="button" role="menuitem" data-fs-action="new-file">New file</button></li>
+    <li><button type="button" role="menuitem" data-fs-action="new-folder">New folder</button></li>
+    <li><button type="button" role="menuitem" data-fs-action="rename">Rename</button></li>
+    <li><button type="button" role="menuitem" data-fs-action="delete">Delete</button></li>
+  </ul>
 
   <div class="drop-overlay" id="drop-overlay" hidden aria-hidden="true">
     <p class="drop-overlay-card">Drop a Markdown file to load it</p>
   </div>
+
+  <dialog
+    class="external-modal"
+    id="external-modal"
+    aria-labelledby="external-modal-title"
+    aria-describedby="external-modal-desc"
+  >
+    <h2 class="external-modal-title" id="external-modal-title">External content</h2>
+    <p class="external-modal-desc" id="external-modal-desc">
+      This Markdown came from a link, upload, or opened file — not your draft.
+      Treat it as untrusted. Do not enter passwords or sensitive information.
+    </p>
+    <form method="dialog" class="external-modal-actions">
+      <button type="submit" class="btn external-modal-reject" value="reject">
+        Reject
+      </button>
+      <button type="submit" class="btn external-modal-accept" value="accept">
+        Accept
+      </button>
+    </form>
+  </dialog>
 
   <div class="toast" id="toast" hidden role="status"></div>
 

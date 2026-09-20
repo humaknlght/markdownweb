@@ -10,6 +10,27 @@ import {
   exportBasename,
   printPreviewAsPdf,
 } from "./export.js";
+import {
+  clearStoredDirectory,
+  createFile,
+  createFolder,
+  ensureEditableExtension,
+  ensureHandlePermission,
+  isEditableFileName,
+  isFsAccessSupported,
+  listDirectory,
+  openDirectory,
+  readTextFile,
+  removeEntry,
+  renameEntry,
+  restoreDirectory,
+  loadStoredCurrentFileHandle,
+  resolveFilePath,
+  saveWithPicker,
+  storeCurrentFileHandle,
+  suggestedUntitledName,
+  writeTextFile,
+} from "./fs.js";
 import { marked, Renderer } from "marked";
 import DOMPurify from "dompurify";
 import hljs from "highlight.js";
@@ -24,6 +45,10 @@ const STORAGE_KEYS = {
   width: "md-preview:width",
   voice: "md-preview:voice",
   syncScroll: "md-preview:sync-scroll",
+  filesDrawer: "md-preview:filesDrawer",
+  currentFile: "md-preview:currentFile",
+  currentFilePath: "md-preview:currentFilePath",
+  savedSnapshot: "md-preview:savedSnapshot",
 };
 
 const HISTORY_LIMIT = 20;
@@ -35,7 +60,7 @@ const SPLIT_MAX = 85;
 const AUTO_HIGHLIGHT_MAX = 8_000;
 const EDITOR_HIGHLIGHT_MAX = 100_000;
 const NARROW_MQ = "(max-width: 800px)";
-const TEXT_FILE_RE = /\.(md|markdown|mdown|mkd|txt)$/i;
+const TEXT_FILE_RE = /\.(md|markdown|mdown|mkd|txt|html|htm)$/i;
 const IMAGE_MIME_RE = /^image\/(png|jpe?g|gif|webp|bmp|svg\+xml)$/i;
 /** Raw clipboard image size cap before base64 (keeps drafts / history workable). */
 const IMAGE_PASTE_MAX_BYTES = 2 * 1024 * 1024;
@@ -83,6 +108,7 @@ const historyBtn = document.getElementById("history-btn");
 const historyMenu = document.getElementById("history-menu");
 const historyDropdown = document.getElementById("history-dropdown");
 const toolbarMenu = document.getElementById("toolbar-menu");
+const toolbarActions = document.getElementById("toolbar-actions");
 const overflowBtn = document.getElementById("overflow-btn");
 const toastEl = document.getElementById("toast");
 const dropOverlay = document.getElementById("drop-overlay");
@@ -95,11 +121,55 @@ const presentPrevBtn = document.getElementById("present-prev-btn");
 const presentNextBtn = document.getElementById("present-next-btn");
 const presentExitBtn = document.getElementById("present-exit-btn");
 const presentProgress = document.getElementById("present-progress");
+const externalModal = document.getElementById("external-modal");
 const installBtn = document.getElementById("install-btn");
 const updateToast = document.getElementById("update-toast");
 const updateReloadBtn = document.getElementById("update-reload-btn");
+const filesToggleBtn = document.getElementById("files-toggle-btn");
+const saveBtn = document.getElementById("save-btn");
+const filesDrawer = document.getElementById("files-drawer");
+const filesBackdrop = document.getElementById("files-backdrop");
+const filesDrawerTitle = document.getElementById("files-drawer-title");
+const filesOpenFolderBtn = document.getElementById("files-open-folder-btn");
+const filesNewFileBtn = document.getElementById("files-new-file-btn");
+const filesNewFolderBtn = document.getElementById("files-new-folder-btn");
+const filesRefreshBtn = document.getElementById("files-refresh-btn");
+const filesEmpty = document.getElementById("files-empty");
+const filesEmptyOpenBtn = document.getElementById("files-empty-open-btn");
+const filesPermission = document.getElementById("files-permission");
+const filesRegrantBtn = document.getElementById("files-regrant-btn");
+const filesReopenBtn = document.getElementById("files-reopen-btn");
+const filesTree = document.getElementById("files-tree");
+const filesContextMenu = document.getElementById("files-context-menu");
+const currentFileNameEl = document.getElementById("current-file-name");
+const outlineEmpty = document.getElementById("outline-empty");
+const outlineList = document.getElementById("outline-list");
 
 const speechSupported = typeof window.SpeechSynthesisUtterance !== "undefined";
+const fsAccessSupported = isFsAccessSupported();
+
+/** @type {FileSystemDirectoryHandle|null} */
+let rootDirHandle = null;
+/** @type {FileSystemDirectoryHandle|null} */
+let selectedDirHandle = null;
+/** @type {string} */
+let selectedPath = "";
+/** @type {FileSystemFileHandle|null} */
+let currentFileHandle = null;
+/** @type {string} */
+let currentFileName = "";
+/** @type {string} Relative path under the open folder, when known. */
+let currentFilePath = "";
+/** @type {string} */
+let savedSnapshot = "";
+/** @type {Map<string, { kind: "file"|"directory", handle: FileSystemHandle, parent: FileSystemDirectoryHandle|null, path: string }>} */
+const fsEntries = new Map();
+/** @type {Set<string>} */
+const expandedPaths = new Set();
+/** @type {{ path: string, kind: "file"|"directory" }|null} */
+let contextTarget = null;
+let filesDrawerOpen = false;
+let awaitingFsPermission = false;
 
 function isStandaloneDisplay() {
   return (
@@ -131,6 +201,14 @@ marked.setOptions({
 
 marked.use(emojiExtension());
 marked.use(alertExtension());
+
+// Open all markdown links in a new tab; noopener/noreferrer blocks window.opener abuse.
+DOMPurify.addHook("afterSanitizeAttributes", (node) => {
+  if ("target" in node) {
+    node.setAttribute("target", "_blank");
+    node.setAttribute("rel", "noopener noreferrer");
+  }
+});
 
 let editorHighlightRaf = 0;
 
@@ -591,6 +669,10 @@ let currentView = "edit";
 let viewBeforePresent = "reader";
 let presentSections = [];
 let presentIndex = 0;
+/** True when Markdown was loaded from a share URL, upload, or OS file launch. */
+let contentIsExternal = false;
+/** Content awaiting Accept/Reject; kept so Reject can scrub history after edits. */
+let pendingExternalContent = null;
 let syncScrollEnabled = false;
 /** Which pane is driving sync; suppresses echo scroll events. */
 let syncScrollDriver = null;
@@ -762,6 +844,87 @@ function showToast(message) {
   toastTimer = window.setTimeout(() => {
     toastEl.hidden = true;
   }, 1800);
+}
+
+/** Mark content as external (share/upload/OS launch) so reader/present show a trust modal. */
+function setContentExternal(external) {
+  contentIsExternal = Boolean(external);
+  document.body.dataset.external = contentIsExternal ? "1" : "0";
+  if (contentIsExternal) {
+    pendingExternalContent = getMarkdownSource();
+  } else {
+    pendingExternalContent = null;
+  }
+  syncExternalModal();
+}
+
+function isExternalModalOpen() {
+  return Boolean(externalModal?.open);
+}
+
+function syncExternalModal() {
+  if (!externalModal) return;
+  const show = contentIsExternal;
+  if (show) {
+    if (!externalModal.open) {
+      externalModal.returnValue = "";
+      externalModal.showModal();
+    }
+  } else if (externalModal.open) {
+    externalModal.returnValue = "";
+    externalModal.close();
+  }
+}
+
+/** Strip md / mdz from both the query string and the hash. */
+function clearShareMarkdownFromUrl() {
+  const url = new URL(window.location.href);
+  url.searchParams.delete("md");
+  url.searchParams.delete("mdz");
+
+  if (url.hash.length > 1) {
+    const hashParams = new URLSearchParams(url.hash.slice(1));
+    hashParams.delete("md");
+    hashParams.delete("mdz");
+    if (hashParams.get("view") === "reader" || hashParams.get("view") === "present") {
+      hashParams.set("view", "edit");
+    }
+    url.hash = hashParams.toString();
+  }
+
+  history.replaceState(null, "", url);
+}
+
+function removeHistoryMatching(content) {
+  if (!content?.trim()) return;
+  const entries = loadHistory().filter((e) => e.content !== content);
+  saveHistory(entries);
+  if (lastHistoryContent === content) lastHistoryContent = "";
+  renderHistoryMenu();
+}
+
+function acceptExternalContent() {
+  const content = getMarkdownSource();
+  localStorage.setItem(STORAGE_KEYS.draft, content);
+  setContentExternal(false);
+  pushHistory(content);
+}
+
+function rejectExternalContent() {
+  const rejected = pendingExternalContent || getMarkdownSource();
+  removeHistoryMatching(rejected);
+  removeHistoryMatching(getMarkdownSource());
+  window.clearTimeout(historyTimer);
+  setEditorValue("");
+  localStorage.setItem(STORAGE_KEYS.draft, "");
+  lastHistoryContent = "";
+  clearCurrentFileBinding();
+  renderMarkdown("");
+  markCleanFromEditor();
+  clearShareMarkdownFromUrl();
+  setContentExternal(false);
+  setView("edit", { syncUrl: false });
+  showToast("External content rejected");
 }
 
 function registerServiceWorker() {
@@ -961,6 +1124,7 @@ function renderMarkdown(source) {
     addCodeLineNumbers(preview);
     invalidateScrollAnchors();
     rafId = 0;
+    updateDocOutline();
     syncPreviewFromEditor();
     revealPreviewForEditorCaret();
     renderMermaidDiagrams().finally(() => {
@@ -1009,6 +1173,7 @@ function saveHistory(entries) {
 }
 
 function pushHistory(markdown) {
+  if (contentIsExternal) return;
   const content = markdown ?? getMarkdownSource();
   if (!content.trim()) return;
   if (content.length > HISTORY_MAX_CHARS) return;
@@ -1072,10 +1237,14 @@ function renderHistoryMenu() {
 
     btn.append(title, meta);
     btn.addEventListener("click", () => {
+      if (!confirmDiscardIfDirty()) return;
       setEditorValue(entry.content);
       lastHistoryContent = entry.content;
       localStorage.setItem(STORAGE_KEYS.draft, entry.content);
       renderMarkdown(entry.content);
+      clearCurrentFileBinding();
+      markCleanFromEditor();
+      setContentExternal(false);
       closeHistory();
       showToast("Restored from history");
     });
@@ -1566,10 +1735,20 @@ function revealPreviewForEditorCaret() {
 }
 
 function scheduleRevealPreviewForCaret() {
+  scheduleOutlineHighlight();
   if (!syncScrollEnabled || caretRevealRaf) return;
   caretRevealRaf = requestAnimationFrame(() => {
     caretRevealRaf = 0;
     revealPreviewForEditorCaret();
+  });
+}
+
+let outlineHighlightRaf = 0;
+function scheduleOutlineHighlight() {
+  if (outlineHighlightRaf) return;
+  outlineHighlightRaf = requestAnimationFrame(() => {
+    outlineHighlightRaf = 0;
+    highlightActiveOutlineItem();
   });
 }
 
@@ -1581,10 +1760,14 @@ function onEditorInput() {
   if (suppressEditorInput) return;
   syncCollapsedDataUris();
   const source = getMarkdownSource();
-  localStorage.setItem(STORAGE_KEYS.draft, source);
+  // Hold draft/history until Accept so Reject can fully discard untrusted content.
+  if (!contentIsExternal) {
+    localStorage.setItem(STORAGE_KEYS.draft, source);
+  }
   scheduleEditorHighlight();
   invalidateScrollAnchors();
   scheduleRender();
+  updateSaveButton();
   window.clearTimeout(historyTimer);
   historyTimer = window.setTimeout(() => pushHistory(source), HISTORY_DEBOUNCE_MS);
 }
@@ -1661,23 +1844,886 @@ async function onEditorPaste(e) {
   }
 }
 
-function handleFile(file) {
-  if (!file) return;
-  if (!TEXT_FILE_RE.test(file.name) && !file.type.startsWith("text/")) {
-    showToast("Only Markdown or text files are supported");
+function isDirty() {
+  return getMarkdownSource() !== savedSnapshot;
+}
+
+function confirmDiscardIfDirty() {
+  if (!isDirty()) return true;
+  return window.confirm("You have unsaved changes. Discard them?");
+}
+
+function updateDocumentTitle() {
+  const base = "Markdown Preview";
+  document.title = currentFileName ? `${currentFileName} · ${base}` : base;
+  if (currentFileNameEl) {
+    if (currentFileName) {
+      currentFileNameEl.textContent = currentFileName;
+      currentFileNameEl.hidden = false;
+    } else {
+      currentFileNameEl.textContent = "";
+      currentFileNameEl.hidden = true;
+    }
+  }
+}
+
+function markCleanFromEditor() {
+  savedSnapshot = getMarkdownSource();
+  try {
+    localStorage.setItem(STORAGE_KEYS.savedSnapshot, savedSnapshot);
+  } catch {
+    /* ignore quota */
+  }
+  updateSaveButton();
+}
+
+function pathForHandle(fileHandle) {
+  if (!fileHandle) return "";
+  for (const [path, entry] of fsEntries) {
+    if (entry.kind === "file" && entry.handle === fileHandle) return path;
+  }
+  return "";
+}
+
+function persistCurrentFileBinding() {
+  try {
+    if (currentFileName) localStorage.setItem(STORAGE_KEYS.currentFile, currentFileName);
+    else localStorage.removeItem(STORAGE_KEYS.currentFile);
+    if (currentFilePath) localStorage.setItem(STORAGE_KEYS.currentFilePath, currentFilePath);
+    else localStorage.removeItem(STORAGE_KEYS.currentFilePath);
+  } catch {
+    /* ignore */
+  }
+  if (fsAccessSupported) {
+    void storeCurrentFileHandle(currentFileHandle);
+  }
+}
+
+function clearCurrentFileBinding() {
+  currentFileHandle = null;
+  currentFileName = "";
+  currentFilePath = "";
+  updateDocumentTitle();
+  updateSaveButton();
+  highlightActiveFileInTree();
+  persistCurrentFileBinding();
+}
+
+/**
+ * @param {FileSystemFileHandle|null} fileHandle
+ * @param {string} [name]
+ * @param {string} [path]
+ */
+function bindCurrentFile(fileHandle, name, path = "") {
+  currentFileHandle = fileHandle;
+  currentFileName = name || fileHandle?.name || "";
+  currentFilePath = path || pathForHandle(fileHandle) || "";
+  updateDocumentTitle();
+  updateSaveButton();
+  highlightActiveFileInTree();
+  persistCurrentFileBinding();
+}
+
+function updateSaveButton() {
+  if (!saveBtn || !fsAccessSupported) return;
+  const dirty = isDirty();
+  saveBtn.classList.toggle("is-dirty", dirty);
+  saveBtn.title = dirty
+    ? `Save unsaved changes (Ctrl/Cmd+S)`
+    : currentFileName
+      ? `Save ${currentFileName} (Ctrl/Cmd+S)`
+      : "Save (Ctrl/Cmd+S)";
+}
+
+function setFilesDrawerOpen(open, { persist = true } = {}) {
+  filesDrawerOpen = Boolean(open);
+  document.body.classList.toggle("files-drawer-open", filesDrawerOpen);
+  if (filesDrawer) {
+    filesDrawer.setAttribute("aria-hidden", filesDrawerOpen ? "false" : "true");
+    if (filesDrawerOpen) filesDrawer.removeAttribute("inert");
+    else filesDrawer.setAttribute("inert", "");
+  }
+  if (filesBackdrop) {
+    filesBackdrop.setAttribute("aria-hidden", filesDrawerOpen ? "false" : "true");
+  }
+  filesToggleBtn?.setAttribute("aria-pressed", filesDrawerOpen ? "true" : "false");
+  if (persist) {
+    localStorage.setItem(STORAGE_KEYS.filesDrawer, filesDrawerOpen ? "1" : "0");
+  }
+}
+
+function toggleFilesDrawer() {
+  setFilesDrawerOpen(!filesDrawerOpen);
+}
+
+function closeFilesContextMenu() {
+  if (!filesContextMenu) return;
+  filesContextMenu.hidden = true;
+  contextTarget = null;
+}
+
+function openFilesContextMenu(x, y, path, kind) {
+  if (!filesContextMenu) return;
+  contextTarget = { path, kind };
+  const newFileItem = filesContextMenu.querySelector('[data-fs-action="new-file"]');
+  const newFolderItem = filesContextMenu.querySelector('[data-fs-action="new-folder"]');
+  const renameItem = filesContextMenu.querySelector('[data-fs-action="rename"]');
+  const deleteItem = filesContextMenu.querySelector('[data-fs-action="delete"]');
+  const showCreate = kind === "directory";
+  if (newFileItem?.parentElement) newFileItem.parentElement.hidden = !showCreate;
+  if (newFolderItem?.parentElement) newFolderItem.parentElement.hidden = !showCreate;
+  if (renameItem?.parentElement) renameItem.parentElement.hidden = path === "";
+  if (deleteItem?.parentElement) deleteItem.parentElement.hidden = path === "";
+
+  filesContextMenu.hidden = false;
+  const rect = filesContextMenu.getBoundingClientRect();
+  const left = Math.min(x, window.innerWidth - rect.width - 8);
+  const top = Math.min(y, window.innerHeight - rect.height - 8);
+  filesContextMenu.style.left = `${Math.max(8, left)}px`;
+  filesContextMenu.style.top = `${Math.max(8, top)}px`;
+}
+
+function updateFilesChrome() {
+  const hasRoot = Boolean(rootDirHandle) && !awaitingFsPermission;
+  if (filesDrawerTitle) {
+    filesDrawerTitle.textContent = rootDirHandle?.name || "Files";
+  }
+  if (filesEmpty) filesEmpty.hidden = hasRoot || awaitingFsPermission;
+  if (filesPermission) filesPermission.hidden = !awaitingFsPermission;
+  if (filesTree) filesTree.hidden = !hasRoot;
+  if (filesNewFileBtn) filesNewFileBtn.disabled = false;
+  if (filesNewFolderBtn) filesNewFolderBtn.disabled = !hasRoot;
+  if (filesRefreshBtn) filesRefreshBtn.disabled = !hasRoot;
+}
+
+function joinFsPath(parentPath, name) {
+  return parentPath ? `${parentPath}/${name}` : name;
+}
+
+function parentPathOf(path) {
+  const idx = path.lastIndexOf("/");
+  return idx === -1 ? "" : path.slice(0, idx);
+}
+
+function getTargetDirForCreate(preferredPath = selectedPath) {
+  if (!rootDirHandle) return null;
+  const entry = preferredPath ? fsEntries.get(preferredPath) : null;
+  if (entry?.kind === "directory") return /** @type {FileSystemDirectoryHandle} */ (entry.handle);
+  if (entry?.kind === "file" && entry.parent) return entry.parent;
+  if (selectedDirHandle) return selectedDirHandle;
+  return rootDirHandle;
+}
+
+function selectFsPath(path) {
+  selectedPath = path || "";
+  const entry = selectedPath ? fsEntries.get(selectedPath) : null;
+  if (entry?.kind === "directory") {
+    selectedDirHandle = /** @type {FileSystemDirectoryHandle} */ (entry.handle);
+  } else if (entry?.kind === "file" && entry.parent) {
+    selectedDirHandle = entry.parent;
+  } else {
+    selectedDirHandle = rootDirHandle;
+  }
+  highlightSelectedInTree();
+}
+
+function highlightSelectedInTree() {
+  filesTree?.querySelectorAll(".files-tree-row.is-selected").forEach((el) => {
+    el.classList.remove("is-selected");
+  });
+  if (!selectedPath) return;
+  const row = filesTree?.querySelector(`.files-tree-row[data-path="${cssEscape(selectedPath)}"]`);
+  row?.classList.add("is-selected");
+}
+
+function highlightActiveFileInTree() {
+  filesTree?.querySelectorAll(".files-tree-row.is-active-file").forEach((el) => {
+    el.classList.remove("is-active-file");
+  });
+  if (!currentFileName) return;
+  if (currentFilePath) {
+    const row = filesTree?.querySelector(`.files-tree-row[data-path="${cssEscape(currentFilePath)}"]`);
+    row?.classList.add("is-active-file");
     return;
   }
-  const reader = new FileReader();
-  reader.onload = () => {
-    const text = String(reader.result ?? "");
+  if (!currentFileHandle) return;
+  for (const [path, entry] of fsEntries) {
+    if (entry.kind === "file" && entry.handle === currentFileHandle) {
+      const row = filesTree?.querySelector(`.files-tree-row[data-path="${cssEscape(path)}"]`);
+      row?.classList.add("is-active-file");
+      return;
+    }
+  }
+}
+
+function cssEscape(value) {
+  if (typeof CSS !== "undefined" && typeof CSS.escape === "function") return CSS.escape(value);
+  return String(value).replace(/["\\]/g, "\\$&");
+}
+
+/**
+ * @param {FileSystemDirectoryHandle} dirHandle
+ * @param {string} path
+ * @param {HTMLUListElement} listEl
+ */
+async function renderDirectoryChildren(dirHandle, path, listEl) {
+  listEl.replaceChildren();
+  const entries = await listDirectory(dirHandle);
+  for (const entry of entries) {
+    const childPath = joinFsPath(path, entry.name);
+    fsEntries.set(childPath, {
+      kind: entry.kind,
+      handle: entry.handle,
+      parent: dirHandle,
+      path: childPath,
+    });
+
+    const li = document.createElement("li");
+    li.className = "files-tree-item";
+    li.dataset.path = childPath;
+    li.dataset.kind = entry.kind;
+    li.setAttribute("role", "treeitem");
+    if (entry.kind === "directory") li.setAttribute("aria-expanded", "false");
+
+    const row = document.createElement("button");
+    row.type = "button";
+    row.className = "files-tree-row";
+    row.dataset.path = childPath;
+    row.dataset.kind = entry.kind;
+
+    const twistie = document.createElement("span");
+    twistie.className = "files-tree-twistie";
+    if (entry.kind === "directory") {
+      twistie.textContent = expandedPaths.has(childPath) ? "▼" : "▶";
+    } else {
+      twistie.classList.add("is-spacer");
+      twistie.textContent = "•";
+    }
+
+    const label = document.createElement("span");
+    label.className = "files-tree-label";
+    label.textContent = entry.name;
+
+    row.append(twistie, label);
+    li.append(row);
+
+    if (entry.kind === "directory") {
+      const childList = document.createElement("ul");
+      childList.setAttribute("role", "group");
+      childList.hidden = !expandedPaths.has(childPath);
+      li.append(childList);
+      if (expandedPaths.has(childPath)) {
+        li.setAttribute("aria-expanded", "true");
+        await renderDirectoryChildren(
+          /** @type {FileSystemDirectoryHandle} */ (entry.handle),
+          childPath,
+          childList,
+        );
+      }
+    }
+
+    listEl.append(li);
+  }
+}
+
+async function renderFilesTree() {
+  if (!filesTree || !rootDirHandle) return;
+  fsEntries.clear();
+  fsEntries.set("", {
+    kind: "directory",
+    handle: rootDirHandle,
+    parent: null,
+    path: "",
+  });
+  await renderDirectoryChildren(rootDirHandle, "", filesTree);
+  highlightSelectedInTree();
+  highlightActiveFileInTree();
+}
+
+async function refreshFilesTree() {
+  if (!rootDirHandle) return;
+  try {
+    await renderFilesTree();
+  } catch (err) {
+    console.error(err);
+    showToast("Could not refresh folder");
+  }
+}
+
+async function setRootDirectory(handle, { permissionOk = true } = {}) {
+  rootDirHandle = handle;
+  selectedDirHandle = handle;
+  selectedPath = "";
+  awaitingFsPermission = Boolean(handle) && !permissionOk;
+  updateFilesChrome();
+  if (permissionOk && handle) {
+    await refreshFilesTree();
+  } else if (filesTree) {
+    filesTree.replaceChildren();
+    fsEntries.clear();
+  }
+}
+
+async function pickOpenFolder() {
+  if (!fsAccessSupported) return;
+  try {
+    const handle = await openDirectory();
+    await setRootDirectory(handle, { permissionOk: true });
+    showToast(`Opened ${handle.name}`);
+  } catch (err) {
+    if (err?.name === "AbortError") return;
+    console.error(err);
+    showToast("Could not open folder");
+  }
+}
+
+async function regrantFolderPermission() {
+  if (!rootDirHandle) return;
+  try {
+    const permission = await ensureHandlePermission(rootDirHandle, "readwrite");
+    if (permission !== "granted") {
+      showToast("Permission denied");
+      return;
+    }
+    awaitingFsPermission = false;
+    updateFilesChrome();
+    await refreshFilesTree();
+    if (currentFilePath) {
+      for (let p = parentPathOf(currentFilePath); p; p = parentPathOf(p)) {
+        expandedPaths.add(p);
+      }
+      await refreshFilesTree();
+      const resolved = await resolveFilePath(rootDirHandle, currentFilePath);
+      if (resolved) {
+        bindCurrentFile(resolved, resolved.name || currentFileName, currentFilePath);
+        selectFsPath(currentFilePath);
+      }
+    }
+    showToast(`Opened ${rootDirHandle.name}`);
+  } catch (err) {
+    console.error(err);
+    showToast("Could not access folder");
+  }
+}
+
+async function openFsFile(path) {
+  const entry = fsEntries.get(path);
+  if (!entry || entry.kind !== "file") return;
+  if (currentFileHandle === entry.handle && !isDirty()) {
+    selectFsPath(path);
+    return;
+  }
+  if (!confirmDiscardIfDirty()) return;
+  try {
+    const text = await readTextFile(/** @type {FileSystemFileHandle} */ (entry.handle));
     setEditorValue(text);
     localStorage.setItem(STORAGE_KEYS.draft, getMarkdownSource());
     renderMarkdown(getMarkdownSource());
     pushHistory(getMarkdownSource());
+    bindCurrentFile(/** @type {FileSystemFileHandle} */ (entry.handle), entry.handle.name, path);
+    markCleanFromEditor();
+    setContentExternal(false);
+    selectFsPath(path);
+    showToast(`Loaded ${entry.handle.name}`);
+  } catch (err) {
+    console.error(err);
+    showToast("Could not open file");
+  }
+}
+
+async function toggleFsDirectory(path) {
+  const entry = fsEntries.get(path);
+  if (!entry || entry.kind !== "directory") return;
+  selectFsPath(path);
+  const li = filesTree?.querySelector(`.files-tree-item[data-path="${cssEscape(path)}"]`);
+  const childList = li?.querySelector(":scope > ul");
+  if (!li || !childList) return;
+
+  if (expandedPaths.has(path)) {
+    expandedPaths.delete(path);
+    childList.hidden = true;
+    childList.replaceChildren();
+    li.setAttribute("aria-expanded", "false");
+    const twistie = li.querySelector(".files-tree-twistie");
+    if (twistie) twistie.textContent = "▶";
+    return;
+  }
+
+  expandedPaths.add(path);
+  li.setAttribute("aria-expanded", "true");
+  const twistie = li.querySelector(".files-tree-twistie");
+  if (twistie) twistie.textContent = "▼";
+  childList.hidden = false;
+  try {
+    await renderDirectoryChildren(
+      /** @type {FileSystemDirectoryHandle} */ (entry.handle),
+      path,
+      childList,
+    );
+    highlightSelectedInTree();
+    highlightActiveFileInTree();
+  } catch (err) {
+    expandedPaths.delete(path);
+    console.error(err);
+    showToast("Could not open folder");
+  }
+}
+
+async function createUntitledDocument() {
+  if (!confirmDiscardIfDirty()) return;
+  setEditorValue("");
+  localStorage.setItem(STORAGE_KEYS.draft, "");
+  renderMarkdown("");
+  clearCurrentFileBinding();
+  markCleanFromEditor();
+  setContentExternal(false);
+  showToast("New untitled document");
+}
+
+async function promptCreateFile(dirPath = selectedPath) {
+  const dir = getTargetDirForCreate(dirPath);
+  if (!dir) {
+    showToast("Open a folder first");
+    return;
+  }
+  const raw = window.prompt("New file name", "untitled.md");
+  if (raw == null) return;
+  const name = ensureEditableExtension(raw);
+  try {
+    const handle = await createFile(dir, name, "");
+    const basePath =
+      dir === rootDirHandle ? "" : ([...fsEntries.entries()].find(([, e]) => e.handle === dir)?.[0] ?? "");
+    if (basePath) expandedPaths.add(basePath);
+    await refreshFilesTree();
+    const createdPath = joinFsPath(basePath, name);
+    setEditorValue("");
+    localStorage.setItem(STORAGE_KEYS.draft, "");
+    renderMarkdown("");
+    bindCurrentFile(handle, name, createdPath);
+    markCleanFromEditor();
+    setContentExternal(false);
+    selectFsPath(createdPath);
+    showToast(`Created ${name}`);
+  } catch (err) {
+    console.error(err);
+    showToast("Could not create file");
+  }
+}
+
+async function promptCreateFolder(dirPath = selectedPath) {
+  const dir = getTargetDirForCreate(dirPath);
+  if (!dir) {
+    showToast("Open a folder first");
+    return;
+  }
+  const raw = window.prompt("New folder name");
+  if (raw == null) return;
+  const name = String(raw).trim();
+  if (!name) return;
+  try {
+    await createFolder(dir, name);
+    const basePath = dir === rootDirHandle ? "" : ([...fsEntries.entries()].find(([, e]) => e.handle === dir)?.[0] ?? "");
+    if (basePath) expandedPaths.add(basePath);
+    await refreshFilesTree();
+    showToast(`Created folder ${name}`);
+  } catch (err) {
+    console.error(err);
+    showToast("Could not create folder");
+  }
+}
+
+async function promptRenameEntry(path) {
+  const entry = fsEntries.get(path);
+  if (!entry || !entry.parent) return;
+  const next = window.prompt("Rename to", entry.handle.name);
+  if (next == null) return;
+  const newName = String(next).trim();
+  if (!newName || newName === entry.handle.name) return;
+  if (entry.kind === "file" && !isEditableFileName(ensureEditableExtension(newName))) {
+    showToast("Use a .md, .txt, or .html name");
+    return;
+  }
+  const finalName = entry.kind === "file" ? ensureEditableExtension(newName) : newName;
+  try {
+    const wasCurrent = currentFileHandle === entry.handle;
+    const renamed = await renameEntry(entry.parent, entry.handle, finalName);
+    if (path && expandedPaths.has(path)) {
+      expandedPaths.delete(path);
+      expandedPaths.add(joinFsPath(parentPathOf(path), finalName));
+    }
+    await refreshFilesTree();
+    if (wasCurrent) {
+      const renamedPath = joinFsPath(parentPathOf(path), finalName);
+      bindCurrentFile(/** @type {FileSystemFileHandle} */ (renamed), finalName, renamedPath);
+    }
+    showToast(`Renamed to ${finalName}`);
+  } catch (err) {
+    console.error(err);
+    showToast("Could not rename");
+  }
+}
+
+async function promptDeleteEntry(path) {
+  const entry = fsEntries.get(path);
+  if (!entry || !entry.parent) return;
+  const label = entry.kind === "directory" ? `folder "${entry.handle.name}"` : `"${entry.handle.name}"`;
+  if (!window.confirm(`Delete ${label}? This cannot be undone.`)) return;
+  try {
+    const currentPath =
+      currentFilePath || [...fsEntries.entries()].find(([, e]) => e.handle === currentFileHandle)?.[0];
+    const affectsCurrent =
+      Boolean(currentPath) && (currentPath === path || currentPath.startsWith(`${path}/`));
+    await removeEntry(entry.parent, entry.handle.name, true);
+    expandedPaths.delete(path);
+    for (const p of [...expandedPaths]) {
+      if (p.startsWith(`${path}/`)) expandedPaths.delete(p);
+    }
+    await refreshFilesTree();
+    if (affectsCurrent) {
+      clearCurrentFileBinding();
+    }
+    if (selectedPath === path || selectedPath.startsWith(`${path}/`)) {
+      selectFsPath("");
+    }
+    showToast("Deleted");
+  } catch (err) {
+    console.error(err);
+    showToast("Could not delete");
+  }
+}
+
+async function saveCurrentDocument() {
+  if (!fsAccessSupported) return;
+  const text = getMarkdownSource();
+  const suggestedName = suggestedUntitledName(text);
+  try {
+    if (currentFileHandle) {
+      await writeTextFile(currentFileHandle, text);
+      markCleanFromEditor();
+      showToast(`Saved ${currentFileName || currentFileHandle.name}`);
+      return;
+    }
+
+    const dir = getTargetDirForCreate();
+    if (dir) {
+      const raw = window.prompt("Save as file name", suggestedName);
+      if (raw == null) return;
+      const name = ensureEditableExtension(raw, text);
+      const handle = await createFile(dir, name, text);
+      const basePath = dir === rootDirHandle ? "" : ([...fsEntries.entries()].find(([, e]) => e.handle === dir)?.[0] ?? "");
+      if (basePath) expandedPaths.add(basePath);
+      await refreshFilesTree();
+      const createdPath = joinFsPath(basePath, name);
+      bindCurrentFile(handle, name, createdPath);
+      markCleanFromEditor();
+      selectFsPath(createdPath);
+      showToast(`Saved ${name}`);
+      return;
+    }
+
+    const handle = await saveWithPicker(suggestedName, text);
+    if (!handle) {
+      showToast("Open a folder to save, or use a supported browser");
+      return;
+    }
+    bindCurrentFile(handle, handle.name, "");
+    markCleanFromEditor();
+    showToast(`Saved ${handle.name}`);
+  } catch (err) {
+    if (err?.name === "AbortError") return;
+    console.error(err);
+    showToast("Could not save");
+  }
+}
+
+function updateDocOutline() {
+  if (!outlineList || !outlineEmpty) return;
+
+  const headings = [...preview.querySelectorAll("h1, h2, h3, h4, h5, h6")];
+  outlineList.replaceChildren();
+
+  if (!headings.length) {
+    outlineEmpty.hidden = false;
+    outlineList.hidden = true;
+    return;
+  }
+
+  outlineEmpty.hidden = true;
+  outlineList.hidden = false;
+
+  const frag = document.createDocumentFragment();
+  headings.forEach((heading, index) => {
+    const level = Number(heading.tagName.slice(1));
+    const line = Number(heading.getAttribute("data-source-line")) || 0;
+    const li = document.createElement("li");
+    li.className = "outline-item";
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "outline-row";
+    btn.dataset.level = String(level);
+    btn.dataset.index = String(index);
+    if (line > 0) btn.dataset.sourceLine = String(line);
+    btn.textContent = heading.textContent?.trim() || `Heading ${level}`;
+    btn.title = btn.textContent;
+    li.appendChild(btn);
+    frag.appendChild(li);
+  });
+  outlineList.appendChild(frag);
+  highlightActiveOutlineItem();
+}
+
+function offsetOfSourceLine(line) {
+  if (line < 1) return 0;
+  const text = editor.value;
+  let pos = 0;
+  let current = 1;
+  while (current < line && pos < text.length) {
+    const next = text.indexOf("\n", pos);
+    if (next === -1) return text.length;
+    pos = next + 1;
+    current += 1;
+  }
+  return pos;
+}
+
+function goToSourceLine(line) {
+  if (!Number.isFinite(line) || line < 1) return;
+  const pos = offsetOfSourceLine(line);
+  editor.focus();
+  editor.setSelectionRange(pos, pos);
+
+  const lineTops = measureEditorLineTops();
+  const top = lineTops[line - 1] ?? 0;
+  beginSyncDriver("editor");
+  clampScrollTop(editor, top - Math.min(48, editor.clientHeight * 0.2));
+  syncPreviewFromEditor();
+  revealPreviewForEditorCaret();
+  highlightActiveOutlineItem();
+}
+
+function highlightActiveOutlineItem() {
+  if (!outlineList) return;
+  const line = editorCaretLine();
+  const rows = [...outlineList.querySelectorAll(".outline-row")];
+  let active = null;
+  for (const row of rows) {
+    const rowLine = Number(row.dataset.sourceLine);
+    if (!Number.isFinite(rowLine) || rowLine < 1) continue;
+    if (rowLine <= line) active = row;
+    else break;
+  }
+  rows.forEach((row) => row.classList.toggle("is-active", row === active));
+}
+
+function setupDocOutline() {
+  outlineList?.addEventListener("click", (e) => {
+    const row = e.target.closest(".outline-row");
+    if (!row || !outlineList.contains(row)) return;
+    const line = Number(row.dataset.sourceLine);
+    if (Number.isFinite(line) && line > 0) {
+      goToSourceLine(line);
+      return;
+    }
+    const index = Number(row.dataset.index);
+    const heading = preview.querySelectorAll("h1, h2, h3, h4, h5, h6")[index];
+    if (!heading) return;
+    beginSyncDriver("preview");
+    clampScrollTop(previewPane, offsetWithin(heading, previewPane) - 8);
+    syncEditorFromPreview();
+  });
+}
+
+function setupFilesDrawer() {
+  if (!fsAccessSupported) return;
+
+  document.querySelectorAll(".fs-only").forEach((el) => {
+    el.hidden = false;
+  });
+  if (filesDrawer) filesDrawer.hidden = false;
+  if (filesBackdrop) filesBackdrop.hidden = false;
+
+  filesToggleBtn?.addEventListener("click", () => toggleFilesDrawer());
+  filesBackdrop?.addEventListener("click", () => setFilesDrawerOpen(false));
+  filesOpenFolderBtn?.addEventListener("click", () => void pickOpenFolder());
+  filesEmptyOpenBtn?.addEventListener("click", () => void pickOpenFolder());
+  filesReopenBtn?.addEventListener("click", () => void pickOpenFolder());
+  filesRegrantBtn?.addEventListener("click", () => void regrantFolderPermission());
+  filesRefreshBtn?.addEventListener("click", () => void refreshFilesTree());
+  filesNewFileBtn?.addEventListener("click", () => void createUntitledDocument());
+  filesNewFolderBtn?.addEventListener("click", () => void promptCreateFolder());
+  saveBtn?.addEventListener("click", () => void saveCurrentDocument());
+
+  filesTree?.addEventListener("click", (e) => {
+    const row = e.target.closest(".files-tree-row");
+    if (!row) return;
+    const path = row.getAttribute("data-path") || "";
+    const kind = row.getAttribute("data-kind");
+    if (kind === "directory") void toggleFsDirectory(path);
+    else void openFsFile(path);
+  });
+
+  filesTree?.addEventListener("contextmenu", (e) => {
+    const row = e.target.closest(".files-tree-row");
+    if (!row || !filesTree.contains(row)) return;
+    e.preventDefault();
+    const path = row.getAttribute("data-path") || "";
+    const kind = /** @type {"file"|"directory"} */ (row.getAttribute("data-kind") || "file");
+    selectFsPath(path);
+    openFilesContextMenu(e.clientX, e.clientY, path, kind);
+  });
+
+  filesDrawer?.addEventListener("contextmenu", (e) => {
+    if (e.target.closest(".files-tree-row")) return;
+    if (!rootDirHandle || awaitingFsPermission) return;
+    e.preventDefault();
+    selectFsPath("");
+    openFilesContextMenu(e.clientX, e.clientY, "", "directory");
+  });
+
+  filesContextMenu?.addEventListener("click", (e) => {
+    const item = e.target.closest("[data-fs-action]");
+    if (!item) return;
+    const action = item.getAttribute("data-fs-action");
+    const target = contextTarget;
+    closeFilesContextMenu();
+    if (!target) return;
+    if (action === "new-file") void promptCreateFile(target.path);
+    else if (action === "new-folder") void promptCreateFolder(target.path);
+    else if (action === "rename") void promptRenameEntry(target.path);
+    else if (action === "delete") void promptDeleteEntry(target.path);
+  });
+
+  // Start collapsed per plan; ignore stale open preference for first paint safety —
+  // still restore if user previously left it open.
+  const savedOpen = localStorage.getItem(STORAGE_KEYS.filesDrawer) === "1";
+  setFilesDrawerOpen(savedOpen, { persist: false });
+  updateFilesChrome();
+  updateSaveButton();
+}
+
+async function restoreFilesDirectoryOnLoad() {
+  if (!fsAccessSupported) return;
+  try {
+    const { handle, permission } = await restoreDirectory();
+    if (!handle) return;
+    if (permission === "granted") {
+      await setRootDirectory(handle, { permissionOk: true });
+    } else {
+      await setRootDirectory(handle, { permissionOk: false });
+      setFilesDrawerOpen(true, { persist: false });
+    }
+  } catch (err) {
+    console.error(err);
+    await clearStoredDirectory();
+  }
+}
+
+/**
+ * Restore the previously open file name / handle after a reload.
+ * Keeps the draft in the editor; only re-binds identity for title + Save.
+ */
+async function restoreCurrentFileBindingOnLoad() {
+  let savedName = "";
+  let savedPath = "";
+  try {
+    savedName = localStorage.getItem(STORAGE_KEYS.currentFile) || "";
+    savedPath = localStorage.getItem(STORAGE_KEYS.currentFilePath) || "";
+  } catch {
+    /* ignore */
+  }
+
+  if (fsAccessSupported && rootDirHandle && !awaitingFsPermission && savedPath) {
+    for (let p = parentPathOf(savedPath); p; p = parentPathOf(p)) {
+      expandedPaths.add(p);
+    }
+    try {
+      await refreshFilesTree();
+      const resolved = await resolveFilePath(rootDirHandle, savedPath);
+      if (resolved) {
+        bindCurrentFile(resolved, resolved.name || savedName, savedPath);
+        selectFsPath(savedPath);
+        return;
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  if (fsAccessSupported) {
+    try {
+      const handle = await loadStoredCurrentFileHandle();
+      if (handle) {
+        bindCurrentFile(handle, handle.name || savedName, savedPath);
+        return;
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  if (savedName) {
+    bindCurrentFile(null, savedName, savedPath);
+  }
+}
+
+function handleFile(file) {
+  if (!file) return;
+  if (!TEXT_FILE_RE.test(file.name) && !file.type.startsWith("text/") && file.type !== "text/html") {
+    showToast("Only Markdown, text, or HTML files are supported");
+    return;
+  }
+  if (!confirmDiscardIfDirty()) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    const text = String(reader.result ?? "");
+    setEditorValue(text);
+    renderMarkdown(getMarkdownSource());
+    bindCurrentFile(null, file.name || "", "");
+    selectFsPath("");
+    setContentExternal(true);
+    markCleanFromEditor();
     showToast(`Loaded ${file.name}`);
   };
   reader.onerror = () => showToast("Could not read file");
   reader.readAsText(file);
+}
+
+/**
+ * Open a file launched via the OS / PWA File Handling API (FileSystemFileHandle).
+ * @param {FileSystemFileHandle} fileHandle
+ */
+async function openLaunchedFile(fileHandle) {
+  if (!fileHandle || fileHandle.kind !== "file") return;
+  const name = fileHandle.name || "";
+  if (!TEXT_FILE_RE.test(name)) {
+    showToast("Only Markdown, text, or HTML files are supported");
+    return;
+  }
+  if (!confirmDiscardIfDirty()) return;
+  try {
+    const text = await readTextFile(fileHandle);
+    setEditorValue(text);
+    renderMarkdown(getMarkdownSource());
+    bindCurrentFile(fileHandle, name);
+    selectFsPath("");
+    markCleanFromEditor();
+    setContentExternal(true);
+    if (currentView !== "edit") setView("edit", { syncUrl: false });
+    showToast(`Loaded ${name}`);
+  } catch (err) {
+    console.error(err);
+    showToast("Could not open file");
+  }
+}
+
+/** Register as consumer for OS “Open with” / default-app launches (installed PWA). */
+function setupFileHandling() {
+  if (!("launchQueue" in window)) return;
+  window.launchQueue.setConsumer((launchParams) => {
+    const files = launchParams?.files;
+    if (!files?.length) return;
+    void openLaunchedFile(/** @type {FileSystemFileHandle} */ (files[0]));
+  });
 }
 
 function isFileDrag(e) {
@@ -1925,6 +2971,7 @@ function setView(view, { syncUrl = true } = {}) {
 
   currentView = next;
   document.body.dataset.view = next;
+  syncExternalModal();
 
   if (presentChrome) {
     presentChrome.hidden = next !== "present";
@@ -2519,19 +3566,38 @@ async function init() {
   setupDragAndDrop();
   setupSpeech();
   setupPwa();
+  setupFilesDrawer();
+  setupDocOutline();
+  await restoreFilesDirectoryOnLoad();
+  await restoreCurrentFileBindingOnLoad();
 
   const savedSyncScroll = localStorage.getItem(STORAGE_KEYS.syncScroll) === "1";
   setSyncScroll(savedSyncScroll, { persist: false });
 
   if (fromUrl != null) {
     setEditorValue(fromUrl);
-    localStorage.setItem(STORAGE_KEYS.draft, fromUrl);
-    lastHistoryContent = fromUrl;
-    pushHistory(fromUrl);
+    lastHistoryContent = "";
+    setContentExternal(true);
+    clearCurrentFileBinding();
   } else {
     const draft = localStorage.getItem(STORAGE_KEYS.draft) || "";
     setEditorValue(draft);
     lastHistoryContent = draft;
+    setContentExternal(false);
+  }
+
+  // Prefer the last clean snapshot when a file binding was restored, so
+  // unsaved edits still show as dirty after reload.
+  try {
+    const storedSnapshot = localStorage.getItem(STORAGE_KEYS.savedSnapshot);
+    if (storedSnapshot != null && currentFileName) {
+      savedSnapshot = storedSnapshot;
+      updateSaveButton();
+    } else {
+      markCleanFromEditor();
+    }
+  } catch {
+    markCleanFromEditor();
   }
 
   renderMarkdown(getMarkdownSource());
@@ -2541,6 +3607,9 @@ async function init() {
     shareState.view ||
     (fromUrl != null ? "reader" : "edit");
   setView(initialView, { syncUrl: fromUrl != null });
+
+  // After draft/URL load so a launched file overwrites the restored editor.
+  setupFileHandling();
 
   // Commit the restored layout before revealing the panes, so the stored
   // position is the first one shown and later collapses still animate.
@@ -2563,12 +3632,14 @@ async function init() {
 
   widthSelect.addEventListener("change", () => {
     setPreviewWidth(widthSelect.value, { persist: true });
+    closeOverflowMenu();
   });
 
   fileInput.addEventListener("change", () => {
     const file = fileInput.files?.[0];
     handleFile(file);
     fileInput.value = "";
+    closeOverflowMenu();
   });
 
   shareBtn.addEventListener("click", (e) => {
@@ -2594,6 +3665,12 @@ async function init() {
   presentPrevBtn?.addEventListener("click", presentPrev);
   presentNextBtn?.addEventListener("click", presentNext);
   presentExitBtn?.addEventListener("click", exitPresentMode);
+  // Escape must not dismiss — only Accept / Reject (method=dialog) close the modal.
+  externalModal?.addEventListener("cancel", (e) => e.preventDefault());
+  externalModal?.addEventListener("close", () => {
+    if (externalModal.returnValue === "accept") acceptExternalContent();
+    else if (externalModal.returnValue === "reject") rejectExternalContent();
+  });
 
   collapseEditorBtn.addEventListener("click", toggleEditorCollapse);
   collapsePreviewBtn.addEventListener("click", togglePreviewCollapse);
@@ -2649,15 +3726,41 @@ async function init() {
     toggleOverflowMenu();
   });
 
+  // Dismiss the mobile overflow panel after choosing an action. Nested dropdown
+  // toggles (share/export/history/voice) call stopPropagation so they stay open.
+  toolbarActions?.addEventListener("click", (e) => {
+    if (!toolbarMenu.classList.contains("is-open")) return;
+    if (e.target.closest("select, .select-label")) return;
+    closeOverflowMenu();
+  });
+
   document.addEventListener("click", (e) => {
     if (!historyDropdown.contains(e.target)) closeHistory();
     if (speakDropdown && !speakDropdown.contains(e.target)) closeVoiceMenu();
     if (shareDropdown && !shareDropdown.contains(e.target)) closeShareMenu();
     if (exportDropdown && !exportDropdown.contains(e.target)) closeExportMenu();
     if (!toolbarMenu.contains(e.target)) closeOverflowMenu();
+    if (filesContextMenu && !filesContextMenu.contains(e.target)) closeFilesContextMenu();
   });
 
   document.addEventListener("keydown", (e) => {
+    // Native <dialog showModal()> traps focus; still block app shortcuts while open.
+    if (isExternalModalOpen()) {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+      return;
+    }
+
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") {
+      if (fsAccessSupported && currentView === "edit") {
+        e.preventDefault();
+        void saveCurrentDocument();
+      }
+      return;
+    }
+
     if (currentView === "present") {
       if (e.key === "Escape") {
         exitPresentMode();
@@ -2692,8 +3795,18 @@ async function init() {
       closeShareMenu();
       closeExportMenu();
       closeOverflowMenu();
+      closeFilesContextMenu();
+      if (filesDrawerOpen && window.matchMedia(NARROW_MQ).matches) {
+        setFilesDrawerOpen(false);
+      }
       if (speechActive) stopSpeaking();
     }
+  });
+
+  window.addEventListener("beforeunload", (e) => {
+    if (!isDirty()) return;
+    e.preventDefault();
+    e.returnValue = "";
   });
 
   window.matchMedia(NARROW_MQ).addEventListener("change", (e) => {

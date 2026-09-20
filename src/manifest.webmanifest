@@ -23,5 +23,29 @@
       "type": "image/png",
       "purpose": "any"
     }
-  ]
+  ],
+  "file_handlers": [
+    {
+      "action": "./",
+      "accept": {
+        "text/markdown": [
+          ".md",
+          ".markdown",
+          ".mdown",
+          ".mkd"
+        ],
+        "text/plain": [
+          ".txt"
+        ],
+        "text/html": [
+          ".html",
+          ".htm"
+        ]
+      },
+      "launch_type": "single-client"
+    }
+  ],
+  "launch_handler": {
+    "client_mode": "focus-existing"
+  }
 }

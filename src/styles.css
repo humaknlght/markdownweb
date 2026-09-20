@@ -41,6 +41,7 @@ html[data-theme="github-light"] {
   --font-ui: "Avenir Next", "Segoe UI", "Helvetica Neue", sans-serif;
   --font-mono: "SF Mono", "Menlo", "Consolas", "Liberation Mono", monospace;
   --toolbar-h: 3rem;
+  --files-drawer-w: 16.5rem;
   --syntax-comment: #6a737d;
   --syntax-keyword: #d73a49;
   --syntax-string: #032f62;
@@ -608,10 +609,56 @@ html[data-theme="fancy"] .toast {
   -webkit-backdrop-filter: blur(16px);
 }
 
+/* Files drawer uses --chrome-bg (transparent in fancy); frost it like the panes
+   so light tree text stays readable over the photo. */
+html[data-theme="fancy"] .files-drawer {
+  background: var(--fancy-glass);
+  box-shadow: var(--chrome-shadow);
+  border-right-color: transparent;
+}
+
+html[data-theme="fancy"] body.files-drawer-open .files-drawer {
+  border-right-color: var(--fancy-glass-border);
+}
+
+html[data-theme="fancy"] .files-drawer-header,
+html[data-theme="fancy"] .files-section,
+html[data-theme="fancy"] .outline-header {
+  border-bottom-color: var(--fancy-glass-border);
+}
+
+html[data-theme="fancy"] .files-drawer-actions .btn {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.28);
+  color: var(--chrome-text);
+}
+
+html[data-theme="fancy"] .files-drawer-actions .btn:hover {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+html[data-theme="fancy"] .files-tree-row:hover,
+html[data-theme="fancy"] .files-tree-row:focus-visible,
+html[data-theme="fancy"] .files-tree-row.is-selected,
+html[data-theme="fancy"] .outline-row:hover,
+html[data-theme="fancy"] .outline-row:focus-visible {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+html[data-theme="fancy"] .files-tree-row.is-active-file,
+html[data-theme="fancy"] .outline-row.is-active {
+  color: #ffe08a;
+}
+
 @media (max-width: 800px) {
   html[data-theme="fancy"] .panes {
     column-gap: 0;
     row-gap: var(--fancy-margin);
+    /* Narrow layout sets panes to 100% width for the files drawer slide;
+       subtract side margins so the right inset is not clipped. */
+    flex: 0 0 calc(100% - 2 * var(--fancy-margin));
+    width: calc(100% - 2 * var(--fancy-margin));
+    min-width: calc(100% - 2 * var(--fancy-margin));
   }
 
   html[data-theme="fancy"] .panes.editor-collapsed,
@@ -668,9 +715,52 @@ body {
 
 .brand-group {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 0.5rem;
   min-width: 0;
+}
+
+.brand-group #files-toggle-btn {
+  flex-shrink: 0;
+}
+
+.hamburger {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  width: 1rem;
+  height: 0.72rem;
+}
+
+.hamburger-line {
+  display: block;
+  width: 100%;
+  height: 2px;
+  border-radius: 1px;
+  background: currentColor;
+  transform-origin: center;
+  transition:
+    transform 0.28s ease,
+    opacity 0.2s ease;
+}
+
+#files-toggle-btn[aria-pressed="true"] .hamburger-line:nth-child(1) {
+  transform: translateY(0.26rem) rotate(45deg);
+}
+
+#files-toggle-btn[aria-pressed="true"] .hamburger-line:nth-child(2) {
+  opacity: 0;
+  transform: scaleX(0);
+}
+
+#files-toggle-btn[aria-pressed="true"] .hamburger-line:nth-child(3) {
+  transform: translateY(-0.26rem) rotate(-45deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hamburger-line {
+    transition: none;
+  }
 }
 
 .brand {
@@ -681,6 +771,23 @@ body {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  flex-shrink: 0;
+}
+
+.current-file-name {
+  min-width: 0;
+  max-width: 14rem;
+  font-size: 0.8rem;
+  color: var(--chrome-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.current-file-name:not([hidden])::before {
+  content: "·";
+  margin-right: 0.35rem;
+  color: var(--chrome-muted);
 }
 
 .brand-link {
@@ -838,6 +945,11 @@ body {
 .svg-btn svg {
   width: 1rem;
   height: 1rem;
+}
+
+#save-btn.is-dirty {
+  color: var(--chrome-focus);
+  box-shadow: inset 0 -2px 0 var(--chrome-focus);
 }
 
 .speak-btn .icon-stop {
@@ -1008,6 +1120,395 @@ body {
   color: var(--chrome-muted);
 }
 
+.external-modal {
+  width: min(24rem, calc(100% - 2.5rem));
+  margin: auto;
+  padding: 1.35rem 1.4rem 1.25rem;
+  border: 1px solid var(--chrome-border);
+  border-radius: 12px;
+  background: var(--chrome-surface);
+  color: var(--chrome-text);
+  box-shadow: var(--chrome-shadow, 0 16px 48px rgba(0, 0, 0, 0.28));
+}
+
+.external-modal::backdrop {
+  background: color-mix(in srgb, #080a0e 72%, transparent);
+}
+
+.external-modal-title {
+  margin: 0 0 0.55rem;
+  font-size: 1.05rem;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.external-modal-desc {
+  margin: 0 0 1.15rem;
+  font-size: 0.875rem;
+  line-height: 1.45;
+  color: var(--chrome-muted, var(--chrome-text));
+}
+
+.external-modal-actions {
+  display: flex;
+  gap: 0.55rem;
+  margin: 0;
+}
+
+.external-modal-reject,
+.external-modal-accept {
+  flex: 1;
+  justify-content: center;
+  min-height: 2.25rem;
+  font-weight: 600;
+}
+
+/* Beat generic/theme .btn rules so Accept stays inverted at rest and on hover. */
+.external-modal .btn.external-modal-accept {
+  background: var(--chrome-text);
+  color: var(--chrome-surface);
+  border-color: var(--chrome-text);
+  filter: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.external-modal .btn.external-modal-accept:hover,
+.external-modal .btn.external-modal-accept:focus-visible {
+  background: var(--chrome-text);
+  color: var(--chrome-surface);
+  border-color: var(--chrome-text);
+  filter: brightness(1.08);
+}
+
+/* Fancy surface is translucent — inverted Accept needs opaque dark label text. */
+html[data-theme="fancy"] .external-modal .btn.external-modal-accept {
+  background: #f4f8fb;
+  color: #062436;
+  border-color: #f4f8fb;
+}
+
+html[data-theme="fancy"] .external-modal .btn.external-modal-accept:hover,
+html[data-theme="fancy"] .external-modal .btn.external-modal-accept:focus-visible {
+  background: #ffffff;
+  color: #062436;
+  border-color: #ffffff;
+  filter: none;
+}
+
+.workspace {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  position: relative;
+}
+
+.files-drawer {
+  --files-drawer-duration: 0.28s;
+  display: flex;
+  flex-direction: column;
+  width: 0;
+  flex-shrink: 0;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+  border-right: 1px solid transparent;
+  background: var(--chrome-bg);
+  color: var(--chrome-text);
+  z-index: 40;
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    width var(--files-drawer-duration) ease,
+    border-color var(--files-drawer-duration) ease,
+    visibility 0s linear var(--files-drawer-duration);
+}
+
+body.files-drawer-open .files-drawer {
+  width: var(--files-drawer-w);
+  border-right-color: var(--chrome-border);
+  visibility: visible;
+  pointer-events: auto;
+  transition:
+    width var(--files-drawer-duration) ease,
+    border-color var(--files-drawer-duration) ease,
+    visibility 0s linear 0s;
+}
+
+.files-drawer[hidden] {
+  display: none !important;
+}
+
+.files-drawer-header,
+.files-drawer-body,
+.outline-header,
+.outline-body {
+  min-width: var(--files-drawer-w);
+  box-sizing: border-box;
+}
+
+.files-drawer-section {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: var(--files-drawer-w);
+}
+
+.files-section {
+  flex: 1.35 1 0;
+  border-bottom: 1px solid var(--chrome-border);
+}
+
+.outline-section {
+  flex: 1 1 0;
+}
+
+.files-backdrop {
+  display: none;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--files-drawer-duration, 0.28s) ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .files-drawer,
+  body.files-drawer-open .files-drawer,
+  .files-backdrop {
+    --files-drawer-duration: 0s;
+    transition: none;
+  }
+}
+
+html.is-booting .files-drawer,
+html.is-booting .files-backdrop {
+  --files-drawer-duration: 0s;
+  transition: none;
+}
+
+.files-drawer-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding: 0.55rem 0.6rem;
+  border-bottom: 1px solid var(--chrome-border);
+  flex-shrink: 0;
+}
+
+.files-drawer-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.files-drawer-title {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.files-drawer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.files-drawer-actions .btn {
+  font-size: 0.7rem;
+  padding: 0.2rem 0.4rem;
+  min-height: 1.6rem;
+}
+
+.files-drawer-actions .svg-btn {
+  width: 1.6rem;
+  padding: 0.2rem;
+}
+
+.files-drawer-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 0.35rem 0.25rem 0.75rem;
+}
+
+.files-empty,
+.files-permission {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.55rem;
+  padding: 0.75rem 0.6rem;
+  font-size: 0.8125rem;
+  color: var(--chrome-muted);
+}
+
+.files-empty p,
+.files-permission p {
+  margin: 0;
+  line-height: 1.4;
+}
+
+.files-empty[hidden],
+.files-permission[hidden],
+.files-tree[hidden] {
+  display: none;
+}
+
+.files-tree {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.files-tree ul {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0 0.85rem;
+}
+
+.files-tree-item {
+  margin: 0;
+}
+
+.files-tree-row {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  width: 100%;
+  padding: 0.22rem 0.4rem;
+  border: 0;
+  border-radius: 0.3rem;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.8125rem;
+  text-align: left;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.files-tree-row:hover,
+.files-tree-row:focus-visible {
+  background: var(--chrome-hover);
+  outline: none;
+}
+
+.files-tree-row.is-selected {
+  background: var(--chrome-hover);
+  box-shadow: inset 0 0 0 1px var(--chrome-pressed-border);
+}
+
+.files-tree-row.is-active-file {
+  color: var(--chrome-focus);
+  font-weight: 600;
+}
+
+.files-tree-twistie {
+  flex-shrink: 0;
+  width: 0.9rem;
+  text-align: center;
+  color: var(--chrome-muted);
+  font-size: 0.65rem;
+}
+
+.files-tree-twistie.is-spacer {
+  visibility: hidden;
+}
+
+.files-tree-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.files-context-menu {
+  position: fixed;
+  z-index: 120;
+  min-width: 10rem;
+}
+
+.outline-header {
+  display: flex;
+  align-items: center;
+  padding: 0.45rem 0.6rem;
+  border-bottom: 1px solid var(--chrome-border);
+  flex-shrink: 0;
+}
+
+.outline-title {
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.outline-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 0.35rem 0.25rem 0.75rem;
+}
+
+.outline-empty {
+  margin: 0;
+  padding: 0.55rem 0.6rem;
+  font-size: 0.8125rem;
+  color: var(--chrome-muted);
+  line-height: 1.4;
+}
+
+.outline-empty[hidden],
+.outline-list[hidden] {
+  display: none;
+}
+
+.outline-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.outline-item {
+  margin: 0;
+}
+
+.outline-row {
+  display: block;
+  width: 100%;
+  padding: 0.22rem 0.4rem;
+  border: 0;
+  border-radius: 0.3rem;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.8125rem;
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.outline-row:hover,
+.outline-row:focus-visible {
+  background: var(--chrome-hover);
+  outline: none;
+}
+
+.outline-row.is-active {
+  color: var(--chrome-focus);
+  font-weight: 600;
+}
+
+.outline-row[data-level="2"] { padding-left: 0.9rem; }
+.outline-row[data-level="3"] { padding-left: 1.4rem; }
+.outline-row[data-level="4"] { padding-left: 1.9rem; }
+.outline-row[data-level="5"] { padding-left: 2.4rem; }
+.outline-row[data-level="6"] { padding-left: 2.9rem; }
+
 .panes {
   --collapse-duration: .5s;
   --splitter-track: 6px;
@@ -1016,6 +1517,7 @@ body {
   display: grid;
   grid-template-columns: minmax(0, var(--editor-track)) var(--splitter-track) minmax(0, var(--preview-track));
   flex: 1;
+  min-width: 0;
   min-height: 0;
   transition: grid-template-columns var(--collapse-duration) ease,
     grid-template-rows var(--collapse-duration) ease,
@@ -1825,7 +2327,7 @@ html[data-theme="fancy"] .photo-credit:not([hidden]) {
 }
 
 /* Keep a single toolbar row above the overflow breakpoint.
-   Fancy loses side margins, so compact earlier there too. */
+   Fancy side panels need a little less inset sooner on narrow viewports. */
 @media (max-width: 900px) {
   html[data-theme="fancy"] {
     --fancy-margin: 0.45rem;
@@ -1865,10 +2367,18 @@ html[data-theme="fancy"] .photo-credit:not([hidden]) {
     right: 0;
     z-index: 1000;
     min-width: min(18rem, calc(100vw - 1.5rem));
-    max-height: min(70vh, 28rem);
-    overflow: auto;
+    /* Cap to the remaining viewport so long menus scroll instead of clipping. */
+    max-height: calc(100vh - var(--toolbar-h) - 12px);
+    max-height: calc(100dvh - var(--toolbar-h) - 12px - env(safe-area-inset-bottom, 0px));
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
     flex-direction: column;
     align-items: stretch;
+    /* Desktop uses flex-end for the horizontal toolbar; that packs a column
+       menu to the bottom and clips the top items. */
+    justify-content: flex-start;
     flex-wrap: nowrap;
     gap: 0.45rem;
     padding: 0.65rem;
@@ -1880,6 +2390,11 @@ html[data-theme="fancy"] .photo-credit:not([hidden]) {
 
   .toolbar-menu.is-open .toolbar-actions {
     display: flex;
+  }
+
+  .toolbar-actions > *,
+  .toolbar-cluster {
+    flex-shrink: 0;
   }
 
   .toolbar-cluster {
@@ -1958,6 +2473,60 @@ html[data-theme="fancy"] .photo-credit:not([hidden]) {
     --splitter-track: 10px;
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: minmax(0, var(--editor-track)) var(--splitter-track) minmax(0, var(--preview-track));
+    /* Keep full viewport width; the drawer pushes this off-screen instead of shrinking it. */
+    flex: 0 0 100%;
+    width: 100%;
+    min-width: 100%;
+  }
+
+  .workspace {
+    overflow-x: hidden;
+  }
+
+  .files-drawer {
+    position: relative;
+    inset: auto;
+    z-index: 40;
+    width: 0;
+    max-width: none;
+    transform: none;
+    box-shadow: none;
+    border-right-color: transparent;
+    visibility: hidden;
+    pointer-events: none;
+    transition:
+      width var(--files-drawer-duration) ease,
+      border-color var(--files-drawer-duration) ease,
+      visibility 0s linear var(--files-drawer-duration);
+  }
+
+  body.files-drawer-open .files-drawer {
+    width: min(var(--files-drawer-w), 86vw);
+    max-width: 20rem;
+    transform: none;
+    border-right-color: var(--chrome-border);
+    visibility: visible;
+    pointer-events: auto;
+    transition:
+      width var(--files-drawer-duration) ease,
+      border-color var(--files-drawer-duration) ease,
+      visibility 0s linear 0s;
+  }
+
+  .files-drawer-header,
+  .files-drawer-body,
+  .files-drawer-section,
+  .outline-header,
+  .outline-body {
+    min-width: min(var(--files-drawer-w), 86vw);
+    max-width: 20rem;
+    width: min(var(--files-drawer-w), 86vw);
+    box-sizing: border-box;
+  }
+
+  /* Push layout — no dimmed overlay on top of the editor. */
+  .files-backdrop {
+    display: none !important;
   }
 
   .splitter {
@@ -1982,6 +2551,15 @@ body[data-view="edit"] .reader-only {
 
 body[data-view="reader"] .authoring-only,
 body[data-view="present"] .authoring-only {
+  display: none !important;
+}
+
+body[data-view="reader"] .files-drawer,
+body[data-view="present"] .files-drawer,
+body[data-view="reader"] .files-backdrop,
+body[data-view="present"] .files-backdrop,
+body[data-view="reader"] .files-context-menu,
+body[data-view="present"] .files-context-menu {
   display: none !important;
 }
 
@@ -2024,7 +2602,6 @@ body[data-view="present"] .preview {
   width: 100%;
   max-width: min(52rem, 92vw);
   margin: 0 auto;
-  padding: 2.5rem 1.5rem 5rem;
   overflow: auto;
 }
 
@@ -2157,12 +2734,16 @@ body[data-view="present"] .preview > [hidden] {
   .drop-overlay,
   .toast,
   .update-toast,
+  .external-modal,
   .photo-credit,
   .present-chrome,
   .overflow-btn,
   .authoring-only,
   .reader-only,
   .reader-visible,
+  .files-drawer,
+  .files-backdrop,
+  .files-context-menu,
   #speak-dropdown,
   #share-dropdown,
   #export-dropdown,
@@ -2171,6 +2752,7 @@ body[data-view="present"] .preview > [hidden] {
     display: none !important;
   }
 
+  .workspace,
   .panes,
   .preview-pane {
     display: block !important;
