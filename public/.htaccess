@@ -15,6 +15,7 @@ RewriteEngine On
 <IfModule mod_mime.c>
   AddType text/javascript .js
   AddType text/css .css
+  AddType text/markdown .md .markdown
   AddType image/jpeg .jpg .jpeg
   AddType image/png .png
   AddType application/manifest+json .webmanifest
@@ -72,6 +73,12 @@ RewriteEngine On
   Header append Vary "Accept-Encoding"
   RemoveOutputFilter DEFLATE
 </FilesMatch>
+<FilesMatch "\.md\.br$">
+  ForceType "text/markdown"
+  Header set Content-Encoding "br"
+  Header append Vary "Accept-Encoding"
+  RemoveOutputFilter DEFLATE
+</FilesMatch>
 
 <FilesMatch "\.html\.gz$">
   ForceType "text/html"
@@ -97,11 +104,17 @@ RewriteEngine On
   Header append Vary "Accept-Encoding"
   RemoveOutputFilter DEFLATE
 </FilesMatch>
+<FilesMatch "\.md\.gz$">
+  ForceType "text/markdown"
+  Header set Content-Encoding "gzip"
+  Header append Vary "Accept-Encoding"
+  RemoveOutputFilter DEFLATE
+</FilesMatch>
 
 # On-the-fly gzip only for responses that were not rewritten to .br/.gz
 <IfModule mod_deflate.c>
   SetEnvIfNoCase Request_URI "\.(br|gz)$" no-gzip
-  AddOutputFilterByType DEFLATE text/html text/css text/javascript application/javascript application/json application/manifest+json image/svg+xml
+  AddOutputFilterByType DEFLATE text/html text/css text/javascript text/markdown application/javascript application/json application/manifest+json image/svg+xml
 </IfModule>
 
 <IfModule mod_expires.c>
@@ -110,6 +123,7 @@ RewriteEngine On
   ExpiresByType text/css "access plus 1 year"
   ExpiresByType text/javascript "access plus 1 year"
   ExpiresByType application/javascript "access plus 1 year"
+  ExpiresByType text/markdown "access plus 1 year"
   ExpiresByType application/manifest+json "access plus 0 seconds"
   ExpiresByType image/jpeg "access plus 1 year"
   ExpiresByType image/png "access plus 1 year"
@@ -131,6 +145,9 @@ RewriteEngine On
   </FilesMatch>
 
   <FilesMatch "\.(css|js)(\.(br|gz))?$">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+  <FilesMatch "^GUIDE\.[a-f0-9]+\.md(\.(br|gz))?$">
     Header set Cache-Control "public, max-age=31536000, immutable"
   </FilesMatch>
   <FilesMatch "^(sw\.js)(\.(br|gz))?$">
@@ -165,9 +182,9 @@ RewriteEngine On
     Header always unset Permissions-Policy
 
     Header set Cache-Control "no-cache"
-    Header set Permissions-Policy "accelerometer=(), ambient-light-sensor=(), autoplay=(), camera=(), display-capture=(), encrypted-media=(), execution-while-not-rendered=(), execution-while-out-of-viewport=(), fullscreen=(), gamepad=(), geolocation=(), gyroscope=(), hid=(), identity-credentials-get=(), idle-detection=(), local-fonts=(), magnetometer=(), microphone=(), midi=(), otp-credentials=(), payment=(), picture-in-picture=(), publickey-credentials-create=(), publickey-credentials-get=(), screen-wake-lock=(), serial=(), speaker-selection=(), storage-access=(), usb=(), web-share=(), window-management=(), xr-spatial-tracking=(), interest-cohort=()"
+    Header set Permissions-Policy "accelerometer=(), ambient-light-sensor=(), autoplay=(self), camera=(), display-capture=(), encrypted-media=(), execution-while-not-rendered=(), execution-while-out-of-viewport=(), fullscreen=(self), gamepad=(), geolocation=(), gyroscope=(), hid=(), identity-credentials-get=(), idle-detection=(), local-fonts=(), magnetometer=(), microphone=(), midi=(), otp-credentials=(), payment=(), picture-in-picture=(), publickey-credentials-create=(), publickey-credentials-get=(), screen-wake-lock=(), serial=(), speaker-selection=(), storage-access=(), usb=(), web-share=(), window-management=(), xr-spatial-tracking=(), interest-cohort=()"
     Header set Strict-Transport-Security "max-age=31536000"
-    Header always set Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src __SCRIPT_SRC__; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' https://cdn.jsdelivr.net; connect-src 'self' https://cdn.jsdelivr.net; worker-src 'self' blob:; upgrade-insecure-requests"
+    Header always set Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src __SCRIPT_SRC__; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; media-src 'self' data: blob:; font-src 'self' https://cdn.jsdelivr.net; connect-src 'self' https://cdn.jsdelivr.net; worker-src 'self' blob:; upgrade-insecure-requests"
     Header set X-Frame-Options "DENY"
     Header always set Cross-Origin-Embedder-Policy "require-corp"
     Header set X-Content-Type-Options "nosniff"

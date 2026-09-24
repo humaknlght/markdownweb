@@ -304,7 +304,17 @@ html[data-theme="salesforce"] .split-btn-group .btn {
   box-shadow: none;
 }
 
+html[data-theme="salesforce"] .split-btn-group .split-btn-prev {
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+  box-shadow: 0 1px 2px rgba(8, 7, 7, 0.06);
+}
+
 html[data-theme="salesforce"] .split-btn-group .split-btn-main {
+  border-radius: 0;
+  box-shadow: none;
+}
+
+html[data-theme="salesforce"] .split-btn-group .split-btn-prev[hidden] + .split-btn-main {
   border-radius: var(--radius-sm) 0 0 var(--radius-sm);
   box-shadow: 0 1px 2px rgba(8, 7, 7, 0.06);
 }
@@ -913,6 +923,11 @@ body {
   line-height: 1.2;
 }
 
+a.btn {
+  text-decoration: none;
+  box-sizing: border-box;
+}
+
 .btn:hover,
 .select-label select:hover {
   background: var(--chrome-hover);
@@ -947,6 +962,11 @@ body {
   height: 1rem;
 }
 
+/* Icons that only appear beside titles in the narrow overflow menu. */
+.menu-icon {
+  display: none;
+}
+
 #save-btn.is-dirty {
   color: var(--chrome-focus);
   box-shadow: inset 0 -2px 0 var(--chrome-focus);
@@ -976,9 +996,18 @@ body {
   display: block;
 }
 
-.speak-pause-btn:disabled {
+.speak-pause-btn:disabled,
+.speak-prev-btn:disabled,
+.speak-next-btn:disabled {
   opacity: 0.45;
   cursor: default;
+}
+
+.speak-prev-btn[hidden],
+.speak-next-btn[hidden],
+.toolbar-actions .speak-prev-btn[hidden],
+.toolbar-actions .speak-next-btn[hidden] {
+  display: none !important;
 }
 
 .split-btn-group {
@@ -990,12 +1019,23 @@ body {
   border-radius: 0;
 }
 
-.split-btn-group .split-btn-main {
+.split-btn-group .split-btn-prev {
   border-radius: 4px 0 0 4px;
   border-right-width: 0;
 }
 
-.split-btn-group .split-btn-pause {
+.split-btn-group .split-btn-main {
+  border-radius: 0;
+  border-right-width: 0;
+}
+
+/* When prev/next are hidden, restore the compact speak control edges. */
+.split-btn-group .split-btn-prev[hidden] + .split-btn-main {
+  border-radius: 4px 0 0 4px;
+}
+
+.split-btn-group .split-btn-pause,
+.split-btn-group .split-btn-next {
   border-right-width: 0;
 }
 
@@ -2112,6 +2152,74 @@ mark.speech-word {
   font-weight: 600;
 }
 
+.preview table.markdown-frontmatter {
+  display: table;
+  width: 100%;
+  margin: 0 0 1.25em;
+  border-collapse: collapse;
+  font-size: 0.9em;
+  overflow: visible;
+}
+
+.preview .markdown-frontmatter th,
+.preview .markdown-frontmatter td {
+  border: 1px solid var(--preview-rule);
+  padding: 0.35em 0.65em;
+  vertical-align: top;
+  text-align: left;
+}
+
+.preview .markdown-frontmatter th {
+  width: 1%;
+  white-space: nowrap;
+  font-weight: 600;
+  color: var(--preview-muted);
+  background: var(--preview-code-bg);
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+}
+
+.preview .markdown-frontmatter td {
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+  word-break: break-word;
+}
+
+.preview .markdown-frontmatter-nested {
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  font-size: inherit;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow: visible;
+}
+
+.preview .markdown-frontmatter-error {
+  margin: 0 0 1.25em;
+  padding: 0.65em 0.85em;
+  border: 1px solid var(--preview-rule);
+  border-radius: 6px;
+  background: var(--preview-code-bg);
+}
+
+.preview .markdown-frontmatter-error-label {
+  margin: 0 0 0.5em;
+  font-weight: 600;
+  color: var(--alert-warning, var(--preview-muted));
+}
+
+.preview .markdown-frontmatter-error pre {
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  font-size: 0.85em;
+  white-space: pre-wrap;
+}
+
 .preview img {
   max-width: 100%;
   height: auto;
@@ -2380,8 +2488,8 @@ html[data-theme="fancy"] .photo-credit:not([hidden]) {
        menu to the bottom and clips the top items. */
     justify-content: flex-start;
     flex-wrap: nowrap;
-    gap: 0.45rem;
-    padding: 0.65rem;
+    gap: 0.1rem;
+    padding: 0.35rem;
     background: var(--chrome-surface);
     border: 1px solid var(--chrome-border);
     border-radius: 8px;
@@ -2401,7 +2509,13 @@ html[data-theme="fancy"] .photo-credit:not([hidden]) {
     flex-direction: column;
     align-items: stretch;
     width: 100%;
-    gap: 0.45rem;
+    gap: 0.1rem;
+  }
+
+  .toolbar-actions .toolbar-cluster + .toolbar-cluster {
+    margin-top: 0.2rem;
+    padding-top: 0.3rem;
+    border-top: 1px solid var(--chrome-border);
   }
 
   .toolbar-actions .btn,
@@ -2411,21 +2525,176 @@ html[data-theme="fancy"] .photo-credit:not([hidden]) {
     width: 100%;
   }
 
-  .toolbar-actions .split-btn-group {
-    width: 100%;
+  /* Menu rows: icon, then title, left aligned. No button chrome. */
+  .toolbar-actions .btn,
+  .toolbar-actions .file-btn,
+  .toolbar-actions .select-label,
+  html[data-theme="fancy"] .toolbar-actions .btn,
+  html[data-theme="fancy"] .toolbar-actions .select-label,
+  html[data-theme="salesforce"] .toolbar-actions .btn,
+  html[data-theme="salesforce"] .toolbar-actions .select-label,
+  html[data-theme="salesforce"] .toolbar-actions #share-btn,
+  html[data-theme="fancy"] .toolbar-actions #share-btn {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 0.75rem;
+    min-height: 2.75rem;
+    padding: 0.5rem 0.7rem;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    box-shadow: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    color: var(--chrome-text);
+    text-align: left;
+    font-weight: 450;
   }
 
-  .toolbar-actions .split-btn-group .split-btn-main {
-    flex: 1;
+  .toolbar-actions .btn:hover,
+  .toolbar-actions .file-btn:hover,
+  .toolbar-actions .select-label:hover,
+  html[data-theme="fancy"] .toolbar-actions .btn:hover,
+  html[data-theme="fancy"] .toolbar-actions .select-label:hover,
+  html[data-theme="salesforce"] .toolbar-actions .btn:hover,
+  html[data-theme="salesforce"] .toolbar-actions .select-label:hover,
+  html[data-theme="salesforce"] .toolbar-actions #share-btn:hover,
+  html[data-theme="fancy"] .toolbar-actions #share-btn:hover {
+    background: var(--chrome-hover);
+    border-color: transparent;
+    color: var(--chrome-text);
+    box-shadow: none;
+  }
+
+  .toolbar-actions .btn[aria-pressed="true"],
+  html[data-theme="fancy"] .toolbar-actions .btn[aria-pressed="true"],
+  html[data-theme="salesforce"] .toolbar-actions .btn[aria-pressed="true"] {
+    background: var(--chrome-hover);
+    border: 0;
+    box-shadow: none;
+    font-weight: 600;
+  }
+
+  .toolbar-actions #save-btn.is-dirty {
+    color: var(--chrome-focus);
+    box-shadow: none;
+  }
+
+  .toolbar-actions .svg-btn::after,
+  .toolbar-actions .collapse-btn::after {
+    content: attr(aria-label);
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .toolbar-actions .collapse-btn::after {
+    content: attr(title);
+  }
+
+  .toolbar-actions .svg-btn > svg,
+  .toolbar-actions .menu-icon {
+    display: block;
+    width: 1.05rem;
+    height: 1.05rem;
+    flex-shrink: 0;
+  }
+
+  .toolbar-actions .speak-btn .icon-stop,
+  .toolbar-actions .speak-pause-btn .icon-resume {
+    display: none;
+  }
+
+  .toolbar-actions .speak-btn[aria-pressed="true"] .icon-speak {
+    display: none;
+  }
+
+  .toolbar-actions .speak-btn[aria-pressed="true"] .icon-stop,
+  .toolbar-actions .speak-pause-btn.is-paused .icon-resume {
+    display: block;
+  }
+
+  .toolbar-actions .speak-pause-btn.is-paused .icon-pause {
+    display: none;
+  }
+
+  .toolbar-actions .view-mode-icon-edit {
+    display: none;
+  }
+
+  body[data-view="slides"] .toolbar-actions .view-mode-icon-slides {
+    display: none;
+  }
+
+  body[data-view="slides"] .toolbar-actions .view-mode-icon-edit {
+    display: block;
+  }
+
+  .toolbar-actions .collapse-btn .arrow {
+    display: none;
+  }
+
+  .toolbar-actions .collapse-btn .stacked-collapse,
+  .toolbar-actions .collapse-btn[aria-pressed="true"] .stacked-expand {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.05rem;
+    flex-shrink: 0;
+  }
+
+  .toolbar-actions .split-btn-group {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+    gap: 0.1rem;
+  }
+
+  .toolbar-actions .split-btn-group .btn,
+  .toolbar-actions .split-btn-group .split-btn-prev,
+  .toolbar-actions .split-btn-group .split-btn-main,
+  .toolbar-actions .split-btn-group .split-btn-pause,
+  .toolbar-actions .split-btn-group .split-btn-next,
+  .toolbar-actions .split-btn-group .split-btn-toggle,
+  html[data-theme="salesforce"] .toolbar-actions .split-btn-group .btn,
+  html[data-theme="salesforce"] .toolbar-actions .split-btn-group .split-btn-prev,
+  html[data-theme="salesforce"] .toolbar-actions .split-btn-group .split-btn-main,
+  html[data-theme="salesforce"] .toolbar-actions .split-btn-group .split-btn-toggle {
+    flex: none;
+    width: 100%;
+    border: 0;
+    border-radius: 6px;
+    box-shadow: none;
+  }
+
+  .toolbar-actions .split-btn-group .split-btn-toggle svg {
+    width: 1.05rem;
+    height: 1.05rem;
   }
 
   .toolbar-actions .select-label {
-    justify-content: space-between;
+    color: var(--chrome-text);
   }
 
-  /* Restore captions inside the overflow panel so selects stay labeled. */
-  .toolbar-actions .select-caption,
-  .toolbar-actions .collapse-btn .btn-label {
+  .toolbar-actions .select-label select,
+  html[data-theme="fancy"] .toolbar-actions .select-label select,
+  html[data-theme="salesforce"] .toolbar-actions .select-label select {
+    flex: 1;
+    min-width: 0;
+    margin-left: auto;
+    max-width: 58%;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    text-align: right;
+    text-align-last: right;
+  }
+
+  /* Restore select captions. Collapse rows use the button title instead. */
+  .toolbar-actions .select-caption {
     position: static;
     width: auto;
     height: auto;
@@ -2437,6 +2706,10 @@ html[data-theme="fancy"] .photo-credit:not([hidden]) {
     white-space: nowrap;
   }
 
+  .toolbar-actions .collapse-btn .btn-label {
+    display: none;
+  }
+
   .toolbar-actions .select-label select {
     flex: 1;
     min-width: 0;
@@ -2446,13 +2719,22 @@ html[data-theme="fancy"] .photo-credit:not([hidden]) {
     min-width: 0;
   }
 
-  .toolbar-actions .dropdown-menu {
+  .toolbar-actions .dropdown-menu,
+  html[data-theme="fancy"] .toolbar-actions .dropdown-menu,
+  html[data-theme="salesforce"] .toolbar-actions .dropdown-menu {
     position: static;
     z-index: 1001;
+    min-width: 0;
     max-width: none;
-    width: 100%;
+    width: auto;
+    margin: 0 0 0.15rem 1.75rem;
+    padding: 0;
+    background: transparent;
+    border: 0;
+    border-radius: 0;
     box-shadow: none;
-    margin-top: 0.35rem;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
   }
 
   .collapse-btn .side-collapse,
@@ -2481,6 +2763,23 @@ html[data-theme="fancy"] .photo-credit:not([hidden]) {
 
   .workspace {
     overflow-x: hidden;
+  }
+
+  /* Hit-tested descendants (textarea/preview) need this too — touch-action
+     is not inherited, and without it the browser steals the gesture to scroll. */
+  body.files-drawer-open .panes,
+  body.files-drawer-open .panes * {
+    touch-action: pan-y;
+  }
+
+  body.files-drawer-dragging .panes,
+  body.files-drawer-dragging .panes * {
+    touch-action: none;
+    user-select: none;
+  }
+
+  body.files-drawer-dragging .files-drawer {
+    transition: none !important;
   }
 
   .files-drawer {
@@ -2544,8 +2843,9 @@ html[data-theme="fancy"] .photo-credit:not([hidden]) {
   }
 }
 
-/* View modes: edit (default), reader, present */
-body[data-view="edit"] .reader-only {
+/* View modes: edit (default), reader, present, slides */
+body[data-view="edit"] .reader-only,
+body[data-view="slides"] .reader-only {
   display: none !important;
 }
 
@@ -2590,11 +2890,16 @@ body[data-view="present"] .toolbar {
   display: none;
 }
 
-body[data-view="present"] .preview-pane {
+body[data-view="present"] .preview-pane,
+body[data-view="slides"] .preview-pane {
   position: relative;
   display: flex;
   flex-direction: column;
   background: var(--preview-bg, #fff);
+}
+
+body[data-view="present"] .preview-pane {
+  touch-action: pan-y;
 }
 
 body[data-view="present"] .preview {
@@ -2605,11 +2910,17 @@ body[data-view="present"] .preview {
   overflow: auto;
 }
 
+body[data-view="slides"] .preview {
+  flex: 1;
+  overflow: auto;
+}
+
 body[data-view="present"] .preview[data-width="full"] {
   max-width: none;
 }
 
-body[data-view="present"] .preview > [hidden] {
+body[data-view="present"] .preview > [hidden],
+body[data-view="slides"] .preview > [hidden] {
   display: none !important;
 }
 
@@ -2628,6 +2939,24 @@ body[data-view="present"] .preview > [hidden] {
   border-radius: 999px;
   box-shadow: var(--chrome-shadow, 0 8px 24px rgba(26, 29, 35, 0.12));
   backdrop-filter: blur(12px);
+}
+
+body[data-view="present"] .present-chrome {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.35s ease;
+}
+
+body[data-view="present"] .present-chrome.is-active {
+  opacity: 1;
+  pointer-events: auto;
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body[data-view="present"] .present-chrome {
+    transition: none;
+  }
 }
 
 .present-chrome[hidden] {
@@ -2854,6 +3183,21 @@ body[data-view="present"] .preview > [hidden] {
     color: var(--alert-caution) !important;
   }
 
+  .preview table.markdown-frontmatter {
+    display: table !important;
+    overflow: visible !important;
+  }
+
+  .preview .markdown-frontmatter-error {
+    background: var(--preview-code-bg) !important;
+    border: 1px solid var(--preview-rule) !important;
+  }
+
+  .preview .markdown-frontmatter-nested {
+    background: transparent !important;
+    border: 0 !important;
+  }
+
   .preview pre,
   .preview pre code {
     color: inherit !important;
@@ -2882,6 +3226,7 @@ body[data-view="present"] .preview > [hidden] {
   .preview pre,
   .preview blockquote,
   .preview .markdown-alert,
+  .preview .markdown-frontmatter-error,
   .preview table {
     break-inside: avoid;
   }

@@ -1,20 +1,22 @@
 /* Markdown Preview service worker — generated at build time */
 /* eslint-disable no-restricted-globals */
-const CACHE = "md-preview-dev-c59c7e1d";
+const CACHE = "md-preview-dev-c6b20adc";
 const PRECACHE = [
   "./",
   "./index.html",
   "./styles.css",
   "./app.js",
   "./fancy.jpg",
+  "./GUIDE.md",
   "./manifest.webmanifest",
   "./icon-192.png",
   "./icon-512.png",
-  "https://cdn.jsdelivr.net/npm/marked@15.0.7/lib/marked.esm.js",
-  "https://cdn.jsdelivr.net/npm/dompurify@3.2.4/dist/purify.es.mjs",
-  "https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.11.1/es/highlight.min.js",
+  "https://cdn.jsdelivr.net/npm/marked@18.0.13/lib/marked.esm.js",
+  "https://cdn.jsdelivr.net/npm/dompurify@3.4.15/dist/purify.es.mjs",
+  "https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.12.0/es/highlight.min.js",
   "https://cdn.jsdelivr.net/npm/gemoji@8.1.0/+esm",
-  "https://cdn.jsdelivr.net/npm/mermaid@11.17.2/dist/mermaid.min.js"
+  "https://cdn.jsdelivr.net/npm/yaml@2.9.1/+esm",
+  "https://cdn.jsdelivr.net/npm/mermaid@12.0.0/dist/mermaid.esm.min.mjs"
 ];
 
 self.addEventListener("install", (event) => {

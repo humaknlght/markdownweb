@@ -44,6 +44,7 @@ export function buildContentSecurityPolicy(scriptSrc) {
     `script-src ${scriptSrc}`,
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob: https:",
+    "media-src 'self' data: blob:",
     "font-src 'self' https://cdn.jsdelivr.net",
     "connect-src 'self' https://cdn.jsdelivr.net",
     "worker-src 'self' blob:",

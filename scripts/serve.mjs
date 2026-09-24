@@ -17,6 +17,7 @@ import {
   buildScriptSrc,
   buildContentSecurityPolicy,
 } from "./csp.mjs";
+import { guideSourcePath } from "./sync-guide.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(process.cwd(), process.argv[2] || "dist");
@@ -27,6 +28,8 @@ const MIME = {
   ".css": "text/css; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
   ".mjs": "text/javascript; charset=utf-8",
+  ".md": "text/markdown; charset=utf-8",
+  ".markdown": "text/markdown; charset=utf-8",
   ".jpg": "image/jpeg",
   ".jpeg": "image/jpeg",
   ".png": "image/png",
@@ -64,7 +67,7 @@ const contentSecurityPolicy = buildContentSecurityPolicy(scriptSrc);
 const HTML_HEADERS = {
   "Cache-Control": "no-cache",
   "Permissions-Policy":
-    "accelerometer=(), ambient-light-sensor=(), autoplay=(), camera=(), display-capture=(), encrypted-media=(), execution-while-not-rendered=(), execution-while-out-of-viewport=(), fullscreen=(), gamepad=(), geolocation=(), gyroscope=(), hid=(), identity-credentials-get=(), idle-detection=(), local-fonts=(), magnetometer=(), microphone=(), midi=(), otp-credentials=(), payment=(), picture-in-picture=(), publickey-credentials-create=(), publickey-credentials-get=(), screen-wake-lock=(), serial=(), speaker-selection=(), storage-access=(), usb=(), web-share=(), window-management=(), xr-spatial-tracking=(), interest-cohort=()",
+    "accelerometer=(), ambient-light-sensor=(), autoplay=(self), camera=(), display-capture=(), encrypted-media=(), execution-while-not-rendered=(), execution-while-out-of-viewport=(), fullscreen=(self), gamepad=(), geolocation=(), gyroscope=(), hid=(), identity-credentials-get=(), idle-detection=(), local-fonts=(), magnetometer=(), microphone=(), midi=(), otp-credentials=(), payment=(), picture-in-picture=(), publickey-credentials-create=(), publickey-credentials-get=(), screen-wake-lock=(), serial=(), speaker-selection=(), storage-access=(), usb=(), web-share=(), window-management=(), xr-spatial-tracking=(), interest-cohort=()",
   "Strict-Transport-Security": "max-age=31536000",
   "Content-Security-Policy": contentSecurityPolicy,
   "X-Frame-Options": "DENY",
@@ -95,8 +98,10 @@ function headersFor(logicalPath, encoding) {
 
   if (ext === ".html") {
     Object.assign(headers, HTML_HEADERS);
-  } else if (base === "sw.js" || ext === ".webmanifest") {
+  } else if (base === "sw.js" || ext === ".webmanifest" || base === "GUIDE.md") {
     headers["Cache-Control"] = "no-cache";
+  } else if (/^GUIDE\.[a-f0-9]+\.md$/i.test(base)) {
+    headers["Cache-Control"] = "public, max-age=31536000, immutable";
   } else if (ext === ".css" || ext === ".js" || ext === ".mjs") {
     headers["Cache-Control"] = "public, max-age=31536000, immutable";
   } else if (ext === ".jpg" || ext === ".jpeg" || ext === ".png") {
@@ -115,6 +120,15 @@ function safeResolve(urlPath) {
     return null;
   }
   return full;
+}
+
+/** When serving src/, GUIDE.md lives at the repo root — fall back to it. */
+async function resolveGuide(logicalPath) {
+  if (path.basename(logicalPath) !== "GUIDE.md") return logicalPath;
+  if (await exists(logicalPath)) return logicalPath;
+  const rootGuide = guideSourcePath();
+  if (await exists(rootGuide)) return rootGuide;
+  return logicalPath;
 }
 
 async function exists(filePath) {
@@ -159,14 +173,23 @@ const server = http.createServer(async (req, res) => {
       }
     } catch (err) {
       if (err.code === "ENOENT") {
-        res.writeHead(404, {
-          "Content-Type": "text/plain; charset=utf-8",
-          "Cross-Origin-Resource-Policy": CORP,
-        });
-        res.end("Not Found");
-        return;
+        logicalPath = await resolveGuide(logicalPath);
+        if (!(await exists(logicalPath))) {
+          res.writeHead(404, {
+            "Content-Type": "text/plain; charset=utf-8",
+            "Cross-Origin-Resource-Policy": CORP,
+          });
+          res.end("Not Found");
+          return;
+        }
+      } else {
+        throw err;
       }
-      throw err;
+    }
+
+    // Prefer repo-root GUIDE.md when src/ has no copy yet.
+    if (path.basename(logicalPath) === "GUIDE.md") {
+      logicalPath = await resolveGuide(logicalPath);
     }
 
     const chosen = await resolveWithCompression(

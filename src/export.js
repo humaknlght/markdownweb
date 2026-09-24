@@ -1,3 +1,5 @@
+import { extractFrontmatter } from "./frontmatter.js";
+
 /** Generator / provenance stamped into every export. */
 export const GENERATOR_URL = "https://dev.ericperret.org/markdown/";
 
@@ -80,13 +82,17 @@ function cleanupClone(clone) {
  * @returns {string}
  */
 export function buildMarkdownFile(markdown, title) {
+  const source = String(markdown ?? "").replace(/^\uFEFF/, "");
+  if (extractFrontmatter(source)) {
+    return source;
+  }
   const safeTitle = yamlEscape(title || "Untitled");
   return (
     `---\n` +
     `title: ${safeTitle}\n` +
     `generator: ${GENERATOR_URL}\n` +
     `---\n\n` +
-    String(markdown ?? "").replace(/^\uFEFF/, "")
+    source
   );
 }
 

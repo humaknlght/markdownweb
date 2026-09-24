@@ -11,13 +11,15 @@ A fast, client-side Markdown previewer. Paste upload, or open Markdown and see r
 - Shareable **reader** and **present** links (`#mdz=` compressed Markdown + `theme` + `view`)
 - **External content** modal when Markdown arrived via share URL, upload, or OS file launch (Accept to keep, Reject to discard and clear `#md` / `#mdz`)
 - Present mode walks the doc by `h1`/`h2` sections (arrow keys / Space)
+- **Slides** mode keeps the editor open while the preview walks those same sections
 - Print / Save as PDF styles that hide chrome and keep the article clean
 - Read aloud with high-quality voice picking and word highlighting (in supported browsers)
 - Theme dropdown: GitHub Light, GitHub Dark, Sepia, Terminal, Salesforce Cosmos, Fancy
 - Syntax highlighting in the Markdown editor and for fenced code blocks in the preview
 - Emoji shortcodes (`:wink:`) and emoticons (`:-)`, `;)`)
 - GitHub alert callouts (`> [!NOTE]`, `[!TIP]`, `[!IMPORTANT]`, `[!WARNING]`, `[!CAUTION]`)
-- Mermaid diagrams from fenced `mermaid` code blocks (library loaded on demand from jsDelivr with SRI)
+- YAML front matter at the start of a document → metadata table in the preview
+- Mermaid diagrams from fenced `mermaid` code blocks (ESM build loaded on demand from jsDelivr; diagram chunks cached after first use)
 - Local history of recent Markdown (remembered in `localStorage`)
 - Progressive Web App: installable, offline (including CDN libs), update prompt
 - Installed PWA can open `.md` / `.markdown` (and related text) files via “Open with” / OS default-app settings (Chromium desktop)
@@ -51,7 +53,7 @@ npm run build
 
 This writes a minified, bundled site to `dist/`:
 
-- Bundles and minifies app JS (marked, DOMPurify, highlight.js, and Mermaid load from jsDelivr with Subresource Integrity)
+- Bundles and minifies app JS (marked, DOMPurify, highlight.js, gemoji, and yaml load from jsDelivr with Subresource Integrity; Mermaid uses the chunked ESM build)
 - Minifies CSS and HTML
 - Re-encodes `fancy.jpg` (mozjpeg, progressive)
 - **Content-hashes** JS, CSS, and images (`app.a1b2c3d4.js`, etc.) and rewrites HTML/CSS references for cache busting
@@ -87,8 +89,8 @@ https://example.com/#mdz=<deflate-raw+base64url>&theme=fancy&view=reader
 | `mdz` | deflate-raw → base64url Markdown | Preferred; used by new share links |
 | `md` | base64url Markdown (uncompressed) | Legacy; still decoded for older links |
 | `theme` | `github-light`, `github-dark`, `sepia`, `terminal`, `salesforce`, `fancy` | Optional; locks the look of the shared page |
-| `view` | `reader`, `present`, `edit` | Optional; shared links default to `reader` |
+| `view` | `reader`, `present`, `edit`, `slides` | Optional; shared links default to `reader` |
 
 Query form also works (`?mdz=...` or legacy `?md=...`). On load, URL content takes priority over the saved draft. Opening a document link lands in **reader** mode (not the split editor) unless `view=edit` or `view=present` is set. Very long documents can still produce URLs some apps truncate; the share toast warns when a link exceeds ~16KB.
 
-Use the share control to copy a **reader** or **present** link. In reader mode, **Present**, **Print**, and **Edit** switch experiences without losing the document.
+Use the share control to copy a **reader** or **present** link. In reader mode, **Present**, **Print**, and **Edit** switch experiences without losing the document. In edit mode, **Slides** keeps the editor open while the preview advances one `h1`/`h2` section at a time.

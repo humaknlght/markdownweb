@@ -1,12 +1,14 @@
 import { createHash } from "node:crypto";
 
-/** CDN modules the app needs fully offline (import map + Mermaid). */
+/** CDN modules the app needs fully offline (import map). Mermaid ESM entry is
+ * precached; diagram chunks are cached on first use by the service worker. */
 export const CDN_PRECACHE = [
-  "https://cdn.jsdelivr.net/npm/marked@15.0.7/lib/marked.esm.js",
-  "https://cdn.jsdelivr.net/npm/dompurify@3.2.4/dist/purify.es.mjs",
-  "https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.11.1/es/highlight.min.js",
+  "https://cdn.jsdelivr.net/npm/marked@18.0.13/lib/marked.esm.js",
+  "https://cdn.jsdelivr.net/npm/dompurify@3.4.15/dist/purify.es.mjs",
+  "https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.12.0/es/highlight.min.js",
   "https://cdn.jsdelivr.net/npm/gemoji@8.1.0/+esm",
-  "https://cdn.jsdelivr.net/npm/mermaid@11.17.2/dist/mermaid.min.js",
+  "https://cdn.jsdelivr.net/npm/yaml@2.9.1/+esm",
+  "https://cdn.jsdelivr.net/npm/mermaid@12.0.0/dist/mermaid.esm.min.mjs",
 ];
 
 export const ICON_FILES = [

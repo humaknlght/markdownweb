@@ -23,6 +23,7 @@ import {
   buildServiceWorker,
   precacheVersion,
 } from "./pwa.mjs";
+import { copyGuideTo } from "./sync-guide.mjs";
 
 const zopfliGzipAsync = promisify(zopfliGzip);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -30,7 +31,7 @@ const root = path.resolve(__dirname, "..");
 const srcDir = path.join(root, "src");
 const distDir = path.join(root, "dist");
 
-const COMPRESS_EXTENSIONS = new Set([".html", ".css", ".js", ".webmanifest"]);
+const COMPRESS_EXTENSIONS = new Set([".html", ".css", ".js", ".webmanifest", ".md"]);
 const SCRIPT_SRC_PLACEHOLDER = "__SCRIPT_SRC__";
 
 function formatBytes(bytes) {
@@ -146,7 +147,7 @@ async function buildCss(fancyFileName) {
   return { bytes: buffer.length, name, hash };
 }
 
-async function buildJs() {
+async function buildJs(guideUrl) {
   const result = await esbuild.build({
     entryPoints: [path.join(srcDir, "app.js")],
     bundle: true,
@@ -157,7 +158,10 @@ async function buildJs() {
     legalComments: "none",
     treeShaking: true,
     metafile: true,
-    external: ["marked", "dompurify", "highlight.js", "gemoji"],
+    external: ["marked", "dompurify", "highlight.js", "gemoji", "yaml"],
+    define: {
+      __GUIDE_URL__: JSON.stringify(guideUrl),
+    },
   });
 
   const output = result.outputFiles[0];
@@ -207,7 +211,7 @@ async function buildHtml({ cssName, jsName, ogImageName, icon192Name, icon512Nam
   };
 }
 
-async function buildPwa({ cssName, jsName, fancyName, iconResults }) {
+async function buildPwa({ cssName, jsName, fancyName, guideName, iconResults }) {
   const icon192 = iconResults.find((icon) => icon.base === "icon-192.png");
   const icon512 = iconResults.find((icon) => icon.base === "icon-512.png");
   const iconNames = {
@@ -220,6 +224,7 @@ async function buildPwa({ cssName, jsName, fancyName, iconResults }) {
     `./${cssName}`,
     `./${jsName}`,
     `./${fancyName}`,
+    `./${guideName}`,
     "./manifest.webmanifest",
     iconNames.icon192,
     iconNames.icon512,
@@ -243,6 +248,7 @@ async function buildPwa({ cssName, jsName, fancyName, iconResults }) {
         "./styles.css",
         "./app.js",
         "./fancy.jpg",
+        "./GUIDE.md",
         "./manifest.webmanifest",
         ...ICON_FILES.map((name) => `./${name}`),
         ...CDN_PRECACHE,
@@ -307,11 +313,13 @@ async function main() {
   console.log("Building production assets → dist/\n");
   await cleanDist();
 
+  const guide = await copyGuideTo(distDir, { hash: true });
+
   const image = await optimizeImage();
   const ogImage = await buildOgImage();
   const icons = await buildIcons();
   const css = await buildCss(image.name);
-  const js = await buildJs();
+  const js = await buildJs(guide.url);
   const icon192 = icons.find((icon) => icon.base === "icon-192.png");
   const icon512 = icons.find((icon) => icon.base === "icon-512.png");
   const html = await buildHtml({
@@ -325,6 +333,7 @@ async function main() {
     cssName: css.name,
     jsName: js.name,
     fancyName: image.name,
+    guideName: guide.name,
     iconResults: icons,
   });
   await writeApacheConfig(html.scriptSrc);
@@ -339,6 +348,9 @@ async function main() {
   for (const chunk of js.chunks || []) {
     console.log(`  ${chunk.name.padEnd(22)} ${formatBytes(chunk.bytes)}  (lazy chunk)`);
   }
+  console.log(
+    `  ${guide.name.padEnd(22)} ${formatBytes(guide.bytes)}`
+  );
   console.log(
     `  ${image.name.padEnd(22)} ${formatBytes(image.after)}  (from ${formatBytes(image.before)})`
   );

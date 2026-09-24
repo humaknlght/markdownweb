@@ -1,5 +1,7 @@
 import { alertExtension } from "./alert.js";
 import { emojiExtension } from "./emoji.js";
+import { extractFrontmatter, frontmatterExtension } from "./frontmatter.js";
+import { tablePipesExtension } from "./tablePipes.js";
 import {
   buildDocxBlob,
   buildHtmlDocument,
@@ -73,7 +75,7 @@ const EMBED_IMG_RE =
   /!\[([^\]]*)\]\(data:image\/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/]*…#(\d+)\)/g;
 const THEMES = ["github-light", "github-dark", "sepia", "terminal", "salesforce", "fancy"];
 const WIDTHS = ["readable", "full"];
-const VIEWS = ["edit", "reader", "present"];
+const VIEWS = ["edit", "reader", "present", "slides"];
 
 const editor = document.getElementById("editor");
 const editorHighlight = document.getElementById("editor-highlight");
@@ -98,6 +100,8 @@ const exportMenu = document.getElementById("export-menu");
 const speakDropdown = document.getElementById("speak-dropdown");
 const speakBtn = document.getElementById("speak-btn");
 const speakPauseBtn = document.getElementById("speak-pause-btn");
+const speakPrevBtn = document.getElementById("speak-prev-btn");
+const speakNextBtn = document.getElementById("speak-next-btn");
 const voiceMenuBtn = document.getElementById("voice-menu-btn");
 const voiceMenu = document.getElementById("voice-menu");
 const collapseEditorBtn = document.getElementById("collapse-editor");
@@ -114,6 +118,11 @@ const toastEl = document.getElementById("toast");
 const dropOverlay = document.getElementById("drop-overlay");
 const photoCredit = document.getElementById("photo-credit");
 const editViewBtn = document.getElementById("edit-view-btn");
+const viewModeDropdown = document.getElementById("view-mode-dropdown");
+const viewModeMainBtn = document.getElementById("view-mode-main-btn");
+const viewModeMenuBtn = document.getElementById("view-mode-menu-btn");
+const viewModeMenu = document.getElementById("view-mode-menu");
+const presentMenuBtn = document.getElementById("present-menu-btn");
 const presentViewBtn = document.getElementById("present-view-btn");
 const printBtn = document.getElementById("print-btn");
 const presentChrome = document.getElementById("present-chrome");
@@ -199,6 +208,8 @@ marked.setOptions({
   breaks: false,
 });
 
+marked.use(tablePipesExtension());
+marked.use(frontmatterExtension());
 marked.use(emojiExtension());
 marked.use(alertExtension());
 
@@ -665,10 +676,24 @@ let speechQueue = [];
 let speechKeepalive = 0;
 let selectedVoiceURI = "";
 let speechMap = null;
+/** @type {{ title: string, sectionIndex: number, start: number, end: number, chunks: { text: string, start: number }[] }[]} */
+let speechTracks = [];
+let speechTrackIndex = 0;
+/** Bumped when switching/stopping tracks so stale utterance callbacks are ignored. */
+let speechGeneration = 0;
 let currentView = "edit";
-let viewBeforePresent = "reader";
+/** View to restore when leaving present; defaults to slides when none was recorded. */
+let viewBeforePresent = "slides";
 let presentSections = [];
 let presentIndex = 0;
+let presentChromeHideTimer = 0;
+const PRESENT_CHROME_IDLE_MS = 5000;
+const PRESENT_SWIPE_MIN_DX = 56;
+/** @type {{ id: number, x: number, y: number } | null} */
+let presentSwipe = null;
+const DRAWER_CLOSE_SWIPE_MIN_DX = 56;
+/** @type {{ id: number, startX: number, startY: number, width: number, active: boolean } | null} */
+let drawerCloseDrag = null;
 /** True when Markdown was loaded from a share URL, upload, or OS file launch. */
 let contentIsExternal = false;
 /** Content awaiting Accept/Reject; kept so Reject can scrub history after edits. */
@@ -683,9 +708,7 @@ let caretRevealRaf = 0;
 const SPEECH_CHUNK_MAX = 180;
 const SPEECH_HIGHLIGHT = "speech-word";
 const MERMAID_CDN =
-  "https://cdn.jsdelivr.net/npm/mermaid@11.17.2/dist/mermaid.min.js";
-const MERMAID_SRI =
-  "sha384-EOXBFmc3gx5mb+vn0vPvvGqACToJD24hhacX5Yx+8NUUQrHIle/Qi5Bg9o3zKwW2";
+  "https://cdn.jsdelivr.net/npm/mermaid@12.0.0/dist/mermaid.esm.min.mjs";
 
 // Map Mermaid SVG paints to CSS custom properties (Kirupa-style). Screen themes
 // and @media print then recolor diagrams by redefining the variables — no
@@ -769,6 +792,8 @@ function mermaidConfig() {
   return {
     startOnLoad: false,
     securityLevel: "strict",
+    // Mermaid 12 defaults to ELK; keep dagre so existing diagrams look the same.
+    layout: "dagre",
     theme: "base",
     themeVariables: {
       darkMode: false,
@@ -791,24 +816,14 @@ function initMermaid(mermaid) {
 }
 
 function loadMermaid() {
-  mermaidModule ??= new Promise((resolve, reject) => {
-    if (window.mermaid) {
-      resolve(initMermaid(window.mermaid));
-      return;
+  // ESM entry + lazy chunks from jsDelivr (relative imports under dist/chunks/).
+  // Nested chunk fetches can't carry SRI; pin the version URL and rely on CSP.
+  mermaidModule ??= import(MERMAID_CDN).then((mod) => {
+    const mermaid = mod.default;
+    if (!mermaid?.initialize || !mermaid?.run) {
+      throw new Error("Mermaid failed to load");
     }
-    const script = document.createElement("script");
-    script.src = MERMAID_CDN;
-    script.integrity = MERMAID_SRI;
-    script.crossOrigin = "anonymous";
-    script.onload = () => {
-      if (!window.mermaid) {
-        reject(new Error("Mermaid failed to load"));
-        return;
-      }
-      resolve(initMermaid(window.mermaid));
-    };
-    script.onerror = () => reject(new Error("Mermaid failed to load"));
-    document.head.appendChild(script);
+    return initMermaid(mermaid);
   });
   return mermaidModule;
 }
@@ -886,7 +901,11 @@ function clearShareMarkdownFromUrl() {
     const hashParams = new URLSearchParams(url.hash.slice(1));
     hashParams.delete("md");
     hashParams.delete("mdz");
-    if (hashParams.get("view") === "reader" || hashParams.get("view") === "present") {
+    if (
+      hashParams.get("view") === "reader" ||
+      hashParams.get("view") === "present" ||
+      hashParams.get("view") === "slides"
+    ) {
       hashParams.set("view", "edit");
     }
     url.hash = hashParams.toString();
@@ -1122,19 +1141,23 @@ function renderMarkdown(source) {
     mermaidGen += 1;
     preview.innerHTML = clean;
     addCodeLineNumbers(preview);
+    if (isSlideNavView()) {
+      buildPresentSections();
+      showPresentSection(presentIndex);
+    }
     invalidateScrollAnchors();
     rafId = 0;
     updateDocOutline();
     syncPreviewFromEditor();
     revealPreviewForEditorCaret();
     renderMermaidDiagrams().finally(() => {
-      invalidateScrollAnchors();
-      syncPreviewFromEditor();
-      revealPreviewForEditorCaret();
-      if (currentView === "present") {
+      if (isSlideNavView()) {
         buildPresentSections();
         showPresentSection(presentIndex);
       }
+      invalidateScrollAnchors();
+      syncPreviewFromEditor();
+      revealPreviewForEditorCaret();
     });
   });
 }
@@ -1147,7 +1170,13 @@ function scheduleRender() {
 }
 
 function titleFromMarkdown(markdown) {
-  const lines = markdown.split(/\r?\n/);
+  const fm = extractFrontmatter(markdown);
+  if (fm?.data && typeof fm.data.title === "string") {
+    const fromFm = fm.data.title.trim();
+    if (fromFm) return fromFm.slice(0, 80);
+  }
+  const body = fm ? fm.body : markdown;
+  const lines = body.split(/\r?\n/);
   for (const line of lines) {
     const heading = line.match(/^#{1,6}\s+(.+)$/);
     if (heading) return heading[1].trim().slice(0, 80);
@@ -1284,6 +1313,7 @@ function closeOverflowMenu() {
   closeVoiceMenu();
   closeShareMenu();
   closeExportMenu();
+  closeViewModeMenu();
 }
 
 function toggleOverflowMenu() {
@@ -1338,6 +1368,8 @@ function applyCollapseState() {
   collapsePreviewBtn.setAttribute("aria-pressed", String(previewCollapsed));
   collapseEditorBtn.title = editorCollapsed ? "Expand editor" : "Collapse editor";
   collapsePreviewBtn.title = previewCollapsed ? "Expand preview" : "Collapse preview";
+  collapseEditorBtn.setAttribute("aria-label", collapseEditorBtn.title);
+  collapsePreviewBtn.setAttribute("aria-label", collapsePreviewBtn.title);
   splitter.setAttribute("aria-hidden", String(editorCollapsed || previewCollapsed));
   splitter.tabIndex = editorCollapsed || previewCollapsed ? -1 : 0;
   invalidateScrollAnchors();
@@ -1554,6 +1586,7 @@ function buildScrollAnchors() {
   const anchors = [{ editor: 0, preview: 0 }];
 
   for (const el of preview.querySelectorAll("[data-source-line]")) {
+    if (el.hidden || el.closest("[hidden]")) continue;
     const line = Number(el.getAttribute("data-source-line"));
     if (!Number.isFinite(line) || line < 1 || line > lineTops.length) continue;
     const previewTop = offsetWithin(el, previewPane);
@@ -1635,7 +1668,9 @@ function beginSyncDriver(driver) {
 function setSyncScroll(enabled, { persist = true } = {}) {
   syncScrollEnabled = Boolean(enabled);
   syncScrollBtn.setAttribute("aria-pressed", String(syncScrollEnabled));
-  syncScrollBtn.title = syncScrollEnabled ? "Unsync scroll" : "Sync scroll";
+  const syncLabel = syncScrollEnabled ? "Unsync scroll" : "Sync scroll";
+  syncScrollBtn.title = syncLabel;
+  syncScrollBtn.setAttribute("aria-label", syncLabel);
   if (persist) {
     try {
       localStorage.setItem(STORAGE_KEYS.syncScroll, syncScrollEnabled ? "1" : "0");
@@ -1655,6 +1690,11 @@ function syncPreviewFromEditor() {
   if (panes.classList.contains("editor-collapsed") || panes.classList.contains("preview-collapsed")) {
     return;
   }
+  if (currentView === "slides") {
+    beginSyncDriver("editor");
+    syncSlidesFromEditor({ preferCaret: false });
+    return;
+  }
   beginSyncDriver("editor");
   const anchors = getScrollAnchors();
   if (anchors.length >= 2) {
@@ -1672,6 +1712,10 @@ function syncEditorFromPreview() {
   if (panes.classList.contains("editor-collapsed") || panes.classList.contains("preview-collapsed")) {
     return;
   }
+  // In slides mode the active slide follows the editor caret/viewport. Reverse
+  // sync would scroll the editor and then re-resolve the slide from the
+  // viewport top — often jumping back to an earlier slide still on screen.
+  if (currentView === "slides") return;
   beginSyncDriver("preview");
   const anchors = getScrollAnchors();
   if (anchors.length >= 2) {
@@ -1709,10 +1753,16 @@ function previewElementForLine(line) {
 /**
  * Keep the rendered block for the editor caret in view. Uses nearest so we
  * only scroll when the matching preview content is actually off-screen.
+ * In slides mode, also switches to the slide that contains the caret line.
  */
 function revealPreviewForEditorCaret() {
   if (!syncScrollEnabled) return;
   if (panes.classList.contains("editor-collapsed") || panes.classList.contains("preview-collapsed")) {
+    return;
+  }
+  if (currentView === "slides") {
+    beginSyncDriver("editor");
+    syncSlidesFromEditor({ preferCaret: true });
     return;
   }
   const el = previewElementForLine(editorCaretLine());
@@ -1734,6 +1784,96 @@ function revealPreviewForEditorCaret() {
   }
 }
 
+/** 1-based source line nearest the top of the editor viewport. */
+function editorLineNearViewportTop() {
+  const lineTops = measureEditorLineTops();
+  if (!lineTops.length) return 1;
+  const y = editor.scrollTop + 4;
+  let lo = 0;
+  let hi = lineTops.length - 1;
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >> 1;
+    if (lineTops[mid] <= y) lo = mid;
+    else hi = mid - 1;
+  }
+  return lo + 1;
+}
+
+/** Whether a 1-based editor line intersects the visible editor viewport. */
+function isEditorLineVisible(line) {
+  const lineTops = measureEditorLineTops();
+  if (!lineTops.length || line < 1 || line > lineTops.length) return false;
+  const top = lineTops[line - 1];
+  const bottom = line < lineTops.length ? lineTops[line] : top + 20;
+  const viewTop = editor.scrollTop;
+  const viewBottom = viewTop + editor.clientHeight;
+  return bottom > viewTop && top < viewBottom;
+}
+
+/** Index of the present/slides section that best covers a 1-based source line. */
+function presentSectionIndexForLine(line) {
+  if (!presentSections.length) buildPresentSections();
+  if (!presentSections.length) return 0;
+
+  let best = 0;
+  let bestStart = -Infinity;
+  for (let i = 0; i < presentSections.length; i++) {
+    for (const child of presentSections[i]) {
+      const start = Number(child.getAttribute("data-source-line"));
+      if (!Number.isFinite(start) || start < 1) continue;
+      const endRaw = Number(child.getAttribute("data-source-line-end"));
+      const end = Number.isFinite(endRaw) && endRaw >= start ? endRaw : start;
+      if (line >= start && line <= end) return i;
+      if (start <= line && start >= bestStart) {
+        best = i;
+        bestStart = start;
+      }
+    }
+  }
+  return best;
+}
+
+/**
+ * Switch to the slide for the editor caret (or viewport top) and scroll the
+ * matching preview block into view.
+ * @param {{ preferCaret?: boolean }} [opts]
+ */
+function syncSlidesFromEditor({ preferCaret = true } = {}) {
+  if (currentView !== "slides") return;
+  if (!presentSections.length) buildPresentSections();
+  if (!presentSections.length) return;
+
+  const caretLine = editorCaretLine();
+  // While the caret remains on screen, keep its slide even if an earlier
+  // slide's heading is still at the top of the editor viewport.
+  const line =
+    preferCaret || isEditorLineVisible(caretLine)
+      ? caretLine
+      : editorLineNearViewportTop();
+  const idx = presentSectionIndexForLine(line);
+  if (idx !== presentIndex) {
+    showPresentSection(idx);
+    invalidateScrollAnchors();
+  }
+
+  const el = previewElementForLine(line);
+  if (!el || el.hidden || el.closest("[hidden]")) return;
+
+  const paneRect = previewPane.getBoundingClientRect();
+  const elRect = el.getBoundingClientRect();
+  const pad = 8;
+  if (elRect.top >= paneRect.top + pad && elRect.bottom <= paneRect.bottom - pad) {
+    return;
+  }
+
+  const top = offsetWithin(el, previewPane);
+  if (elRect.bottom > paneRect.bottom - pad) {
+    clampScrollTop(previewPane, top + el.offsetHeight - previewPane.clientHeight + pad);
+  } else {
+    clampScrollTop(previewPane, top - pad);
+  }
+}
+
 function scheduleRevealPreviewForCaret() {
   scheduleOutlineHighlight();
   if (!syncScrollEnabled || caretRevealRaf) return;
@@ -1741,6 +1881,46 @@ function scheduleRevealPreviewForCaret() {
     caretRevealRaf = 0;
     revealPreviewForEditorCaret();
   });
+}
+
+/** Which pane last drove outline position: "editor" | "preview". */
+let outlineScrollSource = "editor";
+
+/** 1-based source line of the last heading at or above the preview viewport top. */
+function previewLineNearViewportTop() {
+  const paneRect = previewPane.getBoundingClientRect();
+  if (paneRect.height <= 0) return 0;
+  const marker = paneRect.top + Math.min(40, paneRect.height * 0.2);
+  let line = 0;
+  for (const h of preview.querySelectorAll("h1, h2, h3, h4, h5, h6")) {
+    if (h.hidden || h.closest("[hidden]")) continue;
+    const src = Number(h.getAttribute("data-source-line"));
+    if (!Number.isFinite(src) || src < 1) continue;
+    if (h.getBoundingClientRect().top <= marker) line = src;
+    else break;
+  }
+  return line;
+}
+
+/** Source line used to pick the active outline row from scroll/caret position. */
+function outlineSourceLine() {
+  const previewVisible = !panes.classList.contains("preview-collapsed");
+  const editorVisible = !panes.classList.contains("editor-collapsed");
+
+  // Editor caret/click wins while the editor is driving outline position.
+  if (editorVisible && outlineScrollSource === "editor") {
+    const caret = editorCaretLine();
+    if (document.activeElement === editor || isEditorLineVisible(caret)) return caret;
+    return editorLineNearViewportTop();
+  }
+
+  if (previewVisible) {
+    const line = previewLineNearViewportTop();
+    if (line > 0) return line;
+  }
+
+  if (editorVisible) return editorLineNearViewportTop();
+  return editorCaretLine();
 }
 
 let outlineHighlightRaf = 0;
@@ -1865,6 +2045,7 @@ function updateDocumentTitle() {
       currentFileNameEl.hidden = true;
     }
   }
+  if (speechActive) updateSpeechMediaSession();
 }
 
 function markCleanFromEditor() {
@@ -1935,7 +2116,7 @@ function updateSaveButton() {
       : "Save (Ctrl/Cmd+S)";
 }
 
-function setFilesDrawerOpen(open, { persist = true } = {}) {
+function setFilesDrawerOpen(open, { persist = true, preserveDragWidth = false } = {}) {
   filesDrawerOpen = Boolean(open);
   document.body.classList.toggle("files-drawer-open", filesDrawerOpen);
   if (filesDrawer) {
@@ -1947,6 +2128,11 @@ function setFilesDrawerOpen(open, { persist = true } = {}) {
     filesBackdrop.setAttribute("aria-hidden", filesDrawerOpen ? "false" : "true");
   }
   filesToggleBtn?.setAttribute("aria-pressed", filesDrawerOpen ? "true" : "false");
+  if (!filesDrawerOpen) {
+    drawerCloseDrag = null;
+    document.body.classList.remove("files-drawer-dragging");
+    if (!preserveDragWidth) filesDrawer?.style.removeProperty("width");
+  }
   if (persist) {
     localStorage.setItem(STORAGE_KEYS.filesDrawer, filesDrawerOpen ? "1" : "0");
   }
@@ -1954,6 +2140,90 @@ function setFilesDrawerOpen(open, { persist = true } = {}) {
 
 function toggleFilesDrawer() {
   setFilesDrawerOpen(!filesDrawerOpen);
+}
+
+function onDrawerCloseDragPointerDown(e) {
+  if (!filesDrawerOpen || !filesDrawer) return;
+  // Mouse included so narrow desktop / DevTools can exercise the same gesture.
+  if (e.pointerType === "pen") return;
+  if (!isStackedLayout()) return;
+  // Don't steal the splitter resize gesture.
+  if (e.target.closest?.("#splitter")) return;
+  drawerCloseDrag = {
+    id: e.pointerId,
+    startX: e.clientX,
+    startY: e.clientY,
+    width: filesDrawer.getBoundingClientRect().width,
+    active: false,
+  };
+}
+
+function onDrawerCloseDragPointerMove(e) {
+  if (!drawerCloseDrag || e.pointerId !== drawerCloseDrag.id || !filesDrawer) return;
+  const dx = e.clientX - drawerCloseDrag.startX;
+  const dy = e.clientY - drawerCloseDrag.startY;
+
+  if (!drawerCloseDrag.active) {
+    if (Math.abs(dx) < 10 && Math.abs(dy) < 10) return;
+    // Commit only to a clear leftward drag so vertical scrolling still works.
+    if (dx >= 0 || Math.abs(dx) <= Math.abs(dy)) {
+      drawerCloseDrag = null;
+      return;
+    }
+    drawerCloseDrag.active = true;
+    document.body.classList.add("files-drawer-dragging");
+    try {
+      panes.setPointerCapture(e.pointerId);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  if (drawerCloseDrag.active) e.preventDefault();
+
+  // Shrink the drawer so the panes slide left over it with the finger.
+  const next = Math.max(0, Math.min(drawerCloseDrag.width, drawerCloseDrag.width + dx));
+  filesDrawer.style.width = `${next}px`;
+}
+
+function finishDrawerCloseDrag(e, { cancelled = false } = {}) {
+  if (!drawerCloseDrag || e.pointerId !== drawerCloseDrag.id) return;
+  const { active, width: startWidth, startX } = drawerCloseDrag;
+  const dx = e.clientX - startX;
+  const currentWidth = filesDrawer?.getBoundingClientRect().width ?? startWidth;
+  drawerCloseDrag = null;
+
+  if (!filesDrawer || !active || cancelled) {
+    document.body.classList.remove("files-drawer-dragging");
+    filesDrawer?.style.removeProperty("width");
+    return;
+  }
+
+  const shouldClose =
+    currentWidth < startWidth * 0.5 || dx <= -DRAWER_CLOSE_SWIPE_MIN_DX;
+
+  // Re-enable transitions while still at the dragged width, then settle.
+  filesDrawer.style.width = `${currentWidth}px`;
+  document.body.classList.remove("files-drawer-dragging");
+  void filesDrawer.offsetWidth;
+
+  if (shouldClose) {
+    setFilesDrawerOpen(false, { preserveDragWidth: true });
+    filesDrawer.style.removeProperty("width");
+  } else {
+    // Snap the drawer back open under the panes.
+    filesDrawer.style.removeProperty("width");
+  }
+}
+
+function onDrawerCloseDragPointerUp(e) {
+  finishDrawerCloseDrag(e);
+}
+
+function onDrawerCloseDragPointerCancel(e) {
+  // If the browser cancelled after we already claimed the gesture, still finish
+  // from the last dragged width instead of snapping open and ignoring the drag.
+  finishDrawerCloseDrag(e, { cancelled: !drawerCloseDrag?.active });
 }
 
 function closeFilesContextMenu() {
@@ -2486,24 +2756,66 @@ function offsetOfSourceLine(line) {
   return pos;
 }
 
+/** Scroll the preview pane to the heading/block for a 1-based source line. */
+function scrollPreviewToSourceLine(line) {
+  if (!Number.isFinite(line) || line < 1) return;
+
+  if (isSlideNavView()) {
+    if (!presentSections.length) buildPresentSections();
+    if (presentSections.length) {
+      const idx = presentSectionIndexForLine(line);
+      if (idx !== presentIndex) {
+        showPresentSection(idx);
+        invalidateScrollAnchors();
+      }
+    }
+  }
+
+  const headings = [...preview.querySelectorAll("h1, h2, h3, h4, h5, h6")];
+  const target =
+    headings.find((h) => Number(h.getAttribute("data-source-line")) === line) ||
+    previewElementForLine(line);
+  if (!target || target.hidden || target.closest("[hidden]")) return;
+
+  // Prefer "editor" as driver when the editor is open so preview scroll does not
+  // reverse-sync the caret away from the outline target.
+  beginSyncDriver(panes.classList.contains("editor-collapsed") ? "preview" : "editor");
+  clampScrollTop(previewPane, offsetWithin(target, previewPane) - 8);
+}
+
+/**
+ * Jump to a source line from the outline. Scrolls the editor when it is open,
+ * and the preview (including the matching slide) when the preview is open.
+ */
 function goToSourceLine(line) {
   if (!Number.isFinite(line) || line < 1) return;
+
+  const editorVisible = !panes.classList.contains("editor-collapsed");
+  const previewVisible = !panes.classList.contains("preview-collapsed");
   const pos = offsetOfSourceLine(line);
-  editor.focus();
   editor.setSelectionRange(pos, pos);
 
-  const lineTops = measureEditorLineTops();
-  const top = lineTops[line - 1] ?? 0;
-  beginSyncDriver("editor");
-  clampScrollTop(editor, top - Math.min(48, editor.clientHeight * 0.2));
-  syncPreviewFromEditor();
-  revealPreviewForEditorCaret();
+  if (editorVisible) {
+    editor.focus();
+    outlineScrollSource = "editor";
+    const lineTops = measureEditorLineTops();
+    const top = lineTops[line - 1] ?? 0;
+    beginSyncDriver("editor");
+    clampScrollTop(editor, top - Math.min(48, editor.clientHeight * 0.2));
+    syncEditorHighlightScroll();
+  }
+
+  if (previewVisible) {
+    outlineScrollSource = "preview";
+    scrollPreviewToSourceLine(line);
+  }
+
   highlightActiveOutlineItem();
 }
 
 function highlightActiveOutlineItem() {
   if (!outlineList) return;
-  const line = editorCaretLine();
+  const line = outlineSourceLine();
   const rows = [...outlineList.querySelectorAll(".outline-row")];
   let active = null;
   for (const row of rows) {
@@ -2527,9 +2839,30 @@ function setupDocOutline() {
     const index = Number(row.dataset.index);
     const heading = preview.querySelectorAll("h1, h2, h3, h4, h5, h6")[index];
     if (!heading) return;
-    beginSyncDriver("preview");
-    clampScrollTop(previewPane, offsetWithin(heading, previewPane) - 8);
-    syncEditorFromPreview();
+    const headingLine = Number(heading.getAttribute("data-source-line"));
+    if (Number.isFinite(headingLine) && headingLine > 0) {
+      goToSourceLine(headingLine);
+      return;
+    }
+    const editorVisible = !panes.classList.contains("editor-collapsed");
+    const previewVisible = !panes.classList.contains("preview-collapsed");
+    if (previewVisible) {
+      if (isSlideNavView()) {
+        if (!presentSections.length) buildPresentSections();
+        for (let i = 0; i < presentSections.length; i++) {
+          if (presentSections[i].some((n) => n === heading || n.contains(heading))) {
+            if (i !== presentIndex) {
+              showPresentSection(i);
+              invalidateScrollAnchors();
+            }
+            break;
+          }
+        }
+      }
+      beginSyncDriver(panes.classList.contains("editor-collapsed") ? "preview" : "editor");
+      clampScrollTop(previewPane, offsetWithin(heading, previewPane) - 8);
+    }
+    if (editorVisible) editor.focus();
   });
 }
 
@@ -2544,6 +2877,12 @@ function setupFilesDrawer() {
 
   filesToggleBtn?.addEventListener("click", () => toggleFilesDrawer());
   filesBackdrop?.addEventListener("click", () => setFilesDrawerOpen(false));
+  // On narrow layouts, drag the panes left over the drawer to dismiss it.
+  panes.addEventListener("pointerdown", onDrawerCloseDragPointerDown, { passive: true });
+  // Non-passive so we can preventDefault once the dismiss gesture is claimed.
+  panes.addEventListener("pointermove", onDrawerCloseDragPointerMove);
+  panes.addEventListener("pointerup", onDrawerCloseDragPointerUp, { passive: true });
+  panes.addEventListener("pointercancel", onDrawerCloseDragPointerCancel, { passive: true });
   filesOpenFolderBtn?.addEventListener("click", () => void pickOpenFolder());
   filesEmptyOpenBtn?.addEventListener("click", () => void pickOpenFolder());
   filesReopenBtn?.addEventListener("click", () => void pickOpenFolder());
@@ -2574,6 +2913,8 @@ function setupFilesDrawer() {
 
   filesDrawer?.addEventListener("contextmenu", (e) => {
     if (e.target.closest(".files-tree-row")) return;
+    // Empty-area "new file/folder" menu is only for the files panel, not the outline.
+    if (!e.target.closest(".files-section")) return;
     if (!rootDirHandle || awaitingFsPermission) return;
     e.preventDefault();
     selectFsPath("");
@@ -2810,6 +3151,7 @@ function toggleShareMenu() {
     closeHistory();
     closeVoiceMenu();
     closeExportMenu();
+    closeViewModeMenu();
     openShareMenu();
   } else {
     closeShareMenu();
@@ -2834,6 +3176,7 @@ function toggleExportMenu() {
     closeHistory();
     closeVoiceMenu();
     closeShareMenu();
+    closeViewModeMenu();
     openExportMenu();
   } else {
     closeExportMenu();
@@ -2952,6 +3295,40 @@ function showPresentSection(index) {
   preview.scrollTop = 0;
   const pane = document.getElementById("preview-pane");
   if (pane) pane.scrollTop = 0;
+  outlineScrollSource = "preview";
+  scheduleOutlineHighlight();
+}
+
+/** First 1-based source line covered by a present/slides section. */
+function sourceLineForPresentSection(index) {
+  const section = presentSections[index];
+  if (!section?.length) return null;
+  let best = Infinity;
+  for (const child of section) {
+    const start = Number(child.getAttribute("data-source-line"));
+    if (Number.isFinite(start) && start >= 1 && start < best) best = start;
+  }
+  return Number.isFinite(best) && best !== Infinity ? best : null;
+}
+
+/**
+ * When sync-scroll is on in slides mode, move the editor caret/scroll to the
+ * active slide after an explicit prev/next (or Home/End) navigation.
+ */
+function syncEditorToPresentSection() {
+  if (currentView !== "slides" || !syncScrollEnabled) return;
+  const line = sourceLineForPresentSection(presentIndex);
+  if (line == null) return;
+
+  const pos = offsetOfSourceLine(line);
+  beginSyncDriver("preview");
+  editor.setSelectionRange(pos, pos);
+
+  const lineTops = measureEditorLineTops();
+  const top = lineTops[line - 1] ?? 0;
+  clampScrollTop(editor, top - Math.min(48, editor.clientHeight * 0.2));
+  syncEditorHighlightScroll();
+  scheduleOutlineHighlight();
 }
 
 function clearPresentSectionFilter() {
@@ -2960,26 +3337,89 @@ function clearPresentSectionFilter() {
   }
 }
 
+function isSlideNavView() {
+  return currentView === "present" || currentView === "slides";
+}
+
+function isAuthoringView() {
+  return currentView === "edit" || currentView === "slides";
+}
+
+function updateViewModeMainBtn() {
+  if (!viewModeMainBtn) return;
+  const viewModeLabel = viewModeMainBtn.querySelector(".btn-text");
+  if (currentView === "slides") {
+    if (viewModeLabel) viewModeLabel.textContent = "Edit";
+    else viewModeMainBtn.textContent = "Edit";
+    viewModeMainBtn.title = "Back to full preview";
+  } else {
+    if (viewModeLabel) viewModeLabel.textContent = "Slides";
+    else viewModeMainBtn.textContent = "Slides";
+    viewModeMainBtn.title = "Slides preview";
+  }
+}
+
+function openViewModeMenu() {
+  if (!viewModeMenu || !viewModeMenuBtn) return;
+  viewModeMenu.hidden = false;
+  viewModeMenuBtn.setAttribute("aria-expanded", "true");
+}
+
+function closeViewModeMenu() {
+  if (!viewModeMenu || !viewModeMenuBtn) return;
+  viewModeMenu.hidden = true;
+  viewModeMenuBtn.setAttribute("aria-expanded", "false");
+}
+
+function toggleViewModeMenu() {
+  if (!viewModeMenu) return;
+  if (viewModeMenu.hidden) {
+    closeHistory();
+    closeVoiceMenu();
+    closeShareMenu();
+    closeExportMenu();
+    openViewModeMenu();
+  } else {
+    closeViewModeMenu();
+  }
+}
+
+function onViewModeMainClick() {
+  if (currentView === "slides") setView("edit");
+  else enterSlidesMode();
+}
+
 function setView(view, { syncUrl = true } = {}) {
   const next = VIEWS.includes(view) ? view : "edit";
-  if (currentView === "present" && next !== "present") {
+  const wasSlideNav = currentView === "present" || currentView === "slides";
+  const nextIsSlideNav = next === "present" || next === "slides";
+  const leavingPresent = currentView === "present" && next !== "present";
+  if (wasSlideNav && !nextIsSlideNav) {
     clearPresentSectionFilter();
-  }
-  if (next === "present" && currentView !== "present") {
-    viewBeforePresent = currentView === "edit" ? "edit" : "reader";
   }
 
   currentView = next;
+  if (leavingPresent) {
+    void leavePresentFullscreen();
+  }
   document.body.dataset.view = next;
   syncExternalModal();
+  updateViewModeMainBtn();
 
   if (presentChrome) {
-    presentChrome.hidden = next !== "present";
+    presentChrome.hidden = !nextIsSlideNav;
   }
+  if (presentExitBtn) {
+    presentExitBtn.title = next === "slides" ? "Exit slides mode" : "Exit present mode";
+  }
+  syncPresentChromeAutohide();
 
-  if (next === "present") {
+  if (nextIsSlideNav) {
     buildPresentSections();
     showPresentSection(0);
+    if (next === "slides" && syncScrollEnabled) {
+      revealPreviewForEditorCaret();
+    }
   }
 
   if (syncUrl) {
@@ -2996,25 +3436,143 @@ function setView(view, { syncUrl = true } = {}) {
   closeExportMenu();
   closeHistory();
   closeVoiceMenu();
+  closeViewModeMenu();
   closeOverflowMenu();
 }
 
+function getFullscreenElement() {
+  return document.fullscreenElement || document.webkitFullscreenElement || null;
+}
+
+async function enterPresentFullscreen() {
+  if (getFullscreenElement()) return;
+  const el = document.documentElement;
+  const request = el.requestFullscreen || el.webkitRequestFullscreen;
+  if (!request) return;
+  try {
+    await request.call(el);
+  } catch {
+    // Denied or missing user gesture — present mode still works windowed.
+  }
+}
+
+async function leavePresentFullscreen() {
+  if (!getFullscreenElement()) return;
+  const exit = document.exitFullscreen || document.webkitExitFullscreen;
+  if (!exit) return;
+  try {
+    await exit.call(document);
+  } catch {
+    // ignore
+  }
+}
+
+function viewAfterPresent() {
+  if (viewBeforePresent && viewBeforePresent !== "present" && VIEWS.includes(viewBeforePresent)) {
+    return viewBeforePresent;
+  }
+  return "slides";
+}
+
+function clearPresentChromeHideTimer() {
+  if (presentChromeHideTimer) {
+    clearTimeout(presentChromeHideTimer);
+    presentChromeHideTimer = 0;
+  }
+}
+
+function setPresentChromeActive(active) {
+  presentChrome?.classList.toggle("is-active", active);
+}
+
+function schedulePresentChromeHide() {
+  clearPresentChromeHideTimer();
+  presentChromeHideTimer = window.setTimeout(() => {
+    presentChromeHideTimer = 0;
+    if (currentView === "present") setPresentChromeActive(false);
+  }, PRESENT_CHROME_IDLE_MS);
+}
+
+function revealPresentChrome() {
+  if (currentView !== "present" || !presentChrome || presentChrome.hidden) return;
+  setPresentChromeActive(true);
+  schedulePresentChromeHide();
+}
+
+function syncPresentChromeAutohide() {
+  clearPresentChromeHideTimer();
+  if (currentView === "present") {
+    revealPresentChrome();
+  } else {
+    setPresentChromeActive(false);
+  }
+}
+
+function onPresentChromePointerActivity() {
+  revealPresentChrome();
+}
+
+function onPresentSwipePointerDown(e) {
+  if (currentView !== "present") return;
+  if (e.pointerType !== "touch") return;
+  if (e.target.closest?.("#present-chrome")) return;
+  presentSwipe = { id: e.pointerId, x: e.clientX, y: e.clientY };
+}
+
+function onPresentSwipePointerUp(e) {
+  if (!presentSwipe || e.pointerId !== presentSwipe.id) return;
+  const dx = e.clientX - presentSwipe.x;
+  const dy = e.clientY - presentSwipe.y;
+  presentSwipe = null;
+  if (currentView !== "present") return;
+  if (Math.abs(dx) < PRESENT_SWIPE_MIN_DX) return;
+  if (Math.abs(dx) <= Math.abs(dy)) return;
+  if (dx < 0) presentNext();
+  else presentPrev();
+  revealPresentChrome();
+}
+
+function onPresentSwipePointerCancel(e) {
+  if (presentSwipe && e.pointerId === presentSwipe.id) presentSwipe = null;
+}
+
+function onPresentFullscreenChange() {
+  if (currentView !== "present") return;
+  if (getFullscreenElement()) return;
+  // Browser left fullscreen (e.g. Esc) — leave present mode with it.
+  setView(viewAfterPresent());
+}
+
 function enterPresentMode() {
+  if (currentView !== "present") {
+    viewBeforePresent = currentView;
+  }
   setView("present");
+  void enterPresentFullscreen();
+}
+
+function enterSlidesMode() {
+  setView("slides");
 }
 
 function exitPresentMode() {
-  setView(viewBeforePresent === "edit" ? "edit" : "reader");
+  if (currentView === "slides") {
+    setView("edit");
+    return;
+  }
+  setView(viewAfterPresent());
 }
 
 function presentNext() {
-  if (currentView !== "present") return;
+  if (!isSlideNavView()) return;
   showPresentSection(presentIndex + 1);
+  syncEditorToPresentSection();
 }
 
 function presentPrev() {
-  if (currentView !== "present") return;
+  if (!isSlideNavView()) return;
   showPresentSection(presentIndex - 1);
+  syncEditorToPresentSection();
 }
 
 function buildPreviewSpeechMap() {
@@ -3044,11 +3602,78 @@ function buildPreviewSpeechMap() {
   return { text, nodes };
 }
 
-function getSpeakableText() {
+function speechOffsetsForSection(map, sectionNodes) {
+  if (!map?.nodes?.length || !sectionNodes?.length) return null;
+  let start = Infinity;
+  let end = -1;
+  for (const entry of map.nodes) {
+    const parent = entry.node.parentElement;
+    if (!parent) continue;
+    if (!sectionNodes.some((section) => section === parent || section.contains(parent))) {
+      continue;
+    }
+    start = Math.min(start, entry.start);
+    end = Math.max(end, entry.end);
+  }
+  if (!Number.isFinite(start) || end <= start) return null;
+  return { start, end };
+}
+
+function speechSectionTitle(sectionNodes, index) {
+  for (const node of sectionNodes) {
+    if (!/^H[1-6]$/.test(node.tagName)) continue;
+    const title = node.textContent?.trim();
+    if (title) return title.slice(0, 120);
+  }
+  if (index === 0) return currentFileName || "Introduction";
+  return `Section ${index + 1}`;
+}
+
+function buildSpeechTracks() {
+  buildPresentSections();
   speechMap = buildPreviewSpeechMap();
-  if (speechMap.text?.trim()) return speechMap.text;
-  speechMap = null;
-  return (getMarkdownSource() || "").trim();
+
+  if (speechMap.text?.trim() && presentSections.length) {
+    const tracks = [];
+    for (let i = 0; i < presentSections.length; i++) {
+      const offsets = speechOffsetsForSection(speechMap, presentSections[i]);
+      if (!offsets) continue;
+      const text = speechMap.text.slice(offsets.start, offsets.end);
+      if (!text.trim()) continue;
+      const chunks = chunkSpeechText(text).map((chunk) => ({
+        text: chunk.text,
+        start: chunk.start + offsets.start,
+      }));
+      if (!chunks.length) continue;
+      tracks.push({
+        title: speechSectionTitle(presentSections[i], i),
+        sectionIndex: i,
+        start: offsets.start,
+        end: offsets.end,
+        chunks,
+      });
+    }
+    if (tracks.length) return tracks;
+  }
+
+  const text = speechMap.text?.trim()
+    ? speechMap.text
+    : (getMarkdownSource() || "").trim();
+  if (!text) {
+    speechMap = null;
+    return [];
+  }
+  if (!speechMap.text?.trim()) speechMap = null;
+
+  return [
+    {
+      title: currentFileName || "Markdown Preview",
+      sectionIndex: 0,
+      start: 0,
+      end: text.length,
+      chunks: chunkSpeechText(text),
+    },
+  ];
 }
 
 function chunkSpeechText(text) {
@@ -3210,8 +3835,10 @@ function voiceQualityScore(voice) {
   }
   if (/\b(compact|eloquence|novelty)\b/.test(name)) score -= 60;
 
-  // Remote/network voices are usually neural TTS when not novelty.
-  if (!voice.localService && score >= 0) score += 15;
+  // Prefer on-device voices: Chrome publishes a separate "Google Network Speech"
+  // Now Playing session for remote TTS, which duplicates our media controls.
+  if (voice.localService) score += 30;
+  else if (score >= 0) score -= 25;
 
   return score;
 }
@@ -3352,12 +3979,197 @@ function updateSpeakButton() {
   speakBtn.title = speechActive ? "Stop reading" : "Read aloud";
   speakBtn.setAttribute("aria-label", speechActive ? "Stop reading" : "Read aloud");
 
-  if (!speakPauseBtn) return;
-  speakPauseBtn.disabled = !speechActive;
-  speakPauseBtn.setAttribute("aria-pressed", String(speechPaused));
-  speakPauseBtn.title = speechPaused ? "Resume" : "Pause";
-  speakPauseBtn.setAttribute("aria-label", speechPaused ? "Resume" : "Pause");
-  speakPauseBtn.classList.toggle("is-paused", speechPaused);
+  if (speakPauseBtn) {
+    speakPauseBtn.disabled = !speechActive;
+    speakPauseBtn.setAttribute("aria-pressed", String(speechPaused));
+    speakPauseBtn.title = speechPaused ? "Resume" : "Pause";
+    speakPauseBtn.setAttribute("aria-label", speechPaused ? "Resume" : "Pause");
+    speakPauseBtn.classList.toggle("is-paused", speechPaused);
+  }
+
+  const trackCount = speechTracks.length;
+  const canSeekTracks = speechActive && trackCount > 0;
+  if (speakPrevBtn) {
+    speakPrevBtn.hidden = !speechActive;
+    speakPrevBtn.disabled = !canSeekTracks;
+  }
+  if (speakNextBtn) {
+    speakNextBtn.hidden = !speechActive;
+    speakNextBtn.disabled = !canSeekTracks || speechTrackIndex >= trackCount - 1;
+  }
+
+  updateSpeechMediaSession();
+}
+
+const mediaSessionSupported =
+  typeof navigator !== "undefined" && "mediaSession" in navigator && typeof MediaMetadata !== "undefined";
+
+/** HTMLAudioElement that keeps OS / Chrome media controls alive for TTS. */
+let speechSessionAudio = null;
+/** @type {string} */
+let speechSessionAudioUrl = "";
+
+function buildNearSilentWavBlobUrl(seconds = 8, sampleRate = 8000) {
+  const numSamples = seconds * sampleRate;
+  const dataBytes = numSamples * 2;
+  const buffer = new ArrayBuffer(44 + dataBytes);
+  const view = new DataView(buffer);
+  const writeStr = (offset, text) => {
+    for (let i = 0; i < text.length; i += 1) view.setUint8(offset + i, text.charCodeAt(i));
+  };
+
+  writeStr(0, "RIFF");
+  view.setUint32(4, 36 + dataBytes, true);
+  writeStr(8, "WAVE");
+  writeStr(12, "fmt ");
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
+  writeStr(36, "data");
+  view.setUint32(40, dataBytes, true);
+
+  // Tiny alternating samples so UAs don't treat the stream as fully muted.
+  for (let i = 0; i < numSamples; i += 1) {
+    view.setInt16(44 + i * 2, i % 2 === 0 ? 1 : -1, true);
+  }
+
+  return URL.createObjectURL(new Blob([buffer], { type: "audio/wav" }));
+}
+
+function ensureSpeechSessionAudio() {
+  if (speechSessionAudio) return speechSessionAudio;
+  if (!speechSessionAudioUrl) speechSessionAudioUrl = buildNearSilentWavBlobUrl();
+  const audio = new Audio();
+  audio.preload = "auto";
+  audio.loop = true;
+  audio.volume = 0.001;
+  audio.src = speechSessionAudioUrl;
+  audio.setAttribute("playsinline", "");
+  speechSessionAudio = audio;
+  return audio;
+}
+
+/** Chrome already exposes Now Playing for remote/Google speechSynthesis voices. */
+function speechVoiceOwnsBrowserSession(voice = preferredVoice()) {
+  return Boolean(voice && !voice.localService);
+}
+
+async function startSpeechSessionAudio() {
+  // Avoid a second media card alongside Chrome's "Google Network Speech" session.
+  if (speechVoiceOwnsBrowserSession()) {
+    stopSpeechSessionAudio();
+    if (speechActive) updateSpeechMediaSession();
+    return;
+  }
+
+  const audio = ensureSpeechSessionAudio();
+  try {
+    if (audio.paused) await audio.play();
+    if (speechActive) updateSpeechMediaSession();
+  } catch {
+    /* play() may still be blocked without a gesture / policy */
+  }
+}
+
+function pauseSpeechSessionAudio() {
+  if (!speechSessionAudio || speechSessionAudio.paused) return;
+  speechSessionAudio.pause();
+}
+
+function stopSpeechSessionAudio() {
+  if (!speechSessionAudio) return;
+  speechSessionAudio.pause();
+  try {
+    speechSessionAudio.currentTime = 0;
+  } catch {
+    /* ignore seek errors */
+  }
+}
+
+function speechMediaArtwork() {
+  const artwork = [];
+  for (const link of document.querySelectorAll('link[rel="icon"], link[rel="apple-touch-icon"]')) {
+    const src = link.href;
+    if (!src) continue;
+    const sizes = link.getAttribute("sizes") || "192x192";
+    const type = link.getAttribute("type") || "image/png";
+    if (artwork.some((entry) => entry.src === src && entry.sizes === sizes)) continue;
+    artwork.push({ src, sizes, type });
+  }
+  return artwork;
+}
+
+function updateSpeechMediaSession() {
+  if (!mediaSessionSupported) return;
+  try {
+    if (!speechActive) {
+      navigator.mediaSession.playbackState = "none";
+      navigator.mediaSession.metadata = null;
+      return;
+    }
+
+    const track = speechTracks[speechTrackIndex];
+    const trackCount = speechTracks.length;
+    const title = track?.title || currentFileName || "Markdown Preview";
+    const artist = currentFileName || "Markdown Preview";
+    const album =
+      trackCount > 1 ? `${speechTrackIndex + 1} / ${trackCount}` : "Read aloud";
+
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title,
+      artist,
+      album,
+      artwork: speechMediaArtwork(),
+    });
+    navigator.mediaSession.playbackState = speechPaused ? "paused" : "playing";
+  } catch {
+    /* Media Session may reject metadata or state on some platforms */
+  }
+}
+
+function setupSpeechMediaSession() {
+  if (!mediaSessionSupported) return;
+
+  const setHandler = (action, handler) => {
+    try {
+      navigator.mediaSession.setActionHandler(action, handler);
+    } catch {
+      /* action not supported in this browser */
+    }
+  };
+
+  setHandler("play", () => {
+    if (!speechActive) startSpeaking();
+    else resumeSpeaking();
+  });
+  setHandler("pause", () => {
+    if (speechActive) pauseSpeaking();
+  });
+  setHandler("stop", () => {
+    if (speechActive) stopSpeaking();
+  });
+  setHandler("previoustrack", () => speakPreviousTrack());
+  setHandler("nexttrack", () => speakNextTrack());
+  // Some OS controllers only expose seek actions; map them to section skip.
+  setHandler("seekbackward", () => speakPreviousTrack());
+  setHandler("seekforward", () => speakNextTrack());
+}
+
+function speakPreviousTrack() {
+  if (!speechActive || !speechTracks.length) return;
+  if (speechTrackIndex > 0) speakTrackAt(speechTrackIndex - 1);
+  else speakTrackAt(0);
+}
+
+function speakNextTrack() {
+  if (!speechActive || !speechTracks.length) return;
+  if (speechTrackIndex < speechTracks.length - 1) {
+    speakTrackAt(speechTrackIndex + 1);
+  }
 }
 
 function clearSpeechKeepalive() {
@@ -3384,9 +4196,13 @@ function stopSpeaking() {
   speechActive = false;
   speechPaused = false;
   speechQueue = [];
+  speechTracks = [];
+  speechTrackIndex = 0;
+  speechGeneration += 1;
   speechMap = null;
   clearSpeechKeepalive();
   clearSpeechHighlight();
+  stopSpeechSessionAudio();
   if (window.speechSynthesis?.speaking || window.speechSynthesis?.pending || window.speechSynthesis?.paused) {
     window.speechSynthesis.cancel();
   }
@@ -3397,6 +4213,7 @@ function pauseSpeaking() {
   if (!speechActive || speechPaused) return;
   speechPaused = true;
   window.speechSynthesis.pause();
+  pauseSpeechSessionAudio();
   updateSpeakButton();
 }
 
@@ -3404,6 +4221,7 @@ function resumeSpeaking() {
   if (!speechActive || !speechPaused) return;
   speechPaused = false;
   window.speechSynthesis.resume();
+  void startSpeechSessionAudio();
   updateSpeakButton();
 }
 
@@ -3413,13 +4231,88 @@ function togglePauseSpeaking() {
   else pauseSpeaking();
 }
 
-function speakNextChunk() {
-  if (!speechActive) return;
+function syncPreviewToSpeechTrack() {
+  if (!speechTracks.length) return;
+  const track = speechTracks[speechTrackIndex];
+  const sectionIndex =
+    typeof track?.sectionIndex === "number" ? track.sectionIndex : speechTrackIndex;
+
+  if (isSlideNavView()) {
+    if (sectionIndex < 0 || sectionIndex >= presentSections.length) return;
+    if (sectionIndex !== presentIndex) {
+      showPresentSection(sectionIndex);
+      syncEditorToPresentSection();
+    }
+    return;
+  }
+
+  const previewVisible = !panes.classList.contains("preview-collapsed");
+  if (!previewVisible) return;
+
+  outlineScrollSource = "preview";
+  const line = sourceLineForPresentSection(sectionIndex);
+  if (line != null) {
+    scrollPreviewToSourceLine(line);
+    highlightActiveOutlineItem();
+    return;
+  }
+
+  const el = presentSections[sectionIndex]?.[0];
+  if (!el || el.hidden || el.closest("[hidden]")) return;
+  beginSyncDriver(panes.classList.contains("editor-collapsed") ? "preview" : "editor");
+  clampScrollTop(previewPane, offsetWithin(el, previewPane) - 8);
+  highlightActiveOutlineItem();
+}
+
+function speakTrackAt(index) {
+  if (!speechActive || !speechTracks.length) return;
+  if (index < 0 || index >= speechTracks.length) {
+    if (index >= speechTracks.length) stopSpeaking();
+    return;
+  }
+
+  const track = speechTracks[index];
+  const generation = ++speechGeneration;
+  speechTrackIndex = index;
+  speechPaused = false;
+  speechQueue = track.chunks.map((chunk) => ({ text: chunk.text, start: chunk.start }));
+  clearSpeechHighlight();
+  syncPreviewToSpeechTrack();
+  void startSpeechSessionAudio();
+  updateSpeakButton();
+
+  const wasSpeaking =
+    window.speechSynthesis.speaking ||
+    window.speechSynthesis.pending ||
+    window.speechSynthesis.paused;
+  if (wasSpeaking) window.speechSynthesis.cancel();
+
+  const kickoff = () => {
+    if (!speechActive || speechGeneration !== generation) return;
+    if (window.speechSynthesis.paused) window.speechSynthesis.resume();
+    speakNextChunk(generation);
+  };
+
+  // After cancel(), Chrome needs a tick before the next speak() works.
+  if (wasSpeaking) window.setTimeout(kickoff, 50);
+  else kickoff();
+}
+
+function speakNextChunk(generation = speechGeneration) {
+  if (!speechActive || speechGeneration !== generation) return;
   if (!speechQueue.length) {
+    if (speechTrackIndex < speechTracks.length - 1) {
+      speakTrackAt(speechTrackIndex + 1);
+      return;
+    }
     speechActive = false;
     speechPaused = false;
+    speechTracks = [];
+    speechTrackIndex = 0;
+    speechGeneration += 1;
     clearSpeechKeepalive();
     clearSpeechHighlight();
+    stopSpeechSessionAudio();
     updateSpeakButton();
     return;
   }
@@ -3436,7 +4329,7 @@ function speakNextChunk() {
   // Only highlight when the engine fires word boundary events (many
   // Google/network voices do not support this in Chrome).
   utterance.addEventListener("boundary", (event) => {
-    if (!speechActive || event.name !== "word") return;
+    if (!speechActive || speechGeneration !== generation || event.name !== "word") return;
     const absoluteStart = chunk.start + event.charIndex;
     const absoluteEnd = wordEndOffset(
       speechMap?.text || chunk.text,
@@ -3446,14 +4339,19 @@ function speakNextChunk() {
     highlightSpeechOffsets(absoluteStart, absoluteEnd);
   });
 
-  utterance.onend = () => speakNextChunk();
+  utterance.onend = () => speakNextChunk(generation);
   utterance.onerror = (event) => {
     if (event.error === "interrupted" || event.error === "canceled") return;
+    if (speechGeneration !== generation) return;
     speechActive = false;
     speechPaused = false;
     speechQueue = [];
+    speechTracks = [];
+    speechTrackIndex = 0;
+    speechGeneration += 1;
     clearSpeechKeepalive();
     clearSpeechHighlight();
+    stopSpeechSessionAudio();
     updateSpeakButton();
     showToast("Could not read aloud");
   };
@@ -3463,14 +4361,8 @@ function speakNextChunk() {
 }
 
 function startSpeaking() {
-  const text = getSpeakableText();
-  if (!text) {
-    showToast("Nothing to read");
-    return;
-  }
-
-  const chunks = chunkSpeechText(text);
-  if (!chunks.length) {
+  const tracks = buildSpeechTracks();
+  if (!tracks.length) {
     showToast("Nothing to read");
     return;
   }
@@ -3480,20 +4372,31 @@ function startSpeaking() {
     window.speechSynthesis.pending ||
     window.speechSynthesis.paused;
   const map = speechMap;
-  const queue = chunks;
+  let startIndex = 0;
+  if (isSlideNavView()) {
+    const match = tracks.findIndex((track) => track.sectionIndex === presentIndex);
+    startIndex =
+      match >= 0 ? match : Math.max(0, Math.min(presentIndex, tracks.length - 1));
+  }
+
   stopSpeaking();
   speechMap = map;
+  speechTracks = tracks;
+  speechTrackIndex = startIndex;
   speechActive = true;
   speechPaused = false;
-  speechQueue = queue;
   updateSpeakButton();
   startSpeechKeepalive();
   closeVoiceMenu();
+  syncPreviewToSpeechTrack();
+  // Must start from the user gesture that triggered read-aloud so Chrome/macOS
+  // media controllers attach to a real HTMLMediaElement session.
+  void startSpeechSessionAudio();
 
+  // speakTrackAt bumps generation and starts the engine.
   const kickoff = () => {
     if (!speechActive) return;
-    if (window.speechSynthesis.paused) window.speechSynthesis.resume();
-    speakNextChunk();
+    speakTrackAt(startIndex);
   };
 
   // After cancel(), Chrome needs a tick before the next speak() works.
@@ -3510,6 +4413,7 @@ function setupSpeech() {
   if (!speakBtn || !speakDropdown || !speechSupported || !window.speechSynthesis) return;
   speakDropdown.hidden = false;
   selectedVoiceURI = localStorage.getItem(STORAGE_KEYS.voice) || "";
+  setupSpeechMediaSession();
   updateSpeakButton();
 
   // Chrome often returns [] until voiceschanged; refresh when the list arrives.
@@ -3522,14 +4426,31 @@ function setupSpeech() {
 
   speakBtn.addEventListener("click", toggleSpeaking);
   speakPauseBtn?.addEventListener("click", togglePauseSpeaking);
+  speakPrevBtn?.addEventListener("click", speakPreviousTrack);
+  speakNextBtn?.addEventListener("click", speakNextTrack);
   voiceMenuBtn.addEventListener("click", (e) => {
     e.stopPropagation();
     closeHistory();
     closeShareMenu();
     closeExportMenu();
+    closeViewModeMenu();
     toggleVoiceMenu();
   });
   window.addEventListener("pagehide", stopSpeaking);
+}
+
+/** Build injects __GUIDE_URL__ (content-hashed). Dev falls back to ./GUIDE.md. */
+const GUIDE_URL = typeof __GUIDE_URL__ === "string" ? __GUIDE_URL__ : "./GUIDE.md";
+
+/** First-visit starter content from GUIDE.md (copied into dist at build time). */
+async function fetchDefaultGuide() {
+  try {
+    const response = await fetch(GUIDE_URL);
+    if (!response.ok) return "";
+    return await response.text();
+  } catch {
+    return "";
+  }
 }
 
 async function init() {
@@ -3580,9 +4501,19 @@ async function init() {
     setContentExternal(true);
     clearCurrentFileBinding();
   } else {
-    const draft = localStorage.getItem(STORAGE_KEYS.draft) || "";
-    setEditorValue(draft);
-    lastHistoryContent = draft;
+    // null = never visited; "" = user cleared the editor. Only seed once.
+    const stored = localStorage.getItem(STORAGE_KEYS.draft);
+    let draft = stored;
+    if (stored == null) {
+      draft = await fetchDefaultGuide();
+      try {
+        localStorage.setItem(STORAGE_KEYS.draft, draft);
+      } catch {
+        /* quota — still show the guide this session */
+      }
+    }
+    setEditorValue(draft ?? "");
+    lastHistoryContent = draft ?? "";
     setContentExternal(false);
   }
 
@@ -3623,9 +4554,9 @@ async function init() {
   editor.addEventListener("cut", onEditorCopyOrCut);
 
   themeSelect.addEventListener("change", () => {
-    setTheme(themeSelect.value, { persist: currentView === "edit" });
+    setTheme(themeSelect.value, { persist: isAuthoringView() });
     // Mermaid colors follow --mermaid-* CSS variables, so no re-render is needed.
-    if (currentView !== "edit" && editor.value.trim()) {
+    if (!isAuthoringView() && editor.value.trim()) {
       void syncHashForView(currentView);
     }
   });
@@ -3646,8 +4577,8 @@ async function init() {
     e.stopPropagation();
     toggleShareMenu();
   });
-  shareReaderBtn?.addEventListener("click", () => copyShareUrl("reader"));
-  sharePresentBtn?.addEventListener("click", () => copyShareUrl("present"));
+  shareReaderBtn?.addEventListener("click", () => void copyShareUrl("reader"));
+  sharePresentBtn?.addEventListener("click", () => void copyShareUrl("present"));
 
   exportBtn?.addEventListener("click", (e) => {
     e.stopPropagation();
@@ -3660,11 +4591,30 @@ async function init() {
   });
 
   editViewBtn?.addEventListener("click", () => setView("edit"));
+  viewModeMainBtn?.addEventListener("click", onViewModeMainClick);
+  viewModeMenuBtn?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    closeHistory();
+    closeVoiceMenu();
+    closeShareMenu();
+    closeExportMenu();
+    toggleViewModeMenu();
+  });
+  presentMenuBtn?.addEventListener("click", () => {
+    closeViewModeMenu();
+    enterPresentMode();
+  });
   presentViewBtn?.addEventListener("click", enterPresentMode);
   printBtn?.addEventListener("click", () => window.print());
   presentPrevBtn?.addEventListener("click", presentPrev);
   presentNextBtn?.addEventListener("click", presentNext);
   presentExitBtn?.addEventListener("click", exitPresentMode);
+  document.addEventListener("pointermove", onPresentChromePointerActivity, { passive: true });
+  previewPane.addEventListener("pointerdown", onPresentSwipePointerDown, { passive: true });
+  previewPane.addEventListener("pointerup", onPresentSwipePointerUp, { passive: true });
+  previewPane.addEventListener("pointercancel", onPresentSwipePointerCancel, { passive: true });
+  document.addEventListener("fullscreenchange", onPresentFullscreenChange);
+  document.addEventListener("webkitfullscreenchange", onPresentFullscreenChange);
   // Escape must not dismiss — only Accept / Reject (method=dialog) close the modal.
   externalModal?.addEventListener("cancel", (e) => e.preventDefault());
   externalModal?.addEventListener("close", () => {
@@ -3678,13 +4628,29 @@ async function init() {
   editor.addEventListener(
     "scroll",
     () => {
+      // Ignore echo scrolls from preview-driven sync so outline stays on the preview section.
+      if (syncScrollDriver !== "preview") outlineScrollSource = "editor";
       syncEditorHighlightScroll();
       syncPreviewFromEditor();
+      scheduleOutlineHighlight();
     },
     { passive: true },
   );
-  previewPane.addEventListener("scroll", syncEditorFromPreview, { passive: true });
-  editor.addEventListener("click", scheduleRevealPreviewForCaret);
+  previewPane.addEventListener(
+    "scroll",
+    () => {
+      // Ignore echo scrolls from editor-driven sync (e.g. click-to-reveal) so the
+      // outline keeps following the editor caret/section the user just entered.
+      if (syncScrollDriver !== "editor") outlineScrollSource = "preview";
+      syncEditorFromPreview();
+      scheduleOutlineHighlight();
+    },
+    { passive: true },
+  );
+  editor.addEventListener("click", () => {
+    outlineScrollSource = "editor";
+    scheduleRevealPreviewForCaret();
+  });
   editor.addEventListener("keyup", (e) => {
     if (
       e.key === "ArrowUp" ||
@@ -3697,10 +4663,14 @@ async function init() {
       e.key === "PageDown" ||
       e.key === "Enter"
     ) {
+      outlineScrollSource = "editor";
       scheduleRevealPreviewForCaret();
     }
   });
-  editor.addEventListener("select", scheduleRevealPreviewForCaret);
+  editor.addEventListener("select", () => {
+    outlineScrollSource = "editor";
+    scheduleRevealPreviewForCaret();
+  });
   if (typeof ResizeObserver === "function") {
     const ro = new ResizeObserver(() => {
       syncEditorHighlightScroll();
@@ -3718,6 +4688,7 @@ async function init() {
     closeVoiceMenu();
     closeShareMenu();
     closeExportMenu();
+    closeViewModeMenu();
     toggleHistory();
   });
 
@@ -3739,6 +4710,7 @@ async function init() {
     if (speakDropdown && !speakDropdown.contains(e.target)) closeVoiceMenu();
     if (shareDropdown && !shareDropdown.contains(e.target)) closeShareMenu();
     if (exportDropdown && !exportDropdown.contains(e.target)) closeExportMenu();
+    if (viewModeDropdown && !viewModeDropdown.contains(e.target)) closeViewModeMenu();
     if (!toolbarMenu.contains(e.target)) closeOverflowMenu();
     if (filesContextMenu && !filesContextMenu.contains(e.target)) closeFilesContextMenu();
   });
@@ -3754,19 +4726,26 @@ async function init() {
     }
 
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") {
-      if (fsAccessSupported && currentView === "edit") {
+      if (fsAccessSupported && isAuthoringView()) {
         e.preventDefault();
         void saveCurrentDocument();
       }
       return;
     }
 
-    if (currentView === "present") {
+    if (isSlideNavView()) {
+      const typingInEditor = currentView === "slides" && document.activeElement === editor;
       if (e.key === "Escape") {
+        if (viewModeMenu && !viewModeMenu.hidden) {
+          closeViewModeMenu();
+          e.preventDefault();
+          return;
+        }
         exitPresentMode();
         e.preventDefault();
         return;
       }
+      if (typingInEditor) return;
       if (e.key === "ArrowRight" || e.key === "ArrowDown" || e.key === " " || e.key === "PageDown") {
         presentNext();
         e.preventDefault();
@@ -3779,11 +4758,13 @@ async function init() {
       }
       if (e.key === "Home") {
         showPresentSection(0);
+        syncEditorToPresentSection();
         e.preventDefault();
         return;
       }
       if (e.key === "End") {
         showPresentSection(presentSections.length - 1);
+        syncEditorToPresentSection();
         e.preventDefault();
         return;
       }
@@ -3794,6 +4775,7 @@ async function init() {
       closeVoiceMenu();
       closeShareMenu();
       closeExportMenu();
+      closeViewModeMenu();
       closeOverflowMenu();
       closeFilesContextMenu();
       if (filesDrawerOpen && window.matchMedia(NARROW_MQ).matches) {

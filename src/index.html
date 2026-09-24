@@ -84,20 +84,20 @@
   <link rel="stylesheet" href="styles.css" />
   <link
     rel="modulepreload"
-    href="https://cdn.jsdelivr.net/npm/marked@15.0.7/lib/marked.esm.js"
-    integrity="sha384-NpOwQJGB5x/x3LzpCM0reBj1wPu7ywvPZAm0T+dZA4G0cFx9ZQlFiDt8BcEOz0Xy"
+    href="https://cdn.jsdelivr.net/npm/marked@18.0.13/lib/marked.esm.js"
+    integrity="sha384-e72zKBnxCunMabU3bdcEoYpC/kmXSAxZBNzDIClVBHNG0Bywm2jm+BTgSQsLtv40"
     crossorigin="anonymous"
   />
   <link
     rel="modulepreload"
-    href="https://cdn.jsdelivr.net/npm/dompurify@3.2.4/dist/purify.es.mjs"
-    integrity="sha384-RCEh+A7Akp5nl/99z2StbCeVB26UcpvmsSBWlqw8EptGxUSmQgFsdbJKk1jVbsKL"
+    href="https://cdn.jsdelivr.net/npm/dompurify@3.4.15/dist/purify.es.mjs"
+    integrity="sha384-7qp4WRTNsGGxR8HfIhcAZoSk58Z/fsUx40ul1tuY0myp6r0jHAqEnFiaNOobIc9v"
     crossorigin="anonymous"
   />
   <link
     rel="modulepreload"
-    href="https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.11.1/es/highlight.min.js"
-    integrity="sha384-oLdnQ1gMzlJ7B7Z/Z6BN+THM/9f4ttUFMNj67N4+UMLwJsyWeY6FrmRd/9UWYjdt"
+    href="https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.12.0/es/highlight.min.js"
+    integrity="sha384-l8ERxkewKrLDU6JM23uJxYhbq4kpknJgRKU1IPppBiJKjPRzMTgoZaBTyJWX6tCr"
     crossorigin="anonymous"
   />
   <link
@@ -106,19 +106,27 @@
     integrity="sha384-BxixXuX+Sw/FKnMEyJ+uFfpzgLCYpImf3Wks5yu6wYrASvTTUe4lmI+mXE9kKdAL"
     crossorigin="anonymous"
   />
+  <link
+    rel="modulepreload"
+    href="https://cdn.jsdelivr.net/npm/yaml@2.9.1/+esm"
+    integrity="sha384-MVwSuH88MctNNg+3dwLImVhp3/5G1k0NtNYzmuuplV7D/xSlRSidadLxUMGnsGnE"
+    crossorigin="anonymous"
+  />
   <script type="importmap">
   {
     "imports": {
-      "marked": "https://cdn.jsdelivr.net/npm/marked@15.0.7/lib/marked.esm.js",
-      "dompurify": "https://cdn.jsdelivr.net/npm/dompurify@3.2.4/dist/purify.es.mjs",
-      "highlight.js": "https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.11.1/es/highlight.min.js",
-      "gemoji": "https://cdn.jsdelivr.net/npm/gemoji@8.1.0/+esm"
+      "marked": "https://cdn.jsdelivr.net/npm/marked@18.0.13/lib/marked.esm.js",
+      "dompurify": "https://cdn.jsdelivr.net/npm/dompurify@3.4.15/dist/purify.es.mjs",
+      "highlight.js": "https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.12.0/es/highlight.min.js",
+      "gemoji": "https://cdn.jsdelivr.net/npm/gemoji@8.1.0/+esm",
+      "yaml": "https://cdn.jsdelivr.net/npm/yaml@2.9.1/+esm"
     },
     "integrity": {
-      "https://cdn.jsdelivr.net/npm/marked@15.0.7/lib/marked.esm.js": "sha384-NpOwQJGB5x/x3LzpCM0reBj1wPu7ywvPZAm0T+dZA4G0cFx9ZQlFiDt8BcEOz0Xy",
-      "https://cdn.jsdelivr.net/npm/dompurify@3.2.4/dist/purify.es.mjs": "sha384-RCEh+A7Akp5nl/99z2StbCeVB26UcpvmsSBWlqw8EptGxUSmQgFsdbJKk1jVbsKL",
-      "https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.11.1/es/highlight.min.js": "sha384-oLdnQ1gMzlJ7B7Z/Z6BN+THM/9f4ttUFMNj67N4+UMLwJsyWeY6FrmRd/9UWYjdt",
-      "https://cdn.jsdelivr.net/npm/gemoji@8.1.0/+esm": "sha384-BxixXuX+Sw/FKnMEyJ+uFfpzgLCYpImf3Wks5yu6wYrASvTTUe4lmI+mXE9kKdAL"
+      "https://cdn.jsdelivr.net/npm/marked@18.0.13/lib/marked.esm.js": "sha384-e72zKBnxCunMabU3bdcEoYpC/kmXSAxZBNzDIClVBHNG0Bywm2jm+BTgSQsLtv40",
+      "https://cdn.jsdelivr.net/npm/dompurify@3.4.15/dist/purify.es.mjs": "sha384-7qp4WRTNsGGxR8HfIhcAZoSk58Z/fsUx40ul1tuY0myp6r0jHAqEnFiaNOobIc9v",
+      "https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.12.0/es/highlight.min.js": "sha384-l8ERxkewKrLDU6JM23uJxYhbq4kpknJgRKU1IPppBiJKjPRzMTgoZaBTyJWX6tCr",
+      "https://cdn.jsdelivr.net/npm/gemoji@8.1.0/+esm": "sha384-BxixXuX+Sw/FKnMEyJ+uFfpzgLCYpImf3Wks5yu6wYrASvTTUe4lmI+mXE9kKdAL",
+      "https://cdn.jsdelivr.net/npm/yaml@2.9.1/+esm": "sha384-MVwSuH88MctNNg+3dwLImVhp3/5G1k0NtNYzmuuplV7D/xSlRSidadLxUMGnsGnE"
     }
   }
   </script>
@@ -149,7 +157,7 @@
     <div class="toolbar-menu" id="toolbar-menu">
       <div class="toolbar-actions" id="toolbar-actions">
         <div class="toolbar-cluster toolbar-secondary" id="toolbar-secondary">
-          <label class="btn file-btn svg-btn authoring-only" title="Upload">
+          <label class="btn file-btn svg-btn authoring-only" title="Upload" aria-label="Upload">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
               <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" />
               <path d="M14 2v4a2 2 0 0 0 2 2h4" />
@@ -191,6 +199,13 @@
         </div>
         <div class="toolbar-cluster toolbar-primary">
           <label class="select-label">
+            <svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+              <circle cx="13.5" cy="6.5" r="0.5" fill="currentColor" />
+              <circle cx="17.5" cy="10.5" r="0.5" fill="currentColor" />
+              <circle cx="8.5" cy="7.5" r="0.5" fill="currentColor" />
+              <circle cx="6.5" cy="12.5" r="0.5" fill="currentColor" />
+              <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z" />
+            </svg>
             <span class="select-caption">Theme</span>
             <select id="theme-select" aria-label="Theme">
               <option value="github-light">GitHub Light</option>
@@ -202,6 +217,13 @@
             </select>
           </label>
           <label class="select-label reader-visible">
+            <svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+              <path d="M16 12h6" />
+              <path d="M8 12H2" />
+              <path d="M12 2v20" />
+              <path d="m19 15 3-3-3-3" />
+              <path d="m5 9-3 3 3 3" />
+            </svg>
             <span class="select-caption">Width</span>
             <select id="width-select" aria-label="Preview width">
               <option value="readable">Readable</option>
@@ -252,6 +274,12 @@
           </div>
           <div class="dropdown split-btn" id="speak-dropdown" hidden>
             <div class="split-btn-group" role="group" aria-label="Read aloud">
+              <button type="button" class="btn svg-btn speak-prev-btn split-btn-prev" id="speak-prev-btn" title="Previous section" aria-label="Previous section" hidden disabled>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                  <polygon points="19 20 9 12 19 4 19 20" />
+                  <line x1="5" y1="19" x2="5" y2="5" />
+                </svg>
+              </button>
               <button type="button" class="btn svg-btn speak-btn split-btn-main" id="speak-btn" title="Read aloud" aria-label="Read aloud" aria-pressed="false">
                 <svg class="icon-speak" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
                   <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
@@ -271,6 +299,12 @@
                   <polygon points="6 3 20 12 6 21 6 3" />
                 </svg>
               </button>
+              <button type="button" class="btn svg-btn speak-next-btn split-btn-next" id="speak-next-btn" title="Next section" aria-label="Next section" hidden disabled>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                  <polygon points="5 4 15 12 5 20 5 4" />
+                  <line x1="19" y1="5" x2="19" y2="19" />
+                </svg>
+              </button>
               <button
                 type="button"
                 class="btn svg-btn split-btn-toggle"
@@ -288,8 +322,54 @@
             </div>
             <ul class="dropdown-menu" id="voice-menu" role="listbox" hidden></ul>
           </div>
-          <button type="button" class="btn reader-only" id="edit-view-btn" title="Open in editor">Edit</button>
-          <button type="button" class="btn reader-visible" id="present-view-btn" title="Present">Present</button>
+          <button type="button" class="btn reader-only" id="edit-view-btn" title="Open in editor">
+            <svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+              <path d="M12 20h9" />
+              <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+            </svg>
+            <span class="btn-text">Edit</span>
+          </button>
+          <div class="dropdown split-btn authoring-only" id="view-mode-dropdown">
+            <div class="split-btn-group" role="group" aria-label="Preview mode">
+              <button type="button" class="btn split-btn-main" id="view-mode-main-btn" title="Slides preview">
+                <svg class="menu-icon view-mode-icon-slides" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                  <path d="M2 3h20" />
+                  <path d="M21 3v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V3" />
+                  <path d="m7 21 5-5 5 5" />
+                </svg>
+                <svg class="menu-icon view-mode-icon-edit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                  <path d="M12 20h9" />
+                  <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                </svg>
+                <span class="btn-text">Slides</span>
+              </button>
+              <button
+                type="button"
+                class="btn svg-btn split-btn-toggle"
+                id="view-mode-menu-btn"
+                title="More view modes"
+                aria-label="More view modes"
+                aria-haspopup="menu"
+                aria-expanded="false"
+                aria-controls="view-mode-menu"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                  <path d="m6 9 6 6 6-6" />
+                </svg>
+              </button>
+            </div>
+            <ul class="dropdown-menu" id="view-mode-menu" role="menu" hidden>
+              <li>
+                <button type="button" role="menuitem" id="present-menu-btn">Present</button>
+              </li>
+            </ul>
+          </div>
+          <button type="button" class="btn reader-only" id="present-view-btn" title="Present">
+            <svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+              <polygon points="6 3 20 12 6 21 6 3" />
+            </svg>
+            <span class="btn-text">Present</span>
+          </button>
           <button type="button" class="btn svg-btn reader-visible" id="print-btn" title="Print" aria-label="Print">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
               <polyline points="6 9 6 2 18 2 18 9" />
@@ -297,6 +377,29 @@
               <rect x="6" y="14" width="12" height="8" />
             </svg>
           </button>
+          <a
+            class="btn svg-btn"
+            id="report-bug-btn"
+            href="https://github.com/humaknlght/markdownweb/issues"
+            target="_blank"
+            rel="noopener"
+            title="Report a bug"
+            aria-label="Report a bug"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+              <path d="m8 2 1.88 1.88" />
+              <path d="M14.12 3.88 16 2" />
+              <path d="M9 7.13v-1a3.003 3.003 0 1 1 6 0v1" />
+              <path d="M12 20c-3.3 0-6-2.7-6-6v-3a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v3c0 3.3-2.7 6-6 6" />
+              <path d="M12 20v-9" />
+              <path d="M6.53 9C4.6 8.8 3 7.1 3 5" />
+              <path d="M6 13H2" />
+              <path d="M3 21c0-2.1 1.7-3.9 3.8-4" />
+              <path d="M20.97 5c0 2.1-1.6 3.8-3.5 4" />
+              <path d="M22 13h-4" />
+              <path d="M17.2 17c2.1.1 3.8 1.9 3.8 4" />
+            </svg>
+          </a>
           <button type="button" class="btn svg-btn authoring-only" id="sync-scroll-btn" title="Sync scroll" aria-label="Sync scroll" aria-pressed="false">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
               <rect x="2" y="3" width="8" height="18" rx="1" />
@@ -309,8 +412,8 @@
               <path d="M16.5 14.5 18 16l1.5-1.5" />
             </svg>
           </button>
-          <button type="button" class="btn collapse-btn authoring-only" id="collapse-editor" title="Collapse editor" aria-pressed="false"><span class="arrow side-collapse">◀</span><span class="arrow side-expand">▶</span><span class="arrow stacked-collapse">▲</span><span class="arrow stacked-expand">▼</span><span class="btn-label"> Editor</span></button>
-          <button type="button" class="btn collapse-btn authoring-only" id="collapse-preview" title="Collapse preview" aria-pressed="false"><span class="arrow side-collapse">▶</span><span class="arrow side-expand">◀</span><span class="arrow stacked-collapse">▼</span><span class="arrow stacked-expand">▲</span><span class="btn-label"> Preview</span></button>
+          <button type="button" class="btn collapse-btn authoring-only" id="collapse-editor" title="Collapse editor" aria-label="Collapse editor" aria-pressed="false"><span class="arrow side-collapse">◀</span><span class="arrow side-expand">▶</span><span class="arrow stacked-collapse">▲</span><span class="arrow stacked-expand">▼</span><span class="btn-label"> Editor</span></button>
+          <button type="button" class="btn collapse-btn authoring-only" id="collapse-preview" title="Collapse preview" aria-label="Collapse preview" aria-pressed="false"><span class="arrow side-collapse">▶</span><span class="arrow side-expand">◀</span><span class="arrow stacked-collapse">▼</span><span class="arrow stacked-expand">▲</span><span class="btn-label"> Preview</span></button>
         </div>
       </div>
       <button type="button" class="btn" id="install-btn" title="Install app" aria-label="Install app" hidden>
