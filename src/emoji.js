@@ -3,6 +3,7 @@ import { nameToEmoji } from "gemoji";
 /**
  * Emoticon → gemoji short name (markdown-it-emoji / common Markdown shortcuts).
  * Longer forms are matched first at runtime.
+ * Bare `8)` / `8-)` are omitted — they false-positive on `(see step 8)`.
  */
 const EMOTICON_NAMES = {
   ">:(": "angry",
@@ -58,8 +59,6 @@ const EMOTICON_NAMES = {
   ":-P": "stuck_out_tongue",
   ":p": "stuck_out_tongue",
   ":-p": "stuck_out_tongue",
-  "8-)": "sunglasses",
-  "8)": "sunglasses",
   ",:(": "sweat",
   ",:-(": "sweat",
   ",:)": "sweat_smile",
@@ -85,6 +84,22 @@ const EMOTICONS = Object.keys(EMOTICON_NAMES)
 const EMOTICON_STARTERS = new Set(EMOTICONS.map((entry) => entry.raw[0]));
 
 const SHORTCODE_RE = /^:([a-z0-9_+-]+):/;
+
+/** True at string edges or when `ch` is not a letter, digit, or underscore. */
+function isEmoticonBoundaryChar(ch) {
+  if (ch == null || ch === "") return true;
+  return !/[\p{L}\p{N}_]/u.test(ch);
+}
+
+/**
+ * Emoticons only match when isolated from word characters on both sides
+ * (start/end, whitespace, or punctuation) — so `C:\Users` and `cost:$5` stay plain.
+ */
+function hasEmoticonBoundaries(src, start, length) {
+  const before = start > 0 ? src[start - 1] : null;
+  const after = start + length < src.length ? src[start + length] : null;
+  return isEmoticonBoundaryChar(before) && isEmoticonBoundaryChar(after);
+}
 
 /**
  * True when `index` sits inside a URL-like token (http(s)://…, www.…, or a
@@ -117,7 +132,9 @@ function findEmoticonIndex(src) {
     if (!EMOTICON_STARTERS.has(src[i])) continue;
     if (isInsideUrl(src, i)) continue;
     for (const entry of EMOTICONS) {
-      if (src.startsWith(entry.raw, i)) return i;
+      if (!src.startsWith(entry.raw, i)) continue;
+      if (!hasEmoticonBoundaries(src, i, entry.raw.length)) continue;
+      return i;
     }
   }
   return -1;
@@ -126,7 +143,10 @@ function findEmoticonIndex(src) {
 function matchEmoticon(src) {
   if (isInsideUrl(src, 0)) return null;
   for (const entry of EMOTICONS) {
-    if (src.startsWith(entry.raw)) return entry;
+    if (!src.startsWith(entry.raw)) continue;
+    // Left boundary was enforced in start(); right varies by match length.
+    if (!isEmoticonBoundaryChar(src[entry.raw.length] ?? null)) continue;
+    return entry;
   }
   return null;
 }

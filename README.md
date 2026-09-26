@@ -8,8 +8,8 @@ A fast, client-side Markdown previewer. Paste upload, or open Markdown and see r
 - Collapse the editor or preview for more space
 - Paste an image into the editor (inserted as a base64 data-URI Markdown image at the caret)
 - Upload `.md`, `.markdown`, or `.txt` files
-- Shareable **reader** and **present** links (`#mdz=` compressed Markdown + `theme` + `view`)
-- **External content** modal when Markdown arrived via share URL, upload, or OS file launch (Accept to keep, Reject to discard and clear `#md` / `#mdz`)
+- Shareable **edit** links (`#mdz=` compressed Markdown + `theme` + `view=edit`)
+- **External content** modal when Markdown arrived via share URL, upload, or OS file launch (Accept to keep, Reject to restore your draft and clear `#md` / `#mdz`). Preview and editor syntax highlighting stay off until Accept.
 - Present mode walks the doc by `h1`/`h2` sections (arrow keys / Space)
 - **Slides** mode keeps the editor open while the preview walks those same sections
 - Print / Save as PDF styles that hide chrome and keep the article clean
@@ -40,9 +40,9 @@ npm install
 npm run dev
 ```
 
-Open [http://127.0.0.1:3456](http://127.0.0.1:3456).
+Open [https://127.0.0.1:3456](https://127.0.0.1:3456) (self-signed TLS so the server can speak HTTP/2; accept the browser warning once).
 
-`npm run dev` and `npm run preview` use a small Node server that applies the same security headers as `public/.htaccess` (plain static servers like `serve` or Python’s `http.server` ignore `.htaccess`).
+`npm run dev` and `npm run preview` use a small Node server that applies the same security headers as `public/.htaccess` (plain static servers like `serve` or Python’s `http.server` ignore `.htaccess`). When HTTP/2 is available it serves over HTTPS with HTTP/1.1 fallback; otherwise plain HTTP/1.1.
 
 ## Production build
 
@@ -81,7 +81,7 @@ Ensure these modules are enabled when possible: `mod_mime`, `mod_deflate`, `mod_
 Markdown is compressed with **deflate-raw**, then encoded as base64url in the hash, along with optional presentation options:
 
 ```
-https://example.com/#mdz=<deflate-raw+base64url>&theme=fancy&view=reader
+https://example.com/#mdz=<deflate-raw+base64url>&theme=fancy&view=edit
 ```
 
 | Param | Values | Notes |
@@ -89,8 +89,8 @@ https://example.com/#mdz=<deflate-raw+base64url>&theme=fancy&view=reader
 | `mdz` | deflate-raw → base64url Markdown | Preferred; used by new share links |
 | `md` | base64url Markdown (uncompressed) | Legacy; still decoded for older links |
 | `theme` | `github-light`, `github-dark`, `sepia`, `terminal`, `salesforce`, `fancy` | Optional; locks the look of the shared page |
-| `view` | `reader`, `present`, `edit`, `slides` | Optional; shared links default to `reader` |
+| `view` | `edit` (share links); also `reader`, `present`, `slides` for local navigation | Share button always writes `view=edit` |
 
-Query form also works (`?mdz=...` or legacy `?md=...`). On load, URL content takes priority over the saved draft. Opening a document link lands in **reader** mode (not the split editor) unless `view=edit` or `view=present` is set. Very long documents can still produce URLs some apps truncate; the share toast warns when a link exceeds ~16KB.
+Query form also works (`?mdz=...` or legacy `?md=...`). On load, URL content takes priority over the saved draft and opens in **edit** so the recipient can read the source before Accepting. Very long documents can still produce URLs some apps truncate; the share toast warns when a link exceeds ~16KB.
 
-Use the share control to copy a **reader** or **present** link. In reader mode, **Present**, **Print**, and **Edit** switch experiences without losing the document. In edit mode, **Slides** keeps the editor open while the preview advances one `h1`/`h2` section at a time.
+Use the share control to copy a link. After Accept, **Present**, **Print**, and **Slides** are available as usual.

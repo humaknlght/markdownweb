@@ -130,6 +130,8 @@ async function buildIcons() {
 
 async function buildCss(fancyFileName) {
   let css = await readFile(path.join(srcDir, "styles.css"), "utf8");
+  const printCss = await readFile(path.join(srcDir, "print.css"), "utf8");
+  css = `${css.trimEnd()}\n\n${printCss.trimStart()}`;
   css = css.replaceAll("url(\"fancy.jpg\")", `url("${fancyFileName}")`);
   css = css.replaceAll("url('fancy.jpg')", `url('${fancyFileName}')`);
   css = css.replaceAll("url(fancy.jpg)", `url(${fancyFileName})`);
@@ -153,8 +155,12 @@ async function buildJs(guideUrl) {
     bundle: true,
     minify: true,
     format: "esm",
+    splitting: true,
     target: ["es2020"],
     write: false,
+    outdir: distDir,
+    entryNames: "app",
+    chunkNames: "chunk-[hash]",
     legalComments: "none",
     treeShaking: true,
     metafile: true,
@@ -164,18 +170,45 @@ async function buildJs(guideUrl) {
     },
   });
 
-  const output = result.outputFiles[0];
-  const buffer = Buffer.from(output.contents);
-  const hash = contentHash(buffer);
-  const name = hashedName("app", ".js", hash);
-  await writeFile(path.join(distDir, name), buffer);
+  const chunks = [];
+  let entry = null;
+
+  for (const output of result.outputFiles) {
+    const buffer = Buffer.from(output.contents);
+    const base = path.basename(output.path);
+    if (base === "app.js") {
+      const hash = contentHash(buffer);
+      const name = hashedName("app", ".js", hash);
+      await writeFile(path.join(distDir, name), buffer);
+      entry = { bytes: buffer.length, name, hash };
+    } else {
+      const name = base;
+      await writeFile(path.join(distDir, name), buffer);
+      chunks.push({ bytes: buffer.length, name });
+    }
+  }
+
+  if (!entry) {
+    throw new Error("esbuild produced no app.js entry");
+  }
 
   const bundledInputs = Object.keys(result.metafile?.inputs || {}).length;
-  return { bytes: buffer.length, name, hash, chunks: [], bundledInputs };
+  return {
+    bytes: entry.bytes,
+    name: entry.name,
+    hash: entry.hash,
+    chunks,
+    bundledInputs,
+  };
 }
 
 async function buildHtml({ cssName, jsName, ogImageName, icon192Name, icon512Name }) {
   let html = await readFile(path.join(srcDir, "index.html"), "utf8");
+  // Production ships a single hashed CSS file (styles + print concatenated).
+  html = html.replace(
+    /<link\s+rel="stylesheet"\s+href="print\.css"[^>]*>\s*/i,
+    "",
+  );
   html = html.replace(/href="styles\.css"/, `href="${cssName}"`);
   html = html.replace(/src="app\.js"/, `src="${jsName}"`);
   html = html.replaceAll("og-image.png", ogImageName);
@@ -211,18 +244,20 @@ async function buildHtml({ cssName, jsName, ogImageName, icon192Name, icon512Nam
   };
 }
 
-async function buildPwa({ cssName, jsName, fancyName, guideName, iconResults }) {
+async function buildPwa({ cssName, jsName, jsChunks, fancyName, guideName, iconResults }) {
   const icon192 = iconResults.find((icon) => icon.base === "icon-192.png");
   const icon512 = iconResults.find((icon) => icon.base === "icon-512.png");
   const iconNames = {
     icon192: `./${icon192.name}`,
     icon512: `./${icon512.name}`,
   };
+  const chunkUrls = (jsChunks || []).map((chunk) => `./${chunk.name}`);
   const localPrecache = [
     "./",
     "./index.html",
     `./${cssName}`,
     `./${jsName}`,
+    ...chunkUrls,
     `./${fancyName}`,
     `./${guideName}`,
     "./manifest.webmanifest",
@@ -246,6 +281,7 @@ async function buildPwa({ cssName, jsName, fancyName, guideName, iconResults }) 
         "./",
         "./index.html",
         "./styles.css",
+        "./print.css",
         "./app.js",
         "./fancy.jpg",
         "./GUIDE.md",
@@ -332,6 +368,7 @@ async function main() {
   const pwa = await buildPwa({
     cssName: css.name,
     jsName: js.name,
+    jsChunks: js.chunks,
     fancyName: image.name,
     guideName: guide.name,
     iconResults: icons,

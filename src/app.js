@@ -3,16 +3,6 @@ import { emojiExtension } from "./emoji.js";
 import { extractFrontmatter, frontmatterExtension } from "./frontmatter.js";
 import { tablePipesExtension } from "./tablePipes.js";
 import {
-  buildDocxBlob,
-  buildHtmlDocument,
-  buildMarkdownFile,
-  buildRtfDocument,
-  cleanPreviewHtml,
-  downloadBlob,
-  exportBasename,
-  printPreviewAsPdf,
-} from "./export.js";
-import {
   clearStoredDirectory,
   createFile,
   createFolder,
@@ -33,9 +23,135 @@ import {
   suggestedUntitledName,
   writeTextFile,
 } from "./fs.js";
+import { applyPatch, contentHash, makeRevisionBody } from "./history-diff.js";
+import {
+  clearHistoryBodies,
+  commitHistoryBodies,
+  getDraft,
+  getHistoryIndex,
+  getRev,
+  getTip,
+  moveDraft,
+  probeHistoryIdb,
+  requestPersistentStorage,
+  setDraft,
+  setHistoryIndex,
+  setTip,
+  storageBudgetOk,
+} from "./history-store.js";
 import { marked, Renderer } from "marked";
 import DOMPurify from "dompurify";
 import hljs from "highlight.js";
+import hljsMarkdown from "https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.12.0/es/languages/markdown.min.js";
+import hljsXml from "https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.12.0/es/languages/xml.min.js";
+
+/** Lazy-loaded export helpers — not needed until the user exports/prints. */
+let exportModulePromise;
+function loadExportModule() {
+  exportModulePromise ??= import("./export.js");
+  return exportModulePromise;
+}
+
+const HLJS_LANG_CDN =
+  "https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.12.0/es/languages";
+
+/** Fence aliases → CDN grammar basename (null = skip / plain text). */
+const HLJS_LANG_ALIASES = {
+  js: "javascript",
+  mjs: "javascript",
+  cjs: "javascript",
+  ts: "typescript",
+  py: "python",
+  sh: "bash",
+  shell: "bash",
+  zsh: "bash",
+  yml: "yaml",
+  html: "xml",
+  htm: "xml",
+  svg: "xml",
+  "c++": "cpp",
+  cplusplus: "cpp",
+  "c#": "csharp",
+  cs: "csharp",
+  rb: "ruby",
+  plaintext: null,
+  text: null,
+  plain: null,
+  txt: null,
+};
+
+/** @type {Map<string, Promise<boolean>>} */
+const hljsLangLoads = new Map();
+
+// Markdown grammar uses xml as a subLanguage for embedded HTML.
+hljs.registerLanguage("xml", hljsXml);
+hljs.registerLanguage("html", hljsXml);
+hljs.registerLanguage("markdown", hljsMarkdown);
+
+function canonicalHljsLang(name) {
+  const raw = (name || "").trim().split(/\s+/)[0].toLowerCase();
+  if (!raw) return "";
+  if (Object.prototype.hasOwnProperty.call(HLJS_LANG_ALIASES, raw)) {
+    return HLJS_LANG_ALIASES[raw] || "";
+  }
+  // CDN filenames are lowercase letters, digits, and hyphens (e.g. c-like).
+  if (!/^[a-z][a-z0-9+-]*$/i.test(raw)) return "";
+  return raw;
+}
+
+function registerHljsAliases(canonical, grammar) {
+  hljs.registerLanguage(canonical, grammar);
+  for (const [alias, target] of Object.entries(HLJS_LANG_ALIASES)) {
+    if (target === canonical) hljs.registerLanguage(alias, grammar);
+  }
+}
+
+/**
+ * Ensure a highlight.js grammar is registered. Returns true if a network load
+ * just completed (caller may want to re-render).
+ */
+function ensureHljsLanguage(name) {
+  const canonical = canonicalHljsLang(name);
+  if (!canonical) return Promise.resolve(false);
+  if (hljs.getLanguage(canonical)) return Promise.resolve(false);
+
+  let pending = hljsLangLoads.get(canonical);
+  if (pending) return pending;
+
+  pending = import(`${HLJS_LANG_CDN}/${canonical}.min.js`)
+    .then((mod) => {
+      const grammar = mod.default;
+      if (typeof grammar !== "function") return false;
+      registerHljsAliases(canonical, grammar);
+      return true;
+    })
+    .catch(() => false);
+
+  hljsLangLoads.set(canonical, pending);
+  return pending;
+}
+
+/** Collect fenced-code language tags from markdown source (excludes mermaid). */
+function collectFenceLanguages(source) {
+  const langs = [];
+  const re = /^ {0,3}(`{3,}|~{3,})([^\n`]*)/gm;
+  let match;
+  while ((match = re.exec(source || ""))) {
+    const info = match[2].trim();
+    if (!info) continue;
+    const lang = info.split(/\s+/)[0];
+    if (!lang || lang.toLowerCase() === "mermaid") continue;
+    langs.push(lang);
+  }
+  return langs;
+}
+
+async function ensureHljsLanguagesForSource(source) {
+  const langs = collectFenceLanguages(source);
+  if (!langs.length) return false;
+  const results = await Promise.all(langs.map((lang) => ensureHljsLanguage(lang)));
+  return results.some(Boolean);
+}
 
 const STORAGE_KEYS = {
   draft: "md-preview:draft",
@@ -53,13 +169,23 @@ const STORAGE_KEYS = {
   savedSnapshot: "md-preview:savedSnapshot",
 };
 
+/** Soft max for how many per-doc saved snapshots to keep in localStorage. */
+const SAVED_SNAPSHOT_MAX_KEYS = 30;
+
 const HISTORY_LIMIT = 20;
+/** Legacy localStorage-only history / emergency mirror cap. */
 const HISTORY_MAX_CHARS = 200_000;
+/** Soft max for IndexedDB tip / draft bodies. */
+const HISTORY_TIP_MAX = 5 * 1024 * 1024;
+/** Sync localStorage mirror for draft when under this size (unload safety). */
+const EMERGENCY_LS_MAX = 100_000;
+const HISTORY_INDEX_VERSION = 3;
+const PATCH_MAX_CHARS = 100_000;
+const STORAGE_CHANNEL = "md-preview-storage";
 const RENDER_DEBOUNCE_MS = 80;
-const HISTORY_DEBOUNCE_MS = 1000;
+const HISTORY_DEBOUNCE_MS = 15_000;
 const SPLIT_MIN = 15;
 const SPLIT_MAX = 85;
-const AUTO_HIGHLIGHT_MAX = 8_000;
 const EDITOR_HIGHLIGHT_MAX = 100_000;
 const NARROW_MQ = "(max-width: 800px)";
 const TEXT_FILE_RE = /\.(md|markdown|mdown|mkd|txt|html|htm)$/i;
@@ -89,11 +215,10 @@ const splitter = document.getElementById("splitter");
 const themeSelect = document.getElementById("theme-select");
 const widthSelect = document.getElementById("width-select");
 const fileInput = document.getElementById("file-input");
+const uploadBtn = document.getElementById("upload-btn");
 const shareDropdown = document.getElementById("share-dropdown");
 const shareBtn = document.getElementById("share-btn");
 const shareMenu = document.getElementById("share-menu");
-const shareReaderBtn = document.getElementById("share-reader-btn");
-const sharePresentBtn = document.getElementById("share-present-btn");
 const exportDropdown = document.getElementById("export-dropdown");
 const exportBtn = document.getElementById("export-btn");
 const exportMenu = document.getElementById("export-menu");
@@ -169,8 +294,10 @@ let currentFileHandle = null;
 let currentFileName = "";
 /** @type {string} Relative path under the open folder, when known. */
 let currentFilePath = "";
-/** @type {string} */
+/** @type {string} Last disk- or URL-baseline content for dirty checks. */
 let savedSnapshot = "";
+/** True while the trust modal holds markdown that arrived via `#md` / `#mdz`. */
+let pendingExternalFromUrl = false;
 /** @type {Map<string, { kind: "file"|"directory", handle: FileSystemHandle, parent: FileSystemDirectoryHandle|null, path: string }>} */
 const fsEntries = new Map();
 /** @type {Set<string>} */
@@ -227,7 +354,8 @@ function updateEditorHighlight() {
   const value = editor.value;
   let html = "";
   if (value) {
-    if (value.length > EDITOR_HIGHLIGHT_MAX) {
+    // Untrusted external content: plain escaped text only — no highlighter.
+    if (contentIsExternal || value.length > EDITOR_HIGHLIGHT_MAX) {
       html = escapeHtml(value);
     } else {
       try {
@@ -270,7 +398,8 @@ function syncEditorHighlightScroll() {
 
 function setEditorValue(text) {
   editor.value = collapseDataUris(text ?? "");
-  updateEditorHighlight();
+  collapsedSections.clear();
+  scheduleEditorHighlight();
 }
 
 /** Full Markdown with data-URI images expanded (for preview, draft, share, copy). */
@@ -522,19 +651,12 @@ function withSourceLine(html, line, lineEnd) {
 const rendererProto = Renderer.prototype;
 
 function highlightCode(text, lang) {
-  const language = (lang || "").trim().split(/\s+/)[0].toLowerCase();
+  const language = canonicalHljsLang(lang);
   try {
     if (language && hljs.getLanguage(language)) {
       return {
         html: hljs.highlight(text, { language, ignoreIllegals: true }).value,
         language,
-      };
-    }
-    if (text.length <= AUTO_HIGHLIGHT_MAX) {
-      const result = hljs.highlightAuto(text);
-      return {
-        html: result.value,
-        language: result.language || "",
       };
     }
   } catch {
@@ -669,6 +791,11 @@ let historyTimer = 0;
 let rafId = 0;
 let toastTimer = 0;
 let lastHistoryContent = "";
+let historyIdbReady = false;
+let persistRequested = false;
+/** @type {BroadcastChannel | null} */
+let storageChannel = null;
+let applyingRemoteStorage = false;
 let splitPercent = 50;
 let speechActive = false;
 let speechPaused = false;
@@ -686,6 +813,8 @@ let currentView = "edit";
 let viewBeforePresent = "slides";
 let presentSections = [];
 let presentIndex = 0;
+/** Collapsed preview sections keyed by `level:title` (default: all expanded). */
+const collapsedSections = new Set();
 let presentChromeHideTimer = 0;
 const PRESENT_CHROME_IDLE_MS = 5000;
 const PRESENT_SWIPE_MIN_DX = 56;
@@ -698,6 +827,8 @@ let drawerCloseDrag = null;
 let contentIsExternal = false;
 /** Content awaiting Accept/Reject; kept so Reject can scrub history after edits. */
 let pendingExternalContent = null;
+/** Snapshot taken before applying untrusted content — restored on Reject. */
+let preExternalSnapshot = null;
 let syncScrollEnabled = false;
 /** Which pane is driving sync; suppresses echo scroll events. */
 let syncScrollDriver = null;
@@ -828,22 +959,56 @@ function loadMermaid() {
   return mermaidModule;
 }
 
-async function renderMermaidDiagrams() {
-  const nodes = preview.querySelectorAll(".mermaid");
-  if (!nodes.length) return;
+function mermaidNodeIsVisible(el) {
+  return !el.closest("[hidden], .md-section-folded");
+}
+
+/**
+ * Render Mermaid diagrams that still need it. Skips nodes that are not laid out
+ * (`[hidden]` / `.md-section-folded`) unless `force` is set — those get a wrong
+ * viewBox if measured while display:none. Call again when a slide/section is shown.
+ * @param {{ force?: boolean }} [opts]
+ */
+async function renderMermaidDiagrams({ force = false } = {}) {
+  const all = [...preview.querySelectorAll(".mermaid")];
+  if (!all.length) return;
 
   const gen = mermaidGen;
-  for (const el of nodes) {
-    el.setAttribute("data-pending", "");
+  for (const el of all) {
+    // Don't blank diagrams that already rendered (re-entry from slide change).
+    if (!el.querySelector("svg")) el.setAttribute("data-pending", "");
   }
 
+  /** @type {Array<() => void>} */
+  const restore = [];
+  if (force) {
+    for (const el of preview.querySelectorAll("[hidden]")) {
+      el.removeAttribute("hidden");
+      restore.push(() => el.setAttribute("hidden", ""));
+    }
+    for (const el of preview.querySelectorAll(".md-section-folded")) {
+      el.classList.remove("md-section-folded");
+      restore.push(() => el.classList.add("md-section-folded"));
+    }
+    // Flush layout so Mermaid measures real boxes.
+    void preview.offsetWidth;
+  }
+
+  const nodes = [...preview.querySelectorAll(".mermaid[data-pending]")].filter(
+    (el) => force || mermaidNodeIsVisible(el),
+  );
+
   try {
-    const mermaid = await loadMermaid();
-    if (gen !== mermaidGen) return;
-    mermaid.initialize(mermaidConfig());
-    await mermaid.run({ nodes, suppressErrors: true });
+    if (nodes.length) {
+      const mermaid = await loadMermaid();
+      if (gen !== mermaidGen) return;
+      mermaid.initialize(mermaidConfig());
+      await mermaid.run({ nodes, suppressErrors: true });
+    }
   } catch {
     /* invalid diagrams render into their nodes; import failures are ignored */
+  } finally {
+    for (const undo of restore.reverse()) undo();
   }
 
   if (gen !== mermaidGen) return;
@@ -867,10 +1032,43 @@ function setContentExternal(external) {
   document.body.dataset.external = contentIsExternal ? "1" : "0";
   if (contentIsExternal) {
     pendingExternalContent = getMarkdownSource();
+    // Do not parse or syntax-highlight untrusted Markdown until Accept.
+    clearUntrustedPreview();
+    scheduleEditorHighlight();
   } else {
     pendingExternalContent = null;
   }
   syncExternalModal();
+}
+
+/**
+ * Stash draft + file binding before overwriting with untrusted content.
+ * @param {string} [contentOverride] Prefer stored draft at init (editor may still be empty).
+ */
+function stashPreExternalState(contentOverride) {
+  if (preExternalSnapshot) return;
+  preExternalSnapshot = {
+    content: contentOverride != null ? String(contentOverride) : getMarkdownSource(),
+    fileHandle: currentFileHandle,
+    fileName: currentFileName,
+    filePath: currentFilePath,
+    savedSnapshot,
+  };
+}
+
+/** Clear preview without running marked / DOMPurify / Mermaid on untrusted source. */
+function clearUntrustedPreview() {
+  if (speechActive) stopSpeaking();
+  window.clearTimeout(renderTimer);
+  if (rafId) {
+    cancelAnimationFrame(rafId);
+    rafId = 0;
+  }
+  mermaidGen += 1;
+  preview.innerHTML =
+    '<p class="external-preview-placeholder">Preview is paused until you accept this content.</p>';
+  invalidateScrollAnchors();
+  updateDocOutline();
 }
 
 function isExternalModalOpen() {
@@ -914,34 +1112,346 @@ function clearShareMarkdownFromUrl() {
   history.replaceState(null, "", url);
 }
 
-function removeHistoryMatching(content) {
+/**
+ * Stable id for the open document — scopes draft + saved-snapshot slots so
+ * tabs bound to different files do not overwrite each other.
+ * @returns {string}
+ */
+function currentDocKey() {
+  if (currentFilePath) return `path:${currentFilePath}`;
+  if (currentFileName) return `name:${currentFileName}`;
+  return "untitled";
+}
+
+/**
+ * @param {string | null | undefined} raw
+ * @returns {{ v: number, docKey: string, content: string } | null}
+ */
+function parseDraftMirror(raw) {
+  if (raw == null || raw === "") return null;
+  try {
+    const parsed = JSON.parse(raw);
+    if (
+      parsed &&
+      typeof parsed === "object" &&
+      parsed.v === 1 &&
+      typeof parsed.docKey === "string" &&
+      typeof parsed.content === "string"
+    ) {
+      return parsed;
+    }
+  } catch {
+    /* legacy plain string */
+  }
+  return { v: 1, docKey: "untitled", content: raw };
+}
+
+function readDraftMirror() {
+  try {
+    return parseDraftMirror(localStorage.getItem(STORAGE_KEYS.draft));
+  } catch {
+    return null;
+  }
+}
+
+function mirrorDraftToLocalStorage(content, docKey = currentDocKey()) {
+  try {
+    const text = String(content ?? "");
+    if (text.length <= EMERGENCY_LS_MAX) {
+      localStorage.setItem(
+        STORAGE_KEYS.draft,
+        JSON.stringify({ v: 1, docKey, content: text }),
+      );
+    } else {
+      localStorage.removeItem(STORAGE_KEYS.draft);
+    }
+  } catch {
+    /* quota */
+  }
+}
+
+/** Persist draft to IndexedDB (primary) + small localStorage mirror, scoped by doc. */
+async function persistDraft(content) {
+  if (contentIsExternal) return;
+  const text = String(content ?? getMarkdownSource());
+  const docKey = currentDocKey();
+  if (historyIdbReady) {
+    await setDraft(text, docKey);
+    void ensurePersistentStorage();
+  }
+  mirrorDraftToLocalStorage(text, docKey);
+  broadcastStorage();
+}
+
+function persistDraftFireAndForget(content) {
+  void persistDraft(content);
+}
+
+async function ensurePersistentStorage() {
+  if (persistRequested || !historyIdbReady) return;
+  persistRequested = true;
+  await requestPersistentStorage();
+}
+
+function broadcastStorage() {
+  try {
+    storageChannel?.postMessage({ type: "storage", t: Date.now() });
+  } catch {
+    /* ignore */
+  }
+}
+
+function setupStorageSync() {
+  try {
+    storageChannel = new BroadcastChannel(STORAGE_CHANNEL);
+    storageChannel.onmessage = (event) => {
+      if (event?.data?.type !== "storage") return;
+      historyIndexCache = null;
+      void hydrateHistoryIndexFromIdb().then(() => {
+        void onRemoteStorageChange();
+      });
+    };
+  } catch {
+    storageChannel = null;
+  }
+  window.addEventListener("storage", (event) => {
+    if (event.key === STORAGE_KEYS.history) {
+      historyIndexCache = null;
+      void hydrateHistoryIndexFromIdb().then(() => {
+        void onRemoteStorageChange();
+      });
+    } else if (event.key === STORAGE_KEYS.draft) {
+      void onRemoteStorageChange(event.newValue ?? undefined);
+    }
+  });
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") flushStorageBestEffort();
+  });
+  window.addEventListener("pagehide", flushStorageBestEffort);
+}
+
+function flushStorageBestEffort() {
+  if (contentIsExternal || applyingRemoteStorage) return;
+  const source = getMarkdownSource();
+  const docKey = currentDocKey();
+  mirrorDraftToLocalStorage(source, docKey);
+  if (historyIdbReady) void setDraft(source, docKey);
+}
+
+async function onRemoteStorageChange(mirrorRaw) {
+  if (applyingRemoteStorage) return;
+  applyingRemoteStorage = true;
+  try {
+    renderHistoryMenu();
+    if (contentIsExternal || isDirty()) return;
+    const myKey = currentDocKey();
+    let remote = null;
+    let remoteKey = null;
+
+    if (typeof mirrorRaw === "string") {
+      const parsed = parseDraftMirror(mirrorRaw);
+      if (parsed) {
+        remote = parsed.content;
+        remoteKey = parsed.docKey;
+      }
+    }
+
+    if (remote == null && historyIdbReady) {
+      const draft = await getDraft(myKey);
+      if (draft) {
+        remote = draft.content;
+        remoteKey = draft.docKey;
+      }
+    }
+
+    if (remote == null) {
+      const mirrored = readDraftMirror();
+      if (mirrored) {
+        remote = mirrored.content;
+        remoteKey = mirrored.docKey;
+      }
+    }
+
+    if (remoteKey != null && remoteKey !== myKey) return;
+    if (remote == null || remote === getMarkdownSource()) return;
+    setEditorValue(remote);
+    lastHistoryContent = remote;
+    renderMarkdown(remote);
+    updateSaveButton();
+  } finally {
+    applyingRemoteStorage = false;
+  }
+}
+
+async function removeHistoryMatching(content) {
   if (!content?.trim()) return;
-  const entries = loadHistory().filter((e) => e.content !== content);
-  saveHistory(entries);
+  const hash = contentHash(content);
+
+  if (!historyIdbReady) {
+    const entries = loadHistoryIndexEntries().filter(
+      (e) => e.content !== content && e.hash !== hash,
+    );
+    saveLegacyHistory(entries);
+    if (lastHistoryContent === content) lastHistoryContent = "";
+    renderHistoryMenu();
+    broadcastStorage();
+    return;
+  }
+
+  const index = loadHistoryIndex();
+  // Fast path: nothing with this hash → no rewrite (avoids rematerializing the chain).
+  if (!index.entries.some((e) => e.hash === hash)) {
+    if (lastHistoryContent === content) lastHistoryContent = "";
+    return;
+  }
+
+  /** @type {{ meta: object, content: string }[]} */
+  const kept = [];
+  let removed = false;
+  for (let i = 0; i < index.entries.length; i++) {
+    const entry = index.entries[i];
+    if (entry.hash === hash) {
+      removed = true;
+      continue;
+    }
+    const text = await materializeHistoryEntry(i);
+    // Abort rather than silently dropping unrebuildable revisions.
+    if (text == null) return;
+    if (contentHash(text) === hash || text === content) {
+      removed = true;
+      continue;
+    }
+    kept.push({ meta: entry, content: text });
+  }
+
   if (lastHistoryContent === content) lastHistoryContent = "";
+  if (!removed) return;
+
+  const oldIds = index.entries.map((e) => e.id);
+  if (!kept.length) {
+    await clearHistoryBodies(oldIds);
+    saveHistoryIndex({ generation: index.generation + 1, entries: [] });
+    void setHistoryIndex({
+      v: HISTORY_INDEX_VERSION,
+      generation: index.generation + 1,
+      entries: [],
+    });
+    renderHistoryMenu();
+    broadcastStorage();
+    return;
+  }
+
+  await rewriteHistoryChain(kept, index.generation + 1, oldIds);
   renderHistoryMenu();
+  broadcastStorage();
+}
+
+/**
+ * @param {{ meta: { id?: string, title?: string, savedAt?: number }, content: string }[]} kept
+ * @param {number} generation
+ * @param {string[]} pruneCandidateIds
+ */
+async function rewriteHistoryChain(kept, generation, pruneCandidateIds) {
+  const tipContent = kept[0].content;
+  /** @type {Array<{ id: string, body: { patch?: string, content?: string } }>} */
+  const revWrites = [];
+  const entries = [
+    {
+      id: kept[0].meta.id || newHistoryId(),
+      title: kept[0].meta.title || titleFromMarkdown(tipContent),
+      savedAt: kept[0].meta.savedAt || Date.now(),
+      hash: contentHash(tipContent),
+      body: "tip",
+    },
+  ];
+  let prev = tipContent;
+  for (let i = 1; i < kept.length && entries.length < HISTORY_LIMIT; i++) {
+    const c = kept[i].content;
+    const id = kept[i].meta.id || newHistoryId();
+    const made = makeRevisionBody(prev, c, PATCH_MAX_CHARS);
+    revWrites.push({
+      id,
+      body: made.kind === "patch" ? { patch: made.patch } : { content: made.content },
+    });
+    entries.push({
+      id,
+      title: kept[i].meta.title || titleFromMarkdown(c),
+      savedAt: kept[i].meta.savedAt || Date.now(),
+      hash: contentHash(c),
+      body: made.kind === "patch" ? "patch" : "full",
+    });
+    prev = c;
+  }
+  const keepRev = new Set(entries.slice(1).map((e) => e.id));
+  const pruneIds = pruneCandidateIds.filter((id) => !keepRev.has(id));
+  const ok = await commitHistoryBodies({
+    generation,
+    tipContent,
+    revWrites,
+    pruneIds,
+    indexEntries: entries,
+    indexVersion: HISTORY_INDEX_VERSION,
+  });
+  if (!ok) {
+    saveLegacyHistory(
+      kept.slice(0, HISTORY_LIMIT).map((k) => ({
+        id: k.meta.id || newHistoryId(),
+        title: k.meta.title || titleFromMarkdown(k.content),
+        content: k.content,
+        savedAt: k.meta.savedAt || Date.now(),
+        hash: contentHash(k.content),
+      })),
+    );
+    return;
+  }
+  saveHistoryIndex({ generation, entries });
 }
 
 function acceptExternalContent() {
   const content = getMarkdownSource();
-  localStorage.setItem(STORAGE_KEYS.draft, content);
+  preExternalSnapshot = null;
   setContentExternal(false);
-  pushHistory(content);
+  void persistDraft(content);
+  void pushHistory(content);
+  clearShareMarkdownFromUrl();
+  // URL share is a clean baseline; uploads / other external stay dirty until disk save.
+  if (pendingExternalFromUrl) markCleanFromEditor();
+  else updateSaveButton();
+  pendingExternalFromUrl = false;
+  renderMarkdown(content);
+  scheduleEditorHighlight();
 }
 
 function rejectExternalContent() {
   const rejected = pendingExternalContent || getMarkdownSource();
-  removeHistoryMatching(rejected);
-  removeHistoryMatching(getMarkdownSource());
+  const snapshot = preExternalSnapshot;
+  preExternalSnapshot = null;
+  pendingExternalFromUrl = false;
   window.clearTimeout(historyTimer);
-  setEditorValue("");
-  localStorage.setItem(STORAGE_KEYS.draft, "");
-  lastHistoryContent = "";
-  clearCurrentFileBinding();
-  renderMarkdown("");
-  markCleanFromEditor();
-  clearShareMarkdownFromUrl();
+  void removeHistoryMatching(rejected);
+
+  const restored = snapshot?.content ?? "";
   setContentExternal(false);
+  setEditorValue(restored);
+  lastHistoryContent = restored;
+
+  if (snapshot) {
+    currentFileHandle = snapshot.fileHandle;
+    currentFileName = snapshot.fileName;
+    currentFilePath = snapshot.filePath;
+    savedSnapshot = snapshot.savedSnapshot;
+    updateDocumentTitle();
+    updateSaveButton();
+    highlightActiveFileInTree();
+    persistCurrentFileBinding();
+  } else {
+    clearCurrentFileBinding();
+    markDirtyBaseline();
+  }
+
+  void persistDraft(restored);
+  clearShareMarkdownFromUrl();
+  renderMarkdown(restored);
   setView("edit", { syncUrl: false });
   showToast("External content rejected");
 }
@@ -1114,22 +1624,37 @@ async function getShareState() {
   return readShareParams(new URLSearchParams(window.location.search));
 }
 
-async function buildShareUrl({ markdown, theme, view } = {}) {
+async function buildShareUrl({ markdown, theme } = {}) {
   const url = new URL(window.location.href);
   url.search = "";
   const params = new URLSearchParams();
   params.set("mdz", await compressUtf8ToBase64Url(markdown ?? getMarkdownSource()));
   const nextTheme = theme || document.documentElement.dataset.theme || themeSelect.value;
   if (THEMES.includes(nextTheme)) params.set("theme", nextTheme);
-  const nextView = view || "reader";
-  if (VIEWS.includes(nextView)) params.set("view", nextView);
+  // Always edit: recipients need the source pane to identify the doc before Accept.
+  params.set("view", "edit");
   url.hash = params.toString();
   return url.toString();
 }
 
 function renderMarkdown(source) {
+  if (contentIsExternal) {
+    clearUntrustedPreview();
+    return;
+  }
   if (speechActive) stopSpeaking();
 
+  // Load missing fence grammars in the background; re-render once they arrive.
+  void ensureHljsLanguagesForSource(source).then((loadedAny) => {
+    if (!loadedAny || contentIsExternal) return;
+    if (getMarkdownSource() !== source) return;
+    paintMarkdown(source);
+  });
+
+  paintMarkdown(source);
+}
+
+function paintMarkdown(source) {
   const raw = marked.parse(source || "", { async: false });
   const clean = DOMPurify.sanitize(raw, {
     USE_PROFILES: { html: true, svg: true },
@@ -1141,6 +1666,7 @@ function renderMarkdown(source) {
     mermaidGen += 1;
     preview.innerHTML = clean;
     addCodeLineNumbers(preview);
+    enhanceSectionToggles();
     if (isSlideNavView()) {
       buildPresentSections();
       showPresentSection(presentIndex);
@@ -1151,6 +1677,7 @@ function renderMarkdown(source) {
     syncPreviewFromEditor();
     revealPreviewForEditorCaret();
     renderMermaidDiagrams().finally(() => {
+      enhanceSectionToggles();
       if (isSlideNavView()) {
         buildPresentSections();
         showPresentSection(presentIndex);
@@ -1186,44 +1713,328 @@ function titleFromMarkdown(markdown) {
   return "Untitled";
 }
 
-function loadHistory() {
+function newHistoryId() {
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+/**
+ * In-memory history index (mirrored to localStorage; committed with tip in IDB).
+ * @type {{ v: number, generation: number, entries: object[] } | null}
+ */
+let historyIndexCache = null;
+
+function loadHistoryIndexFromLs() {
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.history);
-    if (!raw) return [];
+    if (!raw) return { v: HISTORY_INDEX_VERSION, generation: 0, entries: [] };
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
+    if (Array.isArray(parsed)) {
+      return { v: 1, generation: 0, entries: parsed };
+    }
+    if (parsed && typeof parsed === "object" && Array.isArray(parsed.entries)) {
+      return {
+        v: Number(parsed.v) || 2,
+        generation: Number(parsed.generation) || 0,
+        entries: parsed.entries,
+      };
+    }
   } catch {
-    return [];
+    /* ignore */
+  }
+  return { v: HISTORY_INDEX_VERSION, generation: 0, entries: [] };
+}
+
+/**
+ * @returns {{ v: number, generation: number, entries: object[] }}
+ */
+function loadHistoryIndex() {
+  if (historyIndexCache) {
+    return {
+      v: historyIndexCache.v,
+      generation: historyIndexCache.generation,
+      entries: historyIndexCache.entries.slice(),
+    };
+  }
+  return loadHistoryIndexFromLs();
+}
+
+/** Flat entry list for menu / legacy helpers. */
+function loadHistoryIndexEntries() {
+  return loadHistoryIndex().entries;
+}
+
+function saveHistoryIndex(index) {
+  const payload = {
+    v: HISTORY_INDEX_VERSION,
+    generation: index.generation,
+    entries: index.entries.slice(0, HISTORY_LIMIT),
+  };
+  historyIndexCache = payload;
+  try {
+    localStorage.setItem(STORAGE_KEYS.history, JSON.stringify(payload));
+  } catch {
+    /* quota */
   }
 }
 
-function saveHistory(entries) {
-  localStorage.setItem(STORAGE_KEYS.history, JSON.stringify(entries.slice(0, HISTORY_LIMIT)));
+/**
+ * Prefer IDB index (committed with tip) over localStorage when they diverge.
+ * Call after IDB is ready and on cross-tab history updates.
+ */
+async function hydrateHistoryIndexFromIdb() {
+  if (!historyIdbReady) {
+    historyIndexCache = loadHistoryIndexFromLs();
+    return;
+  }
+  const tip = await getTip();
+  const idbIndex = await getHistoryIndex();
+  if (idbIndex && tip && Number(idbIndex.generation) === Number(tip.generation)) {
+    saveHistoryIndex(idbIndex);
+    return;
+  }
+  const ls = loadHistoryIndexFromLs();
+  if (tip && Number(ls.generation) === Number(tip.generation) && ls.entries.length) {
+    historyIndexCache = {
+      v: HISTORY_INDEX_VERSION,
+      generation: ls.generation,
+      entries: ls.entries.slice(0, HISTORY_LIMIT),
+    };
+    void setHistoryIndex(historyIndexCache);
+    return;
+  }
+  if (tip) {
+    // Tip/index mismatch — keep newest tip restorable; older revs may be orphaned.
+    saveHistoryIndex({
+      generation: tip.generation,
+      entries: [
+        {
+          id: newHistoryId(),
+          title: titleFromMarkdown(tip.content),
+          savedAt: Date.now(),
+          hash: contentHash(tip.content),
+          body: "tip",
+        },
+      ],
+    });
+    void setHistoryIndex(historyIndexCache);
+    return;
+  }
+  historyIndexCache = ls;
 }
 
-function pushHistory(markdown) {
-  if (contentIsExternal) return;
-  const content = markdown ?? getMarkdownSource();
-  if (!content.trim()) return;
-  if (content.length > HISTORY_MAX_CHARS) return;
-  if (content === lastHistoryContent) return;
+function saveLegacyHistory(entries) {
+  const mapped = entries.slice(0, HISTORY_LIMIT).map((e) => ({
+    id: e.id || newHistoryId(),
+    title: e.title || "Untitled",
+    content: e.content,
+    savedAt: e.savedAt || Date.now(),
+    hash: e.hash || contentHash(e.content || ""),
+  }));
+  historyIndexCache = { v: 1, generation: 0, entries: mapped };
+  localStorage.setItem(STORAGE_KEYS.history, JSON.stringify(mapped));
+}
 
-  const entries = loadHistory();
+/**
+ * @param {number} index
+ * @returns {Promise<string | null>}
+ */
+async function materializeHistoryEntry(index) {
+  const hist = loadHistoryIndex();
+  if (index < 0 || index >= hist.entries.length) return null;
+  const entry = hist.entries[index];
+
+  if (!historyIdbReady || hist.v < HISTORY_INDEX_VERSION || entry.content != null) {
+    return typeof entry.content === "string" ? entry.content : null;
+  }
+
+  const tip = await getTip();
+  if (!tip) return null;
+  if (tip.generation !== hist.generation) {
+    return index === 0 ? tip.content : null;
+  }
+
+  let content = tip.content;
+  if (index === 0) return content;
+
+  for (let i = 1; i <= index; i++) {
+    const step = hist.entries[i];
+    const rev = await getRev(step.id);
+    if (!rev) return null;
+    if (typeof rev.content === "string") {
+      content = rev.content;
+    } else if (typeof rev.patch === "string") {
+      content = applyPatch(content, rev.patch);
+    } else {
+      return null;
+    }
+  }
+  return content;
+}
+
+async function migrateHistoryIfNeeded() {
+  if (!historyIdbReady) return;
+  const hist = loadHistoryIndex();
+  const legacyBodies = hist.entries.filter((e) => typeof e.content === "string");
+  const needsMigrate =
+    hist.v < HISTORY_INDEX_VERSION || (legacyBodies.length > 0 && hist.entries.some((e) => !e.body));
+
+  if (!needsMigrate) {
+    const tip = await getTip();
+    if (tip && tip.generation === hist.generation) return;
+    if (!hist.entries.length) return;
+    // Index without matching tip — rebuild tip from first legacy body if any.
+    if (legacyBodies[0]) {
+      await setTip(hist.generation || 1, legacyBodies[0].content);
+    }
+    return;
+  }
+
+  if (!legacyBodies.length) {
+    saveHistoryIndex({ generation: hist.generation || 0, entries: hist.entries.filter((e) => e.body) });
+    return;
+  }
+
+  const kept = legacyBodies.slice(0, HISTORY_LIMIT).map((e) => ({
+    meta: e,
+    content: e.content,
+  }));
+  await rewriteHistoryChain(kept, Math.max(1, hist.generation || 0) + 1, []);
+}
+
+function pushHistoryLegacy(content) {
+  if (content.length > HISTORY_MAX_CHARS) return;
+  const entries = loadHistoryIndexEntries().filter((e) => e.content !== content);
   if (entries[0]?.content === content) {
     lastHistoryContent = content;
     return;
   }
-
   const entry = {
-    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    id: newHistoryId(),
     title: titleFromMarkdown(content),
     content,
     savedAt: Date.now(),
+    hash: contentHash(content),
   };
-
-  saveHistory([entry, ...entries.filter((e) => e.content !== content)]);
+  saveLegacyHistory([entry, ...entries]);
   lastHistoryContent = content;
   renderHistoryMenu();
+  broadcastStorage();
+}
+
+async function pushHistory(markdown) {
+  if (contentIsExternal) return;
+  const content = markdown ?? getMarkdownSource();
+  if (!content.trim()) return;
+  if (content === lastHistoryContent) return;
+
+  if (!historyIdbReady) {
+    pushHistoryLegacy(content);
+    return;
+  }
+
+  if (content.length > HISTORY_TIP_MAX) return;
+
+  const hash = contentHash(content);
+  const hist = loadHistoryIndex();
+  if (hist.entries[0]?.hash === hash) {
+    lastHistoryContent = content;
+    return;
+  }
+
+  const tip = await getTip();
+  let oldContent = "";
+  if (tip && (tip.generation === hist.generation || !hist.generation)) {
+    oldContent = tip.content;
+  } else if (tip) {
+    oldContent = tip.content;
+  } else if (typeof hist.entries[0]?.content === "string") {
+    oldContent = hist.entries[0].content;
+  }
+
+  const generation = (tip?.generation || hist.generation || 0) + 1;
+  const newId = newHistoryId();
+
+  /** @type {object[]} */
+  let entries = [
+    {
+      id: newId,
+      title: titleFromMarkdown(content),
+      savedAt: Date.now(),
+      hash,
+      body: "tip",
+    },
+  ];
+  /** @type {Array<{ id: string, body: { patch?: string, content?: string } }>} */
+  const revWrites = [];
+  let convertedOldTip = false;
+
+  if (hist.entries[0] && oldContent !== "" && contentHash(oldContent) !== hash) {
+    const oldMeta = hist.entries[0];
+    const made = makeRevisionBody(content, oldContent, PATCH_MAX_CHARS);
+    revWrites.push({
+      id: oldMeta.id,
+      body: made.kind === "patch" ? { patch: made.patch } : { content: made.content },
+    });
+    entries.push({
+      id: oldMeta.id,
+      title: oldMeta.title || titleFromMarkdown(oldContent),
+      savedAt: oldMeta.savedAt || Date.now(),
+      hash: oldMeta.hash || contentHash(oldContent),
+      body: made.kind === "patch" ? "patch" : "full",
+    });
+    convertedOldTip = true;
+  }
+
+  for (const e of hist.entries.slice(convertedOldTip ? 1 : 0)) {
+    if (e.hash === hash || e.id === newId) continue;
+    if (e.body === "tip") continue;
+    entries.push(e);
+  }
+
+  // Prefer fewer revisions when the origin is near its storage ceiling.
+  const budget = await storageBudgetOk(0.85);
+  const maxEntries = budget.ok ? HISTORY_LIMIT : Math.min(HISTORY_LIMIT, 5);
+  entries = entries.slice(0, maxEntries);
+
+  const keepRev = new Set(entries.slice(1).map((e) => e.id));
+  const pruneIds = hist.entries.map((e) => e.id).filter((id) => id !== newId && !keepRev.has(id));
+  // Drop revWrites for pruned ids
+  const filteredWrites = revWrites.filter((r) => keepRev.has(r.id));
+
+  const ok = await commitHistoryBodies({
+    generation,
+    tipContent: content,
+    revWrites: filteredWrites,
+    pruneIds,
+    indexEntries: entries,
+    indexVersion: HISTORY_INDEX_VERSION,
+  });
+  if (!ok) {
+    pushHistoryLegacy(content);
+    return;
+  }
+
+  try {
+    saveHistoryIndex({ generation, entries });
+  } catch {
+    await clearHistoryBodies([...pruneIds, ...filteredWrites.map((r) => r.id)]);
+    const tipOnly = [entries[0]];
+    const tipOk = await commitHistoryBodies({
+      generation,
+      tipContent: content,
+      revWrites: [],
+      pruneIds: [],
+      indexEntries: tipOnly,
+      indexVersion: HISTORY_INDEX_VERSION,
+    });
+    if (!tipOk) await setTip(generation, content);
+    saveHistoryIndex({ generation, entries: tipOnly });
+  }
+
+  lastHistoryContent = content;
+  void ensurePersistentStorage();
+  renderHistoryMenu();
+  broadcastStorage();
 }
 
 function formatRelativeTime(ts) {
@@ -1239,7 +2050,7 @@ function formatRelativeTime(ts) {
 }
 
 function renderHistoryMenu() {
-  const entries = loadHistory();
+  const entries = loadHistoryIndexEntries();
   historyMenu.replaceChildren();
 
   if (!entries.length) {
@@ -1250,7 +2061,7 @@ function renderHistoryMenu() {
     return;
   }
 
-  for (const entry of entries) {
+  entries.forEach((entry, index) => {
     const li = document.createElement("li");
     const btn = document.createElement("button");
     btn.type = "button";
@@ -1266,21 +2077,31 @@ function renderHistoryMenu() {
 
     btn.append(title, meta);
     btn.addEventListener("click", () => {
-      if (!confirmDiscardIfDirty()) return;
-      setEditorValue(entry.content);
-      lastHistoryContent = entry.content;
-      localStorage.setItem(STORAGE_KEYS.draft, entry.content);
-      renderMarkdown(entry.content);
-      clearCurrentFileBinding();
-      markCleanFromEditor();
-      setContentExternal(false);
-      closeHistory();
-      showToast("Restored from history");
+      void restoreHistoryEntry(index);
     });
 
     li.appendChild(btn);
     historyMenu.appendChild(li);
+  });
+}
+
+async function restoreHistoryEntry(index) {
+  if (!confirmDiscardIfDirty()) return;
+  const content = await materializeHistoryEntry(index);
+  if (content == null) {
+    showToast("Could not restore history item");
+    return;
   }
+  setEditorValue(content);
+  lastHistoryContent = content;
+  await persistDraft(content);
+  renderMarkdown(content);
+  clearCurrentFileBinding();
+  // History is not a disk/URL baseline — stay dirty until save.
+  markDirtyBaseline();
+  setContentExternal(false);
+  closeHistory();
+  showToast("Restored from history");
 }
 
 function openHistory() {
@@ -1321,6 +2142,43 @@ function toggleOverflowMenu() {
   else openOverflowMenu();
 }
 
+/** Close the topmost open menu/drawer. Returns true if something was dismissed. */
+function dismissOpenOverlay() {
+  if (viewModeMenu && !viewModeMenu.hidden) {
+    closeViewModeMenu();
+    return true;
+  }
+  if (historyMenu && !historyMenu.hidden) {
+    closeHistory();
+    return true;
+  }
+  if (voiceMenu && !voiceMenu.hidden) {
+    closeVoiceMenu();
+    return true;
+  }
+  if (shareMenu && !shareMenu.hidden) {
+    closeShareMenu();
+    return true;
+  }
+  if (exportMenu && !exportMenu.hidden) {
+    closeExportMenu();
+    return true;
+  }
+  if (toolbarMenu?.classList.contains("is-open")) {
+    closeOverflowMenu();
+    return true;
+  }
+  if (filesContextMenu && !filesContextMenu.hidden) {
+    closeFilesContextMenu();
+    return true;
+  }
+  if (filesDrawerOpen && window.matchMedia(NARROW_MQ).matches) {
+    setFilesDrawerOpen(false);
+    return true;
+  }
+  return false;
+}
+
 function preferredGithubTheme() {
   return window.matchMedia("(prefers-color-scheme: dark)").matches
     ? "github-dark"
@@ -1359,7 +2217,10 @@ function setPreviewWidth(width, { persist = true } = {}) {
 
 function applyCollapseState() {
   const editorCollapsed = localStorage.getItem(STORAGE_KEYS.editorCollapsed) === "1";
-  const previewCollapsed = localStorage.getItem(STORAGE_KEYS.previewCollapsed) === "1";
+  // Collapse is an authoring-layout preference. Reader / present hide the expand
+  // control and must always show the preview.
+  const previewCollapsedPref = localStorage.getItem(STORAGE_KEYS.previewCollapsed) === "1";
+  const previewCollapsed = previewCollapsedPref && isAuthoringView();
 
   panes.classList.toggle("editor-collapsed", editorCollapsed);
   panes.classList.toggle("preview-collapsed", previewCollapsed);
@@ -1496,7 +2357,9 @@ function toggleEditorCollapse() {
 }
 
 function togglePreviewCollapse() {
-  const next = !panes.classList.contains("preview-collapsed");
+  // Reader / present always show the preview; edit and slides can collapse it.
+  if (!isAuthoringView()) return;
+  const next = localStorage.getItem(STORAGE_KEYS.previewCollapsed) !== "1";
   localStorage.setItem(STORAGE_KEYS.previewCollapsed, next ? "1" : "0");
   applyCollapseState();
 }
@@ -1518,6 +2381,11 @@ function applyScrollRatio(el, ratio) {
 
 function invalidateScrollAnchors() {
   scrollAnchors = null;
+}
+
+/** True when `el` participates in preview layout (not slide-hidden or section-folded). */
+function previewNodeIsLaidOut(el) {
+  return Boolean(el) && !el.hidden && !el.closest("[hidden], .md-section-folded");
 }
 
 function offsetWithin(el, container) {
@@ -1586,7 +2454,7 @@ function buildScrollAnchors() {
   const anchors = [{ editor: 0, preview: 0 }];
 
   for (const el of preview.querySelectorAll("[data-source-line]")) {
-    if (el.hidden || el.closest("[hidden]")) continue;
+    if (!previewNodeIsLaidOut(el)) continue;
     const line = Number(el.getAttribute("data-source-line"));
     if (!Number.isFinite(line) || line < 1 || line > lineTops.length) continue;
     const previewTop = offsetWithin(el, previewPane);
@@ -1767,6 +2635,9 @@ function revealPreviewForEditorCaret() {
   }
   const el = previewElementForLine(editorCaretLine());
   if (!el) return;
+  // Expand collapsed ancestors so caret sync measures real geometry.
+  ensurePreviewElementExpanded(el);
+  if (!previewNodeIsLaidOut(el)) return;
 
   const paneRect = previewPane.getBoundingClientRect();
   const elRect = el.getBoundingClientRect();
@@ -1857,7 +2728,7 @@ function syncSlidesFromEditor({ preferCaret = true } = {}) {
   }
 
   const el = previewElementForLine(line);
-  if (!el || el.hidden || el.closest("[hidden]")) return;
+  if (!previewNodeIsLaidOut(el)) return;
 
   const paneRect = previewPane.getBoundingClientRect();
   const elRect = el.getBoundingClientRect();
@@ -1893,7 +2764,7 @@ function previewLineNearViewportTop() {
   const marker = paneRect.top + Math.min(40, paneRect.height * 0.2);
   let line = 0;
   for (const h of preview.querySelectorAll("h1, h2, h3, h4, h5, h6")) {
-    if (h.hidden || h.closest("[hidden]")) continue;
+    if (!previewNodeIsLaidOut(h)) continue;
     const src = Number(h.getAttribute("data-source-line"));
     if (!Number.isFinite(src) || src < 1) continue;
     if (h.getBoundingClientRect().top <= marker) line = src;
@@ -1942,14 +2813,14 @@ function onEditorInput() {
   const source = getMarkdownSource();
   // Hold draft/history until Accept so Reject can fully discard untrusted content.
   if (!contentIsExternal) {
-    localStorage.setItem(STORAGE_KEYS.draft, source);
+    persistDraftFireAndForget(source);
   }
   scheduleEditorHighlight();
   invalidateScrollAnchors();
   scheduleRender();
   updateSaveButton();
   window.clearTimeout(historyTimer);
-  historyTimer = window.setTimeout(() => pushHistory(source), HISTORY_DEBOUNCE_MS);
+  historyTimer = window.setTimeout(() => void pushHistory(source), HISTORY_DEBOUNCE_MS);
 }
 
 /** Insert text at the caret (replacing any selection). Prefer execCommand so Undo works. */
@@ -2025,6 +2896,8 @@ async function onEditorPaste(e) {
 }
 
 function isDirty() {
+  // Clean only after a disk save/load or Accept of URL md/mdz content.
+  // IDB auto-save does not clear dirty.
   return getMarkdownSource() !== savedSnapshot;
 }
 
@@ -2048,13 +2921,96 @@ function updateDocumentTitle() {
   if (speechActive) updateSpeechMediaSession();
 }
 
-function markCleanFromEditor() {
-  savedSnapshot = getMarkdownSource();
+/**
+ * @returns {Record<string, string>}
+ */
+function loadSavedSnapshotMap() {
   try {
-    localStorage.setItem(STORAGE_KEYS.savedSnapshot, savedSnapshot);
+    const raw = localStorage.getItem(STORAGE_KEYS.savedSnapshot);
+    if (raw == null) return {};
+    try {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === "object" && parsed.v === 1 && parsed.byKey && typeof parsed.byKey === "object") {
+        /** @type {Record<string, string>} */
+        const out = {};
+        for (const [key, value] of Object.entries(parsed.byKey)) {
+          if (typeof value === "string") out[key] = value;
+        }
+        return out;
+      }
+    } catch {
+      /* legacy plain markdown snapshot */
+    }
+    return { untitled: raw };
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * @param {string} [docKey]
+ * @returns {string | null}
+ */
+function readSavedSnapshot(docKey = currentDocKey()) {
+  const map = loadSavedSnapshotMap();
+  return Object.prototype.hasOwnProperty.call(map, docKey) ? map[docKey] : null;
+}
+
+/**
+ * @param {string} docKey
+ * @param {string} content
+ */
+function writeSavedSnapshot(docKey, content) {
+  try {
+    const map = loadSavedSnapshotMap();
+    map[docKey] = content;
+    const keys = Object.keys(map);
+    if (keys.length > SAVED_SNAPSHOT_MAX_KEYS) {
+      const drop = keys.filter((k) => k !== docKey && k !== "untitled");
+      while (Object.keys(map).length > SAVED_SNAPSHOT_MAX_KEYS && drop.length) {
+        delete map[drop.shift()];
+      }
+    }
+    localStorage.setItem(
+      STORAGE_KEYS.savedSnapshot,
+      JSON.stringify({ v: 1, byKey: map }),
+    );
   } catch {
     /* ignore quota */
   }
+}
+
+/**
+ * @param {string} fromKey
+ * @param {string} toKey
+ */
+function moveSavedSnapshot(fromKey, toKey) {
+  if (!fromKey || !toKey || fromKey === toKey) return;
+  try {
+    const map = loadSavedSnapshotMap();
+    if (Object.prototype.hasOwnProperty.call(map, fromKey)) {
+      map[toKey] = map[fromKey];
+      delete map[fromKey];
+      localStorage.setItem(
+        STORAGE_KEYS.savedSnapshot,
+        JSON.stringify({ v: 1, byKey: map }),
+      );
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
+function markCleanFromEditor() {
+  // Call only after persisting to disk or accepting URL share content.
+  savedSnapshot = getMarkdownSource();
+  writeSavedSnapshot(currentDocKey(), savedSnapshot);
+  updateSaveButton();
+}
+
+/** Untitled / draft baseline: any non-matching content counts as dirty. */
+function markDirtyBaseline() {
+  savedSnapshot = "";
   updateSaveButton();
 }
 
@@ -2096,18 +3052,36 @@ function clearCurrentFileBinding() {
  * @param {string} [path]
  */
 function bindCurrentFile(fileHandle, name, path = "") {
+  const prevKey = currentDocKey();
   currentFileHandle = fileHandle;
   currentFileName = name || fileHandle?.name || "";
   currentFilePath = path || pathForHandle(fileHandle) || "";
+  const nextKey = currentDocKey();
+  if (prevKey !== nextKey) {
+    const snap = readSavedSnapshot(nextKey);
+    if (snap != null) savedSnapshot = snap;
+  }
   updateDocumentTitle();
   updateSaveButton();
   highlightActiveFileInTree();
   persistCurrentFileBinding();
 }
 
+/** Show a generic OS app-icon flag when there are unsaved edits (installed PWA). */
+function updateUnsavedAppBadge(dirty = isDirty()) {
+  if (!("setAppBadge" in navigator) || !("clearAppBadge" in navigator)) return;
+  try {
+    if (dirty) void navigator.setAppBadge().catch(() => {});
+    else void navigator.clearAppBadge().catch(() => {});
+  } catch {
+    /* NotAllowedError / InvalidStateError — ignore */
+  }
+}
+
 function updateSaveButton() {
-  if (!saveBtn || !fsAccessSupported) return;
   const dirty = isDirty();
+  updateUnsavedAppBadge(dirty);
+  if (!saveBtn || !fsAccessSupported) return;
   saveBtn.classList.toggle("is-dirty", dirty);
   saveBtn.title = dirty
     ? `Save unsaved changes (Ctrl/Cmd+S)`
@@ -2485,12 +3459,14 @@ async function openFsFile(path) {
   }
   if (!confirmDiscardIfDirty()) return;
   try {
+    // Persist the outgoing document under its own key before switching.
+    await persistDraft(getMarkdownSource());
     const text = await readTextFile(/** @type {FileSystemFileHandle} */ (entry.handle));
     setEditorValue(text);
-    localStorage.setItem(STORAGE_KEYS.draft, getMarkdownSource());
-    renderMarkdown(getMarkdownSource());
-    pushHistory(getMarkdownSource());
     bindCurrentFile(/** @type {FileSystemFileHandle} */ (entry.handle), entry.handle.name, path);
+    await persistDraft(getMarkdownSource());
+    renderMarkdown(getMarkdownSource());
+    await pushHistory(getMarkdownSource());
     markCleanFromEditor();
     setContentExternal(false);
     selectFsPath(path);
@@ -2541,11 +3517,12 @@ async function toggleFsDirectory(path) {
 
 async function createUntitledDocument() {
   if (!confirmDiscardIfDirty()) return;
+  await persistDraft(getMarkdownSource());
   setEditorValue("");
-  localStorage.setItem(STORAGE_KEYS.draft, "");
-  renderMarkdown("");
   clearCurrentFileBinding();
-  markCleanFromEditor();
+  await persistDraft("");
+  renderMarkdown("");
+  markDirtyBaseline();
   setContentExternal(false);
   showToast("New untitled document");
 }
@@ -2566,10 +3543,11 @@ async function promptCreateFile(dirPath = selectedPath) {
     if (basePath) expandedPaths.add(basePath);
     await refreshFilesTree();
     const createdPath = joinFsPath(basePath, name);
+    await persistDraft(getMarkdownSource());
     setEditorValue("");
-    localStorage.setItem(STORAGE_KEYS.draft, "");
-    renderMarkdown("");
     bindCurrentFile(handle, name, createdPath);
+    await persistDraft("");
+    renderMarkdown("");
     markCleanFromEditor();
     setContentExternal(false);
     selectFsPath(createdPath);
@@ -2624,7 +3602,13 @@ async function promptRenameEntry(path) {
     await refreshFilesTree();
     if (wasCurrent) {
       const renamedPath = joinFsPath(parentPathOf(path), finalName);
+      const fromKey = currentDocKey();
       bindCurrentFile(/** @type {FileSystemFileHandle} */ (renamed), finalName, renamedPath);
+      const toKey = currentDocKey();
+      if (fromKey !== toKey) {
+        void moveDraft(fromKey, toKey);
+        moveSavedSnapshot(fromKey, toKey);
+      }
     }
     showToast(`Renamed to ${finalName}`);
   } catch (err) {
@@ -2684,7 +3668,13 @@ async function saveCurrentDocument() {
       if (basePath) expandedPaths.add(basePath);
       await refreshFilesTree();
       const createdPath = joinFsPath(basePath, name);
+      const fromKey = currentDocKey();
       bindCurrentFile(handle, name, createdPath);
+      const toKey = currentDocKey();
+      if (fromKey !== toKey) {
+        void moveDraft(fromKey, toKey);
+        moveSavedSnapshot(fromKey, toKey);
+      }
       markCleanFromEditor();
       selectFsPath(createdPath);
       showToast(`Saved ${name}`);
@@ -2696,7 +3686,13 @@ async function saveCurrentDocument() {
       showToast("Open a folder to save, or use a supported browser");
       return;
     }
+    const fromKey = currentDocKey();
     bindCurrentFile(handle, handle.name, "");
+    const toKey = currentDocKey();
+    if (fromKey !== toKey) {
+      void moveDraft(fromKey, toKey);
+      moveSavedSnapshot(fromKey, toKey);
+    }
     markCleanFromEditor();
     showToast(`Saved ${handle.name}`);
   } catch (err) {
@@ -2704,6 +3700,243 @@ async function saveCurrentDocument() {
     console.error(err);
     showToast("Could not save");
   }
+}
+
+function headingTitleText(heading) {
+  const label = heading.querySelector(":scope > .md-section-label");
+  if (label) return label.textContent?.trim() || "";
+  const clone = heading.cloneNode(true);
+  clone.querySelectorAll(".md-section-toggle").forEach((el) => el.remove());
+  return clone.textContent?.trim() || "";
+}
+
+function sectionCollapseKey(heading) {
+  // Prefer source line so duplicate titles collapse independently across re-renders.
+  const line = Number(heading.getAttribute("data-source-line"));
+  if (Number.isFinite(line) && line >= 1) return `line:${line}`;
+  const all = [...preview.querySelectorAll("h1, h2, h3, h4, h5, h6")];
+  const idx = all.indexOf(heading);
+  return `idx:${idx}:${heading.tagName.slice(1)}:${headingTitleText(heading).toLowerCase()}`;
+}
+
+function headingLevel(el) {
+  if (!el || !/^H[1-6]$/.test(el.tagName)) return 0;
+  return Number(el.tagName.slice(1));
+}
+
+/** True when `el` falls under `heading`'s fold range (until next same-or-higher heading). */
+function headingCoversElement(heading, el) {
+  if (!heading || !el || heading === el) return false;
+  const level = headingLevel(heading);
+  if (!level) return false;
+  let node = heading.nextElementSibling;
+  while (node) {
+    if (node === el) return true;
+    if (headingLevel(node) && headingLevel(node) <= level) return false;
+    node = node.nextElementSibling;
+  }
+  return false;
+}
+
+function clearSectionFolds() {
+  unwrapSectionAnims();
+  preview.querySelectorAll(".md-section-folded").forEach((el) => {
+    el.classList.remove("md-section-folded");
+  });
+}
+
+function unwrapSectionAnims() {
+  // Wrappers may sit inside blockquotes/alerts, not only as preview children.
+  const anims = [...preview.querySelectorAll(".md-section-anim")].reverse();
+  for (const wrap of anims) {
+    const parent = wrap.parentNode;
+    if (!parent) continue;
+    const inner = wrap.querySelector(":scope > .md-section-anim-inner") || wrap;
+    while (inner.firstChild) parent.insertBefore(inner.firstChild, wrap);
+    wrap.remove();
+  }
+}
+
+/** Direct siblings that belong to this heading's fold range. */
+function sectionBodyElements(heading) {
+  const level = headingLevel(heading);
+  const els = [];
+  let el = heading.nextElementSibling;
+  while (el) {
+    if (el.classList.contains("md-section-anim")) {
+      const inner = el.querySelector(":scope > .md-section-anim-inner");
+      if (inner) els.push(...inner.children);
+      el = el.nextElementSibling;
+      continue;
+    }
+    const nextLevel = headingLevel(el);
+    if (nextLevel && nextLevel <= level) break;
+    els.push(el);
+    el = el.nextElementSibling;
+  }
+  return els;
+}
+
+function updateSectionToggleUi(heading, collapsed) {
+  heading.classList.toggle("is-collapsed", collapsed);
+  const toggle = heading.querySelector(":scope > .md-section-toggle");
+  if (!toggle) return;
+  toggle.setAttribute("aria-expanded", String(!collapsed));
+  toggle.title = collapsed ? "Expand section" : "Collapse section";
+  toggle.setAttribute("aria-label", toggle.title);
+}
+
+function prefersReducedMotion() {
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+/** True if another collapsed heading (not `except`) currently covers `el`. */
+function coveredByOtherCollapsedHeading(el, except) {
+  for (const heading of preview.querySelectorAll("h1, h2, h3, h4, h5, h6")) {
+    if (heading === except) continue;
+    if (!collapsedSections.has(sectionCollapseKey(heading))) continue;
+    if (headingCoversElement(heading, el)) return true;
+  }
+  return false;
+}
+
+/**
+ * Animate fold/unfold of a section body via a temporary grid wrapper.
+ * Resolves when the transition finishes (or immediately if nothing to animate).
+ */
+function animateSectionFold(heading, collapsing) {
+  unwrapSectionAnims();
+
+  const els = sectionBodyElements(heading);
+  if (!els.length) return Promise.resolve();
+
+  const wrap = document.createElement("div");
+  wrap.className = "md-section-anim";
+  const inner = document.createElement("div");
+  inner.className = "md-section-anim-inner";
+  wrap.appendChild(inner);
+  heading.after(wrap);
+  for (const node of els) {
+    if (!collapsing && !coveredByOtherCollapsedHeading(node, heading)) {
+      node.classList.remove("md-section-folded");
+    }
+    inner.appendChild(node);
+  }
+
+  // Start from the opposite open state, then flip so the transition runs.
+  wrap.classList.add(collapsing ? "is-expanded" : "is-collapsed");
+  // Force layout so the initial grid row size is committed before toggling.
+  void wrap.offsetHeight;
+
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      wrap.removeEventListener("transitionend", onEnd);
+      resolve();
+    };
+    const onEnd = (e) => {
+      if (e.target !== wrap || e.propertyName !== "grid-template-rows") return;
+      finish();
+    };
+    wrap.addEventListener("transitionend", onEnd);
+    requestAnimationFrame(() => {
+      wrap.classList.toggle("is-expanded", !collapsing);
+      wrap.classList.toggle("is-collapsed", collapsing);
+    });
+    // Fallback if transitionend doesn't fire (display:none mid-flight, etc.).
+    window.setTimeout(finish, 280);
+  });
+}
+
+function applySectionCollapse() {
+  clearSectionFolds();
+  if (isSlideNavView()) return;
+
+  for (const heading of preview.querySelectorAll("h1, h2, h3, h4, h5, h6")) {
+    const collapsed = collapsedSections.has(sectionCollapseKey(heading));
+    updateSectionToggleUi(heading, collapsed);
+    if (!collapsed) continue;
+
+    const level = headingLevel(heading);
+    let el = heading.nextElementSibling;
+    while (el) {
+      const nextLevel = headingLevel(el);
+      if (nextLevel && nextLevel <= level) break;
+      el.classList.add("md-section-folded");
+      el = el.nextElementSibling;
+    }
+  }
+  void renderMermaidDiagrams();
+  invalidateScrollAnchors();
+}
+
+function enhanceSectionToggles() {
+  for (const heading of preview.querySelectorAll("h1, h2, h3, h4, h5, h6")) {
+    if (heading.querySelector(":scope > .md-section-toggle")) continue;
+    const label = document.createElement("span");
+    label.className = "md-section-label";
+    while (heading.firstChild) label.appendChild(heading.firstChild);
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "md-section-toggle";
+    btn.setAttribute("aria-expanded", "true");
+    btn.title = "Collapse section";
+    btn.setAttribute("aria-label", "Collapse section");
+    const twistie = document.createElement("span");
+    twistie.className = "md-section-twistie";
+    twistie.setAttribute("aria-hidden", "true");
+    twistie.textContent = "▼";
+    btn.appendChild(twistie);
+    heading.append(btn, label);
+  }
+  applySectionCollapse();
+}
+
+function setSectionCollapsed(heading, collapsed) {
+  const key = sectionCollapseKey(heading);
+  if (collapsed) collapsedSections.add(key);
+  else collapsedSections.delete(key);
+  applySectionCollapse();
+  invalidateScrollAnchors();
+}
+
+let sectionFoldAnimGen = 0;
+
+function toggleSectionCollapse(heading) {
+  const key = sectionCollapseKey(heading);
+  const collapsing = !collapsedSections.has(key);
+  if (collapsing) collapsedSections.add(key);
+  else collapsedSections.delete(key);
+
+  updateSectionToggleUi(heading, collapsing);
+
+  if (isSlideNavView() || prefersReducedMotion()) {
+    applySectionCollapse();
+    invalidateScrollAnchors();
+    return;
+  }
+
+  const gen = ++sectionFoldAnimGen;
+  animateSectionFold(heading, collapsing).then(() => {
+    if (gen !== sectionFoldAnimGen) return;
+    applySectionCollapse();
+    invalidateScrollAnchors();
+  });
+}
+
+/** Expand any collapsed headings that hide `el` (e.g. outline / sync-scroll jumps). */
+function ensurePreviewElementExpanded(el) {
+  if (!el || isSlideNavView()) return;
+  let changed = false;
+  for (const heading of preview.querySelectorAll("h1, h2, h3, h4, h5, h6")) {
+    if (!heading.classList.contains("is-collapsed")) continue;
+    if (!headingCoversElement(heading, el) && heading !== el) continue;
+    collapsedSections.delete(sectionCollapseKey(heading));
+    changed = true;
+  }
+  if (changed) applySectionCollapse();
 }
 
 function updateDocOutline() {
@@ -2733,7 +3966,7 @@ function updateDocOutline() {
     btn.dataset.level = String(level);
     btn.dataset.index = String(index);
     if (line > 0) btn.dataset.sourceLine = String(line);
-    btn.textContent = heading.textContent?.trim() || `Heading ${level}`;
+    btn.textContent = headingTitleText(heading) || `Heading ${level}`;
     btn.title = btn.textContent;
     li.appendChild(btn);
     frag.appendChild(li);
@@ -2776,6 +4009,8 @@ function scrollPreviewToSourceLine(line) {
     headings.find((h) => Number(h.getAttribute("data-source-line")) === line) ||
     previewElementForLine(line);
   if (!target || target.hidden || target.closest("[hidden]")) return;
+  ensurePreviewElementExpanded(target);
+  if (!previewNodeIsLaidOut(target)) return;
 
   // Prefer "editor" as driver when the editor is open so preview scroll does not
   // reverse-sync the caret away from the outline target.
@@ -2828,6 +4063,15 @@ function highlightActiveOutlineItem() {
 }
 
 function setupDocOutline() {
+  preview?.addEventListener("click", (e) => {
+    const toggle = e.target.closest(".md-section-toggle");
+    if (!toggle || !preview.contains(toggle)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const heading = toggle.closest("h1, h2, h3, h4, h5, h6");
+    if (heading) toggleSectionCollapse(heading);
+  });
+
   outlineList?.addEventListener("click", (e) => {
     const row = e.target.closest(".outline-row");
     if (!row || !outlineList.contains(row)) return;
@@ -3017,12 +4261,13 @@ function handleFile(file) {
   const reader = new FileReader();
   reader.onload = () => {
     const text = String(reader.result ?? "");
+    stashPreExternalState();
+    pendingExternalFromUrl = false;
     setEditorValue(text);
-    renderMarkdown(getMarkdownSource());
     bindCurrentFile(null, file.name || "", "");
     selectFsPath("");
     setContentExternal(true);
-    markCleanFromEditor();
+    updateSaveButton();
     showToast(`Loaded ${file.name}`);
   };
   reader.onerror = () => showToast("Could not read file");
@@ -3043,10 +4288,12 @@ async function openLaunchedFile(fileHandle) {
   if (!confirmDiscardIfDirty()) return;
   try {
     const text = await readTextFile(fileHandle);
+    stashPreExternalState();
+    pendingExternalFromUrl = false;
     setEditorValue(text);
-    renderMarkdown(getMarkdownSource());
     bindCurrentFile(fileHandle, name);
     selectFsPath("");
+    // File Handling API opens a real on-disk file — that is the clean baseline.
     markCleanFromEditor();
     setContentExternal(true);
     if (currentView !== "edit") setView("edit", { syncUrl: false });
@@ -3117,45 +4364,23 @@ async function copyText(url, toastMessage) {
   }
 }
 
-async function copyShareUrl(view = "reader") {
+async function copyShareUrl() {
   const url = await buildShareUrl({
     markdown: getMarkdownSource(),
     theme: document.documentElement.dataset.theme,
-    view,
   });
   const tooLong = url.length > SHARE_URL_WARN_CHARS;
   const label = tooLong
     ? "Link copied — may be too long for some apps"
-    : view === "present"
-      ? "Present link copied"
-      : "Reader link copied";
+    : "Share link copied";
   await copyText(url, label);
-  closeShareMenu();
-}
-
-function openShareMenu() {
-  if (!shareMenu) return;
-  shareMenu.hidden = false;
-  shareBtn.setAttribute("aria-expanded", "true");
 }
 
 function closeShareMenu() {
+  // Share is a single-click action now; kept for call sites that close open menus.
   if (!shareMenu || !shareBtn) return;
   shareMenu.hidden = true;
   shareBtn.setAttribute("aria-expanded", "false");
-}
-
-function toggleShareMenu() {
-  if (!shareMenu) return;
-  if (shareMenu.hidden) {
-    closeHistory();
-    closeVoiceMenu();
-    closeExportMenu();
-    closeViewModeMenu();
-    openShareMenu();
-  } else {
-    closeShareMenu();
-  }
 }
 
 function openExportMenu() {
@@ -3192,7 +4417,19 @@ async function exportDocument(format) {
   }
 
   // Ensure Mermaid diagrams are finished before HTML/DOCX/RTF/PDF capture.
-  await renderMermaidDiagrams();
+  // Force layout for slides/folds so every diagram gets a real size.
+  await renderMermaidDiagrams({ force: true });
+
+  const {
+    buildDocxBlob,
+    buildHtmlDocument,
+    buildMarkdownFile,
+    buildRtfDocument,
+    cleanPreviewHtml,
+    downloadBlob,
+    exportBasename,
+    printPreviewAsPdf,
+  } = await loadExportModule();
 
   const title = titleFromMarkdown(markdown);
   const base = exportBasename(title);
@@ -3222,22 +4459,41 @@ async function exportDocument(format) {
   closeExportMenu();
 }
 
-async function syncHashForView(view) {
-  const state = await getShareState();
-  const markdown = getMarkdownSource() || state.markdown || "";
-  if (!markdown.trim() && view !== "edit") return;
+/**
+ * Keep the address bar's view (and theme) in sync. Never invent an `mdz` from
+ * the editor — share payloads are only created by copyShareUrl / buildShareUrl.
+ * If the URL already carries md/mdz (a real share session), preserve it as-is.
+ */
+function syncHashForView(view) {
   const url = new URL(window.location.href);
-  url.search = "";
-  if (!markdown.trim()) {
-    url.hash = "";
-    history.replaceState(null, "", url);
-    return;
-  }
+  const hashParams =
+    url.hash.length > 1 ? new URLSearchParams(url.hash.slice(1)) : new URLSearchParams();
+  const searchParams = new URLSearchParams(url.search);
+  const existing =
+    hashParams.has("mdz") ||
+    hashParams.has("md") ||
+    hashParams.has("view") ||
+    hashParams.has("theme")
+      ? hashParams
+      : searchParams;
+
   const params = new URLSearchParams();
-  params.set("mdz", await compressUtf8ToBase64Url(markdown));
+  const mdz = existing.get("mdz");
+  const md = existing.get("md");
+  if (mdz) params.set("mdz", mdz);
+  else if (md) params.set("md", md);
+
   const theme = document.documentElement.dataset.theme;
   if (THEMES.includes(theme)) params.set("theme", theme);
-  params.set("view", view);
+  else {
+    const prevTheme = existing.get("theme");
+    if (THEMES.includes(prevTheme)) params.set("theme", prevTheme);
+  }
+
+  const nextView = VIEWS.includes(view) ? view : "edit";
+  params.set("view", nextView);
+
+  url.search = "";
   url.hash = params.toString();
   history.replaceState(null, "", url);
 }
@@ -3297,6 +4553,7 @@ function showPresentSection(index) {
   if (pane) pane.scrollTop = 0;
   outlineScrollSource = "preview";
   scheduleOutlineHighlight();
+  void renderMermaidDiagrams();
 }
 
 /** First 1-based source line covered by a present/slides section. */
@@ -3339,6 +4596,26 @@ function clearPresentSectionFilter() {
 
 function isSlideNavView() {
   return currentView === "present" || currentView === "slides";
+}
+
+/**
+ * True when slide nav keys (Space/arrows/etc.) should leave the focused control alone.
+ * Escape still exits present/slides regardless.
+ */
+function isSlideNavTypingOrControl(el) {
+  if (!el || el === document.body) return false;
+  if (el === editor) return true;
+  const tag = el.tagName;
+  if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true;
+  if (el.isContentEditable) return true;
+  return Boolean(
+    el.closest(
+      "button, a[href], select, input, textarea, summary, " +
+        "[role='button'], [role='menuitem'], [role='option'], " +
+        "[role='treeitem'], [role='slider'], [role='combobox'], " +
+        "[role='listbox'], [role='textbox'], .splitter",
+    ),
+  );
 }
 
 function isAuthoringView() {
@@ -3396,6 +4673,7 @@ function setView(view, { syncUrl = true } = {}) {
   const leavingPresent = currentView === "present" && next !== "present";
   if (wasSlideNav && !nextIsSlideNav) {
     clearPresentSectionFilter();
+    applySectionCollapse();
   }
 
   currentView = next;
@@ -3415,22 +4693,21 @@ function setView(view, { syncUrl = true } = {}) {
   syncPresentChromeAutohide();
 
   if (nextIsSlideNav) {
+    clearSectionFolds();
     buildPresentSections();
-    showPresentSection(0);
+    // Keep the current slide when switching slides ↔ present; reset only when
+    // entering slide-nav from edit/reader.
+    showPresentSection(wasSlideNav ? presentIndex : 0);
     if (next === "slides" && syncScrollEnabled) {
       revealPreviewForEditorCaret();
     }
   }
 
   if (syncUrl) {
-    if (editor.value.trim()) {
-      void syncHashForView(next);
-    } else {
-      void getShareState().then((state) => {
-        if (state.markdown) void syncHashForView(next);
-      });
-    }
+    syncHashForView(next);
   }
+
+  applyCollapseState();
 
   closeShareMenu();
   closeExportMenu();
@@ -3555,6 +4832,25 @@ function enterSlidesMode() {
   setView("slides");
 }
 
+/** Landscape pages when printing a slide deck; clear afterward so edit print stays default. */
+function syncPrintPageOrientation() {
+  let el = document.getElementById("print-orientation-style");
+  if (!el) {
+    el = document.createElement("style");
+    el.id = "print-orientation-style";
+    document.head.appendChild(el);
+  }
+  const landscape = currentView === "slides" || currentView === "present";
+  el.textContent = landscape
+    ? "@media print { @page { size: landscape; margin: 0.5in; } }"
+    : "";
+}
+
+function clearPrintPageOrientation() {
+  const el = document.getElementById("print-orientation-style");
+  if (el) el.textContent = "";
+}
+
 function exitPresentMode() {
   if (currentView === "slides") {
     setView("edit");
@@ -3583,6 +4879,10 @@ function buildPreviewSpeechMap() {
       const parent = node.parentElement;
       if (!parent) return NodeFilter.FILTER_REJECT;
       if (parent.closest("script, style, .mermaid, .line-num")) return NodeFilter.FILTER_REJECT;
+      // Skip fold chrome (▼) and bodies hidden by section collapse.
+      if (parent.closest(".md-section-toggle, .md-section-folded")) {
+        return NodeFilter.FILTER_REJECT;
+      }
       if (!node.data) return NodeFilter.FILTER_REJECT;
       return NodeFilter.FILTER_ACCEPT;
     },
@@ -3622,7 +4922,7 @@ function speechOffsetsForSection(map, sectionNodes) {
 function speechSectionTitle(sectionNodes, index) {
   for (const node of sectionNodes) {
     if (!/^H[1-6]$/.test(node.tagName)) continue;
-    const title = node.textContent?.trim();
+    const title = headingTitleText(node);
     if (title) return title.slice(0, 120);
   }
   if (index === 0) return currentFileName || "Introduction";
@@ -4258,7 +5558,7 @@ function syncPreviewToSpeechTrack() {
   }
 
   const el = presentSections[sectionIndex]?.[0];
-  if (!el || el.hidden || el.closest("[hidden]")) return;
+  if (!previewNodeIsLaidOut(el)) return;
   beginSyncDriver(panes.classList.contains("editor-collapsed") ? "preview" : "editor");
   clampScrollTop(previewPane, offsetWithin(el, previewPane) - 8);
   highlightActiveOutlineItem();
@@ -4453,7 +5753,20 @@ async function fetchDefaultGuide() {
   }
 }
 
+/** Read the persisted draft for a document key (IndexedDB, then localStorage). No GUIDE seed. */
+async function loadStoredDraftContent(docKey = currentDocKey()) {
+  if (historyIdbReady) {
+    const idbDraft = await getDraft(docKey);
+    if (idbDraft) return idbDraft.content;
+  }
+  const mirrored = readDraftMirror();
+  if (mirrored && mirrored.docKey === docKey) return mirrored.content;
+  return null;
+}
+
 async function init() {
+  // Overlap GUIDE fetch with the rest of boot (only awaited on first visit).
+  const guidePromise = fetchDefaultGuide();
   const shareState = await getShareState();
   const fromUrl = shareState.markdown;
 
@@ -4485,58 +5798,101 @@ async function init() {
   applyCollapseState();
   setupSplitter();
   setupDragAndDrop();
-  setupSpeech();
   setupPwa();
   setupFilesDrawer();
   setupDocOutline();
+  setupStorageSync();
+  historyIdbReady = await probeHistoryIdb();
+  if (historyIdbReady) {
+    await migrateHistoryIfNeeded();
+    await hydrateHistoryIndexFromIdb();
+  }
+  // Sequential: file binding restore reads rootDirHandle set by directory restore.
   await restoreFilesDirectoryOnLoad();
   await restoreCurrentFileBindingOnLoad();
 
   const savedSyncScroll = localStorage.getItem(STORAGE_KEYS.syncScroll) === "1";
   setSyncScroll(savedSyncScroll, { persist: false });
 
+  // URL markdown that matches our own draft/tip is local residue (e.g. an old
+  // view-sync that wrote mdz), not untrusted external content.
+  let urlIsExternal = fromUrl != null;
   if (fromUrl != null) {
-    setEditorValue(fromUrl);
-    lastHistoryContent = "";
-    setContentExternal(true);
-    clearCurrentFileBinding();
+    const storedDraft = await loadStoredDraftContent();
+    const tip = historyIdbReady ? await getTip() : null;
+    const matchesLocal =
+      storedDraft === fromUrl ||
+      (storedDraft == null && tip?.content === fromUrl);
+    if (matchesLocal) {
+      urlIsExternal = false;
+      pendingExternalFromUrl = false;
+      const content = storedDraft ?? fromUrl;
+      await persistDraft(content);
+      setEditorValue(content);
+      lastHistoryContent = content;
+      setContentExternal(false);
+      clearShareMarkdownFromUrl();
+    } else {
+      stashPreExternalState(storedDraft ?? "");
+      pendingExternalFromUrl = true;
+      setEditorValue(fromUrl);
+      lastHistoryContent = "";
+      setContentExternal(true);
+      clearCurrentFileBinding();
+    }
   } else {
-    // null = never visited; "" = user cleared the editor. Only seed once.
-    const stored = localStorage.getItem(STORAGE_KEYS.draft);
-    let draft = stored;
-    if (stored == null) {
-      draft = await fetchDefaultGuide();
-      try {
-        localStorage.setItem(STORAGE_KEYS.draft, draft);
-      } catch {
-        /* quota — still show the guide this session */
+    pendingExternalFromUrl = false;
+    // Prefer IndexedDB draft for this doc; fall back to localStorage mirror; seed GUIDE once.
+    let draft = await loadStoredDraftContent();
+    if (draft == null && currentDocKey() !== "untitled") {
+      // Upgrade from pre-scoped single draft (migrated to "untitled").
+      const legacy = await loadStoredDraftContent("untitled");
+      if (legacy != null) {
+        draft = legacy;
+        if (historyIdbReady) await setDraft(legacy, currentDocKey());
       }
     }
+    if (draft == null) {
+      draft = await guidePromise;
+    }
+    await persistDraft(draft ?? "");
     setEditorValue(draft ?? "");
     lastHistoryContent = draft ?? "";
     setContentExternal(false);
   }
 
-  // Prefer the last clean snapshot when a file binding was restored, so
-  // unsaved edits still show as dirty after reload.
+  // Dirty = editor differs from last disk save or accepted URL baseline.
+  // Draft auto-save alone never marks clean.
   try {
-    const storedSnapshot = localStorage.getItem(STORAGE_KEYS.savedSnapshot);
-    if (storedSnapshot != null && currentFileName) {
-      savedSnapshot = storedSnapshot;
+    if (pendingExternalFromUrl) {
+      // Keep prior savedSnapshot from stash path; Accept will mark clean.
       updateSaveButton();
+    } else if (currentFileHandle) {
+      let storedSnapshot = readSavedSnapshot(currentDocKey());
+      if (storedSnapshot == null && currentFileName && currentDocKey() !== "untitled") {
+        const legacySnap = readSavedSnapshot("untitled");
+        if (legacySnap != null) {
+          storedSnapshot = legacySnap;
+          writeSavedSnapshot(currentDocKey(), legacySnap);
+        }
+      }
+      if (storedSnapshot != null) {
+        savedSnapshot = storedSnapshot;
+        updateSaveButton();
+      } else {
+        // Bound file with no snapshot yet — treat current text as matching disk.
+        markCleanFromEditor();
+      }
     } else {
-      markCleanFromEditor();
+      markDirtyBaseline();
     }
   } catch {
-    markCleanFromEditor();
+    markDirtyBaseline();
   }
 
   renderMarkdown(getMarkdownSource());
-  renderHistoryMenu();
 
-  const initialView =
-    shareState.view ||
-    (fromUrl != null ? "reader" : "edit");
+  const initialView = urlIsExternal ? "edit" : shareState.view || "edit";
   setView(initialView, { syncUrl: fromUrl != null });
 
   // After draft/URL load so a launched file overwrites the restored editor.
@@ -4547,6 +5903,11 @@ async function init() {
   void getComputedStyle(panes).gridTemplateColumns;
   document.documentElement.classList.remove("is-booting");
 
+  // Non-critical UI — after first paint (next frame), so speak/history work ASAP.
+  requestAnimationFrame(() => {
+    setupSpeech();
+    renderHistoryMenu();
+  });
   editor.addEventListener("input", onEditorInput);
   editor.addEventListener("beforeinput", onEditorBeforeInput);
   editor.addEventListener("paste", onEditorPaste);
@@ -4556,8 +5917,8 @@ async function init() {
   themeSelect.addEventListener("change", () => {
     setTheme(themeSelect.value, { persist: isAuthoringView() });
     // Mermaid colors follow --mermaid-* CSS variables, so no re-render is needed.
-    if (!isAuthoringView() && editor.value.trim()) {
-      void syncHashForView(currentView);
+    if (!isAuthoringView()) {
+      syncHashForView(currentView);
     }
   });
 
@@ -4566,6 +5927,9 @@ async function init() {
     closeOverflowMenu();
   });
 
+  uploadBtn?.addEventListener("click", () => {
+    fileInput.click();
+  });
   fileInput.addEventListener("change", () => {
     const file = fileInput.files?.[0];
     handleFile(file);
@@ -4575,10 +5939,8 @@ async function init() {
 
   shareBtn.addEventListener("click", (e) => {
     e.stopPropagation();
-    toggleShareMenu();
+    void copyShareUrl();
   });
-  shareReaderBtn?.addEventListener("click", () => void copyShareUrl("reader"));
-  sharePresentBtn?.addEventListener("click", () => void copyShareUrl("present"));
 
   exportBtn?.addEventListener("click", (e) => {
     e.stopPropagation();
@@ -4606,6 +5968,8 @@ async function init() {
   });
   presentViewBtn?.addEventListener("click", enterPresentMode);
   printBtn?.addEventListener("click", () => window.print());
+  window.addEventListener("beforeprint", syncPrintPageOrientation);
+  window.addEventListener("afterprint", clearPrintPageOrientation);
   presentPrevBtn?.addEventListener("click", presentPrev);
   presentNextBtn?.addEventListener("click", presentNext);
   presentExitBtn?.addEventListener("click", exitPresentMode);
@@ -4734,10 +6098,9 @@ async function init() {
     }
 
     if (isSlideNavView()) {
-      const typingInEditor = currentView === "slides" && document.activeElement === editor;
       if (e.key === "Escape") {
-        if (viewModeMenu && !viewModeMenu.hidden) {
-          closeViewModeMenu();
+        // Menus first — don't exit slides/present while an overlay is open.
+        if (dismissOpenOverlay()) {
           e.preventDefault();
           return;
         }
@@ -4745,7 +6108,8 @@ async function init() {
         e.preventDefault();
         return;
       }
-      if (typingInEditor) return;
+      // Don't steal Space/arrows from buttons, menus, selects, tree, splitter, etc.
+      if (isSlideNavTypingOrControl(document.activeElement)) return;
       if (e.key === "ArrowRight" || e.key === "ArrowDown" || e.key === " " || e.key === "PageDown") {
         presentNext();
         e.preventDefault();
@@ -4771,15 +6135,9 @@ async function init() {
     }
 
     if (e.key === "Escape") {
-      closeHistory();
-      closeVoiceMenu();
-      closeShareMenu();
-      closeExportMenu();
-      closeViewModeMenu();
-      closeOverflowMenu();
-      closeFilesContextMenu();
-      if (filesDrawerOpen && window.matchMedia(NARROW_MQ).matches) {
-        setFilesDrawerOpen(false);
+      if (dismissOpenOverlay()) {
+        e.preventDefault();
+        return;
       }
       if (speechActive) stopSpeaking();
     }

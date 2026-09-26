@@ -82,6 +82,7 @@
     })();
   </script>
   <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="print.css" media="print" />
   <link
     rel="modulepreload"
     href="https://cdn.jsdelivr.net/npm/marked@18.0.13/lib/marked.esm.js"
@@ -96,8 +97,20 @@
   />
   <link
     rel="modulepreload"
-    href="https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.12.0/es/highlight.min.js"
-    integrity="sha384-l8ERxkewKrLDU6JM23uJxYhbq4kpknJgRKU1IPppBiJKjPRzMTgoZaBTyJWX6tCr"
+    href="https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.12.0/es/core.min.js"
+    integrity="sha384-2f7fURQL4kJaQ73YY8MVgq6LBaed5Dz6Pv9SdsbeAKurWj/0OLDSfrDCdIB18Dsm"
+    crossorigin="anonymous"
+  />
+  <link
+    rel="modulepreload"
+    href="https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.12.0/es/languages/markdown.min.js"
+    integrity="sha384-atzUeXgldTnp0Vvir5hFSZ4MRX0FWOpxp7UdXca7uje0uL5S6swwfRhq5SB5Ag0m"
+    crossorigin="anonymous"
+  />
+  <link
+    rel="modulepreload"
+    href="https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.12.0/es/languages/xml.min.js"
+    integrity="sha384-7lgbaoMNJXxrndTFyw0ll0hq1MZzDLFkFmLhYLibSJNXgcW6xOSU9e+OS2QaAKDP"
     crossorigin="anonymous"
   />
   <link
@@ -117,14 +130,16 @@
     "imports": {
       "marked": "https://cdn.jsdelivr.net/npm/marked@18.0.13/lib/marked.esm.js",
       "dompurify": "https://cdn.jsdelivr.net/npm/dompurify@3.4.15/dist/purify.es.mjs",
-      "highlight.js": "https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.12.0/es/highlight.min.js",
+      "highlight.js": "https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.12.0/es/core.min.js",
       "gemoji": "https://cdn.jsdelivr.net/npm/gemoji@8.1.0/+esm",
       "yaml": "https://cdn.jsdelivr.net/npm/yaml@2.9.1/+esm"
     },
     "integrity": {
       "https://cdn.jsdelivr.net/npm/marked@18.0.13/lib/marked.esm.js": "sha384-e72zKBnxCunMabU3bdcEoYpC/kmXSAxZBNzDIClVBHNG0Bywm2jm+BTgSQsLtv40",
       "https://cdn.jsdelivr.net/npm/dompurify@3.4.15/dist/purify.es.mjs": "sha384-7qp4WRTNsGGxR8HfIhcAZoSk58Z/fsUx40ul1tuY0myp6r0jHAqEnFiaNOobIc9v",
-      "https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.12.0/es/highlight.min.js": "sha384-l8ERxkewKrLDU6JM23uJxYhbq4kpknJgRKU1IPppBiJKjPRzMTgoZaBTyJWX6tCr",
+      "https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.12.0/es/core.min.js": "sha384-2f7fURQL4kJaQ73YY8MVgq6LBaed5Dz6Pv9SdsbeAKurWj/0OLDSfrDCdIB18Dsm",
+      "https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.12.0/es/languages/markdown.min.js": "sha384-atzUeXgldTnp0Vvir5hFSZ4MRX0FWOpxp7UdXca7uje0uL5S6swwfRhq5SB5Ag0m",
+      "https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.12.0/es/languages/xml.min.js": "sha384-7lgbaoMNJXxrndTFyw0ll0hq1MZzDLFkFmLhYLibSJNXgcW6xOSU9e+OS2QaAKDP",
       "https://cdn.jsdelivr.net/npm/gemoji@8.1.0/+esm": "sha384-BxixXuX+Sw/FKnMEyJ+uFfpzgLCYpImf3Wks5yu6wYrASvTTUe4lmI+mXE9kKdAL",
       "https://cdn.jsdelivr.net/npm/yaml@2.9.1/+esm": "sha384-MVwSuH88MctNNg+3dwLImVhp3/5G1k0NtNYzmuuplV7D/xSlRSidadLxUMGnsGnE"
     }
@@ -157,21 +172,21 @@
     <div class="toolbar-menu" id="toolbar-menu">
       <div class="toolbar-actions" id="toolbar-actions">
         <div class="toolbar-cluster toolbar-secondary" id="toolbar-secondary">
-          <label class="btn file-btn svg-btn authoring-only" title="Upload" aria-label="Upload">
+          <button type="button" class="btn file-btn svg-btn authoring-only" id="upload-btn" title="Upload" aria-label="Upload">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
               <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" />
               <path d="M14 2v4a2 2 0 0 0 2 2h4" />
               <path d="M12 12v6" />
               <path d="M9 15l3-3 3 3" />
             </svg>
-            <input
-              type="file"
-              id="file-input"
-              aria-label="Upload"
-              accept=".md,.markdown,.txt,.html,.htm,text/markdown,text/plain,text/html"
-              hidden
-            />
-          </label>
+          </button>
+          <input
+            type="file"
+            id="file-input"
+            tabindex="-1"
+            accept=".md,.markdown,.txt,.html,.htm,text/markdown,text/plain,text/html"
+            hidden
+          />
           <button
             type="button"
             class="btn svg-btn authoring-only fs-only"
@@ -231,20 +246,12 @@
             </select>
           </label>
           <div class="dropdown" id="share-dropdown">
-            <button type="button" class="btn svg-btn" id="share-btn" title="Copy reader link" aria-label="Copy reader link" aria-haspopup="menu" aria-expanded="false" aria-controls="share-menu">
+            <button type="button" class="btn svg-btn" id="share-btn" title="Copy share link" aria-label="Copy share link">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
                 <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
                 <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
               </svg>
             </button>
-            <ul class="dropdown-menu" id="share-menu" role="menu" hidden>
-              <li>
-                <button type="button" role="menuitem" id="share-reader-btn">Copy reader link</button>
-              </li>
-              <li>
-                <button type="button" role="menuitem" id="share-present-btn">Copy present link</button>
-              </li>
-            </ul>
           </div>
           <div class="dropdown" id="export-dropdown">
             <button type="button" class="btn svg-btn" id="export-btn" title="Export" aria-label="Export" aria-haspopup="menu" aria-expanded="false" aria-controls="export-menu">
@@ -441,12 +448,12 @@
 
   <div class="workspace" id="workspace">
     <aside class="files-drawer" id="files-drawer" aria-label="Files" hidden>
-      <section class="files-drawer-section files-section" aria-labelledby="files-drawer-title">
+      <section class="files-drawer-section files-section" data-drawer-section="files" aria-labelledby="files-drawer-title">
         <div class="files-drawer-header">
           <div class="files-drawer-title-row">
             <strong class="files-drawer-title" id="files-drawer-title">Files</strong>
           </div>
-          <div class="files-drawer-actions">
+          <div class="files-drawer-actions" id="files-section-actions">
             <button type="button" class="btn" id="files-open-folder-btn" title="Open folder">Open folder</button>
             <button type="button" class="btn" id="files-new-file-btn" title="New untitled document">New</button>
             <button type="button" class="btn" id="files-new-folder-btn" title="New folder" disabled>New folder</button>
@@ -460,7 +467,7 @@
             </button>
           </div>
         </div>
-        <div class="files-drawer-body">
+        <div class="files-drawer-body" id="files-section-body">
           <div class="files-empty" id="files-empty">
             <p>Open a folder to browse Markdown, text, and HTML files.</p>
             <button type="button" class="btn" id="files-empty-open-btn">Open folder</button>
@@ -473,7 +480,7 @@
           <ul class="files-tree" id="files-tree" role="tree" hidden></ul>
         </div>
       </section>
-      <section class="files-drawer-section outline-section" aria-labelledby="outline-title">
+      <section class="files-drawer-section outline-section" data-drawer-section="outline" aria-labelledby="outline-title">
         <div class="outline-header">
           <strong class="outline-title" id="outline-title">Outline</strong>
         </div>

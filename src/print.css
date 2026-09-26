@@ -1,0 +1,321 @@
+/* Print stylesheet — linked separately in dev; inlined into the hashed CSS bundle at build. */
+
+@media print {
+  /* Force GitHub Light tokens even if data-theme was not swapped (e.g. some PDF tools).
+     Specificity matches html[data-theme="…"] so these win when printing. */
+  html[data-theme] {
+    --chrome-bg: #f6f7f9;
+    --chrome-surface: #ffffff;
+    --chrome-border: #d8dce3;
+    --chrome-text: #1a1d23;
+    --chrome-muted: #5c6570;
+    --chrome-hover: #e8ebf0;
+    --chrome-focus: #3b6fd9;
+    --chrome-pressed-border: #aeb6c2;
+    --chrome-shadow: 0 8px 24px rgba(26, 29, 35, 0.12);
+    --editor-bg: #ffffff;
+    --editor-text: #1a1d23;
+    --preview-bg: #ffffff;
+    --preview-fg: #1f2328;
+    --preview-muted: #656d76;
+    --preview-link: #0969da;
+    --preview-link-hover: #0550ae;
+    --preview-rule: #d1d9e0;
+    --preview-code-bg: #f6f8fa;
+    --preview-pre-bg: #f6f8fa;
+    --preview-pre-border: #d1d9e0;
+    --preview-quote: #d1d9e0;
+    --preview-font: var(--font-ui);
+    --preview-size: 1rem;
+    --heading-color: inherit;
+    --toast-bg: #1a1d23;
+    --toast-fg: #ffffff;
+    --color-scheme: light;
+    --syntax-comment: #6a737d;
+    --syntax-keyword: #d73a49;
+    --syntax-string: #032f62;
+    --syntax-number: #005cc5;
+    --syntax-literal: #005cc5;
+    --syntax-built-in: #e36209;
+    --syntax-type: #6f42c1;
+    --syntax-attr: #005cc5;
+    --syntax-title: #6f42c1;
+    --syntax-meta: #6a737d;
+    --syntax-deletion: #b31d28;
+    --syntax-addition: #22863a;
+    --mermaid-bg: #ffffff;
+    --mermaid-fg: #333333;
+    --mermaid-node-bg: #ececff;
+    --mermaid-node-border: #9370db;
+    --mermaid-cluster-bg: #ffffde;
+    --mermaid-cluster-border: #aaaa33;
+    --mermaid-line: #333333;
+    --mermaid-label-bg: #e8e8e8;
+    --mermaid-note-bg: #fff5ad;
+  }
+
+  html,
+  body {
+    background: #fff !important;
+    background-image: none !important;
+    color: #1f2328 !important;
+    height: auto !important;
+    display: block !important;
+  }
+
+  .toolbar,
+  .splitter,
+  .editor-pane,
+  .drop-overlay,
+  .toast,
+  .update-toast,
+  .external-modal,
+  .photo-credit,
+  .present-chrome,
+  .overflow-btn,
+  .authoring-only,
+  .reader-only,
+  .reader-visible,
+  .files-drawer,
+  .files-backdrop,
+  .files-context-menu,
+  .md-section-toggle,
+  #speak-dropdown,
+  #share-dropdown,
+  #export-dropdown,
+  #install-btn,
+  #toolbar-menu {
+    display: none !important;
+  }
+
+  .preview .md-section-folded {
+    display: revert !important;
+  }
+
+  .workspace,
+  .panes,
+  .preview-pane {
+    display: block !important;
+    height: auto !important;
+    overflow: visible !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    filter: none !important;
+  }
+
+  /* Edit-mode "collapse preview" must not blank the printout. */
+  .panes.preview-collapsed {
+    --editor-track: 0% !important;
+    --preview-track: 100% !important;
+    --splitter-track: 0px !important;
+  }
+
+  .panes.preview-collapsed .preview-pane {
+    visibility: visible !important;
+    pointer-events: auto !important;
+    overflow: visible !important;
+  }
+
+  .preview {
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    color: var(--preview-fg) !important;
+    background: #fff !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+    filter: none !important;
+    font-family: var(--preview-font) !important;
+    font-size: var(--preview-size) !important;
+  }
+
+  .preview > [hidden] {
+    display: revert !important;
+  }
+
+  /* Slides/present hide non-current sections with higher specificity on screen;
+     beat that so Print includes the whole deck. */
+  body[data-view="present"] .preview > [hidden],
+  body[data-view="slides"] .preview > [hidden] {
+    display: revert !important;
+  }
+
+  /* One slide per page (skip the first heading so page 1 isn’t blank). */
+  body[data-view="present"] .preview > h1:not(:first-child),
+  body[data-view="present"] .preview > h2:not(:first-child),
+  body[data-view="slides"] .preview > h1:not(:first-child),
+  body[data-view="slides"] .preview > h2:not(:first-child) {
+    break-before: page;
+    page-break-before: always;
+  }
+
+  .preview a {
+    color: var(--preview-link) !important;
+    font-weight: inherit !important;
+    text-decoration: underline;
+  }
+
+  /* Neutralize theme-specific preview chrome (Salesforce / Fancy) */
+  .preview h1,
+  .preview h2 {
+    border-bottom-color: var(--preview-rule) !important;
+  }
+
+  .preview blockquote {
+    background: transparent !important;
+    border-left: 3px solid var(--preview-quote) !important;
+    border-radius: 0 !important;
+    padding: 0.15em 0 0.15em 1em !important;
+    color: var(--preview-muted) !important;
+  }
+
+  .preview .markdown-alert {
+    background: transparent !important;
+    border-left: 0.25em solid var(--preview-quote) !important;
+    color: inherit !important;
+  }
+
+  .preview .markdown-alert-note {
+    border-left-color: var(--alert-note) !important;
+  }
+
+  .preview .markdown-alert-tip {
+    border-left-color: var(--alert-tip) !important;
+  }
+
+  .preview .markdown-alert-important {
+    border-left-color: var(--alert-important) !important;
+  }
+
+  .preview .markdown-alert-warning {
+    border-left-color: var(--alert-warning) !important;
+  }
+
+  .preview .markdown-alert-caution {
+    border-left-color: var(--alert-caution) !important;
+  }
+
+  .preview .markdown-alert-note .markdown-alert-title {
+    color: var(--alert-note) !important;
+  }
+
+  .preview .markdown-alert-tip .markdown-alert-title {
+    color: var(--alert-tip) !important;
+  }
+
+  .preview .markdown-alert-important .markdown-alert-title {
+    color: var(--alert-important) !important;
+  }
+
+  .preview .markdown-alert-warning .markdown-alert-title {
+    color: var(--alert-warning) !important;
+  }
+
+  .preview .markdown-alert-caution .markdown-alert-title {
+    color: var(--alert-caution) !important;
+  }
+
+  .preview table.markdown-frontmatter {
+    display: table !important;
+    overflow: visible !important;
+  }
+
+  .preview .markdown-frontmatter-error {
+    background: var(--preview-code-bg) !important;
+    border: 1px solid var(--preview-rule) !important;
+  }
+
+  .preview .markdown-frontmatter-nested {
+    background: transparent !important;
+    border: 0 !important;
+  }
+
+  .preview pre,
+  .preview pre code {
+    color: inherit !important;
+  }
+
+  .preview code:not(pre code) {
+    color: inherit !important;
+    background: var(--preview-code-bg) !important;
+    border-radius: 3px !important;
+  }
+
+  .preview pre {
+    background: var(--preview-pre-bg) !important;
+    border: 1px solid var(--preview-pre-border) !important;
+    border-radius: 6px !important;
+  }
+
+  .preview .line-num {
+    position: static;
+    white-space: nowrap;
+    background: var(--preview-pre-bg) !important;
+    border-right-color: var(--preview-pre-border) !important;
+    color: var(--syntax-comment) !important;
+  }
+
+  .preview pre,
+  .preview blockquote,
+  .preview .markdown-alert,
+  .preview .markdown-frontmatter-error,
+  .preview table {
+    break-inside: avoid;
+  }
+
+  .preview pre,
+  .preview pre code {
+    overflow: visible !important;
+    white-space: pre-wrap !important;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  .preview pre code {
+    grid-template-columns: max-content minmax(0, 1fr);
+  }
+
+  .preview .line-src {
+    min-width: 0;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  .preview table {
+    display: table !important;
+    overflow: visible !important;
+    width: 100% !important;
+  }
+
+  .preview h1,
+  .preview h2,
+  .preview h3,
+  .preview h4 {
+    break-after: avoid;
+  }
+
+  .preview img,
+  .preview .mermaid {
+    break-inside: avoid;
+    max-width: 100% !important;
+    overflow: visible !important;
+  }
+
+  .preview .mermaid,
+  .preview .mermaid svg {
+    background: var(--mermaid-bg) !important;
+    background-color: var(--mermaid-bg) !important;
+    filter: none !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}

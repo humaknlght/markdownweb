@@ -19,7 +19,7 @@ This guide covers how to use the app and every Markdown feature it supports.
 - **Drag and drop** — Drop a file onto the window to load it.
 - **Open with (PWA)** — An installed app can register as a handler for `.md` / `.markdown` files.
 
-When Markdown arrives from a share link, upload, or OS file open, an **External content** dialog asks you to **Accept** or **Reject** it.
+When Markdown arrives from a share link, upload, or OS file open, an **External content** dialog asks you to **Accept** or **Reject** it. Until you Accept, the preview stays blank and editor syntax highlighting is off — only the plain source is shown — so untrusted Markdown is not parsed.
 
 ### Paste an image
 
@@ -45,6 +45,8 @@ Notes:
 ### Files drawer
 
 Available on Chromium desktop when the File System Access API is supported. Open it with the hamburger button.
+
+Drafts and “unsaved” snapshots are scoped per open file (and a shared **untitled** slot), so two tabs editing different files do not overwrite each other. A document stays **unsaved** until it is written to disk (File System Access) or accepted from a share URL (`md` / `mdz`); IndexedDB auto-save alone does not clear that state.
 
 | Action | What it does |
 |--------|----------------|
@@ -101,16 +103,18 @@ Pick a theme from the dropdown. Your choice is remembered:
 
 ### Draft auto-save and local history
 
-Your current draft is **auto-saved** to `localStorage` as you type, so reloading the page restores your work.
+Your current draft is **auto-saved** primarily in **IndexedDB** (with a small `localStorage` mirror when the document is under ~100 000 characters), so reloading the page restores your work. Auto-save does **not** clear the unsaved indicator — that clears when you **Save** to disk or **Accept** content from a share link (`md` / `mdz`).
 
-Separately, **History** keeps up to **20** recent snapshots (also in `localStorage`, capped around 200 000 characters total). Snapshots are written after a short idle pause. Open the history dropdown in the toolbar to restore an earlier version.
+Separately, **History** keeps up to **20** recent snapshots. The newest full document, older revision bodies, and the history index are committed together in **IndexedDB** (so a crash cannot leave the tip and index out of sync). `localStorage` mirrors a lightweight copy of the index for the menu. Snapshots are written after about **15 seconds** of idle typing. Open the history dropdown in the toolbar to restore an earlier version.
+
+Storage is best-effort: browsers may deny persistent storage, and clearing site data removes drafts and history.
 
 > [!TIP]
 > Auto-save keeps the latest draft. History lets you step back if you overwrite something you still need.
 
 ### Print
 
-Use the toolbar **Print** button to print the current preview (or choose “Save as PDF” in the system print dialog). Print styles hide the chrome and keep the article clean.
+Use the toolbar **Print** button to print the current preview (or choose “Save as PDF” in the system print dialog). Print styles hide the chrome and keep the article clean. From **Slides** or **Present**, printing uses landscape pages and starts a new page at each top-level `h1`/`h2` slide.
 
 This is separate from **Export → PDF**, which builds a dedicated print document in a hidden frame (better for Mermaid diagrams and a clean export filename).
 
@@ -128,7 +132,7 @@ From **Export**, choose:
 
 ### Share links
 
-**Copy reader link** or **Copy present link** compresses your Markdown into a URL (`#mdz=…` with theme and view). Long documents may produce links that are too large for some browsers; a toast warns when that happens.
+The share button copies a link with your Markdown compressed into the URL (`#mdz=…` with theme and `view=edit`). Recipients land in the editor so they can read the source and decide **Accept** or **Reject** before anything is previewed. Long documents may produce links that are too large for some browsers; a toast warns when that happens.
 
 ### Read aloud and voice picker
 
@@ -430,7 +434,7 @@ Renders as: :wink: :heart: :rocket: :tada: :+1: :warning:
 
 ### Emoticons
 
-Common ASCII faces convert to emoji (skipped inside URLs so `http://` is safe):
+Common ASCII faces convert to emoji when surrounded by whitespace or punctuation (not letters/digits), and are skipped inside URLs so `http://` and paths like `C:\Users` stay safe. Use `:sunglasses:` for the sunglasses emoji.
 
 | Type this | Get |
 |-----------|-----|
@@ -443,7 +447,6 @@ Common ASCII faces convert to emoji (skipped inside URLs so `http://` is safe):
 | `<3` | ❤️ |
 | `</3` | 💔 |
 | `:-P` `:P` | 😛 |
-| `8-)` `8)` | 😎 |
 | `>:(` | 😠 |
 | `o:-)` `O:)` | 😇 |
 | `:/` `:-/` | 😕 |
@@ -480,7 +483,7 @@ Common ASCII faces convert to emoji (skipped inside URLs so `http://` is safe):
 ## Tips
 
 - Structure long documents with `#` and `##` so Present and Slides mode feel natural.
-- Prefer share **reader** links for reading and **present** links for walkthroughs.
+- Share links always open in **edit** so recipients can check the source before Accepting.
 - Mermaid and syntax highlighting work best in the live preview and in HTML / PDF export; DOCX / RTF are simpler text-oriented exports.
 - Use **Print** for a quick hard copy; use **Export → PDF** when you want a cleaner Mermaid-friendly save.
 - Install the PWA if you want offline editing and “Open with” for Markdown files.

@@ -3,14 +3,23 @@
  * Local static server that mirrors public/.htaccess security headers
  * and serves precompressed .br / .gz assets when available.
  *
+ * Uses HTTP/2 over TLS when Node's http2 module and a local self-signed
+ * cert are available (browsers require TLS for HTTP/2). Falls back to
+ * plain HTTP/1.1 otherwise. HTTP/1.1 clients are still accepted on the
+ * TLS server via allowHTTP1.
+ *
  * Usage:
  *   node scripts/serve.mjs [rootDir] [port]
  *   npm run preview   → dist on 3456
  *   npm run dev       → src on 3456
  */
 import http from "node:http";
+import http2 from "node:http2";
 import fs from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 import {
   inlineScriptHashes,
@@ -18,6 +27,8 @@ import {
   buildContentSecurityPolicy,
 } from "./csp.mjs";
 import { guideSourcePath } from "./sync-guide.mjs";
+
+const execFileAsync = promisify(execFile);
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(process.cwd(), process.argv[2] || "dist");
@@ -157,7 +168,43 @@ async function resolveWithCompression(logicalPath, acceptEncoding) {
   return { path: logicalPath, encoding: null };
 }
 
-const server = http.createServer(async (req, res) => {
+/**
+ * Browsers only speak HTTP/2 over TLS. Cache a self-signed cert for
+ * 127.0.0.1 / localhost in the OS temp dir so restarts stay quiet.
+ */
+async function ensureLocalTls() {
+  const dir = path.join(os.tmpdir(), "markdown-preview-certs");
+  const keyPath = path.join(dir, "key.pem");
+  const certPath = path.join(dir, "cert.pem");
+
+  if (!(await exists(keyPath)) || !(await exists(certPath))) {
+    await fs.mkdir(dir, { recursive: true });
+    await execFileAsync("openssl", [
+      "req",
+      "-x509",
+      "-newkey",
+      "rsa:2048",
+      "-keyout",
+      keyPath,
+      "-out",
+      certPath,
+      "-days",
+      "3650",
+      "-nodes",
+      "-subj",
+      "/CN=127.0.0.1",
+      "-addext",
+      "subjectAltName=IP:127.0.0.1,DNS:localhost",
+    ]);
+  }
+
+  return {
+    key: await fs.readFile(keyPath),
+    cert: await fs.readFile(certPath),
+  };
+}
+
+async function handleRequest(req, res) {
   try {
     let logicalPath = safeResolve(req.url || "/");
     if (!logicalPath) {
@@ -207,10 +254,40 @@ const server = http.createServer(async (req, res) => {
     });
     res.end("Internal Server Error");
   }
-});
+}
+
+async function createServer() {
+  if (typeof http2.createSecureServer === "function") {
+    try {
+      const tls = await ensureLocalTls();
+      const server = http2.createSecureServer(
+        { ...tls, allowHTTP1: true },
+        handleRequest
+      );
+      return { server, protocol: "https", http2: true };
+    } catch (err) {
+      console.warn(
+        `HTTP/2 unavailable (${err.message || err}); falling back to HTTP/1.1`
+      );
+    }
+  }
+
+  return {
+    server: http.createServer(handleRequest),
+    protocol: "http",
+    http2: false,
+  };
+}
+
+const { server, protocol, http2: usingHttp2 } = await createServer();
 
 server.listen(port, "127.0.0.1", () => {
   console.log(`Serving ${rootDir}`);
-  console.log(`  http://127.0.0.1:${port}/`);
+  console.log(`  ${protocol}://127.0.0.1:${port}/`);
+  if (usingHttp2) {
+    console.log("  HTTP/2 enabled (self-signed TLS; accept the browser warning once)");
+  } else {
+    console.log("  HTTP/1.1");
+  }
   console.log(`  CSP script-src: ${scriptSrc}`);
 });

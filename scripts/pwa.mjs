@@ -1,11 +1,15 @@
 import { createHash } from "node:crypto";
 
 /** CDN modules the app needs fully offline (import map). Mermaid ESM entry is
- * precached; diagram chunks are cached on first use by the service worker. */
+ * precached; diagram chunks are cached on first use by the service worker.
+ * highlight.js language grammars (beyond markdown/xml) load on demand and are
+ * cached by the SW after first use. */
 export const CDN_PRECACHE = [
   "https://cdn.jsdelivr.net/npm/marked@18.0.13/lib/marked.esm.js",
   "https://cdn.jsdelivr.net/npm/dompurify@3.4.15/dist/purify.es.mjs",
-  "https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.12.0/es/highlight.min.js",
+  "https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.12.0/es/core.min.js",
+  "https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.12.0/es/languages/markdown.min.js",
+  "https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.12.0/es/languages/xml.min.js",
   "https://cdn.jsdelivr.net/npm/gemoji@8.1.0/+esm",
   "https://cdn.jsdelivr.net/npm/yaml@2.9.1/+esm",
   "https://cdn.jsdelivr.net/npm/mermaid@12.0.0/dist/mermaid.esm.min.mjs",
@@ -146,20 +150,40 @@ self.addEventListener("fetch", (event) => {
 
   if (!sameOrigin && !isCdn) return;
 
+  // CDN (pinned URLs): cache-first. Same-origin: network-first so edits/deploys
+  // show up without waiting for a new CACHE name (dev + prod).
+  if (isCdn) {
+    event.respondWith(
+      (async () => {
+        const cached = await caches.match(request);
+        if (cached) return cached;
+
+        try {
+          const fresh = await fetch(request);
+          if (fresh.ok) {
+            const cache = await caches.open(CACHE);
+            await cache.put(request, fresh.clone());
+          }
+          return fresh;
+        } catch {
+          return cached || Response.error();
+        }
+      })()
+    );
+    return;
+  }
+
   event.respondWith(
     (async () => {
-      const cached = await caches.match(request);
-      if (cached) return cached;
-
       try {
-        const fresh = await fetch(request);
+        const fresh = await fetch(request, { cache: "no-cache" });
         if (fresh.ok) {
           const cache = await caches.open(CACHE);
           await cache.put(request, fresh.clone());
         }
         return fresh;
       } catch {
-        return cached || Response.error();
+        return (await caches.match(request)) || Response.error();
       }
     })()
   );

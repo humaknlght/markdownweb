@@ -1221,6 +1221,12 @@ a.btn {
   filter: brightness(1.08);
 }
 
+.external-preview-placeholder {
+  margin: 1.25rem 1rem;
+  color: var(--preview-muted);
+  font: var(--preview-size) / 1.5 var(--preview-font);
+}
+
 /* Fancy surface is translucent — inverted Accept needs opaque dark label text. */
 html[data-theme="fancy"] .external-modal .btn.external-modal-accept {
   background: #f4f8fb;
@@ -1780,10 +1786,100 @@ mark.speech-word {
 .preview h4,
 .preview h5,
 .preview h6 {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
   margin: 1.4em 0 0.55em;
   line-height: 1.25;
   font-weight: 650;
   color: var(--heading-color);
+}
+
+.preview .md-section-label {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.preview .md-section-toggle {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 0.15em 0.2em;
+  border: none;
+  border-radius: 0.25rem;
+  background: transparent;
+  color: var(--preview-muted);
+  font: inherit;
+  font-size: 0.55em;
+  line-height: 1;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  vertical-align: baseline;
+  position: relative;
+  top: -0.05em;
+}
+
+.preview .md-section-toggle:focus-visible {
+  outline: 2px solid var(--chrome-focus, Highlight);
+  outline-offset: 1px;
+}
+
+.preview .md-section-twistie {
+  display: block;
+  width: 0.9em;
+  text-align: center;
+  transform: rotate(0deg);
+  transition: transform 0.18s ease;
+}
+
+.preview h1.is-collapsed .md-section-twistie,
+.preview h2.is-collapsed .md-section-twistie,
+.preview h3.is-collapsed .md-section-twistie,
+.preview h4.is-collapsed .md-section-twistie,
+.preview h5.is-collapsed .md-section-twistie,
+.preview h6.is-collapsed .md-section-twistie {
+  transform: rotate(-90deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .preview .md-section-twistie {
+    transition: none;
+  }
+
+  .preview .md-section-anim {
+    transition: none;
+  }
+}
+
+.preview .md-section-folded {
+  display: none !important;
+}
+
+.preview .md-section-anim {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows 0.22s ease;
+}
+
+.preview .md-section-anim.is-collapsed {
+  grid-template-rows: 0fr;
+}
+
+.preview .md-section-anim.is-expanded {
+  grid-template-rows: 1fr;
+}
+
+.preview .md-section-anim-inner {
+  overflow: hidden;
+  min-height: 0;
+}
+
+body[data-view="present"] .preview .md-section-toggle,
+body[data-view="slides"] .preview .md-section-toggle {
+  display: none;
 }
 
 .preview h1 {
@@ -2924,6 +3020,16 @@ body[data-view="slides"] .preview > [hidden] {
   display: none !important;
 }
 
+/* Each slide starts with an h1/h2 that is not :first-child (earlier slides
+   stay in the DOM as [hidden]), so the normal heading margin-top would leave
+   a gap. Zero it for all section titles in slides/present. */
+body[data-view="present"] .preview > h1,
+body[data-view="present"] .preview > h2,
+body[data-view="slides"] .preview > h1,
+body[data-view="slides"] .preview > h2 {
+  margin-top: 0;
+}
+
 .present-chrome {
   position: absolute;
   left: 50%;
@@ -2992,290 +3098,4 @@ body[data-view="present"] .present-chrome.is-active {
 #export-menu li button:focus-visible {
   background: var(--chrome-hover);
   outline: none;
-}
-
-@media print {
-  /* Force GitHub Light tokens even if data-theme was not swapped (e.g. some PDF tools).
-     Specificity matches html[data-theme="…"] so these win when printing. */
-  html[data-theme] {
-    --chrome-bg: #f6f7f9;
-    --chrome-surface: #ffffff;
-    --chrome-border: #d8dce3;
-    --chrome-text: #1a1d23;
-    --chrome-muted: #5c6570;
-    --chrome-hover: #e8ebf0;
-    --chrome-focus: #3b6fd9;
-    --chrome-pressed-border: #aeb6c2;
-    --chrome-shadow: 0 8px 24px rgba(26, 29, 35, 0.12);
-    --editor-bg: #ffffff;
-    --editor-text: #1a1d23;
-    --preview-bg: #ffffff;
-    --preview-fg: #1f2328;
-    --preview-muted: #656d76;
-    --preview-link: #0969da;
-    --preview-link-hover: #0550ae;
-    --preview-rule: #d1d9e0;
-    --preview-code-bg: #f6f8fa;
-    --preview-pre-bg: #f6f8fa;
-    --preview-pre-border: #d1d9e0;
-    --preview-quote: #d1d9e0;
-    --preview-font: var(--font-ui);
-    --preview-size: 1rem;
-    --heading-color: inherit;
-    --toast-bg: #1a1d23;
-    --toast-fg: #ffffff;
-    --color-scheme: light;
-    --syntax-comment: #6a737d;
-    --syntax-keyword: #d73a49;
-    --syntax-string: #032f62;
-    --syntax-number: #005cc5;
-    --syntax-literal: #005cc5;
-    --syntax-built-in: #e36209;
-    --syntax-type: #6f42c1;
-    --syntax-attr: #005cc5;
-    --syntax-title: #6f42c1;
-    --syntax-meta: #6a737d;
-    --syntax-deletion: #b31d28;
-    --syntax-addition: #22863a;
-    --mermaid-bg: #ffffff;
-    --mermaid-fg: #333333;
-    --mermaid-node-bg: #ececff;
-    --mermaid-node-border: #9370db;
-    --mermaid-cluster-bg: #ffffde;
-    --mermaid-cluster-border: #aaaa33;
-    --mermaid-line: #333333;
-    --mermaid-label-bg: #e8e8e8;
-    --mermaid-note-bg: #fff5ad;
-  }
-
-  html,
-  body {
-    background: #fff !important;
-    background-image: none !important;
-    color: #1f2328 !important;
-    height: auto !important;
-    display: block !important;
-  }
-
-  .toolbar,
-  .splitter,
-  .editor-pane,
-  .drop-overlay,
-  .toast,
-  .update-toast,
-  .external-modal,
-  .photo-credit,
-  .present-chrome,
-  .overflow-btn,
-  .authoring-only,
-  .reader-only,
-  .reader-visible,
-  .files-drawer,
-  .files-backdrop,
-  .files-context-menu,
-  #speak-dropdown,
-  #share-dropdown,
-  #export-dropdown,
-  #install-btn,
-  #toolbar-menu {
-    display: none !important;
-  }
-
-  .workspace,
-  .panes,
-  .preview-pane {
-    display: block !important;
-    height: auto !important;
-    overflow: visible !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    background: #fff !important;
-    border: 0 !important;
-    border-radius: 0 !important;
-    box-shadow: none !important;
-    backdrop-filter: none !important;
-    -webkit-backdrop-filter: none !important;
-    filter: none !important;
-  }
-
-  .preview {
-    max-width: none !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    color: var(--preview-fg) !important;
-    background: #fff !important;
-    border: 0 !important;
-    border-radius: 0 !important;
-    box-shadow: none !important;
-    text-shadow: none !important;
-    filter: none !important;
-    font-family: var(--preview-font) !important;
-    font-size: var(--preview-size) !important;
-  }
-
-  .preview > [hidden] {
-    display: revert !important;
-  }
-
-  .preview a {
-    color: var(--preview-link) !important;
-    font-weight: inherit !important;
-    text-decoration: underline;
-  }
-
-  /* Neutralize theme-specific preview chrome (Salesforce / Fancy) */
-  .preview h1,
-  .preview h2 {
-    border-bottom-color: var(--preview-rule) !important;
-  }
-
-  .preview blockquote {
-    background: transparent !important;
-    border-left: 3px solid var(--preview-quote) !important;
-    border-radius: 0 !important;
-    padding: 0.15em 0 0.15em 1em !important;
-    color: var(--preview-muted) !important;
-  }
-
-  .preview .markdown-alert {
-    background: transparent !important;
-    border-left: 0.25em solid var(--preview-quote) !important;
-    color: inherit !important;
-  }
-
-  .preview .markdown-alert-note {
-    border-left-color: var(--alert-note) !important;
-  }
-
-  .preview .markdown-alert-tip {
-    border-left-color: var(--alert-tip) !important;
-  }
-
-  .preview .markdown-alert-important {
-    border-left-color: var(--alert-important) !important;
-  }
-
-  .preview .markdown-alert-warning {
-    border-left-color: var(--alert-warning) !important;
-  }
-
-  .preview .markdown-alert-caution {
-    border-left-color: var(--alert-caution) !important;
-  }
-
-  .preview .markdown-alert-note .markdown-alert-title {
-    color: var(--alert-note) !important;
-  }
-
-  .preview .markdown-alert-tip .markdown-alert-title {
-    color: var(--alert-tip) !important;
-  }
-
-  .preview .markdown-alert-important .markdown-alert-title {
-    color: var(--alert-important) !important;
-  }
-
-  .preview .markdown-alert-warning .markdown-alert-title {
-    color: var(--alert-warning) !important;
-  }
-
-  .preview .markdown-alert-caution .markdown-alert-title {
-    color: var(--alert-caution) !important;
-  }
-
-  .preview table.markdown-frontmatter {
-    display: table !important;
-    overflow: visible !important;
-  }
-
-  .preview .markdown-frontmatter-error {
-    background: var(--preview-code-bg) !important;
-    border: 1px solid var(--preview-rule) !important;
-  }
-
-  .preview .markdown-frontmatter-nested {
-    background: transparent !important;
-    border: 0 !important;
-  }
-
-  .preview pre,
-  .preview pre code {
-    color: inherit !important;
-  }
-
-  .preview code:not(pre code) {
-    color: inherit !important;
-    background: var(--preview-code-bg) !important;
-    border-radius: 3px !important;
-  }
-
-  .preview pre {
-    background: var(--preview-pre-bg) !important;
-    border: 1px solid var(--preview-pre-border) !important;
-    border-radius: 6px !important;
-  }
-
-  .preview .line-num {
-    position: static;
-    white-space: nowrap;
-    background: var(--preview-pre-bg) !important;
-    border-right-color: var(--preview-pre-border) !important;
-    color: var(--syntax-comment) !important;
-  }
-
-  .preview pre,
-  .preview blockquote,
-  .preview .markdown-alert,
-  .preview .markdown-frontmatter-error,
-  .preview table {
-    break-inside: avoid;
-  }
-
-  .preview pre,
-  .preview pre code {
-    overflow: visible !important;
-    white-space: pre-wrap !important;
-    overflow-wrap: anywhere;
-    word-break: break-word;
-  }
-
-  .preview pre code {
-    grid-template-columns: max-content minmax(0, 1fr);
-  }
-
-  .preview .line-src {
-    min-width: 0;
-    white-space: pre-wrap;
-    overflow-wrap: anywhere;
-    word-break: break-word;
-  }
-
-  .preview table {
-    display: table !important;
-    overflow: visible !important;
-    width: 100% !important;
-  }
-
-  .preview h1,
-  .preview h2,
-  .preview h3,
-  .preview h4 {
-    break-after: avoid;
-  }
-
-  .preview img,
-  .preview .mermaid {
-    break-inside: avoid;
-    max-width: 100% !important;
-    overflow: visible !important;
-  }
-
-  .preview .mermaid,
-  .preview .mermaid svg {
-    background: var(--mermaid-bg) !important;
-    background-color: var(--mermaid-bg) !important;
-    filter: none !important;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-  }
 }

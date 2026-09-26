@@ -39,9 +39,7 @@ export function downloadBlob(data, filename, mime) {
  * @returns {string}
  */
 export function cleanPreviewHtml(previewEl) {
-  const clone = previewEl.cloneNode(true);
-  cleanupClone(clone);
-  return clone.innerHTML;
+  return preparePreviewClone(previewEl).innerHTML;
 }
 
 /**
@@ -51,8 +49,7 @@ export function cleanPreviewHtml(previewEl) {
  * @returns {string}
  */
 export function cleanPreviewHtmlForPrint(previewEl) {
-  const clone = previewEl.cloneNode(true);
-  cleanupClone(clone);
+  const clone = preparePreviewClone(previewEl);
   const liveSvgs = previewEl.querySelectorAll("svg");
   const cloneSvgs = clone.querySelectorAll("svg");
   const count = Math.min(liveSvgs.length, cloneSvgs.length);
@@ -60,6 +57,18 @@ export function cleanPreviewHtmlForPrint(previewEl) {
     inlineSvgComputedStyles(liveSvgs[i], cloneSvgs[i]);
   }
   return clone.innerHTML;
+}
+
+/**
+ * Clone the live preview and strip UI-only chrome so exports match the full
+ * document (all slides, no fold toggles / collapsed-only visibility).
+ * @param {HTMLElement} previewEl
+ * @returns {HTMLElement}
+ */
+function preparePreviewClone(previewEl) {
+  const clone = /** @type {HTMLElement} */ (previewEl.cloneNode(true));
+  cleanupClone(clone);
+  return clone;
 }
 
 /** @param {HTMLElement} clone */
@@ -73,6 +82,34 @@ function cleanupClone(clone) {
   }
   for (const el of clone.querySelectorAll("[data-pending]")) {
     el.removeAttribute("data-pending");
+  }
+
+  // Section fold chrome (▼ buttons) must not appear in exports.
+  for (const el of clone.querySelectorAll(".md-section-toggle")) {
+    el.remove();
+  }
+
+  // Unwrap temporary fold animation wrappers (deepest first).
+  const anims = [...clone.querySelectorAll(".md-section-anim")].reverse();
+  for (const wrap of anims) {
+    const parent = wrap.parentNode;
+    if (!parent) continue;
+    const inner =
+      wrap.querySelector(":scope > .md-section-anim-inner") || wrap;
+    while (inner.firstChild) parent.insertBefore(inner.firstChild, wrap);
+    wrap.remove();
+  }
+
+  for (const el of clone.querySelectorAll(".md-section-folded")) {
+    el.classList.remove("md-section-folded");
+  }
+  for (const el of clone.querySelectorAll(".is-collapsed, .is-expanded")) {
+    el.classList.remove("is-collapsed", "is-expanded");
+  }
+
+  // Reveal every slide / section, including those hidden in slides/present.
+  for (const el of clone.querySelectorAll("[hidden]")) {
+    el.removeAttribute("hidden");
   }
 }
 
@@ -284,7 +321,7 @@ function printHtmlDocument(html) {
  * @returns {Blob}
  */
 export function buildDocxBlob(previewEl, title) {
-  const body = htmlToDocxBody(previewEl);
+  const body = htmlToDocxBody(preparePreviewClone(previewEl));
   const now = new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
   const files = {
     "[Content_Types].xml": `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -354,7 +391,7 @@ ${body}
  * @returns {string}
  */
 export function buildRtfDocument(previewEl, title) {
-  const body = htmlToRtf(previewEl);
+  const body = htmlToRtf(preparePreviewClone(previewEl));
   return (
     `{\\rtf1\\ansi\\deff0\\uc1\n` +
     `{\\fonttbl{\\f0\\froman\\fcharset0 Times New Roman;}{\\f1\\fmodern\\fcharset0 Courier New;}}\n` +
