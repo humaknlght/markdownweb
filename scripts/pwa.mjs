@@ -77,12 +77,41 @@ export function buildManifest(iconNames) {
   )}\n`;
 }
 
+/**
+ * Same-origin URLs that must revalidate (no content hash in the filename).
+ * Hashed assets use cache-first and the browser HTTP cache instead.
+ * @param {string} pathname
+ */
+export function isMutableShellPath(pathname) {
+  const file = pathname.endsWith("/")
+    ? "index.html"
+    : pathname.split("/").pop() || "";
+  return (
+    file === "index.html" ||
+    file === "manifest.webmanifest" ||
+    file === "sw.js" ||
+    file === "GUIDE.md"
+  );
+}
+
 export function buildServiceWorker({ precacheUrls, version }) {
   const urls = JSON.stringify(precacheUrls, null, 2);
   return `/* Markdown Preview service worker — generated at build time */
 /* eslint-disable no-restricted-globals */
 const CACHE = ${JSON.stringify(`md-preview-${version}`)};
 const PRECACHE = ${urls};
+
+function isMutableShell(pathname) {
+  const file = pathname.endsWith("/")
+    ? "index.html"
+    : pathname.split("/").pop() || "";
+  return (
+    file === "index.html" ||
+    file === "manifest.webmanifest" ||
+    file === "sw.js" ||
+    file === "GUIDE.md"
+  );
+}
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -150,9 +179,10 @@ self.addEventListener("fetch", (event) => {
 
   if (!sameOrigin && !isCdn) return;
 
-  // CDN (pinned URLs): cache-first. Same-origin: network-first so edits/deploys
-  // show up without waiting for a new CACHE name (dev + prod).
-  if (isCdn) {
+  // CDN (pinned URLs) and content-hashed same-origin assets: cache-first.
+  // Unhashed shell files revalidate so deploys/edits show up without a new CACHE name.
+  const cacheFirst = isCdn || !isMutableShell(url.pathname);
+  if (cacheFirst) {
     event.respondWith(
       (async () => {
         const cached = await caches.match(request);
@@ -193,4 +223,10 @@ self.addEventListener("fetch", (event) => {
 
 export function precacheVersion(urls) {
   return contentHash(Buffer.from(urls.join("\\n"), "utf8"));
+}
+
+/** Content-hash a service worker source string into a stable filename. */
+export function hashServiceWorkerName(source) {
+  const hash = contentHash(Buffer.from(source, "utf8"));
+  return `sw.${hash}.js`;
 }

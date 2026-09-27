@@ -474,7 +474,7 @@ html[data-theme="fancy"] {
 html[data-theme="fancy"],
 html[data-theme="fancy"] body {
   background-color: #062436;
-  background-image: url("fancy.jpg");
+  background-image: url("fancy.avif");
   background-position: center;
   background-size: cover;
   background-repeat: no-repeat;

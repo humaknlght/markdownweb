@@ -1,13 +1,13 @@
 /* Markdown Preview service worker — generated at build time */
 /* eslint-disable no-restricted-globals */
-const CACHE = "md-preview-dev-10134fc7";
+const CACHE = "md-preview-dev-37c848a6";
 const PRECACHE = [
   "./",
   "./index.html",
   "./styles.css",
   "./print.css",
   "./app.js",
-  "./fancy.jpg",
+  "./fancy.avif",
   "./GUIDE.md",
   "./manifest.webmanifest",
   "./icon-192.png",
@@ -21,6 +21,18 @@ const PRECACHE = [
   "https://cdn.jsdelivr.net/npm/yaml@2.9.1/+esm",
   "https://cdn.jsdelivr.net/npm/mermaid@12.0.0/dist/mermaid.esm.min.mjs"
 ];
+
+function isMutableShell(pathname) {
+  const file = pathname.endsWith("/")
+    ? "index.html"
+    : pathname.split("/").pop() || "";
+  return (
+    file === "index.html" ||
+    file === "manifest.webmanifest" ||
+    file === "sw.js" ||
+    file === "GUIDE.md"
+  );
+}
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -88,9 +100,10 @@ self.addEventListener("fetch", (event) => {
 
   if (!sameOrigin && !isCdn) return;
 
-  // CDN (pinned URLs): cache-first. Same-origin: network-first so edits/deploys
-  // show up without waiting for a new CACHE name (dev + prod).
-  if (isCdn) {
+  // CDN (pinned URLs) and content-hashed same-origin assets: cache-first.
+  // Unhashed shell files revalidate so deploys/edits show up without a new CACHE name.
+  const cacheFirst = isCdn || !isMutableShell(url.pathname);
+  if (cacheFirst) {
     event.respondWith(
       (async () => {
         const cached = await caches.match(request);

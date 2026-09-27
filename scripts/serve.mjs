@@ -3,10 +3,11 @@
  * Local static server that mirrors public/.htaccess security headers
  * and serves precompressed .br / .gz assets when available.
  *
- * Uses HTTP/2 over TLS when Node's http2 module and a local self-signed
- * cert are available (browsers require TLS for HTTP/2). Falls back to
- * plain HTTP/1.1 otherwise. HTTP/1.1 clients are still accepted on the
- * TLS server via allowHTTP1.
+ * Uses HTTP/2 over TLS when Node's http2 module and a local TLS cert are
+ * available (browsers require TLS for HTTP/2). Prefers a mkcert-issued,
+ * locally-trusted certificate so service workers and the HTTP cache work;
+ * falls back to a self-signed OpenSSL cert, then to plain HTTP/1.1.
+ * HTTP/1.1 clients are still accepted on the TLS server via allowHTTP1.
  *
  * Usage:
  *   node scripts/serve.mjs [rootDir] [port]
@@ -27,6 +28,12 @@ import {
   buildContentSecurityPolicy,
 } from "./csp.mjs";
 import { guideSourcePath } from "./sync-guide.mjs";
+import {
+  CORP,
+  headersFor as buildHeaders,
+  resolveWithCompression,
+  safeResolve as resolveSafePath,
+} from "./serve-utils.mjs";
 
 const execFileAsync = promisify(execFile);
 
@@ -34,32 +41,16 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(process.cwd(), process.argv[2] || "dist");
 const port = Number(process.argv[3] || process.env.PORT || 3456);
 
-const MIME = {
-  ".html": "text/html; charset=utf-8",
-  ".css": "text/css; charset=utf-8",
-  ".js": "text/javascript; charset=utf-8",
-  ".mjs": "text/javascript; charset=utf-8",
-  ".md": "text/markdown; charset=utf-8",
-  ".markdown": "text/markdown; charset=utf-8",
-  ".jpg": "image/jpeg",
-  ".jpeg": "image/jpeg",
-  ".png": "image/png",
-  ".svg": "image/svg+xml",
-  ".json": "application/json",
-  ".webmanifest": "application/manifest+json",
-  ".ico": "image/x-icon",
-  ".woff": "font/woff",
-  ".woff2": "font/woff2",
-  ".map": "application/json",
-};
-
-const CORP = "same-origin";
-
-async function resolveScriptSrc() {
+async function resolveCspConfig() {
   try {
     const raw = await fs.readFile(path.join(rootDir, "csp.json"), "utf8");
     const parsed = JSON.parse(raw);
-    if (parsed.scriptSrc) return parsed.scriptSrc;
+    if (parsed.scriptSrc) {
+      return {
+        scriptSrc: parsed.scriptSrc,
+        guideUrl: typeof parsed.guideUrl === "string" ? parsed.guideUrl : "./GUIDE.md",
+      };
+    }
   } catch {
     /* fall through — compute from index.html (dev / src) */
   }
@@ -69,10 +60,10 @@ async function resolveScriptSrc() {
   if (!hashes.length) {
     throw new Error(`No inline scripts found in ${path.join(rootDir, "index.html")}`);
   }
-  return buildScriptSrc(hashes);
+  return { scriptSrc: buildScriptSrc(hashes), guideUrl: "./GUIDE.md" };
 }
 
-const scriptSrc = await resolveScriptSrc();
+const { scriptSrc, guideUrl } = await resolveCspConfig();
 const contentSecurityPolicy = buildContentSecurityPolicy(scriptSrc);
 
 const HTML_HEADERS = {
@@ -81,6 +72,7 @@ const HTML_HEADERS = {
     "accelerometer=(), ambient-light-sensor=(), autoplay=(self), camera=(), display-capture=(), encrypted-media=(), execution-while-not-rendered=(), execution-while-out-of-viewport=(), fullscreen=(self), gamepad=(), geolocation=(), gyroscope=(), hid=(), identity-credentials-get=(), idle-detection=(), local-fonts=(), magnetometer=(), microphone=(), midi=(), otp-credentials=(), payment=(), picture-in-picture=(), publickey-credentials-create=(), publickey-credentials-get=(), screen-wake-lock=(), serial=(), speaker-selection=(), storage-access=(), usb=(), web-share=(), window-management=(), xr-spatial-tracking=(), interest-cohort=()",
   "Strict-Transport-Security": "max-age=31536000",
   "Content-Security-Policy": contentSecurityPolicy,
+  Link: `<${guideUrl}>;rel=prefetch`,
   "X-Frame-Options": "DENY",
   "Cross-Origin-Embedder-Policy": "require-corp",
   "X-Content-Type-Options": "nosniff",
@@ -88,49 +80,11 @@ const HTML_HEADERS = {
 };
 
 function headersFor(logicalPath, encoding) {
-  const ext = path.extname(logicalPath).toLowerCase();
-  const base = path.basename(logicalPath);
-  const headers = {
-    "Cross-Origin-Resource-Policy": CORP,
-    "Content-Type": MIME[ext] || "application/octet-stream",
-    Vary: "Accept-Encoding",
-  };
-
-  if (encoding) {
-    headers["Content-Encoding"] = encoding;
-  }
-
-  if (
-    /^og-image\.[a-f0-9]+\.png$/i.test(base) ||
-    /^icon-(192|512|maskable-512)(\.[a-f0-9]+)?\.png$/i.test(base)
-  ) {
-    headers["Cross-Origin-Resource-Policy"] = "cross-origin";
-  }
-
-  if (ext === ".html") {
-    Object.assign(headers, HTML_HEADERS);
-  } else if (base === "sw.js" || ext === ".webmanifest" || base === "GUIDE.md") {
-    headers["Cache-Control"] = "no-cache";
-  } else if (/^GUIDE\.[a-f0-9]+\.md$/i.test(base)) {
-    headers["Cache-Control"] = "public, max-age=31536000, immutable";
-  } else if (ext === ".css" || ext === ".js" || ext === ".mjs") {
-    headers["Cache-Control"] = "public, max-age=31536000, immutable";
-  } else if (ext === ".jpg" || ext === ".jpeg" || ext === ".png") {
-    headers["Cache-Control"] = "public, max-age=31536000, immutable";
-  }
-
-  return headers;
+  return buildHeaders(logicalPath, encoding, { htmlHeaders: HTML_HEADERS });
 }
 
 function safeResolve(urlPath) {
-  const decoded = decodeURIComponent((urlPath || "/").split("?")[0]);
-  let rel = decoded === "/" ? "index.html" : decoded.replace(/^\/+/, "");
-  if (rel.endsWith("/")) rel += "index.html";
-  const full = path.resolve(rootDir, rel);
-  if (!full.startsWith(rootDir + path.sep) && full !== rootDir) {
-    return null;
-  }
-  return full;
+  return resolveSafePath(urlPath, rootDir);
 }
 
 /** When serving src/, GUIDE.md lives at the repo root — fall back to it. */
@@ -151,34 +105,58 @@ async function exists(filePath) {
   }
 }
 
-async function resolveWithCompression(logicalPath, acceptEncoding) {
-  const accept = (acceptEncoding || "").toLowerCase();
-  const candidates = [];
-  if (accept.includes("br")) candidates.push({ path: `${logicalPath}.br`, encoding: "br" });
-  if (accept.includes("gzip") || accept.includes("deflate")) {
-    candidates.push({ path: `${logicalPath}.gz`, encoding: "gzip" });
-  }
-
-  for (const candidate of candidates) {
-    if (await exists(candidate.path)) {
-      return candidate;
-    }
-  }
-
-  return { path: logicalPath, encoding: null };
-}
-
 /**
- * Browsers only speak HTTP/2 over TLS. Cache a self-signed cert for
- * 127.0.0.1 / localhost in the OS temp dir so restarts stay quiet.
+ * Prefer a mkcert-issued cert (locally trusted → SW + HTTP cache work).
+ * Fall back to an OpenSSL self-signed cert when mkcert is unavailable.
  */
 async function ensureLocalTls() {
   const dir = path.join(os.tmpdir(), "markdown-preview-certs");
+  await fs.mkdir(dir, { recursive: true });
+
+  const mkcertKey = path.join(dir, "localhost-key.pem");
+  const mkcertCert = path.join(dir, "localhost.pem");
+  const mkcertMarker = path.join(dir, "issuer.txt");
+
+  const mkcertBin = await resolveMkcert();
+  if (mkcertBin) {
+    const issuer = await readTextIfExists(mkcertMarker);
+    const needMkcert =
+      issuer !== "mkcert" ||
+      !(await exists(mkcertKey)) ||
+      !(await exists(mkcertCert));
+
+    if (needMkcert) {
+      // Idempotent when the local CA is already installed.
+      try {
+        await execFileAsync(mkcertBin, ["-install"]);
+      } catch (err) {
+        console.warn(
+          `mkcert -install failed (${err.message || err}); cert may still work if the CA was installed earlier`,
+        );
+      }
+      await execFileAsync(mkcertBin, [
+        "-key-file",
+        mkcertKey,
+        "-cert-file",
+        mkcertCert,
+        "localhost",
+        "127.0.0.1",
+        "::1",
+      ]);
+      await fs.writeFile(mkcertMarker, "mkcert\n");
+    }
+
+    return {
+      key: await fs.readFile(mkcertKey),
+      cert: await fs.readFile(mkcertCert),
+      trusted: true,
+    };
+  }
+
+  // Legacy OpenSSL fallback (browsers will warn; SW registration / HTTP cache suffer).
   const keyPath = path.join(dir, "key.pem");
   const certPath = path.join(dir, "cert.pem");
-
   if (!(await exists(keyPath)) || !(await exists(certPath))) {
-    await fs.mkdir(dir, { recursive: true });
     await execFileAsync("openssl", [
       "req",
       "-x509",
@@ -196,12 +174,32 @@ async function ensureLocalTls() {
       "-addext",
       "subjectAltName=IP:127.0.0.1,DNS:localhost",
     ]);
+    await fs.writeFile(mkcertMarker, "openssl\n");
   }
 
   return {
     key: await fs.readFile(keyPath),
     cert: await fs.readFile(certPath),
+    trusted: false,
   };
+}
+
+async function resolveMkcert() {
+  try {
+    const { stdout } = await execFileAsync("which", ["mkcert"]);
+    const bin = stdout.trim();
+    return bin || null;
+  } catch {
+    return null;
+  }
+}
+
+async function readTextIfExists(filePath) {
+  try {
+    return (await fs.readFile(filePath, "utf8")).trim();
+  } catch {
+    return null;
+  }
 }
 
 async function handleRequest(req, res) {
@@ -241,7 +239,8 @@ async function handleRequest(req, res) {
 
     const chosen = await resolveWithCompression(
       logicalPath,
-      req.headers["accept-encoding"]
+      req.headers["accept-encoding"],
+      exists,
     );
     const data = await fs.readFile(chosen.path);
     res.writeHead(200, headersFor(logicalPath, chosen.encoding));
@@ -261,13 +260,13 @@ async function createServer() {
     try {
       const tls = await ensureLocalTls();
       const server = http2.createSecureServer(
-        { ...tls, allowHTTP1: true },
-        handleRequest
+        { key: tls.key, cert: tls.cert, allowHTTP1: true },
+        handleRequest,
       );
-      return { server, protocol: "https", http2: true };
+      return { server, protocol: "https", http2: true, tlsTrusted: tls.trusted };
     } catch (err) {
       console.warn(
-        `HTTP/2 unavailable (${err.message || err}); falling back to HTTP/1.1`
+        `HTTP/2 unavailable (${err.message || err}); falling back to HTTP/1.1`,
       );
     }
   }
@@ -276,16 +275,23 @@ async function createServer() {
     server: http.createServer(handleRequest),
     protocol: "http",
     http2: false,
+    tlsTrusted: false,
   };
 }
 
-const { server, protocol, http2: usingHttp2 } = await createServer();
+const { server, protocol, http2: usingHttp2, tlsTrusted } = await createServer();
 
 server.listen(port, "127.0.0.1", () => {
   console.log(`Serving ${rootDir}`);
   console.log(`  ${protocol}://127.0.0.1:${port}/`);
   if (usingHttp2) {
-    console.log("  HTTP/2 enabled (self-signed TLS; accept the browser warning once)");
+    if (tlsTrusted) {
+      console.log("  HTTP/2 + locally-trusted TLS (mkcert)");
+    } else {
+      console.log(
+        "  HTTP/2 + self-signed TLS (install mkcert for a trusted cert: brew install mkcert && mkcert -install)",
+      );
+    }
   } else {
     console.log("  HTTP/1.1");
   }

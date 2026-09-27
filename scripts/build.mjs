@@ -21,6 +21,7 @@ import {
   ICON_FILES,
   buildManifest,
   buildServiceWorker,
+  hashServiceWorkerName,
   precacheVersion,
 } from "./pwa.mjs";
 import { copyGuideTo } from "./sync-guide.mjs";
@@ -33,6 +34,8 @@ const distDir = path.join(root, "dist");
 
 const COMPRESS_EXTENSIONS = new Set([".html", ".css", ".js", ".webmanifest", ".md"]);
 const SCRIPT_SRC_PLACEHOLDER = "__SCRIPT_SRC__";
+const GUIDE_URL_PLACEHOLDER = "__GUIDE_URL__";
+const SW_URL_PLACEHOLDER = "__SW_URL__";
 
 function formatBytes(bytes) {
   if (bytes < 1024) return `${bytes} B`;
@@ -62,26 +65,15 @@ async function cleanDist() {
 }
 
 async function optimizeImage() {
-  const input = path.join(srcDir, "fancy.jpg");
+  const input = path.join(srcDir, "fancy.avif");
   const before = await fileSize(input);
+  if (!before) {
+    throw new Error("Missing background image: src/fancy.avif");
+  }
 
-  const buffer = await sharp(input)
-    .rotate()
-    .resize({
-      width: 1920,
-      height: 1280,
-      fit: "inside",
-      withoutEnlargement: true,
-    })
-    .jpeg({
-      quality: 78,
-      mozjpeg: true,
-      progressive: true,
-    })
-    .toBuffer();
-
+  const buffer = await readFile(input);
   const hash = contentHash(buffer);
-  const name = hashedName("fancy", ".jpg", hash);
+  const name = hashedName("fancy", ".avif", hash);
   await writeFile(path.join(distDir, name), buffer);
   return { before, after: buffer.length, name, hash };
 }
@@ -128,13 +120,13 @@ async function buildIcons() {
   return results;
 }
 
-async function buildCss(fancyFileName) {
-  let css = await readFile(path.join(srcDir, "styles.css"), "utf8");
-  const printCss = await readFile(path.join(srcDir, "print.css"), "utf8");
-  css = `${css.trimEnd()}\n\n${printCss.trimStart()}`;
-  css = css.replaceAll("url(\"fancy.jpg\")", `url("${fancyFileName}")`);
-  css = css.replaceAll("url('fancy.jpg')", `url('${fancyFileName}')`);
-  css = css.replaceAll("url(fancy.jpg)", `url(${fancyFileName})`);
+async function minifyCssFile(fileName, { rewriteFancy } = {}) {
+  let css = await readFile(path.join(srcDir, fileName), "utf8");
+  if (rewriteFancy) {
+    css = css.replaceAll("url(\"fancy.avif\")", `url("${rewriteFancy}")`);
+    css = css.replaceAll("url('fancy.avif')", `url('${rewriteFancy}')`);
+    css = css.replaceAll("url(fancy.avif)", `url(${rewriteFancy})`);
+  }
 
   const result = await esbuild.transform(css, {
     loader: "css",
@@ -144,9 +136,16 @@ async function buildCss(fancyFileName) {
 
   const buffer = Buffer.from(result.code, "utf8");
   const hash = contentHash(buffer);
-  const name = hashedName("styles", ".css", hash);
+  const base = path.basename(fileName, ".css");
+  const name = hashedName(base, ".css", hash);
   await writeFile(path.join(distDir, name), buffer);
   return { bytes: buffer.length, name, hash };
+}
+
+async function buildCss(fancyFileName) {
+  const styles = await minifyCssFile("styles.css", { rewriteFancy: fancyFileName });
+  const print = await minifyCssFile("print.css");
+  return { styles, print };
 }
 
 async function buildJs(guideUrl) {
@@ -202,18 +201,26 @@ async function buildJs(guideUrl) {
   };
 }
 
-async function buildHtml({ cssName, jsName, ogImageName, icon192Name, icon512Name }) {
+async function buildHtml({
+  cssName,
+  printCssName,
+  jsName,
+  ogImageName,
+  icon192Name,
+  icon512Name,
+  swUrl,
+}) {
   let html = await readFile(path.join(srcDir, "index.html"), "utf8");
-  // Production ships a single hashed CSS file (styles + print concatenated).
-  html = html.replace(
-    /<link\s+rel="stylesheet"\s+href="print\.css"[^>]*>\s*/i,
-    "",
-  );
   html = html.replace(/href="styles\.css"/, `href="${cssName}"`);
+  html = html.replace(/href="print\.css"/, `href="${printCssName}"`);
   html = html.replace(/src="app\.js"/, `src="${jsName}"`);
   html = html.replaceAll("og-image.png", ogImageName);
   html = html.replaceAll("icon-192.png", icon192Name);
   html = html.replaceAll("icon-512.png", icon512Name);
+  if (!html.includes(SW_URL_PLACEHOLDER)) {
+    throw new Error(`src/index.html missing ${SW_URL_PLACEHOLDER} placeholder`);
+  }
+  html = html.replaceAll(SW_URL_PLACEHOLDER, swUrl);
 
   const minified = await minifyHtml(html, {
     collapseBooleanAttributes: true,
@@ -244,7 +251,7 @@ async function buildHtml({ cssName, jsName, ogImageName, icon192Name, icon512Nam
   };
 }
 
-async function buildPwa({ cssName, jsName, jsChunks, fancyName, guideName, iconResults }) {
+async function buildPwa({ cssName, printCssName, jsName, jsChunks, fancyName, guideName, iconResults }) {
   const icon192 = iconResults.find((icon) => icon.base === "icon-192.png");
   const icon512 = iconResults.find((icon) => icon.base === "icon-512.png");
   const iconNames = {
@@ -256,6 +263,7 @@ async function buildPwa({ cssName, jsName, jsChunks, fancyName, guideName, iconR
     "./",
     "./index.html",
     `./${cssName}`,
+    `./${printCssName}`,
     `./${jsName}`,
     ...chunkUrls,
     `./${fancyName}`,
@@ -273,7 +281,10 @@ async function buildPwa({ cssName, jsName, jsChunks, fancyName, guideName, iconR
   await writeFile(path.join(srcDir, "manifest.webmanifest"), manifest);
 
   const sw = buildServiceWorker({ precacheUrls, version });
-  await writeFile(path.join(distDir, "sw.js"), sw);
+  const swName = hashServiceWorkerName(sw);
+  const swUrl = `./${swName}`;
+  await writeFile(path.join(distDir, swName), sw);
+  // Dev keeps a stable ./sw.js name (no content hash in the URL).
   await writeFile(
     path.join(srcDir, "sw.js"),
     buildServiceWorker({
@@ -283,7 +294,7 @@ async function buildPwa({ cssName, jsName, jsChunks, fancyName, guideName, iconR
         "./styles.css",
         "./print.css",
         "./app.js",
-        "./fancy.jpg",
+        "./fancy.avif",
         "./GUIDE.md",
         "./manifest.webmanifest",
         ...ICON_FILES.map((name) => `./${name}`),
@@ -293,7 +304,13 @@ async function buildPwa({ cssName, jsName, jsChunks, fancyName, guideName, iconR
     })
   );
 
-  return { version, precacheCount: precacheUrls.length, icons: iconResults };
+  return {
+    version,
+    precacheCount: precacheUrls.length,
+    icons: iconResults,
+    swName,
+    swUrl,
+  };
 }
 
 async function precompressAssets() {
@@ -332,16 +349,20 @@ async function precompressAssets() {
   return results;
 }
 
-async function writeApacheConfig(scriptSrc) {
+async function writeApacheConfig(scriptSrc, guideUrl) {
   let htaccess = await readFile(path.join(root, "public", ".htaccess"), "utf8");
   if (!htaccess.includes(SCRIPT_SRC_PLACEHOLDER)) {
     throw new Error(`public/.htaccess missing ${SCRIPT_SRC_PLACEHOLDER} placeholder`);
   }
+  if (!htaccess.includes(GUIDE_URL_PLACEHOLDER)) {
+    throw new Error(`public/.htaccess missing ${GUIDE_URL_PLACEHOLDER} placeholder`);
+  }
   htaccess = htaccess.replaceAll(SCRIPT_SRC_PLACEHOLDER, scriptSrc);
+  htaccess = htaccess.replaceAll(GUIDE_URL_PLACEHOLDER, guideUrl);
   await writeFile(path.join(distDir, ".htaccess"), htaccess);
   await writeFile(
     path.join(distDir, "csp.json"),
-    JSON.stringify({ scriptSrc }, null, 2) + "\n"
+    JSON.stringify({ scriptSrc, guideUrl }, null, 2) + "\n"
   );
 }
 
@@ -358,27 +379,31 @@ async function main() {
   const js = await buildJs(guide.url);
   const icon192 = icons.find((icon) => icon.base === "icon-192.png");
   const icon512 = icons.find((icon) => icon.base === "icon-512.png");
-  const html = await buildHtml({
-    cssName: css.name,
-    jsName: js.name,
-    ogImageName: ogImage.name,
-    icon192Name: icon192.name,
-    icon512Name: icon512.name,
-  });
   const pwa = await buildPwa({
-    cssName: css.name,
+    cssName: css.styles.name,
+    printCssName: css.print.name,
     jsName: js.name,
     jsChunks: js.chunks,
     fancyName: image.name,
     guideName: guide.name,
     iconResults: icons,
   });
-  await writeApacheConfig(html.scriptSrc);
+  const html = await buildHtml({
+    cssName: css.styles.name,
+    printCssName: css.print.name,
+    jsName: js.name,
+    ogImageName: ogImage.name,
+    icon192Name: icon192.name,
+    icon512Name: icon512.name,
+    swUrl: pwa.swUrl,
+  });
+  await writeApacheConfig(html.scriptSrc, guide.url);
   const compressed = await precompressAssets();
 
   console.log("Assets (content-hashed for cache busting)");
   console.log(`  index.html     ${formatBytes(html.bytes)}`);
-  console.log(`  ${css.name.padEnd(22)} ${formatBytes(css.bytes)}`);
+  console.log(`  ${css.styles.name.padEnd(22)} ${formatBytes(css.styles.bytes)}`);
+  console.log(`  ${css.print.name.padEnd(22)} ${formatBytes(css.print.bytes)}`);
   console.log(
     `  ${js.name.padEnd(22)} ${formatBytes(js.bytes)}  (${js.bundledInputs} modules bundled)`
   );
@@ -400,7 +425,9 @@ async function main() {
     );
   }
   console.log(`  manifest.webmanifest`);
-  console.log(`  sw.js                  cache ${pwa.version} (${pwa.precacheCount} urls)`);
+  console.log(
+    `  ${pwa.swName.padEnd(22)} cache ${pwa.version} (${pwa.precacheCount} urls)`
+  );
   console.log(`\nCSP script-src: ${html.scriptSrc}`);
   console.log("\nPrecompressed (zopfli gzip + brotli)");
   for (const item of compressed) {

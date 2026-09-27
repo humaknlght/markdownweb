@@ -1,4 +1,4 @@
-/* Print stylesheet — linked separately in dev; inlined into the hashed CSS bundle at build. */
+/* Print stylesheet — linked separately (media="print") in both dev and production. */
 
 @media print {
   /* Force GitHub Light tokens even if data-theme was not swapped (e.g. some PDF tools).

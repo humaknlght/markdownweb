@@ -1,6 +1,14 @@
 import { alertExtension } from "./alert.js";
 import { emojiExtension } from "./emoji.js";
-import { extractFrontmatter, frontmatterExtension } from "./frontmatter.js";
+import {
+  collapseDataUris,
+  collapseDataUrisPreservingSelection,
+  collapsedEmbedUriTouched,
+  expandEmbeds,
+  findCollapsedEmbeds,
+  formatEmbedMarkdown,
+} from "./embeds.js";
+import { frontmatterExtension } from "./frontmatter.js";
 import { tablePipesExtension } from "./tablePipes.js";
 import {
   clearStoredDirectory,
@@ -39,6 +47,32 @@ import {
   setTip,
   storageBudgetOk,
 } from "./history-store.js";
+import {
+  HLJS_LANG_ALIASES,
+  SPLIT_MAX,
+  SPLIT_MIN,
+  canonicalHljsLang,
+  clampSplit,
+  collectFenceLanguages,
+  escapeHtml,
+  formatRelativeTime,
+  joinFsPath,
+  parentPathOf,
+  parseDraftMirror,
+  titleFromMarkdown,
+  wrapHighlightedLines,
+} from "./markdown-utils.js";
+import {
+  compressUtf8ToBase64Url,
+  readShareParams as readShareParamsFromUrl,
+} from "./share.js";
+import {
+  chunkSpeechText,
+  listVoices as listVoicesFromList,
+  voiceKey,
+  voiceQualityScore,
+  wordEndOffset,
+} from "./speech-text.js";
 import { marked, Renderer } from "marked";
 import DOMPurify from "dompurify";
 import hljs from "highlight.js";
@@ -55,31 +89,6 @@ function loadExportModule() {
 const HLJS_LANG_CDN =
   "https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.12.0/es/languages";
 
-/** Fence aliases → CDN grammar basename (null = skip / plain text). */
-const HLJS_LANG_ALIASES = {
-  js: "javascript",
-  mjs: "javascript",
-  cjs: "javascript",
-  ts: "typescript",
-  py: "python",
-  sh: "bash",
-  shell: "bash",
-  zsh: "bash",
-  yml: "yaml",
-  html: "xml",
-  htm: "xml",
-  svg: "xml",
-  "c++": "cpp",
-  cplusplus: "cpp",
-  "c#": "csharp",
-  cs: "csharp",
-  rb: "ruby",
-  plaintext: null,
-  text: null,
-  plain: null,
-  txt: null,
-};
-
 /** @type {Map<string, Promise<boolean>>} */
 const hljsLangLoads = new Map();
 
@@ -87,17 +96,6 @@ const hljsLangLoads = new Map();
 hljs.registerLanguage("xml", hljsXml);
 hljs.registerLanguage("html", hljsXml);
 hljs.registerLanguage("markdown", hljsMarkdown);
-
-function canonicalHljsLang(name) {
-  const raw = (name || "").trim().split(/\s+/)[0].toLowerCase();
-  if (!raw) return "";
-  if (Object.prototype.hasOwnProperty.call(HLJS_LANG_ALIASES, raw)) {
-    return HLJS_LANG_ALIASES[raw] || "";
-  }
-  // CDN filenames are lowercase letters, digits, and hyphens (e.g. c-like).
-  if (!/^[a-z][a-z0-9+-]*$/i.test(raw)) return "";
-  return raw;
-}
 
 function registerHljsAliases(canonical, grammar) {
   hljs.registerLanguage(canonical, grammar);
@@ -129,21 +127,6 @@ function ensureHljsLanguage(name) {
 
   hljsLangLoads.set(canonical, pending);
   return pending;
-}
-
-/** Collect fenced-code language tags from markdown source (excludes mermaid). */
-function collectFenceLanguages(source) {
-  const langs = [];
-  const re = /^ {0,3}(`{3,}|~{3,})([^\n`]*)/gm;
-  let match;
-  while ((match = re.exec(source || ""))) {
-    const info = match[2].trim();
-    if (!info) continue;
-    const lang = info.split(/\s+/)[0];
-    if (!lang || lang.toLowerCase() === "mermaid") continue;
-    langs.push(lang);
-  }
-  return langs;
 }
 
 async function ensureHljsLanguagesForSource(source) {
@@ -184,21 +167,12 @@ const PATCH_MAX_CHARS = 100_000;
 const STORAGE_CHANNEL = "md-preview-storage";
 const RENDER_DEBOUNCE_MS = 80;
 const HISTORY_DEBOUNCE_MS = 15_000;
-const SPLIT_MIN = 15;
-const SPLIT_MAX = 85;
 const EDITOR_HIGHLIGHT_MAX = 100_000;
 const NARROW_MQ = "(max-width: 800px)";
 const TEXT_FILE_RE = /\.(md|markdown|mdown|mkd|txt|html|htm)$/i;
 const IMAGE_MIME_RE = /^image\/(png|jpe?g|gif|webp|bmp|svg\+xml)$/i;
 /** Raw clipboard image size cap before base64 (keeps drafts / history workable). */
 const IMAGE_PASTE_MAX_BYTES = 2 * 1024 * 1024;
-/** Collapse data-URI images longer than this into a one-line editor token. */
-const DATA_URI_COLLAPSE_MIN = 64;
-const DATA_URI_IMG_RE =
-  /!\[([^\]]*)\]\((data:image\/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/=\s]+)\)/gi;
-/** Truncated editor form: `![alt](data:image/png;base64,iVBORw0KGgo…#3)` */
-const EMBED_IMG_RE =
-  /!\[([^\]]*)\]\(data:image\/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/]*…#(\d+)\)/g;
 const THEMES = ["github-light", "github-dark", "sepia", "terminal", "salesforce", "fancy"];
 const WIDTHS = ["readable", "full"];
 const VIEWS = ["edit", "reader", "present", "slides"];
@@ -206,9 +180,6 @@ const VIEWS = ["edit", "reader", "present", "slides"];
 const editor = document.getElementById("editor");
 const editorHighlight = document.getElementById("editor-highlight");
 const editorHighlightCode = editorHighlight.querySelector("code");
-/** @type {Map<number, string>} */
-const imageEmbeds = new Map();
-let nextEmbedId = 1;
 const preview = document.getElementById("preview");
 const panes = document.getElementById("panes");
 const splitter = document.getElementById("splitter");
@@ -250,6 +221,7 @@ const viewModeMenu = document.getElementById("view-mode-menu");
 const presentMenuBtn = document.getElementById("present-menu-btn");
 const presentViewBtn = document.getElementById("present-view-btn");
 const printBtn = document.getElementById("print-btn");
+const helpBtn = document.getElementById("help-btn");
 const presentChrome = document.getElementById("present-chrome");
 const presentPrevBtn = document.getElementById("present-prev-btn");
 const presentNextBtn = document.getElementById("present-next-btn");
@@ -298,6 +270,8 @@ let currentFilePath = "";
 let savedSnapshot = "";
 /** True while the trust modal holds markdown that arrived via `#md` / `#mdz`. */
 let pendingExternalFromUrl = false;
+/** True when this tab was opened via `#guide=1` (help preview; do not touch drafts). */
+let guideSession = false;
 /** @type {Map<string, { kind: "file"|"directory", handle: FileSystemHandle, parent: FileSystemDirectoryHandle|null, path: string }>} */
 const fsEntries = new Map();
 /** @type {Set<string>} */
@@ -407,68 +381,6 @@ function getMarkdownSource() {
   return expandEmbeds(editor.value);
 }
 
-function rememberEmbed(dataUrl) {
-  for (const [id, url] of imageEmbeds) {
-    if (url === dataUrl) return id;
-  }
-  const id = nextEmbedId++;
-  imageEmbeds.set(id, dataUrl);
-  return id;
-}
-
-function formatEmbedMarkdown(alt, dataUrl) {
-  const compact = String(dataUrl || "").replace(/\s+/g, "");
-  const match = compact.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,([A-Za-z0-9+/=]+)$/i);
-  if (!match || compact.length < DATA_URI_COLLAPSE_MIN) {
-    return `![${alt}](${compact})`;
-  }
-  const mime = match[1];
-  const head = match[2].slice(0, 12);
-  const id = rememberEmbed(compact);
-  return `![${alt}](data:${mime};base64,${head}…#${id})`;
-}
-
-function expandEmbeds(text) {
-  return String(text || "").replace(EMBED_IMG_RE, (full, alt, idStr) => {
-    const dataUrl = imageEmbeds.get(Number(idStr));
-    if (!dataUrl) return full;
-    return `![${alt}](${dataUrl})`;
-  });
-}
-
-function collapseDataUris(text) {
-  return String(text || "").replace(DATA_URI_IMG_RE, (_, alt, dataUrl) =>
-    formatEmbedMarkdown(alt, dataUrl),
-  );
-}
-
-function collapseDataUrisPreservingSelection(text, selStart, selEnd) {
-  let out = "";
-  let last = 0;
-  let caretStart = selStart;
-  let caretEnd = selEnd;
-  const src = String(text || "");
-
-  for (const match of src.matchAll(DATA_URI_IMG_RE)) {
-    const start = match.index ?? 0;
-    const end = start + match[0].length;
-    out += src.slice(last, start);
-    const replacement = formatEmbedMarkdown(match[1], match[2]);
-    const delta = replacement.length - match[0].length;
-
-    if (selStart >= end) caretStart += delta;
-    else if (selStart > start) caretStart = out.length + replacement.length;
-
-    if (selEnd >= end) caretEnd += delta;
-    else if (selEnd > start) caretEnd = out.length + replacement.length;
-
-    out += replacement;
-    last = end;
-  }
-  out += src.slice(last);
-  return { text: out, caretStart, caretEnd };
-}
-
 function syncCollapsedDataUris() {
   const before = editor.value;
   const { text, caretStart, caretEnd } = collapseDataUrisPreservingSelection(
@@ -509,29 +421,6 @@ function onEditorCopyOrCut(e) {
   if (e.type === "cut") {
     replaceEditorRange(start, end, "");
   }
-}
-
-/** Collapsed `![alt](data:…#id)` tokens; uri* covers `(data:…#id)`. */
-function findCollapsedEmbeds(text) {
-  const embeds = [];
-  for (const match of String(text || "").matchAll(EMBED_IMG_RE)) {
-    const fullStart = match.index ?? 0;
-    const fullEnd = fullStart + match[0].length;
-    const paren = match[0].indexOf("](");
-    if (paren < 0) continue;
-    const uriStart = fullStart + paren + 1; // '('
-    const uriEnd = fullEnd; // after ')'
-    embeds.push({ fullStart, fullEnd, uriStart, uriEnd });
-  }
-  return embeds;
-}
-
-function collapsedEmbedUriTouched(emb, selStart, selEnd, inputType) {
-  if (selStart < emb.uriEnd && selEnd > emb.uriStart) return true;
-  if (selStart !== selEnd) return false;
-  if (inputType === "deleteContentBackward" && selStart === emb.uriEnd) return true;
-  if (inputType === "deleteContentForward" && selStart === emb.uriStart) return true;
-  return false;
 }
 
 /**
@@ -613,15 +502,6 @@ function onEditorBeforeInput(e) {
   replaceEditorRange(delStart, delEnd, insert);
 }
 
-function escapeHtml(text) {
-  return text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
 /** Assign 1-based source line numbers to top-level block tokens. */
 function annotateSourceLines(tokens) {
   let line = 1;
@@ -663,34 +543,6 @@ function highlightCode(text, lang) {
     /* fall through */
   }
   return { html: escapeHtml(text), language };
-}
-
-function wrapHighlightedLines(html) {
-  const lines = html.replace(/\n$/, "").split("\n");
-  const openTags = [];
-  let out = "";
-
-  for (const line of lines) {
-    const prefix = openTags.join("");
-    const tagRe = /<\/?([a-zA-Z][\w:-]*)\b[^>]*>/g;
-    let match = tagRe.exec(line);
-    while (match) {
-      const [tag, name] = match;
-      if (tag.startsWith("</")) {
-        openTags.pop();
-      } else if (!/\/\s*>$/.test(tag) && name.toLowerCase() !== "br") {
-        openTags.push(tag);
-      }
-      match = tagRe.exec(line);
-    }
-    const suffix = openTags
-      .map((tag) => `</${tag.match(/^<([a-zA-Z][\w:-]*)/)[1]}>`)
-      .reverse()
-      .join("");
-    out += `<span class="code-line"><span class="line-src">${prefix}${line}${suffix}</span></span>`;
-  }
-
-  return out || `<span class="code-line"><span class="line-src"></span></span>`;
 }
 
 function addCodeLineNumbers(root) {
@@ -836,7 +688,6 @@ let syncScrollUnlockTimer = 0;
 let scrollAnchors = null;
 let lineMirror = null;
 let caretRevealRaf = 0;
-const SPEECH_CHUNK_MAX = 180;
 const SPEECH_HIGHLIGHT = "speech-word";
 const MERMAID_CDN =
   "https://cdn.jsdelivr.net/npm/mermaid@12.0.0/dist/mermaid.esm.min.mjs";
@@ -1123,29 +974,6 @@ function currentDocKey() {
   return "untitled";
 }
 
-/**
- * @param {string | null | undefined} raw
- * @returns {{ v: number, docKey: string, content: string } | null}
- */
-function parseDraftMirror(raw) {
-  if (raw == null || raw === "") return null;
-  try {
-    const parsed = JSON.parse(raw);
-    if (
-      parsed &&
-      typeof parsed === "object" &&
-      parsed.v === 1 &&
-      typeof parsed.docKey === "string" &&
-      typeof parsed.content === "string"
-    ) {
-      return parsed;
-    }
-  } catch {
-    /* legacy plain string */
-  }
-  return { v: 1, docKey: "untitled", content: raw };
-}
-
 function readDraftMirror() {
   try {
     return parseDraftMirror(localStorage.getItem(STORAGE_KEYS.draft));
@@ -1172,7 +1000,7 @@ function mirrorDraftToLocalStorage(content, docKey = currentDocKey()) {
 
 /** Persist draft to IndexedDB (primary) + small localStorage mirror, scoped by doc. */
 async function persistDraft(content) {
-  if (contentIsExternal) return;
+  if (contentIsExternal || guideSession) return;
   const text = String(content ?? getMarkdownSource());
   const docKey = currentDocKey();
   if (historyIdbReady) {
@@ -1231,7 +1059,7 @@ function setupStorageSync() {
 }
 
 function flushStorageBestEffort() {
-  if (contentIsExternal || applyingRemoteStorage) return;
+  if (contentIsExternal || applyingRemoteStorage || guideSession) return;
   const source = getMarkdownSource();
   const docKey = currentDocKey();
   mirrorDraftToLocalStorage(source, docKey);
@@ -1243,7 +1071,7 @@ async function onRemoteStorageChange(mirrorRaw) {
   applyingRemoteStorage = true;
   try {
     renderHistoryMenu();
-    if (contentIsExternal || isDirty()) return;
+    if (contentIsExternal || guideSession || isDirty()) return;
     const myKey = currentDocKey();
     let remote = null;
     let remoteKey = null;
@@ -1456,6 +1284,18 @@ function rejectExternalContent() {
   showToast("External content rejected");
 }
 
+function resolveServiceWorkerUrl() {
+  try {
+    const configured = window.__MD_SW__;
+    if (typeof configured === "string" && configured && configured !== "__SW_URL__") {
+      return configured;
+    }
+  } catch {
+    /* ignore */
+  }
+  return "./sw.js";
+}
+
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator)) return;
 
@@ -1491,7 +1331,7 @@ function registerServiceWorker() {
   };
 
   navigator.serviceWorker
-    .register("./sw.js")
+    .register(resolveServiceWorkerUrl())
     .then((registration) => {
       watchRegistration(registration);
       registration.update().catch(() => {});
@@ -1534,82 +1374,8 @@ function setupPwa() {
 
 const SHARE_URL_WARN_CHARS = 16_384;
 
-function bytesToBase64Url(bytes) {
-  let binary = "";
-  for (let i = 0; i < bytes.length; i++) {
-    binary += String.fromCharCode(bytes[i]);
-  }
-  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-}
-
-function base64UrlToBytes(value) {
-  const padded = value.replace(/-/g, "+").replace(/_/g, "/");
-  const padLen = (4 - (padded.length % 4)) % 4;
-  const base64 = padded + "=".repeat(padLen);
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) {
-    bytes[i] = binary.charCodeAt(i);
-  }
-  return bytes;
-}
-
-function base64UrlToUtf8(value) {
-  return new TextDecoder().decode(base64UrlToBytes(value));
-}
-
-async function pipeThroughCompression(bytes, TransformStreamCtor, format) {
-  const stream = new Blob([bytes]).stream().pipeThrough(new TransformStreamCtor(format));
-  return new Uint8Array(await new Response(stream).arrayBuffer());
-}
-
-async function compressUtf8ToBase64Url(text) {
-  const input = new TextEncoder().encode(text);
-  const compressed = await pipeThroughCompression(input, CompressionStream, "deflate-raw");
-  return bytesToBase64Url(compressed);
-}
-
-async function decompressBase64UrlToUtf8(value) {
-  const compressed = base64UrlToBytes(value);
-  const inflated = await pipeThroughCompression(compressed, DecompressionStream, "deflate-raw");
-  return new TextDecoder().decode(inflated);
-}
-
-function decodeMdParam(md) {
-  if (md == null || md === "") return null;
-  try {
-    return base64UrlToUtf8(md);
-  } catch {
-    try {
-      return decodeURIComponent(md);
-    } catch {
-      return md;
-    }
-  }
-}
-
-async function decodeMdzParam(mdz) {
-  if (mdz == null || mdz === "") return null;
-  try {
-    return await decompressBase64UrlToUtf8(mdz);
-  } catch {
-    return null;
-  }
-}
-
 async function readShareParams(searchParams) {
-  const mdz = searchParams.get("mdz");
-  let markdown = mdz ? await decodeMdzParam(mdz) : null;
-  if (markdown == null) {
-    markdown = decodeMdParam(searchParams.get("md"));
-  }
-  const themeRaw = searchParams.get("theme");
-  const viewRaw = searchParams.get("view");
-  return {
-    markdown,
-    theme: THEMES.includes(themeRaw) ? themeRaw : null,
-    view: VIEWS.includes(viewRaw) ? viewRaw : null,
-  };
+  return readShareParamsFromUrl(searchParams, { themes: THEMES, views: VIEWS });
 }
 
 async function getShareState() {
@@ -1694,23 +1460,6 @@ function scheduleRender() {
   renderTimer = window.setTimeout(() => {
     renderMarkdown(getMarkdownSource());
   }, RENDER_DEBOUNCE_MS);
-}
-
-function titleFromMarkdown(markdown) {
-  const fm = extractFrontmatter(markdown);
-  if (fm?.data && typeof fm.data.title === "string") {
-    const fromFm = fm.data.title.trim();
-    if (fromFm) return fromFm.slice(0, 80);
-  }
-  const body = fm ? fm.body : markdown;
-  const lines = body.split(/\r?\n/);
-  for (const line of lines) {
-    const heading = line.match(/^#{1,6}\s+(.+)$/);
-    if (heading) return heading[1].trim().slice(0, 80);
-    const trimmed = line.trim();
-    if (trimmed) return trimmed.slice(0, 80);
-  }
-  return "Untitled";
 }
 
 function newHistoryId() {
@@ -1922,7 +1671,7 @@ function pushHistoryLegacy(content) {
 }
 
 async function pushHistory(markdown) {
-  if (contentIsExternal) return;
+  if (contentIsExternal || guideSession) return;
   const content = markdown ?? getMarkdownSource();
   if (!content.trim()) return;
   if (content === lastHistoryContent) return;
@@ -1952,6 +1701,36 @@ async function pushHistory(markdown) {
   }
 
   const generation = (tip?.generation || hist.generation || 0) + 1;
+
+  // Re-saving a past revision (A→B→C→D then B again) would leave reverse
+  // patches pointing at the wrong predecessor if we only dropped the matching
+  // middle entry. Rebuild the chain from materialized bodies instead.
+  const duplicateIdx = hist.entries.findIndex((e) => e.hash === hash);
+  if (duplicateIdx > 0) {
+    const kept = [
+      {
+        meta: { title: titleFromMarkdown(content), savedAt: Date.now() },
+        content,
+      },
+    ];
+    for (let i = 0; i < hist.entries.length; i++) {
+      if (i === duplicateIdx) continue;
+      const body = await materializeHistoryEntry(i);
+      if (body == null || contentHash(body) === hash) continue;
+      kept.push({ meta: hist.entries[i], content: body });
+    }
+    await rewriteHistoryChain(
+      kept,
+      generation,
+      hist.entries.map((e) => e.id),
+    );
+    lastHistoryContent = content;
+    void ensurePersistentStorage();
+    renderHistoryMenu();
+    broadcastStorage();
+    return;
+  }
+
   const newId = newHistoryId();
 
   /** @type {object[]} */
@@ -2035,18 +1814,6 @@ async function pushHistory(markdown) {
   void ensurePersistentStorage();
   renderHistoryMenu();
   broadcastStorage();
-}
-
-function formatRelativeTime(ts) {
-  const diff = Date.now() - ts;
-  const sec = Math.round(diff / 1000);
-  if (sec < 60) return "just now";
-  const min = Math.round(sec / 60);
-  if (min < 60) return `${min}m ago`;
-  const hr = Math.round(min / 60);
-  if (hr < 24) return `${hr}h ago`;
-  const day = Math.round(hr / 24);
-  return `${day}d ago`;
 }
 
 function renderHistoryMenu() {
@@ -2234,10 +2001,6 @@ function applyCollapseState() {
   splitter.setAttribute("aria-hidden", String(editorCollapsed || previewCollapsed));
   splitter.tabIndex = editorCollapsed || previewCollapsed ? -1 : 0;
   invalidateScrollAnchors();
-}
-
-function clampSplit(value) {
-  return Math.min(SPLIT_MAX, Math.max(SPLIT_MIN, value));
 }
 
 function isStackedLayout() {
@@ -3238,15 +3001,6 @@ function updateFilesChrome() {
   if (filesNewFileBtn) filesNewFileBtn.disabled = false;
   if (filesNewFolderBtn) filesNewFolderBtn.disabled = !hasRoot;
   if (filesRefreshBtn) filesRefreshBtn.disabled = !hasRoot;
-}
-
-function joinFsPath(parentPath, name) {
-  return parentPath ? `${parentPath}/${name}` : name;
-}
-
-function parentPathOf(path) {
-  const idx = path.lastIndexOf("/");
-  return idx === -1 ? "" : path.slice(0, idx);
 }
 
 function getTargetDirForCreate(preferredPath = selectedPath) {
@@ -4482,6 +4236,7 @@ function syncHashForView(view) {
   const md = existing.get("md");
   if (mdz) params.set("mdz", mdz);
   else if (md) params.set("md", md);
+  if (guideSession || existing.get("guide") === "1") params.set("guide", "1");
 
   const theme = document.documentElement.dataset.theme;
   if (THEMES.includes(theme)) params.set("theme", theme);
@@ -4976,41 +4731,8 @@ function buildSpeechTracks() {
   ];
 }
 
-function chunkSpeechText(text) {
-  const chunks = [];
-  let i = 0;
-
-  while (i < text.length) {
-    while (i < text.length && /\s/.test(text[i])) i += 1;
-    if (i >= text.length) break;
-
-    let end = Math.min(i + SPEECH_CHUNK_MAX, text.length);
-    if (end < text.length) {
-      const window = text.slice(i, end);
-      let breakAt = -1;
-      for (let k = window.length - 1; k > Math.floor(window.length * 0.4); k -= 1) {
-        if (/[.!?…]/.test(window[k])) {
-          breakAt = k + 1;
-          break;
-        }
-        if (/\s/.test(window[k])) breakAt = k;
-      }
-      if (breakAt > 0) end = i + breakAt;
-    }
-
-    while (end > i && /\s/.test(text[end - 1])) end -= 1;
-    if (end > i) chunks.push({ text: text.slice(i, end), start: i });
-    i = Math.max(end, i + 1);
-  }
-
-  return chunks;
-}
-
-function wordEndOffset(text, start, charLength) {
-  if (charLength > 0) return Math.min(text.length, start + charLength);
-  let end = start;
-  while (end < text.length && !/\s/.test(text[end])) end += 1;
-  return end;
+function listVoices() {
+  return listVoicesFromList(window.speechSynthesis.getVoices());
 }
 
 function rangeFromSpeechOffsets(map, start, end) {
@@ -5091,88 +4813,6 @@ function highlightSpeechOffsets(start, end) {
   if (anchor && typeof anchor.scrollIntoView === "function") {
     anchor.scrollIntoView({ block: "nearest", behavior: "smooth" });
   }
-}
-
-function voiceKey(voice) {
-  return voice.voiceURI || `${voice.name}::${voice.lang}`;
-}
-
-function voiceName(voice) {
-  return voice.name || "";
-}
-
-function isEnglishVoice(voice) {
-  return (voice.lang || "").toLowerCase().startsWith("en");
-}
-
-/** Heuristic quality score for browser/OS voices (higher is better). */
-function voiceQualityScore(voice) {
-  const name = voiceName(voice).toLowerCase();
-  let score = 0;
-
-  // Strong premium / neural signals
-  if (/\bsiri\b/.test(name)) score += 100;
-  if (/\bgoogle\b/.test(name)) score += 90;
-  if (/\b(neural|natural|online|wavenet|studio|superstar)\b/.test(name)) score += 85;
-  if (/\b(enhanced|premium|mature)\b/.test(name)) score += 75;
-
-  // Common high-quality system defaults (Apple / Microsoft)
-  if (
-    /\b(samantha|ava|zoe|allison|nicky|susan|tom|daniel|moira|tessa|karen|lee|fiona|veena|rishi|martha|gordon|aria|guy|jenny|ryan)\b/.test(
-      name
-    )
-  ) {
-    score += 55;
-  }
-
-  // Known low-quality, compact, or novelty engines
-  if (
-    /\b(fred|junior|kathy|princess|ralph|albert|zarvox|trinoids|boing|bells|cellos|pipe organ|bad news|good news|whisper|bubbles|deranged|hysterical|bahh|buzko)\b/.test(
-      name
-    )
-  ) {
-    score -= 120;
-  }
-  if (/\b(compact|eloquence|novelty)\b/.test(name)) score -= 60;
-
-  // Prefer on-device voices: Chrome publishes a separate "Google Network Speech"
-  // Now Playing session for remote TTS, which duplicates our media controls.
-  if (voice.localService) score += 30;
-  else if (score >= 0) score -= 25;
-
-  return score;
-}
-
-function isHighQualityVoice(voice) {
-  return isEnglishVoice(voice) && voiceQualityScore(voice) >= 50;
-}
-
-function listVoices() {
-  const seen = new Map();
-
-  for (const voice of window.speechSynthesis.getVoices()) {
-    if (!isHighQualityVoice(voice)) continue;
-
-    // Chrome/macOS often lists the same voice more than once with different URIs.
-    const dedupeKey = `${voiceName(voice).toLowerCase()}::${(voice.lang || "").toLowerCase()}`;
-    const existing = seen.get(dedupeKey);
-    if (!existing) {
-      seen.set(dedupeKey, voice);
-      continue;
-    }
-    // Prefer an on-device copy when both exist.
-    if (!existing.localService && voice.localService) {
-      seen.set(dedupeKey, voice);
-    }
-  }
-
-  return [...seen.values()].sort((a, b) => {
-    const scoreCmp = voiceQualityScore(b) - voiceQualityScore(a);
-    if (scoreCmp) return scoreCmp;
-    const langCmp = a.lang.localeCompare(b.lang, undefined, { sensitivity: "base" });
-    if (langCmp) return langCmp;
-    return a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
-  });
 }
 
 function preferredVoice() {
@@ -5742,15 +5382,78 @@ function setupSpeech() {
 /** Build injects __GUIDE_URL__ (content-hashed). Dev falls back to ./GUIDE.md. */
 const GUIDE_URL = typeof __GUIDE_URL__ === "string" ? __GUIDE_URL__ : "./GUIDE.md";
 
-/** First-visit starter content from GUIDE.md (copied into dist at build time). */
-async function fetchDefaultGuide() {
+/** App URL that opens GUIDE in a fresh help-preview tab (does not touch drafts). */
+function buildHelpGuideUrl() {
+  const url = new URL(window.location.href);
+  url.search = "";
+  const params = new URLSearchParams();
+  params.set("guide", "1");
+  params.set("view", "reader");
+  url.hash = params.toString();
+  return url.toString();
+}
+
+function hasGuideUrlFlag() {
   try {
-    const response = await fetch(GUIDE_URL);
-    if (!response.ok) return "";
-    return await response.text();
+    const hash = window.location.hash.slice(1);
+    if (hash) {
+      const hashParams = new URLSearchParams(hash);
+      if (hashParams.get("guide") === "1") return true;
+    }
+    return new URLSearchParams(window.location.search).get("guide") === "1";
   } catch {
-    return "";
+    return false;
   }
+}
+
+if (helpBtn instanceof HTMLAnchorElement) {
+  helpBtn.href = buildHelpGuideUrl();
+}
+
+/** Lazily fetched GUIDE.md text (null until first need; then memoized Promise). */
+let guidePromise = null;
+
+/** First-visit starter content from GUIDE.md (copied into dist at build time). */
+function getDefaultGuide() {
+  if (!guidePromise) {
+    guidePromise = (async () => {
+      try {
+        const response = await fetch(GUIDE_URL);
+        if (!response.ok) return "";
+        return await response.text();
+      } catch {
+        return "";
+      }
+    })();
+  }
+  return guidePromise;
+}
+
+/** Load GUIDE.md into the editor as help documentation. */
+async function loadHelpGuide() {
+  if (!confirmDiscardIfDirty()) return;
+  const guide = await getDefaultGuide();
+  if (!guide) {
+    showToast("Could not load help guide");
+    return;
+  }
+  // Persist the outgoing document under its own key before switching to untitled.
+  await persistDraft(getMarkdownSource());
+  setEditorValue(guide);
+  clearCurrentFileBinding();
+  await persistDraft(guide);
+  renderMarkdown(guide);
+  // Same as first-visit GUIDE seed: reading material, not an unsaved user doc.
+  savedSnapshot = guide;
+  writeSavedSnapshot(currentDocKey(), guide);
+  updateSaveButton();
+  setContentExternal(false);
+  if (currentView !== "edit") setView("edit", { syncUrl: false });
+  editor.scrollTop = 0;
+  preview.scrollTop = 0;
+  if (previewPane) previewPane.scrollTop = 0;
+  closeOverflowMenu();
+  showToast("Loaded help guide");
 }
 
 /** Read the persisted draft for a document key (IndexedDB, then localStorage). No GUIDE seed. */
@@ -5765,10 +5468,10 @@ async function loadStoredDraftContent(docKey = currentDocKey()) {
 }
 
 async function init() {
-  // Overlap GUIDE fetch with the rest of boot (only awaited on first visit).
-  const guidePromise = fetchDefaultGuide();
+  guideSession = hasGuideUrlFlag();
   const shareState = await getShareState();
   const fromUrl = shareState.markdown;
+  let seededFromGuide = false;
 
   if (shareState.theme) {
     setTheme(shareState.theme, { persist: false });
@@ -5809,7 +5512,12 @@ async function init() {
   }
   // Sequential: file binding restore reads rootDirHandle set by directory restore.
   await restoreFilesDirectoryOnLoad();
-  await restoreCurrentFileBindingOnLoad();
+  if (guideSession) {
+    // Help-preview tabs must not adopt the other tab's open file.
+    clearCurrentFileBinding();
+  } else {
+    await restoreCurrentFileBindingOnLoad();
+  }
 
   const savedSyncScroll = localStorage.getItem(STORAGE_KEYS.syncScroll) === "1";
   setSyncScroll(savedSyncScroll, { persist: false });
@@ -5817,7 +5525,7 @@ async function init() {
   // URL markdown that matches our own draft/tip is local residue (e.g. an old
   // view-sync that wrote mdz), not untrusted external content.
   let urlIsExternal = fromUrl != null;
-  if (fromUrl != null) {
+  if (fromUrl != null && !guideSession) {
     const storedDraft = await loadStoredDraftContent();
     const tip = historyIdbReady ? await getTip() : null;
     const matchesLocal =
@@ -5840,6 +5548,15 @@ async function init() {
       setContentExternal(true);
       clearCurrentFileBinding();
     }
+  } else if (guideSession) {
+    // Dedicated help tab: load GUIDE as trusted preview; do not touch drafts.
+    urlIsExternal = false;
+    pendingExternalFromUrl = false;
+    const guide = await getDefaultGuide();
+    seededFromGuide = Boolean(guide);
+    setEditorValue(guide ?? "");
+    lastHistoryContent = guide ?? "";
+    setContentExternal(false);
   } else {
     pendingExternalFromUrl = false;
     // Prefer IndexedDB draft for this doc; fall back to localStorage mirror; seed GUIDE once.
@@ -5853,7 +5570,8 @@ async function init() {
       }
     }
     if (draft == null) {
-      draft = await guidePromise;
+      draft = await getDefaultGuide();
+      seededFromGuide = Boolean(draft);
     }
     await persistDraft(draft ?? "");
     setEditorValue(draft ?? "");
@@ -5864,7 +5582,11 @@ async function init() {
   // Dirty = editor differs from last disk save or accepted URL baseline.
   // Draft auto-save alone never marks clean.
   try {
-    if (pendingExternalFromUrl) {
+    if (guideSession) {
+      // Ephemeral help tab — keep clean without writing saved snapshots.
+      savedSnapshot = getMarkdownSource();
+      updateSaveButton();
+    } else if (pendingExternalFromUrl) {
       // Keep prior savedSnapshot from stash path; Accept will mark clean.
       updateSaveButton();
     } else if (currentFileHandle) {
@@ -5884,7 +5606,37 @@ async function init() {
         markCleanFromEditor();
       }
     } else {
-      markDirtyBaseline();
+      // Untitled: dirty until disk save — except the default GUIDE seed, which is
+      // starter reading material, not a document the user needs to write out.
+      if (seededFromGuide) {
+        savedSnapshot = getMarkdownSource();
+        writeSavedSnapshot(currentDocKey(), savedSnapshot);
+        updateSaveButton();
+      } else {
+        const storedSnapshot = readSavedSnapshot(currentDocKey());
+        if (storedSnapshot != null) {
+          savedSnapshot = storedSnapshot;
+          updateSaveButton();
+        } else {
+          // One-time recognition of a persisted GUIDE draft (no snapshot yet).
+          const source = getMarkdownSource();
+          if (!source) {
+            markDirtyBaseline();
+            writeSavedSnapshot(currentDocKey(), "");
+          } else {
+            const guide = await getDefaultGuide();
+            if (guide && source === guide) {
+              savedSnapshot = guide;
+              writeSavedSnapshot(currentDocKey(), guide);
+              updateSaveButton();
+            } else {
+              markDirtyBaseline();
+              // Persist empty baseline so we do not re-fetch GUIDE on every boot.
+              writeSavedSnapshot(currentDocKey(), "");
+            }
+          }
+        }
+      }
     }
   } catch {
     markDirtyBaseline();
@@ -5892,8 +5644,10 @@ async function init() {
 
   renderMarkdown(getMarkdownSource());
 
-  const initialView = urlIsExternal ? "edit" : shareState.view || "edit";
-  setView(initialView, { syncUrl: fromUrl != null });
+  const initialView = urlIsExternal
+    ? "edit"
+    : shareState.view || (guideSession ? "reader" : "edit");
+  setView(initialView, { syncUrl: fromUrl != null || guideSession });
 
   // After draft/URL load so a launched file overwrites the restored editor.
   setupFileHandling();
@@ -5968,6 +5722,14 @@ async function init() {
   });
   presentViewBtn?.addEventListener("click", enterPresentMode);
   printBtn?.addEventListener("click", () => window.print());
+  helpBtn?.addEventListener("click", (e) => {
+    // Keep modified / middle clicks as real navigation (new tab).
+    if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) {
+      return;
+    }
+    e.preventDefault();
+    void loadHelpGuide();
+  });
   window.addEventListener("beforeprint", syncPrintPageOrientation);
   window.addEventListener("afterprint", clearPrintPageOrientation);
   presentPrevBtn?.addEventListener("click", presentPrev);

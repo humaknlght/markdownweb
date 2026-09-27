@@ -44,6 +44,15 @@ Open [https://127.0.0.1:3456](https://127.0.0.1:3456) (self-signed TLS so the se
 
 `npm run dev` and `npm run preview` use a small Node server that applies the same security headers as `public/.htaccess` (plain static servers like `serve` or Python’s `http.server` ignore `.htaccess`). When HTTP/2 is available it serves over HTTPS with HTTP/1.1 fallback; otherwise plain HTTP/1.1.
 
+## Tests
+
+```bash
+npm test            # unit + script checks (node:test)
+npm run test:e2e    # Playwright Chromium against the src server
+npm run test:build  # production build invariants (opt-in; slower)
+npm run test:all    # all of the above
+```
+
 ## Production build
 
 ```bash
@@ -55,7 +64,6 @@ This writes a minified, bundled site to `dist/`:
 
 - Bundles and minifies app JS (marked, DOMPurify, highlight.js, gemoji, and yaml load from jsDelivr with Subresource Integrity; Mermaid uses the chunked ESM build)
 - Minifies CSS and HTML
-- Re-encodes `fancy.jpg` (mozjpeg, progressive)
 - **Content-hashes** JS, CSS, and images (`app.a1b2c3d4.js`, etc.) and rewrites HTML/CSS references for cache busting
 - Precompresses HTML/CSS/JS with Zopfli (gzip) and brotli q=11; Apache (and `npm run preview`) serve brotli first, then gzip
 - Injects a SHA-256 CSP hash for the inline theme boot script (no `unsafe-inline` for scripts)

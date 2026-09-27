@@ -11,7 +11,7 @@ This guide covers how to use the app and every Markdown feature it supports.
 1. Open the app in your browser (or install it as a Progressive Web App).
 2. Type Markdown in the editor, or load a file (see [Opening files](#opening-files)).
 3. Watch the preview update as you type.
-4. Use the toolbar for themes, export, share links, present mode, and more.
+4. Use the toolbar for themes, export, share links, present mode, and more. Open **Help** (?) to load this guide here, or right-click / middle-click to open a reader preview in a new tab.
 
 ### Opening files
 
