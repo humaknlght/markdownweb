@@ -2,6 +2,8 @@
 
 A fast, client-side Markdown previewer. Paste upload, or open Markdown and see rendered HTML beside it. Everything runs in the browser — no server processing.
 
+Check out the hosted instance: [https://dev.ericperret.org/markdown/](https://dev.ericperret.org/markdown/)
+
 ## Features
 
 - Live split-pane editor and preview
@@ -118,7 +120,7 @@ Enable flags, then relaunch Chrome:
 
 Also enable **Optimization Guide On Device Model** if prompted, and check `chrome://on-device-internals` for model download status. Hardware requirements apply (desktop OS, sufficient RAM/storage/GPU or CPU cores).
 
-### Production (`https://dev.ericperret.org`)
+### Production ([https://dev.ericperret.org/markdown/](https://dev.ericperret.org/markdown/))
 
 Register for the [Writer/Rewriter](https://developer.chrome.com/docs/ai/writer-api) and [Proofreader](https://developer.chrome.com/docs/ai/proofreader-api) origin trials for that origin. Uncomment and set the `Origin-Trial` headers in [`public/.htaccess`](public/.htaccess) (use `Header always add` once per token). Rebuild/deploy so Apache serves the headers on HTML responses.
 
