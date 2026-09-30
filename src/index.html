@@ -3,6 +3,28 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- Import map must precede any scripts / modulepreload. Firefox speculative
+       loading otherwise resolves bare CDN imports (e.g. gemoji) without the map. -->
+  <script type="importmap">
+  {
+    "imports": {
+      "marked": "https://cdn.jsdelivr.net/npm/marked@18.0.13/lib/marked.esm.js",
+      "dompurify": "https://cdn.jsdelivr.net/npm/dompurify@3.4.15/dist/purify.es.mjs",
+      "highlight.js": "https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.12.0/es/core.min.js",
+      "gemoji": "https://cdn.jsdelivr.net/npm/gemoji@8.1.0/+esm",
+      "yaml": "https://cdn.jsdelivr.net/npm/yaml@2.9.1/+esm"
+    },
+    "integrity": {
+      "https://cdn.jsdelivr.net/npm/marked@18.0.13/lib/marked.esm.js": "sha384-e72zKBnxCunMabU3bdcEoYpC/kmXSAxZBNzDIClVBHNG0Bywm2jm+BTgSQsLtv40",
+      "https://cdn.jsdelivr.net/npm/dompurify@3.4.15/dist/purify.es.mjs": "sha384-7qp4WRTNsGGxR8HfIhcAZoSk58Z/fsUx40ul1tuY0myp6r0jHAqEnFiaNOobIc9v",
+      "https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.12.0/es/core.min.js": "sha384-2f7fURQL4kJaQ73YY8MVgq6LBaed5Dz6Pv9SdsbeAKurWj/0OLDSfrDCdIB18Dsm",
+      "https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.12.0/es/languages/markdown.min.js": "sha384-atzUeXgldTnp0Vvir5hFSZ4MRX0FWOpxp7UdXca7uje0uL5S6swwfRhq5SB5Ag0m",
+      "https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.12.0/es/languages/xml.min.js": "sha384-7lgbaoMNJXxrndTFyw0ll0hq1MZzDLFkFmLhYLibSJNXgcW6xOSU9e+OS2QaAKDP",
+      "https://cdn.jsdelivr.net/npm/gemoji@8.1.0/+esm": "sha384-BxixXuX+Sw/FKnMEyJ+uFfpzgLCYpImf3Wks5yu6wYrASvTTUe4lmI+mXE9kKdAL",
+      "https://cdn.jsdelivr.net/npm/yaml@2.9.1/+esm": "sha384-MVwSuH88MctNNg+3dwLImVhp3/5G1k0NtNYzmuuplV7D/xSlRSidadLxUMGnsGnE"
+    }
+  }
+  </script>
   <title>Markdown Preview</title>
   <meta
     name="description"
@@ -126,33 +148,13 @@
     integrity="sha384-MVwSuH88MctNNg+3dwLImVhp3/5G1k0NtNYzmuuplV7D/xSlRSidadLxUMGnsGnE"
     crossorigin="anonymous"
   />
-  <script type="importmap">
-  {
-    "imports": {
-      "marked": "https://cdn.jsdelivr.net/npm/marked@18.0.13/lib/marked.esm.js",
-      "dompurify": "https://cdn.jsdelivr.net/npm/dompurify@3.4.15/dist/purify.es.mjs",
-      "highlight.js": "https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.12.0/es/core.min.js",
-      "gemoji": "https://cdn.jsdelivr.net/npm/gemoji@8.1.0/+esm",
-      "yaml": "https://cdn.jsdelivr.net/npm/yaml@2.9.1/+esm"
-    },
-    "integrity": {
-      "https://cdn.jsdelivr.net/npm/marked@18.0.13/lib/marked.esm.js": "sha384-e72zKBnxCunMabU3bdcEoYpC/kmXSAxZBNzDIClVBHNG0Bywm2jm+BTgSQsLtv40",
-      "https://cdn.jsdelivr.net/npm/dompurify@3.4.15/dist/purify.es.mjs": "sha384-7qp4WRTNsGGxR8HfIhcAZoSk58Z/fsUx40ul1tuY0myp6r0jHAqEnFiaNOobIc9v",
-      "https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.12.0/es/core.min.js": "sha384-2f7fURQL4kJaQ73YY8MVgq6LBaed5Dz6Pv9SdsbeAKurWj/0OLDSfrDCdIB18Dsm",
-      "https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.12.0/es/languages/markdown.min.js": "sha384-atzUeXgldTnp0Vvir5hFSZ4MRX0FWOpxp7UdXca7uje0uL5S6swwfRhq5SB5Ag0m",
-      "https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.12.0/es/languages/xml.min.js": "sha384-7lgbaoMNJXxrndTFyw0ll0hq1MZzDLFkFmLhYLibSJNXgcW6xOSU9e+OS2QaAKDP",
-      "https://cdn.jsdelivr.net/npm/gemoji@8.1.0/+esm": "sha384-BxixXuX+Sw/FKnMEyJ+uFfpzgLCYpImf3Wks5yu6wYrASvTTUe4lmI+mXE9kKdAL",
-      "https://cdn.jsdelivr.net/npm/yaml@2.9.1/+esm": "sha384-MVwSuH88MctNNg+3dwLImVhp3/5G1k0NtNYzmuuplV7D/xSlRSidadLxUMGnsGnE"
-    }
-  }
-  </script>
 </head>
 <body data-view="edit">
   <header class="toolbar">
     <div class="brand-group">
       <button
         type="button"
-        class="btn svg-btn authoring-only fs-only hamburger-btn"
+        class="btn svg-btn authoring-only hamburger-btn"
         id="files-toggle-btn"
         title="Files"
         aria-label="Files"
@@ -277,6 +279,40 @@
               </li>
               <li>
                 <button type="button" role="menuitem" data-export="rtf">Export as RTF</button>
+              </li>
+            </ul>
+          </div>
+          <div class="dropdown authoring-only" id="writing-tools-dropdown" hidden>
+            <button
+              type="button"
+              class="btn svg-btn"
+              id="writing-tools-btn"
+              title="Writing tools"
+              aria-label="Writing tools"
+              aria-haspopup="menu"
+              aria-expanded="false"
+              aria-controls="writing-tools-menu"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                <path d="m21.64 3.64-1.28-1.28a1.21 1.21 0 0 0-1.72 0L2.36 18.64a1.21 1.21 0 0 0 0 1.72l1.28 1.28a1.2 1.2 0 0 0 1.72 0L21.64 5.36a1.2 1.2 0 0 0 0-1.72Z" />
+                <path d="m14 7 3 3" />
+                <path d="M5 6v4" />
+                <path d="M19 14v4" />
+                <path d="M10 2v2" />
+                <path d="M7 8H3" />
+                <path d="M21 16h-4" />
+                <path d="M11 3H9" />
+              </svg>
+            </button>
+            <ul class="dropdown-menu" id="writing-tools-menu" role="menu" hidden>
+              <li>
+                <button type="button" role="menuitem" id="ai-write-menu-btn" data-ai="write">Write…</button>
+              </li>
+              <li>
+                <button type="button" role="menuitem" id="ai-rewrite-menu-btn" data-ai="rewrite">Rewrite…</button>
+              </li>
+              <li>
+                <button type="button" role="menuitem" id="ai-proofread-menu-btn" data-ai="proofread">Proofread…</button>
               </li>
             </ul>
           </div>
@@ -530,6 +566,15 @@
       ></div>
       <section class="pane preview-pane" id="preview-pane" aria-label="Rendered preview">
         <article class="preview" id="preview"></article>
+        <div class="editor-wrap ai-proof-editor-wrap" id="ai-proof-editor-wrap" hidden>
+          <pre class="editor-highlight" id="ai-proof-highlight" aria-hidden="true"><code></code></pre>
+          <textarea
+            id="ai-proof-editor"
+            readonly
+            spellcheck="false"
+            aria-label="Proofread result"
+          ></textarea>
+        </div>
         <div class="present-chrome" id="present-chrome" hidden>
           <button type="button" class="btn" id="present-prev-btn" title="Previous section" aria-label="Previous section">←</button>
           <div class="present-progress" id="present-progress" aria-live="polite"></div>
@@ -570,6 +615,121 @@
         Accept
       </button>
     </form>
+  </dialog>
+
+  <dialog
+    class="external-modal ai-modal"
+    id="ai-write-dialog"
+    aria-labelledby="ai-write-title"
+  >
+    <h2 class="external-modal-title" id="ai-write-title">Write</h2>
+    <p class="external-modal-desc">
+      Generate Markdown with Chrome’s on-device Writer. Inserts at the caret
+      (or replaces the selection).
+    </p>
+    <label class="ai-field">
+      <span class="ai-field-label">Prompt</span>
+      <textarea id="ai-write-prompt" rows="3" placeholder="What should be written?"></textarea>
+    </label>
+    <label class="ai-field">
+      <span class="ai-field-label">Context <span class="ai-optional">(optional)</span></span>
+      <textarea id="ai-write-context" rows="2" placeholder="Extra background for the model"></textarea>
+    </label>
+    <div class="ai-options">
+      <label class="ai-option">
+        <span class="ai-field-label">Tone</span>
+        <select id="ai-write-tone" aria-label="Write tone">
+          <option value="neutral" selected>Neutral</option>
+          <option value="formal">Formal</option>
+          <option value="casual">Casual</option>
+        </select>
+      </label>
+      <label class="ai-option">
+        <span class="ai-field-label">Length</span>
+        <select id="ai-write-length" aria-label="Write length">
+          <option value="short" selected>Short</option>
+          <option value="medium">Medium</option>
+          <option value="long">Long</option>
+        </select>
+      </label>
+    </div>
+    <p class="ai-status" id="ai-write-status" role="status">
+      <span class="ai-spinner" hidden aria-hidden="true"></span>
+      <span class="ai-status-text"></span>
+    </p>
+    <div class="ai-preview" id="ai-write-preview" hidden aria-live="polite"></div>
+    <div class="external-modal-actions ai-modal-actions">
+      <button type="button" class="btn" id="ai-write-cancel">Cancel</button>
+      <button type="button" class="btn" id="ai-write-stop" hidden>Stop</button>
+      <button type="button" class="btn external-modal-accept" id="ai-write-generate">Generate</button>
+      <button type="button" class="btn external-modal-accept" id="ai-write-insert" hidden disabled>Insert</button>
+    </div>
+  </dialog>
+
+  <dialog
+    class="external-modal ai-modal"
+    id="ai-rewrite-dialog"
+    aria-labelledby="ai-rewrite-title"
+  >
+    <h2 class="external-modal-title" id="ai-rewrite-title">Rewrite</h2>
+    <p class="external-modal-desc" id="ai-rewrite-desc">
+      Rewrites the selection, or the whole document if nothing is selected.
+    </p>
+    <label class="ai-field">
+      <span class="ai-field-label">Context <span class="ai-optional">(optional)</span></span>
+      <textarea id="ai-rewrite-context" rows="2" placeholder="How should this be rewritten?"></textarea>
+    </label>
+    <div class="ai-options">
+      <label class="ai-option">
+        <span class="ai-field-label">Tone</span>
+        <select id="ai-rewrite-tone" aria-label="Rewrite tone">
+          <option value="as-is" selected>As-is</option>
+          <option value="more-formal">More formal</option>
+          <option value="more-casual">More casual</option>
+        </select>
+      </label>
+      <label class="ai-option">
+        <span class="ai-field-label">Length</span>
+        <select id="ai-rewrite-length" aria-label="Rewrite length">
+          <option value="as-is" selected>As-is</option>
+          <option value="shorter">Shorter</option>
+          <option value="longer">Longer</option>
+        </select>
+      </label>
+    </div>
+    <p class="ai-status" id="ai-rewrite-status" role="status">
+      <span class="ai-spinner" hidden aria-hidden="true"></span>
+      <span class="ai-status-text"></span>
+    </p>
+    <div class="ai-preview" id="ai-rewrite-preview" hidden aria-live="polite"></div>
+    <div class="external-modal-actions ai-modal-actions">
+      <button type="button" class="btn" id="ai-rewrite-cancel">Cancel</button>
+      <button type="button" class="btn" id="ai-rewrite-stop" hidden>Stop</button>
+      <button type="button" class="btn external-modal-accept" id="ai-rewrite-run">Rewrite</button>
+      <button type="button" class="btn external-modal-accept" id="ai-rewrite-apply" hidden disabled>Apply</button>
+    </div>
+  </dialog>
+
+  <dialog
+    class="external-modal ai-modal ai-proof-dock"
+    id="ai-proofread-dialog"
+    aria-labelledby="ai-proofread-title"
+  >
+    <h2 class="external-modal-title" id="ai-proofread-title">Proofread</h2>
+    <p class="external-modal-desc" id="ai-proofread-desc">
+      Checks the selection, or the whole document if nothing is selected.
+      Code fences keep their structure; only Mermaid notes, line comments, and Markdown prose are proofread.
+    </p>
+    <p class="ai-status" id="ai-proofread-status" role="status">
+      <span class="ai-spinner" hidden aria-hidden="true"></span>
+      <span class="ai-status-text"></span>
+    </p>
+    <div class="external-modal-actions ai-modal-actions">
+      <button type="button" class="btn" id="ai-proofread-cancel">Cancel</button>
+      <button type="button" class="btn" id="ai-proofread-stop" hidden>Stop</button>
+      <button type="button" class="btn external-modal-accept" id="ai-proofread-run">Proofread</button>
+      <button type="button" class="btn external-modal-accept" id="ai-proofread-apply" hidden disabled>Apply</button>
+    </div>
   </dialog>
 
   <div class="toast" id="toast" hidden role="status"></div>

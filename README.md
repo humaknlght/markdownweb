@@ -14,6 +14,7 @@ A fast, client-side Markdown previewer. Paste upload, or open Markdown and see r
 - **Slides** mode keeps the editor open while the preview walks those same sections
 - Print / Save as PDF styles that hide chrome and keep the article clean
 - Read aloud with high-quality voice picking and word highlighting (in supported browsers)
+- **Writing tools** (Chrome on-device AI, when available): Write, Rewrite, and Proofread
 - Theme dropdown: GitHub Light, GitHub Dark, Sepia, Terminal, Salesforce Cosmos, Fancy
 - Syntax highlighting in the Markdown editor and for fenced code blocks in the preview
 - Emoji shortcodes (`:wink:`) and emoticons (`:-)`, `;)`)
@@ -102,3 +103,23 @@ https://example.com/#mdz=<deflate-raw+base64url>&theme=fancy&view=edit
 Query form also works (`?mdz=...` or legacy `?md=...`). On load, URL content takes priority over the saved draft and opens in **edit** so the recipient can read the source before Accepting. Very long documents can still produce URLs some apps truncate; the share toast warns when a link exceeds ~16KB.
 
 Use the share control to copy a link. After Accept, **Present**, **Print**, and **Slides** are available as usual.
+
+## Chrome Writing tools
+
+On supported Chrome builds, the toolbar **Writing tools** menu offers on-device Write, Rewrite, and Proofread (Gemini Nano). The menu stays hidden when the APIs are unavailable.
+
+### Local (`127.0.0.1`)
+
+Enable flags, then relaunch Chrome:
+
+- `chrome://flags/#writer-api`
+- `chrome://flags/#rewriter-api`
+- `chrome://flags/#proofreader-api`
+
+Also enable **Optimization Guide On Device Model** if prompted, and check `chrome://on-device-internals` for model download status. Hardware requirements apply (desktop OS, sufficient RAM/storage/GPU or CPU cores).
+
+### Production (`https://dev.ericperret.org`)
+
+Register for the [Writer/Rewriter](https://developer.chrome.com/docs/ai/writer-api) and [Proofreader](https://developer.chrome.com/docs/ai/proofreader-api) origin trials for that origin. Uncomment and set the `Origin-Trial` headers in [`public/.htaccess`](public/.htaccess) (use `Header always add` once per token). Rebuild/deploy so Apache serves the headers on HTML responses.
+
+Permissions-Policy already allows `writer`, `rewriter`, and `proofreader` for `self`.

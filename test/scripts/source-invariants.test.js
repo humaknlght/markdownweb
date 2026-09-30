@@ -11,6 +11,20 @@ describe("static source invariants", () => {
   it("keeps import map, CDN_PRECACHE, and THEMES in sync", async () => {
     const html = await fs.readFile(path.join(root, "src/index.html"), "utf8");
     assert.match(html, /type="importmap"/);
+    // Firefox speculative loading ignores import maps that appear after
+    // classic scripts or modulepreload (bare CDN imports then fail).
+    const importMapAt = html.indexOf('type="importmap"');
+    const firstScriptAt = html.search(/<script(?![^>]*type="importmap")/i);
+    const firstPreloadAt = html.indexOf('rel="modulepreload"');
+    assert.ok(importMapAt >= 0, "import map missing");
+    assert.ok(
+      firstScriptAt < 0 || importMapAt < firstScriptAt,
+      "import map must precede other <script> tags",
+    );
+    assert.ok(
+      firstPreloadAt < 0 || importMapAt < firstPreloadAt,
+      "import map must precede modulepreload links",
+    );
     assert.match(html, /window\.__MD_SW__="__SW_URL__"/);
     assert.match(html, /marked@18\.0\.13/);
     assert.match(html, /dompurify@3\.4\.15/);
@@ -60,6 +74,10 @@ describe("static source invariants", () => {
     assert.match(ht, /rel=prefetch/);
     assert.match(ht, /web-share=\(\)/);
     assert.match(ht, /fullscreen=\(self\)/);
+    assert.match(ht, /writer=\(self\)/);
+    assert.match(ht, /rewriter=\(self\)/);
+    assert.match(ht, /proofreader=\(self\)/);
+    assert.match(ht, /Origin-Trial/);
     assert.match(ht, /og-image/);
     assert.match(ht, /Cross-Origin-Resource-Policy/);
   });

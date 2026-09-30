@@ -44,17 +44,17 @@ Notes:
 
 ### Files drawer
 
-Available on Chromium desktop when the File System Access API is supported. Open it with the hamburger button.
+Open it with the hamburger button. The **Outline** works in every browser. Folder browsing (**Open folder**, tree, **Save**) needs Chromium desktop with the File System Access API.
 
 Drafts and “unsaved” snapshots are scoped per open file (and a shared **untitled** slot), so two tabs editing different files do not overwrite each other. A document stays **unsaved** until it is written to disk (File System Access) or accepted from a share URL (`md` / `mdz`); IndexedDB auto-save alone does not clear that state.
 
 | Action | What it does |
 |--------|----------------|
-| **Open folder** | Pick a local folder to browse (handle remembered for next visits) |
-| **New** | Create a new untitled document |
-| **New folder** | Create a subfolder in the current directory |
-| **Refresh** | Reload the folder tree |
-| **Save** / `Ctrl`/`Cmd`+`S` | Write the current file when a handle is available |
+| **Open folder** | Pick a local folder to browse (handle remembered for next visits; Chromium) |
+| **New** | Create a new untitled document (Chromium) |
+| **New folder** | Create a subfolder in the current directory (Chromium) |
+| **Refresh** | Reload the folder tree (Chromium) |
+| **Save** / `Ctrl`/`Cmd`+`S` | Write the current file when a handle is available (Chromium) |
 | **Outline** | Heading list for the open document; click to jump in editor and preview |
 
 Right-click (or long-press) a file or folder for a context menu: **New file**, **New folder**, **Rename**, **Delete**.

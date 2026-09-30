@@ -4,6 +4,12 @@
   box-sizing: border-box;
 }
 
+/* Author `display:` rules (e.g. .svg-btn) must not defeat the hidden attribute.
+   Browsers no longer map [hidden] to display:none !important in the UA sheet. */
+[hidden] {
+  display: none !important;
+}
+
 :root,
 html[data-theme="github-light"] {
   --chrome-bg: #f6f7f9;
@@ -59,10 +65,11 @@ html[data-theme="github-light"] {
   --mermaid-node-bg: #ececff;
   --mermaid-node-border: #9370db;
   --mermaid-cluster-bg: #ffffde;
-  --mermaid-cluster-border: #aaaa33;
+  --mermaid-cluster-border: #6b6b22;
   --mermaid-line: #333333;
   --mermaid-label-bg: #e8e8e8;
   --mermaid-note-bg: #fff5ad;
+  --mermaid-note-fg: #333333;
   --install-fill: #2f5bb8;
   --install-fill-hover: #244a96;
   --install-fg: #ffffff;
@@ -115,15 +122,16 @@ html[data-theme="github-dark"] {
   --syntax-meta: #8b949e;
   --syntax-deletion: #ffa198;
   --syntax-addition: #7ee787;
-  --mermaid-bg: transparent;
-  --mermaid-fg: #cccccc;
-  --mermaid-node-bg: #1f2020;
-  --mermaid-node-border: #cccccc;
-  --mermaid-cluster-bg: #302f3d;
-  --mermaid-cluster-border: rgba(255, 255, 255, 0.25);
-  --mermaid-line: #cccccc;
-  --mermaid-label-bg: #181818;
+  --mermaid-bg: #0d1117;
+  --mermaid-fg: #e6edf3;
+  --mermaid-node-bg: #21262d;
+  --mermaid-node-border: #8b949e;
+  --mermaid-cluster-bg: #30363d;
+  --mermaid-cluster-border: #8b949e;
+  --mermaid-line: #c9d1d9;
+  --mermaid-label-bg: #161b22;
   --mermaid-note-bg: #fff5ad;
+  --mermaid-note-fg: #1f2328;
   --install-fill: var(--chrome-surface);
   --install-fill-hover: var(--chrome-hover);
   --install-fg: var(--chrome-text);
@@ -171,6 +179,16 @@ html[data-theme="sepia"] {
   --syntax-meta: #8a7760;
   --syntax-deletion: #9c2f2f;
   --syntax-addition: #3d6b4f;
+  --mermaid-bg: #f4ecd8;
+  --mermaid-fg: #5b4636;
+  --mermaid-node-bg: #ebe0c8;
+  --mermaid-node-border: #8b4513;
+  --mermaid-cluster-bg: #e8dcc4;
+  --mermaid-cluster-border: #6b4f1a;
+  --mermaid-line: #5b4636;
+  --mermaid-label-bg: #e0d4bc;
+  --mermaid-note-bg: #f5e6b8;
+  --mermaid-note-fg: #5b4636;
   --install-fill: #6f3610;
   --install-fill-hover: #5a2c0c;
   --install-fg: #fff8e7;
@@ -223,15 +241,16 @@ html[data-theme="terminal"] {
   --syntax-meta: #4d7a48;
   --syntax-deletion: #ff8a8a;
   --syntax-addition: #7dff7a;
-  --mermaid-bg: transparent;
+  --mermaid-bg: #0c0f0c;
   --mermaid-fg: #b6f2b0;
-  --mermaid-node-bg: #121812;
+  --mermaid-node-bg: #1a241a;
   --mermaid-node-border: #6f9f6a;
-  --mermaid-cluster-bg: #1a241a;
-  --mermaid-cluster-border: #2a4a2a;
+  --mermaid-cluster-bg: #243024;
+  --mermaid-cluster-border: #6f9f6a;
   --mermaid-line: #7dff7a;
-  --mermaid-label-bg: #0c0f0c;
-  --mermaid-note-bg: #1a241a;
+  --mermaid-label-bg: #121812;
+  --mermaid-note-bg: #243024;
+  --mermaid-note-fg: #b6f2b0;
   --install-fill: var(--chrome-surface);
   --install-fill-hover: var(--chrome-hover);
   --install-fg: var(--chrome-text);
@@ -281,6 +300,16 @@ html[data-theme="salesforce"] {
   --syntax-meta: #a0cfff;
   --syntax-deletion: #ff8a8a;
   --syntax-addition: #7fd1a0;
+  --mermaid-bg: #ffffff;
+  --mermaid-fg: #032d60;
+  --mermaid-node-bg: #eaf5fe;
+  --mermaid-node-border: #0176d3;
+  --mermaid-cluster-bg: #d8edff;
+  --mermaid-cluster-border: #014486;
+  --mermaid-line: #032d60;
+  --mermaid-label-bg: #e5e5e5;
+  --mermaid-note-bg: #fff5ad;
+  --mermaid-note-fg: #032d60;
   --install-fill: #014486;
   --install-fill-hover: #032d60;
   --install-fg: #ffffff;
@@ -455,15 +484,16 @@ html[data-theme="fancy"] {
   --syntax-meta: #8fb3c4;
   --syntax-deletion: #ff8a8a;
   --syntax-addition: #9de0b0;
-  --mermaid-bg: transparent;
+  --mermaid-bg: #062436;
   --mermaid-fg: #f4f8fb;
-  --mermaid-node-bg: #0a2434;
+  --mermaid-node-bg: #0d3a52;
   --mermaid-node-border: #7ed0ff;
-  --mermaid-cluster-bg: rgba(8, 28, 42, 0.85);
-  --mermaid-cluster-border: rgba(255, 255, 255, 0.28);
+  --mermaid-cluster-bg: #0a3044;
+  --mermaid-cluster-border: #7ed0ff;
   --mermaid-line: #b7c9d4;
-  --mermaid-label-bg: #062436;
+  --mermaid-label-bg: #083048;
   --mermaid-note-bg: #14384c;
+  --mermaid-note-fg: #f4f8fb;
   --install-fill: rgba(8, 28, 42, 0.85);
   --install-fill-hover: rgba(255, 255, 255, 0.22);
   --install-fg: var(--chrome-text);
@@ -1227,6 +1257,22 @@ a.btn {
   font: var(--preview-size) / 1.5 var(--preview-font);
 }
 
+/* Fancy chrome-surface is nearly clear; frost modals like the toolbar/panes. */
+html[data-theme="fancy"] .external-modal {
+  background: var(--fancy-glass);
+  border-color: var(--fancy-glass-border);
+  backdrop-filter: blur(18px) saturate(1.35);
+  -webkit-backdrop-filter: blur(18px) saturate(1.35);
+}
+
+/* Modeless proof dock has no ::backdrop — use denser fancy fill so preview
+   text does not bleed through the title and description. */
+html[data-theme="fancy"] .external-modal.ai-proof-dock {
+  background: var(--install-fill);
+  backdrop-filter: blur(22px) saturate(1.4);
+  -webkit-backdrop-filter: blur(22px) saturate(1.4);
+}
+
 /* Fancy surface is translucent — inverted Accept needs opaque dark label text. */
 html[data-theme="fancy"] .external-modal .btn.external-modal-accept {
   background: #f4f8fb;
@@ -1240,6 +1286,208 @@ html[data-theme="fancy"] .external-modal .btn.external-modal-accept:focus-visibl
   color: #062436;
   border-color: #ffffff;
   filter: none;
+}
+
+.ai-modal {
+  width: min(36rem, calc(100% - 2.5rem));
+  max-height: min(90vh, 40rem);
+  overflow: auto;
+}
+
+.ai-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin: 0 0 0.85rem;
+}
+
+.ai-field-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--chrome-muted, var(--chrome-text));
+}
+
+.ai-optional {
+  font-weight: 400;
+  opacity: 0.85;
+}
+
+.ai-field textarea {
+  width: 100%;
+  min-height: 3.5rem;
+  resize: vertical;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid var(--chrome-border);
+  border-radius: 8px;
+  background: var(--chrome-bg, var(--chrome-surface));
+  color: var(--chrome-text);
+  font: inherit;
+  font-size: 0.875rem;
+  line-height: 1.45;
+}
+
+.ai-field textarea:focus-visible {
+  outline: 2px solid var(--chrome-accent, var(--chrome-text));
+  outline-offset: 1px;
+}
+
+.ai-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
+  margin: 0 0 0.75rem;
+}
+
+.ai-option {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  min-width: 8rem;
+  flex: 1;
+}
+
+.ai-option select {
+  min-height: 2rem;
+  padding: 0.25rem 0.45rem;
+  border: 1px solid var(--chrome-border);
+  border-radius: 8px;
+  background: var(--chrome-bg, var(--chrome-surface));
+  color: var(--chrome-text);
+  font: inherit;
+  font-size: 0.875rem;
+}
+
+.ai-status {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.45rem;
+  min-height: 1.2em;
+  margin: 0 0 0.65rem;
+  font-size: 0.8rem;
+  line-height: 1.35;
+  color: var(--chrome-muted, var(--chrome-text));
+}
+
+.ai-status-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.ai-spinner {
+  flex: 0 0 auto;
+  width: 0.9rem;
+  height: 0.9rem;
+  margin-top: 0.15em;
+  border: 2px solid color-mix(in srgb, var(--chrome-muted, var(--chrome-text)) 35%, transparent);
+  border-top-color: var(--chrome-accent, var(--chrome-text));
+  border-radius: 50%;
+  animation: ai-spin 0.7s linear infinite;
+}
+
+.ai-spinner[hidden] {
+  display: none;
+}
+
+@keyframes ai-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.ai-modal-actions .btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.ai-preview {
+  margin: 0 0 1rem;
+  padding: 0.7rem 0.8rem;
+  max-height: 12rem;
+  overflow: auto;
+  border: 1px solid var(--chrome-border);
+  border-radius: 8px;
+  background: var(--chrome-bg, var(--chrome-surface));
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: 0.875rem / 1.45 var(--preview-font, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+  color: var(--chrome-text);
+}
+
+/* Compact modeless dock — corrected Markdown is reviewed in a second editor. */
+.ai-modal.ai-proof-dock {
+  width: min(28rem, calc(100% - 2rem));
+  max-height: none;
+  margin: 0;
+  position: fixed;
+  left: 50%;
+  bottom: 1rem;
+  transform: translateX(-50%);
+  z-index: 40;
+  box-shadow: var(--chrome-shadow, 0 16px 48px rgba(0, 0, 0, 0.28));
+}
+
+.ai-modal.ai-proof-dock .external-modal-desc {
+  margin-bottom: 0.65rem;
+}
+
+/* Keep pane content clear of the fixed proofread dock. */
+body:has(#ai-proofread-dialog[open]) .workspace {
+  padding-bottom: var(--ai-proof-dock-clearance, 12rem);
+}
+
+body[data-ai-proof-preview="1"] .preview-pane {
+  overflow: hidden;
+  background: var(--editor-bg);
+}
+
+body[data-ai-proof-preview="1"] .preview-pane > .preview {
+  display: none;
+}
+
+body[data-ai-proof-preview="1"] .ai-proof-editor-wrap {
+  display: block;
+}
+
+.ai-proof-editor-wrap {
+  display: none;
+  position: absolute;
+  inset: 0;
+}
+
+#ai-proof-editor {
+  z-index: 1;
+  resize: none;
+  color: transparent;
+  caret-color: transparent;
+  background: transparent;
+  overflow: auto;
+  cursor: default;
+}
+
+#ai-proof-editor::selection {
+  color: transparent;
+  background: color-mix(in srgb, var(--chrome-focus) 35%, transparent);
+}
+
+.ai-diff {
+  background: color-mix(in srgb, #3fb950 38%, transparent);
+  color: inherit;
+  border-radius: 2px;
+  padding: 0 0.05em;
+}
+
+html[data-theme="github-light"] .ai-diff,
+html[data-theme="sepia"] .ai-diff {
+  background: color-mix(in srgb, #1a7f37 28%, transparent);
+}
+
+.ai-modal-actions {
+  flex-wrap: wrap;
+}
+
+.ai-modal-actions .btn[hidden] {
+  display: none;
 }
 
 .workspace {
@@ -1308,6 +1556,16 @@ body.files-drawer-open .files-drawer {
 
 .outline-section {
   flex: 1 1 0;
+}
+
+/* Without File System Access, only the outline panel is shown. */
+.files-drawer:not(.has-fs) .files-section {
+  display: none;
+}
+
+.files-drawer:not(.has-fs) .outline-section {
+  flex: 1 1 auto;
+  border-bottom: 0;
 }
 
 .files-backdrop {
@@ -1683,7 +1941,8 @@ html.is-booting .panes {
 }
 
 .editor-highlight,
-#editor {
+#editor,
+#ai-proof-editor {
   position: absolute;
   inset: 0;
   margin: 0;
@@ -1743,6 +2002,7 @@ html.is-booting .panes {
 }
 
 .preview-pane {
+  position: relative;
   overflow: auto;
   background: var(--preview-bg, #fff);
 }
@@ -1829,10 +2089,21 @@ mark.speech-word {
 
 .preview .md-section-twistie {
   display: block;
-  width: 0.9em;
-  text-align: center;
+  width: 1rem;
+  height: 1rem;
+  line-height: 0;
   transform: rotate(0deg);
+  transform-origin: center;
   transition: transform 0.18s ease;
+}
+
+.preview .md-section-twistie svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: visible;
 }
 
 .preview h1.is-collapsed .md-section-twistie,
@@ -1856,12 +2127,15 @@ mark.speech-word {
 
 .preview .md-section-folded {
   display: none !important;
+  overflow-anchor: none;
 }
 
 .preview .md-section-anim {
   display: grid;
   grid-template-rows: 1fr;
   transition: grid-template-rows 0.22s ease;
+  /* Collapsing tall sections must not scroll-anchor sibling titles away. */
+  overflow-anchor: none;
 }
 
 .preview .md-section-anim.is-collapsed {
@@ -1875,6 +2149,7 @@ mark.speech-word {
 .preview .md-section-anim-inner {
   overflow: hidden;
   min-height: 0;
+  overflow-anchor: none;
 }
 
 body[data-view="present"] .preview .md-section-toggle,

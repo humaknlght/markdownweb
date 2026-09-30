@@ -162,10 +162,11 @@ export function buildHtmlDocument(bodyHtml, title) {
       --mermaid-node-bg: #ececff;
       --mermaid-node-border: #9370db;
       --mermaid-cluster-bg: #ffffde;
-      --mermaid-cluster-border: #aaaa33;
+      --mermaid-cluster-border: #6b6b22;
       --mermaid-line: #333333;
       --mermaid-label-bg: #e8e8e8;
       --mermaid-note-bg: #fff5ad;
+      --mermaid-note-fg: #333333;
     }
     @page { margin: 0.75in; }
     body {
