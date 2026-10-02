@@ -56,6 +56,7 @@ import {
   collectFenceLanguages,
   escapeHtml,
   formatRelativeTime,
+  highlightEditorMarkdown,
   joinFsPath,
   parentPathOf,
   parseDraftMirror,
@@ -94,6 +95,7 @@ import DOMPurify from "dompurify";
 import hljs from "highlight.js";
 import hljsMarkdown from "https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.12.0/es/languages/markdown.min.js";
 import hljsXml from "https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.12.0/es/languages/xml.min.js";
+import hljsMermaid from "./hljs-mermaid.js";
 
 /** Lazy-loaded export helpers — not needed until the user exports/prints. */
 let exportModulePromise;
@@ -112,6 +114,8 @@ const hljsLangLoads = new Map();
 hljs.registerLanguage("xml", hljsXml);
 hljs.registerLanguage("html", hljsXml);
 hljs.registerLanguage("markdown", hljsMarkdown);
+// Mermaid is not on the highlight.js CDN; register locally for editor fences.
+hljs.registerLanguage("mermaid", hljsMermaid);
 
 function registerHljsAliases(canonical, grammar) {
   hljs.registerLanguage(canonical, grammar);
@@ -362,7 +366,7 @@ function updateEditorHighlight() {
       html = escapeHtml(value);
     } else {
       try {
-        html = hljs.highlight(value, { language: "markdown", ignoreIllegals: true }).value;
+        html = highlightEditorMarkdown(value, hljs);
       } catch {
         html = escapeHtml(value);
       }
@@ -1474,6 +1478,7 @@ function renderMarkdown(source) {
     if (!loadedAny || contentIsExternal) return;
     if (getMarkdownSource() !== source) return;
     paintMarkdown(source);
+    scheduleEditorHighlight();
   });
 
   paintMarkdown(source);

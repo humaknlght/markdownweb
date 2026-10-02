@@ -15,6 +15,7 @@ import {
   collectFenceLanguages,
   escapeHtml,
   formatRelativeTime,
+  highlightEditorMarkdown,
   joinFsPath,
   parentPathOf,
   parseDraftMirror,
@@ -23,6 +24,7 @@ import {
   SPLIT_MIN,
   SPLIT_MAX,
 } from "../../src/markdown-utils.js";
+import hljsMermaid from "../../src/hljs-mermaid.js";
 import {
   clearEmbeds,
   collapseDataUris,
@@ -91,6 +93,56 @@ describe("markdown-utils", () => {
   it("collects fence languages and skips mermaid", () => {
     const langs = collectFenceLanguages("```js\nx\n```\n\n```mermaid\ngraph\n```\n\n~~~python\ny\n~~~");
     assert.deepEqual(langs, ["js", "python"]);
+  });
+
+  it("highlights mermaid fences with a registered grammar", () => {
+    const langs = new Set(["markdown", "mermaid"]);
+    const hljs = {
+      getLanguage: (name) => langs.has(name),
+      highlight(text, { language }) {
+        return {
+          value: `<span class="lang-${language}">${escapeHtml(text)}</span>`,
+        };
+      },
+    };
+    const source = "# Hi\n\n```mermaid\nflowchart LR\n  A-->B\n```\n\nDone.";
+    const html = highlightEditorMarkdown(source, hljs);
+    assert.match(html, /lang-markdown/);
+    assert.match(html, /lang-mermaid/);
+    assert.match(html, /flowchart LR/);
+    assert.match(html, /class="hljs-code"/);
+    // Overlay text must stay aligned with the textarea source.
+    const text = html
+      .replace(/<[^>]+>/g, "")
+      .replace(/&amp;/g, "&")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'");
+    assert.equal(text, source);
+  });
+
+  it("falls back to plain code spans for unknown fence languages", () => {
+    const hljs = {
+      getLanguage: (name) => name === "markdown",
+      highlight(text, { language }) {
+        return {
+          value: `<span class="lang-${language}">${escapeHtml(text)}</span>`,
+        };
+      },
+    };
+    const html = highlightEditorMarkdown("```nosuchlang\nx\n```", hljs);
+    assert.match(html, /hljs-code/);
+    assert.doesNotMatch(html, /lang-nosuchlang/);
+  });
+
+  it("exports a mermaid highlight.js grammar", () => {
+    const grammar = hljsMermaid({
+      COMMENT: (begin, end) => ({ className: "comment", begin, end }),
+    });
+    assert.equal(grammar.name, "Mermaid");
+    assert.deepEqual(grammar.aliases, ["mermaid"]);
+    assert.ok(grammar.contains.length > 0);
   });
 
   it("wraps highlighted lines and reopens spans", () => {

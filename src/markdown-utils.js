@@ -57,6 +57,8 @@ export function canonicalHljsLang(name) {
 
 /**
  * Collect fenced-code language tags from markdown source (excludes mermaid).
+ * Mermaid is registered locally for the editor; preview renders it as SVG, so
+ * we never fetch a CDN grammar for it.
  * @param {string} source
  * @returns {string[]}
  */
@@ -72,6 +74,68 @@ export function collectFenceLanguages(source) {
     langs.push(lang);
   }
   return langs;
+}
+
+/**
+ * Highlight markdown for the editor overlay. Closed fenced blocks use a
+ * registered highlight.js language when available (including local mermaid);
+ * fence markers stay `hljs-code`. Text content stays aligned with the textarea.
+ *
+ * @param {string} source
+ * @param {{ highlight: Function, getLanguage: Function }} hljs
+ * @returns {string}
+ */
+export function highlightEditorMarkdown(source, hljs) {
+  if (!source) return "";
+
+  /** @param {string} text @param {string} [language] */
+  function highlightChunk(text, language = "markdown") {
+    if (!text) return "";
+    try {
+      if (language && hljs.getLanguage(language)) {
+        return hljs.highlight(text, { language, ignoreIllegals: true }).value;
+      }
+    } catch {
+      /* fall through */
+    }
+    if (language !== "markdown") {
+      try {
+        return hljs.highlight(text, { language: "markdown", ignoreIllegals: true }).value;
+      } catch {
+        /* fall through */
+      }
+    }
+    return escapeHtml(text);
+  }
+
+  const fenceRe =
+    /^ {0,3}(`{3,}|~{3,})([^\n]*)\n([\s\S]*?)(^ {0,3}\1[ \t]*$)/gm;
+  let out = "";
+  let last = 0;
+  let match;
+  while ((match = fenceRe.exec(source))) {
+    const full = match[0];
+    const body = match[3];
+    const before = source.slice(last, match.index);
+    if (before) out += highlightChunk(before, "markdown");
+
+    const openEnd = full.indexOf("\n") + 1;
+    const open = full.slice(0, openEnd);
+    const close = full.slice(openEnd + body.length);
+    const lang = canonicalHljsLang(match[2].trim().split(/\s+/)[0]);
+
+    out += `<span class="hljs-code">${escapeHtml(open.slice(0, -1))}</span>\n`;
+    if (lang && hljs.getLanguage(lang)) {
+      out += highlightChunk(body, lang);
+    } else {
+      out += `<span class="hljs-code">${escapeHtml(body)}</span>`;
+    }
+    out += `<span class="hljs-code">${escapeHtml(close)}</span>`;
+    last = match.index + full.length;
+  }
+
+  if (last < source.length) out += highlightChunk(source.slice(last), "markdown");
+  return out;
 }
 
 /**
