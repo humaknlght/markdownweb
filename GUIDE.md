@@ -103,7 +103,7 @@ Pick a theme from the dropdown. Your choice is remembered:
 
 ### Draft auto-save and local history
 
-Your current draft is **auto-saved** primarily in **IndexedDB** (with a small `localStorage` mirror when the document is under ~100 000 characters), so reloading the page restores your work. Auto-save does **not** clear the unsaved indicator — that clears when you **Save** to disk or **Accept** content from a share link (`md` / `mdz`).
+Your current draft is **auto-saved** primarily in **IndexedDB** (with a small `localStorage` mirror when the document is under ~100 000 characters), so reloading the page restores your work. Auto-save does **not** clear the unsaved indicator (tab favicon badge, Save button, and installed-PWA app icon badge) — that clears when you **Save** to disk or **Accept** content from a share link (`md` / `mdz`).
 
 Separately, **History** keeps up to **20** recent snapshots. The newest full document, older revision bodies, and the history index are committed together in **IndexedDB** (so a crash cannot leave the tip and index out of sync). `localStorage` mirrors a lightweight copy of the index for the menu. Snapshots are written after about **15 seconds** of idle typing. Open the history dropdown in the toolbar to restore an earlier version.
 
@@ -166,7 +166,7 @@ Install as a PWA when the browser offers it. After install, the app and its libr
 
 ## Supported Markdown
 
-The preview uses **GitHub Flavored Markdown** (GFM), plus Mermaid diagrams, GitHub alert callouts, emoji shortcodes / emoticons, and YAML front matter as a metadata table.
+The preview uses **GitHub Flavored Markdown** (GFM), plus Mermaid diagrams, GitHub alert callouts, definition lists, emoji shortcodes / emoticons, and YAML front matter as a metadata table.
 
 > [!NOTE]
 > Soft line breaks are off: a single newline does **not** become a `<br>`. End a line with two spaces for a hard break, or use a blank line for a new paragraph.
@@ -327,6 +327,28 @@ Backslash-escape special characters when you need the literal character:
 \[not a link\]
 ```
 
+### Definition lists
+
+Type the term on its own line. On the next line, type a colon, a space, and the definition. Multiple definitions can follow one term; blank lines separate term groups.
+
+```markdown
+First Term
+: This is the definition of the first term.
+
+Second Term
+: This is one definition of the second term.
+: This is another definition of the second term.
+```
+
+Renders as:
+
+First Term
+: This is the definition of the first term.
+
+Second Term
+: This is one definition of the second term.
+: This is another definition of the second term.
+
 ---
 
 ## Mermaid diagrams
@@ -472,11 +494,11 @@ Common ASCII faces convert to emoji when surrounded by whitespace or punctuation
 | GitHub alerts (`NOTE`, `TIP`, …) | Yes |
 | YAML front matter (metadata table) | Yes |
 | Emoji shortcodes and emoticons | Yes |
+| Definition lists | Yes |
 | Inline HTML (sanitized) | Yes |
 | Soft breaks (single newline → `<br>`) | No — use two trailing spaces |
 | Math / LaTeX | No |
 | Footnotes | No |
-| Definition lists | No |
 
 ---
 

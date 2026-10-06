@@ -4,6 +4,10 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { CDN_PRECACHE } from "../../scripts/pwa.mjs";
+import {
+  applyCdnIntegrity,
+  loadCdnIntegrity,
+} from "../../scripts/cdn-integrity.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 
@@ -53,6 +57,13 @@ describe("static source invariants", () => {
       app,
       /THEMES = \["github-light", "github-dark", "sepia", "terminal", "salesforce", "fancy"\]/,
     );
+    assert.match(app, /import\("\.\/export\.js"\)/);
+    assert.doesNotMatch(app, /from ["']\.\/export\.js["']/);
+    assert.match(app, /import\("\.\/chrome-ai\.js"\)/);
+    assert.doesNotMatch(app, /from ["']\.\/chrome-ai\.js["']/);
+    assert.doesNotMatch(app, /cdn-integrity-urls\.js/);
+    assert.match(app, /cdnIntegrityUrlSet/);
+    assert.match(app, /script\[type=["']importmap["']\]/);
     // Theme boot script list in HTML must mention the same themes
     for (const theme of [
       "github-light",
@@ -66,6 +77,64 @@ describe("static source invariants", () => {
     }
   });
 
+  it("covers every CDN URL with an SRI hash", async () => {
+    const integrity = await loadCdnIntegrity();
+    const urls = Object.keys(integrity);
+    assert.ok(urls.length >= 100, `expected a full CDN graph, got ${urls.length}`);
+
+    for (const url of CDN_PRECACHE) {
+      assert.equal(typeof integrity[url], "string", `missing SRI for ${url}`);
+      assert.match(integrity[url], /^sha384-/);
+    }
+
+    const mermaidEntry = CDN_PRECACHE.find((u) => u.includes("/mermaid@"));
+    assert.ok(mermaidEntry);
+    const mermaidChunks = urls.filter((u) =>
+      u.includes("/chunks/mermaid.esm.min/"),
+    );
+    assert.ok(
+      mermaidChunks.length >= 20,
+      `expected Mermaid nested chunks, got ${mermaidChunks.length}`,
+    );
+
+    const hljsLangs = urls.filter(
+      (u) => u.includes("/es/languages/") && u.endsWith(".min.js"),
+    );
+    assert.ok(
+      hljsLangs.length >= 100,
+      `expected highlight.js languages, got ${hljsLangs.length}`,
+    );
+    assert.ok(
+      integrity[
+        "https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.12.0/es/languages/javascript.min.js"
+      ],
+    );
+  });
+
+  it("injects the CDN integrity map into the import map", async () => {
+    const html = await fs.readFile(path.join(root, "src/index.html"), "utf8");
+    const integrity = await loadCdnIntegrity();
+    const injected = applyCdnIntegrity(html, integrity);
+    const body = injected.match(
+      /<script\b[^>]*\btype=["']importmap["'][^>]*>([\s\S]*?)<\/script>/i,
+    )?.[1];
+    assert.ok(body, "import map missing after injection");
+    const map = JSON.parse(body);
+    assert.equal(Object.keys(map.integrity).length, Object.keys(integrity).length);
+    assert.equal(
+      map.integrity[
+        "https://cdn.jsdelivr.net/npm/mermaid@12.0.0/dist/mermaid.esm.min.mjs"
+      ],
+      integrity[
+        "https://cdn.jsdelivr.net/npm/mermaid@12.0.0/dist/mermaid.esm.min.mjs"
+      ],
+    );
+    assert.match(injected, /languages\/javascript\.min\.js":\s*"sha384-/);
+
+    // App allowlist is derived from this same injected map at runtime.
+    assert.deepEqual(Object.keys(map.integrity).sort(), Object.keys(integrity).sort());
+  });
+
   it("htaccess has security and cache rules", async () => {
     const ht = await fs.readFile(path.join(root, "public/.htaccess"), "utf8");
     assert.match(ht, /DirectorySlash On/);
@@ -77,6 +146,7 @@ describe("static source invariants", () => {
     assert.match(ht, /writer=\(self\)/);
     assert.match(ht, /rewriter=\(self\)/);
     assert.match(ht, /proofreader=\(self\)/);
+    assert.match(ht, /language-model=\(self\)/);
     assert.match(ht, /Origin-Trial/);
     assert.match(ht, /og-image/);
     assert.match(ht, /Cross-Origin-Resource-Policy/);

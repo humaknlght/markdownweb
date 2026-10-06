@@ -16,13 +16,14 @@ Check out the hosted instance: [https://dev.ericperret.org/markdown/](https://de
 - **Slides** mode keeps the editor open while the preview walks those same sections
 - Print / Save as PDF styles that hide chrome and keep the article clean
 - Read aloud with high-quality voice picking and word highlighting (in supported browsers)
-- **Writing tools** (Chrome on-device AI, when available): Write, Rewrite, and Proofread
+- **Writing tools** (Chrome on-device AI, when available): Write, Rewrite, and Proofread via Writer/Rewriter/Proofreader or the Prompt API
 - Theme dropdown: GitHub Light, GitHub Dark, Sepia, Terminal, Salesforce Cosmos, Fancy
 - Syntax highlighting in the Markdown editor and for fenced code blocks in the preview
 - Emoji shortcodes (`:wink:`) and emoticons (`:-)`, `;)`)
 - GitHub alert callouts (`> [!NOTE]`, `[!TIP]`, `[!IMPORTANT]`, `[!WARNING]`, `[!CAUTION]`)
+- Definition lists (`Term` / `: definition`)
 - YAML front matter at the start of a document → metadata table in the preview
-- Mermaid diagrams from fenced `mermaid` code blocks (ESM build loaded on demand from jsDelivr; diagram chunks cached after first use)
+- Mermaid diagrams from fenced `mermaid` code blocks (ESM build loaded on demand from jsDelivr with SRI on the entry and nested chunks; diagram chunks cached after first use)
 - Local history of recent Markdown (remembered in `localStorage`)
 - Progressive Web App: installable, offline (including CDN libs), update prompt
 - Installed PWA can open `.md` / `.markdown` (and related text) files via “Open with” / OS default-app settings (Chromium desktop)
@@ -65,11 +66,19 @@ npm run build
 
 This writes a minified, bundled site to `dist/`:
 
-- Bundles and minifies app JS (marked, DOMPurify, highlight.js, gemoji, and yaml load from jsDelivr with Subresource Integrity; Mermaid uses the chunked ESM build)
+- Bundles and minifies app JS (marked, DOMPurify, highlight.js, gemoji, yaml, Mermaid, and on-demand highlight.js languages load from jsDelivr with import-map Subresource Integrity, including Mermaid’s nested chunks)
 - Minifies CSS and HTML
 - **Content-hashes** JS, CSS, and images (`app.a1b2c3d4.js`, etc.) and rewrites HTML/CSS references for cache busting
 - Precompresses HTML/CSS/JS with Zopfli (gzip) and brotli q=11; Apache (and `npm run preview`) serve brotli first, then gzip
 - Injects a SHA-256 CSP hash for the inline theme boot script (no `unsafe-inline` for scripts)
+
+When bumping a CDN dependency version (marked, DOMPurify, highlight.js, gemoji, yaml, or Mermaid), regenerate the committed SRI manifest:
+
+```bash
+npm run update:cdn-sri
+```
+
+That rewrites `src/cdn-integrity.json`. `npm run build` / `npm run dev` inject the hashes into the import map; the app reads the allowlist from that map at runtime.
 
 Preview the build:
 
@@ -108,11 +117,15 @@ Use the share control to copy a link. After Accept, **Present**, **Print**, and 
 
 ## Chrome Writing tools
 
-On supported Chrome builds, the toolbar **Writing tools** menu offers on-device Write, Rewrite, and Proofread (Gemini Nano). The menu stays hidden when the APIs are unavailable.
+On supported Chrome builds, the toolbar **Writing tools** menu offers on-device Write, Rewrite, and Proofread (Gemini Nano). Dedicated Writer / Rewriter / Proofreader APIs are used when present; otherwise the [Prompt API](https://developer.chrome.com/docs/ai/prompt-api) (`LanguageModel`, Chrome 148+) powers the same flows. The menu stays hidden when none of these APIs are available.
 
 ### Local (`127.0.0.1`)
 
-Enable flags, then relaunch Chrome:
+For Prompt API (recommended path on current Chrome):
+
+- `chrome://flags/#prompt-api-for-gemini-nano` (or wait for Chrome 148+ where it ships)
+
+Optional dedicated APIs (when still exposed behind flags):
 
 - `chrome://flags/#writer-api`
 - `chrome://flags/#rewriter-api`
@@ -122,6 +135,6 @@ Also enable **Optimization Guide On Device Model** if prompted, and check `chrom
 
 ### Production ([https://dev.ericperret.org/markdown/](https://dev.ericperret.org/markdown/))
 
-Register for the [Writer/Rewriter](https://developer.chrome.com/docs/ai/writer-api) and [Proofreader](https://developer.chrome.com/docs/ai/proofreader-api) origin trials for that origin. Uncomment and set the `Origin-Trial` headers in [`public/.htaccess`](public/.htaccess) (use `Header always add` once per token). Rebuild/deploy so Apache serves the headers on HTML responses.
+With Chrome 148+, the Prompt API is available on the open web (no origin trial). Older Writer / Rewriter / Proofreader origin trials have ended; those dedicated APIs are used automatically when Chrome exposes them.
 
-Permissions-Policy already allows `writer`, `rewriter`, and `proofreader` for `self`.
+Permissions-Policy allows `writer`, `rewriter`, `proofreader`, and `language-model` for `self`.

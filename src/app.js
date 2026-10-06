@@ -1,4 +1,5 @@
 import { alertExtension } from "./alert.js";
+import { defListExtension } from "./deflist.js";
 import { emojiExtension } from "./emoji.js";
 import {
   collapseDataUris,
@@ -53,7 +54,7 @@ import {
   SPLIT_MIN,
   canonicalHljsLang,
   clampSplit,
-  collectFenceLanguages,
+  collectEditorLanguages,
   escapeHtml,
   formatRelativeTime,
   highlightEditorMarkdown,
@@ -74,22 +75,6 @@ import {
   voiceQualityScore,
   wordEndOffset,
 } from "./speech-text.js";
-import {
-  anyWritingAiSupported,
-  assertInputFitsQuota,
-  availabilityLabel,
-  checkAvailability,
-  createAiSession,
-  destroyAiSession,
-  formatAiError,
-  isAiSupported,
-  renderCorrectedDiffHtml,
-  resolveInsertRange,
-  resolveTargetRange,
-  runProofreadDocument,
-  runRewrite,
-  runWrite,
-} from "./chrome-ai.js";
 import { marked, Renderer } from "marked";
 import DOMPurify from "dompurify";
 import hljs from "highlight.js";
@@ -97,11 +82,40 @@ import hljsMarkdown from "https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@1
 import hljsXml from "https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.12.0/es/languages/xml.min.js";
 import hljsMermaid from "./hljs-mermaid.js";
 
+/** SRI allowlist from the page import map (injected at serve/build). */
+function cdnIntegrityUrlSet() {
+  try {
+    const el = document.querySelector('script[type="importmap"]');
+    const map = JSON.parse(el?.textContent || "{}");
+    return new Set(Object.keys(map.integrity || {}));
+  } catch {
+    return new Set();
+  }
+}
+const CDN_INTEGRITY_URLS = cdnIntegrityUrlSet();
+
 /** Lazy-loaded export helpers — not needed until the user exports/prints. */
 let exportModulePromise;
 function loadExportModule() {
   exportModulePromise ??= import("./export.js");
   return exportModulePromise;
+}
+
+/** Lazy-loaded Chrome Writing Assistance helpers — only when APIs exist. */
+let chromeAiModulePromise;
+function loadChromeAiModule() {
+  chromeAiModulePromise ??= import("./chrome-ai.js");
+  return chromeAiModulePromise;
+}
+
+/** Cheap probe so unsupported browsers never fetch the chrome-ai chunk. */
+function anyWritingAiGlobalPresent() {
+  return (
+    typeof globalThis.Writer !== "undefined" ||
+    typeof globalThis.Rewriter !== "undefined" ||
+    typeof globalThis.Proofreader !== "undefined" ||
+    typeof globalThis.LanguageModel !== "undefined"
+  );
 }
 
 const HLJS_LANG_CDN =
@@ -127,16 +141,20 @@ function registerHljsAliases(canonical, grammar) {
 /**
  * Ensure a highlight.js grammar is registered. Returns true if a network load
  * just completed (caller may want to re-render).
+ * Only fetches languages present in the CDN SRI allowlist (import-map integrity).
  */
 function ensureHljsLanguage(name) {
   const canonical = canonicalHljsLang(name);
   if (!canonical) return Promise.resolve(false);
   if (hljs.getLanguage(canonical)) return Promise.resolve(false);
 
+  const url = `${HLJS_LANG_CDN}/${canonical}.min.js`;
+  if (!CDN_INTEGRITY_URLS.has(url)) return Promise.resolve(false);
+
   let pending = hljsLangLoads.get(canonical);
   if (pending) return pending;
 
-  pending = import(`${HLJS_LANG_CDN}/${canonical}.min.js`)
+  pending = import(url)
     .then((mod) => {
       const grammar = mod.default;
       if (typeof grammar !== "function") return false;
@@ -150,7 +168,7 @@ function ensureHljsLanguage(name) {
 }
 
 async function ensureHljsLanguagesForSource(source) {
-  const langs = collectFenceLanguages(source);
+  const langs = collectEditorLanguages(source);
   if (!langs.length) return false;
   const results = await Promise.all(langs.map((lang) => ensureHljsLanguage(lang)));
   return results.some(Boolean);
@@ -346,6 +364,7 @@ marked.use(tablePipesExtension());
 marked.use(frontmatterExtension());
 marked.use(emojiExtension());
 marked.use(alertExtension());
+marked.use(defListExtension());
 
 // Open all markdown links in a new tab; noopener/noreferrer blocks window.opener abuse.
 DOMPurify.addHook("afterSanitizeAttributes", (node) => {
@@ -748,8 +767,20 @@ const MERMAID_THEME_CSS = `
   .edgeLabel rect,.labelBkg,.edgeLabel .labelBkg {
     fill: var(--mermaid-label-bg) !important;
   }
+  /* Flowchart edge labels (Yes/No) render in foreignObject HTML — Mermaid's
+     default yellow (#ffffde) is a CSS background on .labelBkg, span.edgeLabel,
+     AND the inner p, not an SVG fill. Prefer background-color only: Mermaid's
+     themeCSS serializer expands the background shorthand into broken longhands. */
+  .labelBkg,
+  span.edgeLabel,
+  .edgeLabel .labelBkg,
+  .edgeLabel p,
+  .edgeLabel span {
+    background-color: var(--mermaid-label-bg) !important;
+  }
   .nodeLabel,.edgeLabel,.label,.cluster-label,.cluster span,.node .label,
-  .edgeLabel foreignObject div,.nodeLabel foreignObject div {
+  .edgeLabel foreignObject div,.nodeLabel foreignObject div,
+  .edgeLabel foreignObject p,.edgeLabel foreignObject span {
     color: var(--mermaid-fg) !important;
     fill: var(--mermaid-fg) !important;
   }
@@ -862,7 +893,10 @@ function initMermaid(mermaid) {
 
 function loadMermaid() {
   // ESM entry + lazy chunks from jsDelivr (relative imports under dist/chunks/).
-  // Nested chunk fetches can't carry SRI; pin the version URL and rely on CSP.
+  // Import-map integrity covers the entry and every nested chunk URL.
+  if (!CDN_INTEGRITY_URLS.has(MERMAID_CDN)) {
+    return Promise.reject(new Error("Mermaid CDN URL missing SRI allowlist entry"));
+  }
   mermaidModule ??= import(MERMAID_CDN).then((mod) => {
     const mermaid = mod.default;
     if (!mermaid?.initialize || !mermaid?.run) {
@@ -2944,9 +2978,96 @@ function updateUnsavedAppBadge(dirty = isDirty()) {
   }
 }
 
+/** @type {{ link: HTMLLinkElement, href: string }[] | null} */
+let faviconCleanEntries = null;
+/** @type {boolean | null} */
+let faviconDirtyApplied = null;
+/** @type {string | null} */
+let faviconDirtyHref = null;
+let faviconDirtyGen = 0;
+
+function faviconIconLinks() {
+  return [...document.querySelectorAll('link[rel="icon"]')];
+}
+
+function captureCleanFavicons() {
+  if (faviconCleanEntries) return;
+  faviconCleanEntries = faviconIconLinks().map((link) => ({
+    link,
+    href: link.getAttribute("href") || link.href,
+  }));
+}
+
+function applyFaviconHref(href) {
+  for (const { link } of faviconCleanEntries || []) {
+    link.href = href;
+  }
+}
+
+function restoreCleanFavicons() {
+  for (const { link, href } of faviconCleanEntries || []) {
+    link.href = href;
+  }
+}
+
+/** Composite a corner badge onto the tab favicon while the document is unsaved. */
+function updateUnsavedFavicon(dirty = isDirty()) {
+  if (faviconDirtyApplied === dirty) return;
+  faviconDirtyApplied = dirty;
+  captureCleanFavicons();
+  if (!faviconCleanEntries?.length) return;
+
+  if (!dirty) {
+    faviconDirtyGen += 1;
+    restoreCleanFavicons();
+    return;
+  }
+
+  if (faviconDirtyHref) {
+    applyFaviconHref(faviconDirtyHref);
+    return;
+  }
+
+  const gen = ++faviconDirtyGen;
+  const sourceHref = faviconCleanEntries[0].href;
+  const img = new Image();
+  img.decoding = "async";
+  img.onload = () => {
+    if (gen !== faviconDirtyGen || !faviconDirtyApplied) return;
+    try {
+      const size = 64;
+      const canvas = document.createElement("canvas");
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+      ctx.drawImage(img, 0, 0, size, size);
+      const radius = size * 0.18;
+      const cx = size - radius - size * 0.06;
+      const cy = radius + size * 0.06;
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+      ctx.fillStyle = "#f85149";
+      ctx.fill();
+      ctx.lineWidth = Math.max(2, size * 0.05);
+      ctx.strokeStyle = "#0d1117";
+      ctx.stroke();
+      faviconDirtyHref = canvas.toDataURL("image/png");
+      applyFaviconHref(faviconDirtyHref);
+    } catch {
+      /* canvas taint / missing 2d — leave clean favicon */
+    }
+  };
+  img.onerror = () => {
+    /* keep clean favicon */
+  };
+  img.src = sourceHref;
+}
+
 function updateSaveButton() {
   const dirty = isDirty();
   updateUnsavedAppBadge(dirty);
+  updateUnsavedFavicon(dirty);
   if (!saveBtn || !fsAccessSupported) return;
   saveBtn.classList.toggle("is-dirty", dirty);
   saveBtn.title = dirty
@@ -5614,16 +5735,49 @@ function setupSpeech() {
 
 /**
  * Chrome on-device Writer / Rewriter / Proofreader (hidden when unsupported).
+ * chrome-ai.js is loaded only when at least one API global is present.
  */
-function setupChromeAi() {
+async function setupChromeAi() {
   if (!writingToolsDropdown || !writingToolsBtn || !writingToolsMenu) return;
-  if (!anyWritingAiSupported()) return;
+  if (!anyWritingAiGlobalPresent()) return;
+
+  const {
+    assertInputFitsQuota,
+    availabilityLabel,
+    checkAvailability,
+    checkPromptAvailability,
+    createAiSession,
+    createPromptSession,
+    destroyAiSession,
+    formatAiError,
+    isAiSupported,
+    isPromptApiSupported,
+    PROMPT_TEXT_OPTIONS,
+    promptSystemFor,
+    renderCorrectedDiffHtml,
+    resolveInsertRange,
+    resolveTargetRange,
+    runProofreadDocument,
+    runPromptRewrite,
+    runPromptWrite,
+    runRewrite,
+    runWrite,
+    wrapPromptSessionAsProofreader,
+    writingBackendFor,
+  } = await loadChromeAiModule();
 
   writingToolsDropdown.hidden = false;
 
-  if (aiWriteMenuBtn) aiWriteMenuBtn.hidden = !isAiSupported("Writer");
-  if (aiRewriteMenuBtn) aiRewriteMenuBtn.hidden = !isAiSupported("Rewriter");
-  if (aiProofreadMenuBtn) aiProofreadMenuBtn.hidden = !isAiSupported("Proofreader");
+  const promptOk = isPromptApiSupported();
+  if (aiWriteMenuBtn) {
+    aiWriteMenuBtn.hidden = !(isAiSupported("Writer") || promptOk);
+  }
+  if (aiRewriteMenuBtn) {
+    aiRewriteMenuBtn.hidden = !(isAiSupported("Rewriter") || promptOk);
+  }
+  if (aiProofreadMenuBtn) {
+    aiProofreadMenuBtn.hidden = !(isAiSupported("Proofreader") || promptOk);
+  }
 
   /** @type {AbortController|null} */
   let aiAbort = null;
@@ -5749,6 +5903,29 @@ function setupChromeAi() {
   async function ensureSession(kind, options, onProgress) {
     destroyAiSession(activeSession);
     activeSession = null;
+    const backend = writingBackendFor(kind);
+    if (!backend) {
+      throw new Error(availabilityLabel("unavailable"));
+    }
+
+    if (backend === "prompt") {
+      const promptOptions = {
+        ...PROMPT_TEXT_OPTIONS,
+        initialPrompts: [{ role: "system", content: promptSystemFor(kind) }],
+      };
+      const status = await checkPromptAvailability(PROMPT_TEXT_OPTIONS);
+      if (status === "unavailable") {
+        throw new Error(availabilityLabel(status));
+      }
+      const lm = await createPromptSession(promptOptions, {
+        signal: aiAbort?.signal,
+        onProgress,
+      });
+      activeSession =
+        kind === "Proofreader" ? wrapPromptSessionAsProofreader(lm) : lm;
+      return activeSession;
+    }
+
     const status = await checkAvailability(kind, options);
     if (status === "unavailable") {
       throw new Error(availabilityLabel(status));
@@ -5982,9 +6159,12 @@ function setupChromeAi() {
     setStatus(status, "Starting…");
 
     try {
+      const tone = toneEl?.value || "neutral";
+      const length = lengthEl?.value || "short";
+      const backend = writingBackendFor("Writer");
       const options = {
-        tone: toneEl?.value || "neutral",
-        length: lengthEl?.value || "short",
+        tone,
+        length,
         format: "markdown",
         expectedInputLanguages: ["en"],
         expectedContextLanguages: ["en"],
@@ -5995,14 +6175,18 @@ function setupChromeAi() {
       });
       setStatus(status, "Writing…");
       const context = contextEl?.value?.trim() || undefined;
-      const result = await runWrite(session, prompt, {
+      const writeOpts = {
         context,
         signal: aiAbort.signal,
         onChunk: (text) => {
           pendingResult = text;
           showPreview(preview, text);
         },
-      });
+      };
+      const result =
+        backend === "prompt"
+          ? await runPromptWrite(session, prompt, { ...writeOpts, tone, length })
+          : await runWrite(session, prompt, writeOpts);
       pendingResult = result;
       showPreview(preview, result);
       setStatus(status, result.trim() ? "Ready to insert." : "No output.");
@@ -6077,9 +6261,12 @@ function setupChromeAi() {
     setStatus(status, "Starting…");
 
     try {
+      const tone = toneEl?.value || "as-is";
+      const length = lengthEl?.value || "as-is";
+      const backend = writingBackendFor("Rewriter");
       const options = {
-        tone: toneEl?.value || "as-is",
-        length: lengthEl?.value || "as-is",
+        tone,
+        length,
         format: "markdown",
         expectedInputLanguages: ["en"],
         expectedContextLanguages: ["en"],
@@ -6091,14 +6278,18 @@ function setupChromeAi() {
       await assertInputFitsQuota(session, source);
       setStatus(status, "Rewriting…");
       const context = contextEl?.value?.trim() || undefined;
-      const result = await runRewrite(session, source, {
+      const rewriteOpts = {
         context,
         signal: aiAbort.signal,
         onChunk: (text) => {
           pendingResult = text;
           showPreview(preview, text);
         },
-      });
+      };
+      const result =
+        backend === "prompt"
+          ? await runPromptRewrite(session, source, { ...rewriteOpts, tone, length })
+          : await runRewrite(session, source, rewriteOpts);
       pendingResult = result;
       showPreview(preview, result);
       setStatus(status, result.trim() ? "Ready to apply." : "No output.");
@@ -6665,7 +6856,7 @@ async function init() {
   // Non-critical UI — after first paint (next frame), so speak/history work ASAP.
   requestAnimationFrame(() => {
     setupSpeech();
-    setupChromeAi();
+    void setupChromeAi();
     renderHistoryMenu();
   });
   editor.addEventListener("input", onEditorInput);

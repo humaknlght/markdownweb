@@ -77,9 +77,118 @@ export function collectFenceLanguages(source) {
 }
 
 /**
- * Highlight markdown for the editor overlay. Closed fenced blocks use a
- * registered highlight.js language when available (including local mermaid);
- * fence markers stay `hljs-code`. Text content stays aligned with the textarea.
+ * Languages needed for editor highlighting of fenced code blocks.
+ * Front matter uses a local highlighter (no CDN yaml grammar).
+ * @param {string} source
+ * @returns {string[]}
+ */
+export function collectEditorLanguages(source) {
+  return collectFenceLanguages(source);
+}
+
+const FM_YAML_BOOL = /^(true|false|null|yes|no|on|off)$/i;
+const FM_YAML_NUM = /^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?$/;
+const FM_YAML_DATE = /^\d{4}-\d{2}-\d{2}(?:[Tt ][\d:.+Z-]+)?$/;
+
+/**
+ * Highlight a YAML scalar for front matter (whole value, not word-split).
+ * @param {string} value
+ * @returns {string}
+ */
+function highlightFrontmatterScalar(value) {
+  if (!value) return "";
+  const trimmed = value.trimStart();
+  const lead = value.slice(0, value.length - trimmed.length);
+  if (!trimmed) return escapeHtml(value);
+
+  if (trimmed.startsWith("#")) {
+    return escapeHtml(lead) + `<span class="hljs-comment">${escapeHtml(trimmed)}</span>`;
+  }
+
+  if (trimmed[0] === '"' || trimmed[0] === "'") {
+    return escapeHtml(lead) + `<span class="hljs-string">${escapeHtml(trimmed)}</span>`;
+  }
+
+  let main = trimmed;
+  let comment = "";
+  const withComment = trimmed.match(/^(.*?)(\s+#.*)$/);
+  if (withComment && withComment[1].length > 0) {
+    main = withComment[1];
+    comment = withComment[2];
+  }
+
+  let body;
+  if (FM_YAML_BOOL.test(main)) {
+    body = `<span class="hljs-literal">${escapeHtml(main)}</span>`;
+  } else if (FM_YAML_NUM.test(main) || FM_YAML_DATE.test(main)) {
+    body = `<span class="hljs-number">${escapeHtml(main)}</span>`;
+  } else {
+    body = `<span class="hljs-string">${escapeHtml(main)}</span>`;
+  }
+  return (
+    escapeHtml(lead) +
+    body +
+    (comment ? `<span class="hljs-comment">${escapeHtml(comment)}</span>` : "")
+  );
+}
+
+/**
+ * Line-oriented YAML highlighter for document front matter.
+ * Keeps textarea alignment; avoids highlight.js YAML word-splitting.
+ * @param {string} text
+ * @returns {string}
+ */
+export function highlightFrontmatterYaml(text) {
+  if (!text) return "";
+  const parts = String(text).split(/(\r?\n)/);
+  let out = "";
+  for (const part of parts) {
+    if (part === "\n" || part === "\r\n") {
+      out += part;
+      continue;
+    }
+    if (!part) continue;
+
+    const commentOnly = part.match(/^(\s*)(#.*)$/);
+    if (commentOnly) {
+      out +=
+        escapeHtml(commentOnly[1]) +
+        `<span class="hljs-comment">${escapeHtml(commentOnly[2])}</span>`;
+      continue;
+    }
+
+    const list = part.match(/^(\s*)(-)([ \t]+)(.*)$/);
+    if (list) {
+      out +=
+        escapeHtml(list[1]) +
+        `<span class="hljs-bullet">${escapeHtml(list[2])}</span>` +
+        escapeHtml(list[3]) +
+        highlightFrontmatterScalar(list[4]);
+      continue;
+    }
+
+    const kv = part.match(/^(\s*)([^:#\n]+?)(:)([ \t]*)(.*)$/);
+    if (kv) {
+      out +=
+        escapeHtml(kv[1]) +
+        `<span class="hljs-attr">${escapeHtml(kv[2])}</span>` +
+        `<span class="hljs-punctuation">${escapeHtml(kv[3])}</span>` +
+        escapeHtml(kv[4]) +
+        highlightFrontmatterScalar(kv[5]);
+      continue;
+    }
+
+    out += escapeHtml(part);
+  }
+  return out;
+}
+
+/**
+ * Highlight markdown for the editor overlay. Leading YAML front matter is
+ * highlighted locally (`---` delimiters stay `hljs-meta`). Closed fenced blocks
+ * use a registered highlight.js language when available (including local
+ * mermaid); fence markers stay `hljs-code`. Text content stays aligned with the
+ * textarea.
  *
  * @param {string} source
  * @param {{ highlight: Function, getLanguage: Function }} hljs
@@ -108,33 +217,63 @@ export function highlightEditorMarkdown(source, hljs) {
     return escapeHtml(text);
   }
 
-  const fenceRe =
-    /^ {0,3}(`{3,}|~{3,})([^\n]*)\n([\s\S]*?)(^ {0,3}\1[ \t]*$)/gm;
-  let out = "";
-  let last = 0;
-  let match;
-  while ((match = fenceRe.exec(source))) {
-    const full = match[0];
-    const body = match[3];
-    const before = source.slice(last, match.index);
-    if (before) out += highlightChunk(before, "markdown");
-
-    const openEnd = full.indexOf("\n") + 1;
-    const open = full.slice(0, openEnd);
-    const close = full.slice(openEnd + body.length);
-    const lang = canonicalHljsLang(match[2].trim().split(/\s+/)[0]);
-
-    out += `<span class="hljs-code">${escapeHtml(open.slice(0, -1))}</span>\n`;
-    if (lang && hljs.getLanguage(lang)) {
-      out += highlightChunk(body, lang);
-    } else {
-      out += `<span class="hljs-code">${escapeHtml(body)}</span>`;
-    }
-    out += `<span class="hljs-code">${escapeHtml(close)}</span>`;
-    last = match.index + full.length;
+  /** @param {string} cls @param {string} text */
+  function wrapSpan(cls, text) {
+    const nl = text.match(/\r?\n$/)?.[0] ?? "";
+    const core = nl ? text.slice(0, -nl.length) : text;
+    return `<span class="${cls}">${escapeHtml(core)}</span>${nl}`;
   }
 
-  if (last < source.length) out += highlightChunk(source.slice(last), "markdown");
+  /**
+   * @param {string} region
+   * @returns {string}
+   */
+  function highlightMarkdownRegion(region) {
+    const fenceRe =
+      /^ {0,3}(`{3,}|~{3,})([^\n]*)\n([\s\S]*?)(^ {0,3}\1[ \t]*$)/gm;
+    let out = "";
+    let last = 0;
+    let match;
+    while ((match = fenceRe.exec(region))) {
+      const full = match[0];
+      const body = match[3];
+      const before = region.slice(last, match.index);
+      if (before) out += highlightChunk(before, "markdown");
+
+      const openEnd = full.indexOf("\n") + 1;
+      const open = full.slice(0, openEnd);
+      const close = full.slice(openEnd + body.length);
+      const lang = canonicalHljsLang(match[2].trim().split(/\s+/)[0]);
+
+      out += `<span class="hljs-code">${escapeHtml(open.slice(0, -1))}</span>\n`;
+      if (lang && hljs.getLanguage(lang)) {
+        out += highlightChunk(body, lang);
+      } else {
+        out += `<span class="hljs-code">${escapeHtml(body)}</span>`;
+      }
+      out += `<span class="hljs-code">${escapeHtml(close)}</span>`;
+      last = match.index + full.length;
+    }
+
+    if (last < region.length) out += highlightChunk(region.slice(last), "markdown");
+    return out;
+  }
+
+  const fm = extractFrontmatter(source);
+  if (!fm) return highlightMarkdownRegion(source);
+
+  const prefix = source.slice(0, source.length - fm.body.length);
+  const parts = prefix.match(
+    /^(\uFEFF?)(---[ \t]*\r?\n)(?:([\s\S]*?\r?\n))?(---[ \t]*(?:\r?\n|$))/,
+  );
+  if (!parts) return highlightMarkdownRegion(source);
+
+  const [, bom, open, yamlBlock = "", close] = parts;
+  let out = bom || "";
+  out += wrapSpan("hljs-meta", open);
+  out += `<span class="md-frontmatter">${highlightFrontmatterYaml(yamlBlock)}</span>`;
+  out += wrapSpan("hljs-meta", close);
+  out += highlightMarkdownRegion(fm.body);
   return out;
 }
 

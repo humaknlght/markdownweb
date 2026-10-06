@@ -58,9 +58,20 @@ export function headersFor(logicalPath, encoding, opts = {}) {
   } else if (/^GUIDE\.[a-f0-9]+\.md$/i.test(base)) {
     headers["Cache-Control"] = "public, max-age=31536000, immutable";
   } else if (ext === ".css" || ext === ".js" || ext === ".mjs") {
-    headers["Cache-Control"] = "public, max-age=31536000, immutable";
+    // Hashed dist assets (app.<hash>.js, styles.<hash>.css, chunk-XXXX.js) are
+    // immutable. Bare names used by `npm run dev` (app.js, markdown-utils.js)
+    // must revalidate or browsers keep stale modules for a year.
+    const hashed =
+      /\.[a-f0-9]{8,}\.(?:css|js|mjs)$/i.test(base) ||
+      /^chunk-[A-Z0-9]+\.js$/i.test(base);
+    headers["Cache-Control"] = hashed
+      ? "public, max-age=31536000, immutable"
+      : "no-cache";
   } else if (ext === ".jpg" || ext === ".jpeg" || ext === ".avif" || ext === ".png") {
-    headers["Cache-Control"] = "public, max-age=31536000, immutable";
+    const hashed = /\.[a-f0-9]{8,}\.(?:jpg|jpeg|avif|png)$/i.test(base);
+    headers["Cache-Control"] = hashed
+      ? "public, max-age=31536000, immutable"
+      : "no-cache";
   }
 
   return headers;

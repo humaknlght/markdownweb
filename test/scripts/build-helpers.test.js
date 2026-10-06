@@ -16,6 +16,7 @@ import {
   isMutableShellPath,
   precacheVersion,
 } from "../../scripts/pwa.mjs";
+import { applyCdnIntegrity } from "../../scripts/cdn-integrity.mjs";
 import { copyGuideTo, guideSourcePath } from "../../scripts/sync-guide.mjs";
 import {
   headersFor,
@@ -47,6 +48,33 @@ describe("csp.mjs", () => {
     assert.match(csp, /default-src 'self'/);
     assert.match(csp, /object-src 'none'/);
     assert.match(csp, /media-src 'self' data: blob:/);
+  });
+});
+
+describe("cdn-integrity.mjs", () => {
+  it("replaces import-map integrity and modulepreload hashes", () => {
+    const html = `<!doctype html><script type="importmap">
+{
+  "imports": { "marked": "https://cdn.jsdelivr.net/npm/marked@1.0.0/x.js" },
+  "integrity": { "https://cdn.jsdelivr.net/npm/marked@1.0.0/x.js": "sha384-old" }
+}
+</script>
+<link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/marked@1.0.0/x.js" integrity="sha384-old" crossorigin="anonymous" />
+`;
+    const integrity = {
+      "https://cdn.jsdelivr.net/npm/marked@1.0.0/x.js": "sha384-new",
+      "https://cdn.jsdelivr.net/npm/extra@1.0.0/y.js": "sha384-extra",
+    };
+    const out = applyCdnIntegrity(html, integrity);
+    const map = JSON.parse(
+      out.match(/<script type="importmap">([\s\S]*?)<\/script>/)[1],
+    );
+    assert.deepEqual(map.integrity, integrity);
+    assert.match(out, /integrity="sha384-new"/);
+    assert.doesNotMatch(out, /sha384-old/);
+    // Injected import map must be compact JSON (no pretty-print whitespace).
+    const mapBody = out.match(/<script type="importmap">([\s\S]*?)<\/script>/)[1];
+    assert.equal(mapBody, JSON.stringify(map));
   });
 });
 
@@ -145,7 +173,14 @@ describe("serve-utils", () => {
       "public, max-age=31536000, immutable",
     );
     assert.equal(
-      headersFor("/app.abc123.js", null)["Cache-Control"],
+      headersFor("/app.abc12345.js", null)["Cache-Control"],
+      "public, max-age=31536000, immutable",
+    );
+    assert.equal(headersFor("/app.js", null)["Cache-Control"], "no-cache");
+    assert.equal(headersFor("/markdown-utils.js", null)["Cache-Control"], "no-cache");
+    assert.equal(headersFor("/styles.css", null)["Cache-Control"], "no-cache");
+    assert.equal(
+      headersFor("/styles.abc12345.css", null)["Cache-Control"],
       "public, max-age=31536000, immutable",
     );
     assert.equal(

@@ -2,6 +2,7 @@ import { marked } from "marked";
 import { JSDOM } from "jsdom";
 import createDOMPurify from "dompurify";
 import { alertExtension } from "../../src/alert.js";
+import { defListExtension } from "../../src/deflist.js";
 import { emojiExtension } from "../../src/emoji.js";
 import { frontmatterExtension } from "../../src/frontmatter.js";
 import { tablePipesExtension } from "../../src/tablePipes.js";
@@ -25,6 +26,7 @@ function ensureMarked() {
   marked.use(frontmatterExtension());
   marked.use(emojiExtension());
   marked.use(alertExtension());
+  marked.use(defListExtension());
   configured = true;
 }
 

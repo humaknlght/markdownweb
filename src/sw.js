@@ -1,6 +1,6 @@
 /* Markdown Preview service worker — generated at build time */
 /* eslint-disable no-restricted-globals */
-const CACHE = "md-preview-dev-1b9e89c7";
+const CACHE = "md-preview-dev-d0d4ce6e";
 const PRECACHE = [
   "./",
   "./index.html",

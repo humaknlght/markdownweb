@@ -6,12 +6,13 @@
   html[data-theme] {
     --chrome-bg: #f6f7f9;
     --chrome-surface: #ffffff;
-    --chrome-border: #d8dce3;
+    --chrome-border: #7a87b0;
     --chrome-text: #1a1d23;
     --chrome-muted: #5c6570;
     --chrome-hover: #e8ebf0;
-    --chrome-focus: #3b6fd9;
-    --chrome-pressed-border: #aeb6c2;
+    --chrome-focus: #2158b0;
+    --chrome-pressed-border: #7684ac;
+    --chrome-on-focus: #ffffff;
     --chrome-shadow: 0 8px 24px rgba(26, 29, 35, 0.12);
     --editor-bg: #ffffff;
     --editor-text: #1a1d23;
@@ -165,8 +166,8 @@
   }
 
   /* Neutralize theme-specific preview chrome (Salesforce / Fancy) */
-  .preview h1,
-  .preview h2 {
+  .preview h1::after,
+  .preview h2::after {
     border-bottom-color: var(--preview-rule) !important;
   }
 

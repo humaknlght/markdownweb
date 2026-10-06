@@ -27,6 +27,7 @@ import {
   buildScriptSrc,
   buildContentSecurityPolicy,
 } from "./csp.mjs";
+import { applyCdnIntegrity, loadCdnIntegrity } from "./cdn-integrity.mjs";
 import { guideSourcePath } from "./sync-guide.mjs";
 import {
   CORP,
@@ -40,6 +41,21 @@ const execFileAsync = promisify(execFile);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(process.cwd(), process.argv[2] || "dist");
 const port = Number(process.argv[3] || process.env.PORT || 3456);
+const repoRoot = path.resolve(__dirname, "..");
+const srcIndexPath = path.join(repoRoot, "src", "index.html");
+
+/** Transformed index.html for src/ (CDN SRI injected). Dist is pre-baked. */
+let srcIndexHtmlWithSri = null;
+
+async function loadSrcIndexHtmlWithSri() {
+  if (srcIndexHtmlWithSri) return srcIndexHtmlWithSri;
+  const [html, integrity] = await Promise.all([
+    fs.readFile(srcIndexPath, "utf8"),
+    loadCdnIntegrity(),
+  ]);
+  srcIndexHtmlWithSri = applyCdnIntegrity(html, integrity);
+  return srcIndexHtmlWithSri;
+}
 
 async function resolveCspConfig() {
   try {
@@ -55,10 +71,14 @@ async function resolveCspConfig() {
     /* fall through — compute from index.html (dev / src) */
   }
 
-  const html = await fs.readFile(path.join(rootDir, "index.html"), "utf8");
+  const htmlPath = path.join(rootDir, "index.html");
+  const html =
+    path.resolve(htmlPath) === path.resolve(srcIndexPath)
+      ? await loadSrcIndexHtmlWithSri()
+      : await fs.readFile(htmlPath, "utf8");
   const hashes = inlineScriptHashes(html);
   if (!hashes.length) {
-    throw new Error(`No inline scripts found in ${path.join(rootDir, "index.html")}`);
+    throw new Error(`No inline scripts found in ${htmlPath}`);
   }
   return { scriptSrc: buildScriptSrc(hashes), guideUrl: "./GUIDE.md" };
 }
@@ -69,7 +89,7 @@ const contentSecurityPolicy = buildContentSecurityPolicy(scriptSrc);
 const HTML_HEADERS = {
   "Cache-Control": "no-cache",
   "Permissions-Policy":
-    "accelerometer=(), ambient-light-sensor=(), autoplay=(self), camera=(), display-capture=(), encrypted-media=(), execution-while-not-rendered=(), execution-while-out-of-viewport=(), fullscreen=(self), gamepad=(), geolocation=(), gyroscope=(), hid=(), identity-credentials-get=(), idle-detection=(), local-fonts=(), magnetometer=(), microphone=(), midi=(), otp-credentials=(), payment=(), picture-in-picture=(), publickey-credentials-create=(), publickey-credentials-get=(), screen-wake-lock=(), serial=(), speaker-selection=(), storage-access=(), usb=(), web-share=(), window-management=(), xr-spatial-tracking=(), interest-cohort=(), writer=(self), rewriter=(self), proofreader=(self)",
+    "accelerometer=(), ambient-light-sensor=(), autoplay=(self), camera=(), display-capture=(), encrypted-media=(), execution-while-not-rendered=(), execution-while-out-of-viewport=(), fullscreen=(self), gamepad=(), geolocation=(), gyroscope=(), hid=(), identity-credentials-get=(), idle-detection=(), local-fonts=(), magnetometer=(), microphone=(), midi=(), otp-credentials=(), payment=(), picture-in-picture=(), publickey-credentials-create=(), publickey-credentials-get=(), screen-wake-lock=(), serial=(), speaker-selection=(), storage-access=(), usb=(), web-share=(), window-management=(), xr-spatial-tracking=(), interest-cohort=(), writer=(self), rewriter=(self), proofreader=(self), language-model=(self)",
   "Strict-Transport-Security": "max-age=31536000",
   "Content-Security-Policy": contentSecurityPolicy,
   Link: `<${guideUrl}>;rel=prefetch`,
@@ -235,6 +255,14 @@ async function handleRequest(req, res) {
     // Prefer repo-root GUIDE.md when src/ has no copy yet.
     if (path.basename(logicalPath) === "GUIDE.md") {
       logicalPath = await resolveGuide(logicalPath);
+    }
+
+    // Dev (src/): inject full CDN import-map integrity before serving.
+    if (path.resolve(logicalPath) === path.resolve(srcIndexPath)) {
+      const html = await loadSrcIndexHtmlWithSri();
+      res.writeHead(200, headersFor(logicalPath, null));
+      res.end(html);
+      return;
     }
 
     const chosen = await resolveWithCompression(

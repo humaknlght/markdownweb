@@ -14,12 +14,13 @@
 html[data-theme="github-light"] {
   --chrome-bg: #f6f7f9;
   --chrome-surface: #ffffff;
-  --chrome-border: #d8dce3;
+  --chrome-border: #7a87b0;
   --chrome-text: #1a1d23;
   --chrome-muted: #5c6570;
   --chrome-hover: #e8ebf0;
-  --chrome-focus: #3b6fd9;
-  --chrome-pressed-border: #aeb6c2;
+  --chrome-focus: #2158b0;
+  --chrome-pressed-border: #7684ac;
+  --chrome-on-focus: #ffffff;
   --chrome-shadow: 0 8px 24px rgba(26, 29, 35, 0.12);
   --editor-bg: #ffffff;
   --editor-text: #1a1d23;
@@ -32,7 +33,7 @@ html[data-theme="github-light"] {
   --preview-code-bg: #f6f8fa;
   --preview-pre-bg: #f6f8fa;
   --preview-pre-border: #d1d9e0;
-  --preview-quote: #d1d9e0;
+  --preview-quote: #8f9499;
   --preview-font: var(--font-ui);
   --preview-size: 1rem;
   --heading-color: inherit;
@@ -49,17 +50,17 @@ html[data-theme="github-light"] {
   --toolbar-h: 3rem;
   --files-drawer-w: 16.5rem;
   --syntax-comment: #6a737d;
-  --syntax-keyword: #d73a49;
+  --syntax-keyword: #cc3745;
   --syntax-string: #032f62;
   --syntax-number: #005cc5;
   --syntax-literal: #005cc5;
-  --syntax-built-in: #e36209;
+  --syntax-built-in: #bb5107;
   --syntax-type: #6f42c1;
   --syntax-attr: #005cc5;
   --syntax-title: #6f42c1;
   --syntax-meta: #6a737d;
   --syntax-deletion: #b31d28;
-  --syntax-addition: #22863a;
+  --syntax-addition: #207f37;
   --mermaid-bg: #ffffff;
   --mermaid-fg: #333333;
   --mermaid-node-bg: #ececff;
@@ -70,9 +71,9 @@ html[data-theme="github-light"] {
   --mermaid-label-bg: #e8e8e8;
   --mermaid-note-bg: #fff5ad;
   --mermaid-note-fg: #333333;
-  --install-fill: #2f5bb8;
-  --install-fill-hover: #244a96;
-  --install-fg: #ffffff;
+  --install-fill: var(--chrome-focus);
+  --install-fill-hover: color-mix(in srgb, var(--chrome-focus) 82%, white);
+  --install-fg: var(--chrome-on-focus);
   --install-grad-a: #ffffff;
   --install-grad-b: #ff4d8d;
 }
@@ -80,12 +81,13 @@ html[data-theme="github-light"] {
 html[data-theme="github-dark"] {
   --chrome-bg: #010409;
   --chrome-surface: #161b22;
-  --chrome-border: #30363d;
+  --chrome-border: #5d6984;
   --chrome-text: #e6edf3;
   --chrome-muted: #8b949e;
   --chrome-hover: #21262d;
   --chrome-focus: #58a6ff;
-  --chrome-pressed-border: #484f58;
+  --chrome-pressed-border: #67718b;
+  --chrome-on-focus: #0d1117;
   --chrome-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
   --editor-bg: #0d1117;
   --editor-text: #e6edf3;
@@ -98,7 +100,7 @@ html[data-theme="github-dark"] {
   --preview-code-bg: #161b22;
   --preview-pre-bg: #161b22;
   --preview-pre-border: #30363d;
-  --preview-quote: #3d444d;
+  --preview-quote: #5d636b;
   --preview-font: var(--font-ui);
   --preview-size: 1rem;
   --heading-color: inherit;
@@ -132,9 +134,9 @@ html[data-theme="github-dark"] {
   --mermaid-label-bg: #161b22;
   --mermaid-note-bg: #fff5ad;
   --mermaid-note-fg: #1f2328;
-  --install-fill: var(--chrome-surface);
-  --install-fill-hover: var(--chrome-hover);
-  --install-fg: var(--chrome-text);
+  --install-fill: var(--chrome-focus);
+  --install-fill-hover: color-mix(in srgb, var(--chrome-focus) 82%, white);
+  --install-fg: var(--chrome-on-focus);
   --install-grad-a: #58a6ff;
   --install-grad-b: #ff7b72;
 }
@@ -142,41 +144,47 @@ html[data-theme="github-dark"] {
 html[data-theme="sepia"] {
   --chrome-bg: #e8dcc4;
   --chrome-surface: #f4ecd8;
-  --chrome-border: #d4c4a8;
+  --chrome-border: #927748;
   --chrome-text: #5b4636;
-  --chrome-muted: #7a6552;
+  --chrome-muted: #705d4b;
   --chrome-hover: #ebe0c8;
   --chrome-focus: #8b4513;
-  --chrome-pressed-border: #c4b090;
+  --chrome-pressed-border: #94794f;
+  --chrome-on-focus: #fff8e7;
   --chrome-shadow: 0 8px 24px rgba(91, 70, 54, 0.18);
   --editor-bg: #faf4e6;
   --editor-text: #5b4636;
   --preview-bg: #f4ecd8;
   --preview-fg: #5b4636;
-  --preview-muted: #7a6552;
+  --preview-muted: #705d4b;
   --preview-link: #8b4513;
   --preview-link-hover: #a0522d;
   --preview-rule: #d4c4a8;
   --preview-code-bg: #ebe0c8;
   --preview-pre-bg: #ebe0c8;
   --preview-pre-border: #d4c4a8;
-  --preview-quote: #c4b090;
+  --preview-quote: #93846c;
   --preview-font: "Palatino Linotype", "Book Antiqua", Palatino, "Georgia", serif;
   --preview-size: 1rem;
   --heading-color: inherit;
+  --alert-note: #0966d5;
+  --alert-tip: #197934;
+  --alert-important: #7c4cd4;
+  --alert-warning: #8e5f00;
+  --alert-caution: #ca212d;
   --toast-bg: #5b4636;
   --toast-fg: #f4ecd8;
   --color-scheme: light;
-  --syntax-comment: #8a7760;
+  --syntax-comment: #6e5f4d;
   --syntax-keyword: #9c2f2f;
   --syntax-string: #3d5a80;
   --syntax-number: #8b4513;
   --syntax-literal: #8b4513;
-  --syntax-built-in: #a0522d;
+  --syntax-built-in: #984e2b;
   --syntax-type: #6b4c7a;
   --syntax-attr: #3d5a80;
   --syntax-title: #6b4c7a;
-  --syntax-meta: #8a7760;
+  --syntax-meta: #6e5f4d;
   --syntax-deletion: #9c2f2f;
   --syntax-addition: #3d6b4f;
   --mermaid-bg: #f4ecd8;
@@ -189,9 +197,9 @@ html[data-theme="sepia"] {
   --mermaid-label-bg: #e0d4bc;
   --mermaid-note-bg: #f5e6b8;
   --mermaid-note-fg: #5b4636;
-  --install-fill: #6f3610;
-  --install-fill-hover: #5a2c0c;
-  --install-fg: #fff8e7;
+  --install-fill: var(--chrome-focus);
+  --install-fill-hover: color-mix(in srgb, var(--chrome-focus) 82%, white);
+  --install-fg: var(--chrome-on-focus);
   --install-grad-a: #ffe7a0;
   --install-grad-b: #1b7a4a;
 }
@@ -199,12 +207,13 @@ html[data-theme="sepia"] {
 html[data-theme="terminal"] {
   --chrome-bg: #060806;
   --chrome-surface: #121812;
-  --chrome-border: #1e331e;
+  --chrome-border: #427042;
   --chrome-text: #b6f2b0;
   --chrome-muted: #6f9f6a;
   --chrome-hover: #1a241a;
   --chrome-focus: #7dff7a;
-  --chrome-pressed-border: #2a4a2a;
+  --chrome-pressed-border: #457945;
+  --chrome-on-focus: #060806;
   --chrome-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
   --editor-bg: #0c0f0c;
   --editor-text: #b6f2b0;
@@ -217,7 +226,7 @@ html[data-theme="terminal"] {
   --preview-code-bg: #121812;
   --preview-pre-bg: #121812;
   --preview-pre-border: #1e331e;
-  --preview-quote: #2a4a2a;
+  --preview-quote: #4e684e;
   --preview-font: var(--font-mono);
   --preview-size: 0.92rem;
   --heading-color: #d4ffcf;
@@ -229,7 +238,7 @@ html[data-theme="terminal"] {
   --toast-bg: #b6f2b0;
   --toast-fg: #0c0f0c;
   --color-scheme: dark;
-  --syntax-comment: #4d7a48;
+  --syntax-comment: #638b5f;
   --syntax-keyword: #7dff7a;
   --syntax-string: #c8ffc4;
   --syntax-number: #9dff99;
@@ -238,7 +247,7 @@ html[data-theme="terminal"] {
   --syntax-type: #d4ffcf;
   --syntax-attr: #9dff99;
   --syntax-title: #d4ffcf;
-  --syntax-meta: #4d7a48;
+  --syntax-meta: #638b5f;
   --syntax-deletion: #ff8a8a;
   --syntax-addition: #7dff7a;
   --mermaid-bg: #0c0f0c;
@@ -251,9 +260,9 @@ html[data-theme="terminal"] {
   --mermaid-label-bg: #121812;
   --mermaid-note-bg: #243024;
   --mermaid-note-fg: #b6f2b0;
-  --install-fill: var(--chrome-surface);
-  --install-fill-hover: var(--chrome-hover);
-  --install-fg: var(--chrome-text);
+  --install-fill: var(--chrome-focus);
+  --install-fill-hover: color-mix(in srgb, var(--chrome-focus) 82%, white);
+  --install-fg: var(--chrome-on-focus);
   --install-grad-a: #b8ff6a;
   --install-grad-b: #00e5ff;
 }
@@ -261,28 +270,30 @@ html[data-theme="terminal"] {
 html[data-theme="salesforce"] {
   --chrome-bg: #eaf5fe;
   --chrome-surface: #ffffff;
-  --chrome-border: #90d0fe;
+  --chrome-border: #0176d3;
   --chrome-text: #032d60;
   --chrome-muted: #5c5c5c;
   --chrome-hover: #d8edff;
-  --chrome-focus: #0176d3;
+  --chrome-focus: #0159e4;
   --chrome-pressed-border: #014486;
+  --chrome-on-focus: #ffffff;
   --chrome-shadow: 0 2px 8px rgba(8, 7, 7, 0.08), 0 8px 24px rgba(1, 118, 211, 0.12);
   --editor-bg: #ffffff;
   --editor-text: #080707;
   --preview-bg: #f4f4f4;
   --preview-fg: #080707;
   --preview-muted: #5c5c5c;
-  --preview-link: #0176d3;
+  --preview-link: #0170c8;
   --preview-link-hover: #0b5cab;
   --preview-rule: #c9c7c5;
   --preview-code-bg: #eaf5fe;
   --preview-pre-bg: #032d60;
   --preview-pre-border: #014486;
-  --preview-quote: #1b96ff;
+  --preview-quote: #1a8ff2;
   --preview-font: "Salesforce Sans", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
   --preview-size: 1rem;
   --heading-color: #032d60;
+  --alert-warning: #966400;
   --toast-bg: #0176d3;
   --toast-fg: #ffffff;
   --color-scheme: light;
@@ -310,15 +321,34 @@ html[data-theme="salesforce"] {
   --mermaid-label-bg: #e5e5e5;
   --mermaid-note-bg: #fff5ad;
   --mermaid-note-fg: #032d60;
-  --install-fill: #014486;
-  --install-fill-hover: #032d60;
-  --install-fg: #ffffff;
+  --install-fill: var(--chrome-focus);
+  --install-fill-hover: color-mix(in srgb, var(--chrome-focus) 82%, white);
+  --install-fg: var(--chrome-on-focus);
   --install-grad-a: #ffffff;
   --install-grad-b: #00c2a8;
 }
 
 html[data-theme="salesforce"] .brand {
-  color: #0176d3;
+  color: #0170c8;
+}
+
+/*
+ * Preview fenced code uses a dark Cosmos pre background, but the editor is white.
+ * Scope light-theme syntax tokens to the editor overlay so both surfaces stay AA.
+ */
+html[data-theme="salesforce"] .editor-highlight {
+  --syntax-comment: #6a737d;
+  --syntax-keyword: #cc3745;
+  --syntax-string: #032f62;
+  --syntax-number: #005cc5;
+  --syntax-literal: #005cc5;
+  --syntax-built-in: #bb5107;
+  --syntax-type: #6f42c1;
+  --syntax-attr: #005cc5;
+  --syntax-title: #6f42c1;
+  --syntax-meta: #6a737d;
+  --syntax-deletion: #b31d28;
+  --syntax-addition: #207f37;
 }
 
 html[data-theme="salesforce"] .btn,
@@ -359,15 +389,15 @@ html[data-theme="salesforce"] .select-label select:hover {
 }
 
 html[data-theme="salesforce"] #share-btn {
-  background: #0176d3;
-  border-color: #0176d3;
-  color: #ffffff;
+  background: var(--chrome-focus);
+  border-color: var(--chrome-focus);
+  color: var(--chrome-on-focus);
 }
 
 html[data-theme="salesforce"] #share-btn:hover {
-  background: #014486;
-  border-color: #014486;
-  color: #ffffff;
+  background: color-mix(in srgb, var(--chrome-focus) 82%, white);
+  border-color: color-mix(in srgb, var(--chrome-focus) 82%, white);
+  color: var(--chrome-on-focus);
 }
 
 html[data-theme="salesforce"] .preview-pane {
@@ -391,8 +421,8 @@ html[data-theme="salesforce"] .preview[data-width="full"] {
   max-width: none;
 }
 
-html[data-theme="salesforce"] .preview h1,
-html[data-theme="salesforce"] .preview h2 {
+html[data-theme="salesforce"] .preview h1::after,
+html[data-theme="salesforce"] .preview h2::after {
   border-bottom-color: #90d0fe;
 }
 
@@ -439,12 +469,13 @@ html[data-theme="salesforce"] .toast {
 html[data-theme="fancy"] {
   --chrome-bg: transparent;
   --chrome-surface: rgba(255, 255, 255, 0.14);
-  --chrome-border: rgba(255, 255, 255, 0.28);
+  --chrome-border: rgba(255, 255, 255, 0.5);
   --chrome-text: #f4f8fb;
   --chrome-muted: #b7c9d4;
   --chrome-hover: rgba(255, 255, 255, 0.22);
-  --chrome-focus: #f0b45a;
-  --chrome-pressed-border: #f0b45a;
+  --chrome-focus: #f1b965;
+  --chrome-pressed-border: #f1b965;
+  --chrome-on-focus: #1a1208;
   --chrome-shadow: 0 10px 40px rgba(0, 0, 0, 0.35);
   --editor-bg: transparent;
   --editor-text: #f4f8fb;
@@ -452,25 +483,25 @@ html[data-theme="fancy"] {
   --preview-fg: #f4f8fb;
   --preview-muted: #b7c9d4;
   --preview-link: #7ed0ff;
-  --preview-link-hover: #f0b45a;
+  --preview-link-hover: #f1b965;
   --preview-rule: rgba(255, 255, 255, 0.22);
   --preview-code-bg: rgba(0, 0, 0, 0.28);
   --preview-pre-bg: rgba(0, 12, 24, 0.55);
   --preview-pre-border: rgba(255, 255, 255, 0.18);
-  --preview-quote: #f0b45a;
+  --preview-quote: #f1b965;
   --preview-font: "Avenir Next", "Segoe UI", "Helvetica Neue", sans-serif;
   --preview-size: 1rem;
   --heading-color: #ffffff;
   --alert-note: #7ed0ff;
   --alert-tip: #9de0b0;
   --alert-important: #d2b8ff;
-  --alert-warning: #f0b45a;
+  --alert-warning: #f1b965;
   --alert-caution: #ff9eb5;
   --toast-bg: rgba(8, 28, 40, 0.75);
   --toast-fg: #f4f8fb;
   --color-scheme: dark;
   --fancy-glass: rgba(8, 28, 42, 0.42);
-  --fancy-glass-border: rgba(255, 255, 255, 0.22);
+  --fancy-glass-border: rgba(255, 255, 255, 0.45);
   --fancy-margin: 0.85rem;
   --syntax-comment: #8fb3c4;
   --syntax-keyword: #ff9eb5;
@@ -494,9 +525,9 @@ html[data-theme="fancy"] {
   --mermaid-label-bg: #083048;
   --mermaid-note-bg: #14384c;
   --mermaid-note-fg: #f4f8fb;
-  --install-fill: rgba(8, 28, 42, 0.85);
-  --install-fill-hover: rgba(255, 255, 255, 0.22);
-  --install-fg: var(--chrome-text);
+  --install-fill: var(--chrome-focus);
+  --install-fill-hover: color-mix(in srgb, var(--chrome-focus) 82%, white);
+  --install-fg: var(--chrome-on-focus);
   --install-grad-a: #7ed0ff;
   --install-grad-b: #ff6b9d;
 }
@@ -531,7 +562,7 @@ html[data-theme="fancy"] .brand {
 html[data-theme="fancy"] .btn,
 html[data-theme="fancy"] .select-label select {
   background: rgba(255, 255, 255, 0.12);
-  border-color: rgba(255, 255, 255, 0.28);
+  border-color: rgba(255, 255, 255, 0.5);
   color: var(--chrome-text);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
@@ -539,7 +570,7 @@ html[data-theme="fancy"] .select-label select {
 
 html[data-theme="fancy"] .dropdown-menu {
   background: rgba(6, 24, 36, 0.72);
-  border-color: rgba(255, 255, 255, 0.28);
+  border-color: rgba(255, 255, 255, 0.5);
   color: var(--chrome-text);
   backdrop-filter: blur(22px) saturate(1.4);
   -webkit-backdrop-filter: blur(22px) saturate(1.4);
@@ -553,15 +584,15 @@ html[data-theme="fancy"] .dropdown-menu li button:hover {
 }
 
 html[data-theme="fancy"] #share-btn {
-  background: rgba(240, 180, 90, 0.85);
-  border-color: rgba(240, 180, 90, 0.95);
-  color: #1a1208;
+  background: var(--chrome-focus);
+  border-color: var(--chrome-focus);
+  color: var(--chrome-on-focus);
 }
 
 html[data-theme="fancy"] #share-btn:hover {
-  background: #f0b45a;
-  border-color: #f0b45a;
-  color: #1a1208;
+  background: color-mix(in srgb, var(--chrome-focus) 82%, white);
+  border-color: color-mix(in srgb, var(--chrome-focus) 82%, white);
+  color: var(--chrome-on-focus);
 }
 
 html[data-theme="fancy"] .panes {
@@ -597,7 +628,8 @@ html[data-theme="fancy"] .editor-wrap {
 }
 
 html[data-theme="fancy"] #editor::placeholder {
-  color: rgba(244, 248, 251, 0.45);
+  /* ≥4.5:1 vs fancy page base (#062436) when blended */
+  color: rgba(244, 248, 251, 0.72);
 }
 
 html[data-theme="fancy"] .preview-pane {
@@ -609,8 +641,8 @@ html[data-theme="fancy"] .preview {
   color: var(--preview-fg);
 }
 
-html[data-theme="fancy"] .preview h1,
-html[data-theme="fancy"] .preview h2 {
+html[data-theme="fancy"] .preview h1::after,
+html[data-theme="fancy"] .preview h2::after {
   border-bottom-color: rgba(255, 255, 255, 0.2);
 }
 
@@ -640,7 +672,7 @@ html[data-theme="fancy"] .splitter {
 html[data-theme="fancy"] .splitter:hover,
 html[data-theme="fancy"] .splitter:focus-visible,
 html[data-theme="fancy"] .panes.is-resizing .splitter {
-  background: #f0b45a;
+  background: var(--chrome-focus);
 }
 
 html[data-theme="fancy"] .toast {
@@ -669,7 +701,7 @@ html[data-theme="fancy"] .outline-header {
 
 html[data-theme="fancy"] .files-drawer-actions .btn {
   background: rgba(255, 255, 255, 0.12);
-  border-color: rgba(255, 255, 255, 0.28);
+  border-color: rgba(255, 255, 255, 0.5);
   color: var(--chrome-text);
 }
 
@@ -764,41 +796,91 @@ body {
   flex-shrink: 0;
 }
 
+/* Hamburger → X (close3 from https://codepen.io/carlosriera/pen/qNgrEo) */
 .hamburger {
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  width: 1rem;
-  height: 0.72rem;
+  --hb-w: 1rem;
+  --hb-h: 0.67rem;
+  --hb-line: 2px;
+  --hb-shift: calc((var(--hb-h) - var(--hb-line)) / 2);
+  position: relative;
+  display: block;
+  width: var(--hb-w);
+  height: var(--hb-h);
+  overflow: visible;
 }
 
 .hamburger-line {
-  display: block;
+  position: absolute;
+  left: 0;
   width: 100%;
-  height: 2px;
-  border-radius: 1px;
+  height: var(--hb-line);
+  border-radius: var(--hb-line);
   background: currentColor;
-  transform-origin: center;
+  pointer-events: none;
+}
+
+.hamburger-line--1 {
+  top: 0;
   transition:
-    transform 0.28s ease,
-    opacity 0.2s ease;
+    transform 0.2s ease-in-out 0.15s,
+    top 0.2s ease-in-out 0.2s;
 }
 
-#files-toggle-btn[aria-pressed="true"] .hamburger-line:nth-child(1) {
-  transform: translateY(0.26rem) rotate(45deg);
+.hamburger-line--1::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: var(--hb-line);
+  background: currentColor;
+  border-radius: var(--hb-line);
+  transform-origin: center;
+  transition: transform 0.15s ease-in-out;
 }
 
-#files-toggle-btn[aria-pressed="true"] .hamburger-line:nth-child(2) {
+.hamburger-line--2 {
+  top: 0;
+  bottom: 0;
+  margin: auto;
+  transition: opacity 0s ease-in-out 0.35s;
+}
+
+.hamburger-line--3 {
+  bottom: 0;
+  transition: opacity 0s ease-in-out 0.25s;
+}
+
+#files-toggle-btn[aria-pressed="true"] .hamburger-line--1 {
+  top: calc(var(--hb-shift) * 2);
+  transform: translate3d(0, calc(var(--hb-shift) * -1), 0) rotate(-45deg);
+  transition:
+    top 0.2s ease-in-out,
+    transform 0.15s ease-in-out 0.2s;
+}
+
+#files-toggle-btn[aria-pressed="true"] .hamburger-line--1::before {
+  transform: rotate(-90deg);
+  transition: transform 0.15s ease-in-out 0.3s;
+}
+
+#files-toggle-btn[aria-pressed="true"] .hamburger-line--2 {
   opacity: 0;
-  transform: scaleX(0);
+  transition: opacity 0s ease-in-out 0.1s;
 }
 
-#files-toggle-btn[aria-pressed="true"] .hamburger-line:nth-child(3) {
-  transform: translateY(-0.26rem) rotate(-45deg);
+#files-toggle-btn[aria-pressed="true"] .hamburger-line--3 {
+  opacity: 0;
+  transition: opacity 0s ease-in-out 0.2s;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .hamburger-line {
+  .hamburger-line,
+  .hamburger-line--1::before,
+  #files-toggle-btn[aria-pressed="true"] .hamburger-line--1,
+  #files-toggle-btn[aria-pressed="true"] .hamburger-line--1::before,
+  #files-toggle-btn[aria-pressed="true"] .hamburger-line--2,
+  #files-toggle-btn[aria-pressed="true"] .hamburger-line--3 {
     transition: none;
   }
 }
@@ -973,6 +1055,19 @@ a.btn {
 .btn[aria-pressed="true"] {
   background: var(--chrome-hover);
   border-color: var(--chrome-pressed-border);
+}
+
+/* Sync scroll: solid “on” chip — tinted icon alone is too weak in several themes. */
+#sync-scroll-btn[aria-pressed="true"] {
+  background: var(--chrome-focus);
+  border-color: var(--chrome-focus);
+  color: var(--chrome-on-focus);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+#sync-scroll-btn[aria-pressed="true"]:hover {
+  filter: brightness(1.08);
 }
 
 .icon-btn {
@@ -1268,7 +1363,7 @@ html[data-theme="fancy"] .external-modal {
 /* Modeless proof dock has no ::backdrop — use denser fancy fill so preview
    text does not bleed through the title and description. */
 html[data-theme="fancy"] .external-modal.ai-proof-dock {
-  background: var(--install-fill);
+  background: rgba(8, 28, 42, 0.85);
   backdrop-filter: blur(22px) saturate(1.4);
   -webkit-backdrop-filter: blur(22px) saturate(1.4);
 }
@@ -2047,7 +2142,8 @@ mark.speech-word {
 .preview h5,
 .preview h6 {
   display: flex;
-  align-items: baseline;
+  flex-wrap: wrap;
+  align-items: center;
   gap: 0.4rem;
   margin: 1.4em 0 0.55em;
   line-height: 1.25;
@@ -2077,9 +2173,6 @@ mark.speech-word {
   cursor: pointer;
   user-select: none;
   -webkit-user-select: none;
-  vertical-align: baseline;
-  position: relative;
-  top: -0.05em;
 }
 
 .preview .md-section-toggle:focus-visible {
@@ -2089,8 +2182,9 @@ mark.speech-word {
 
 .preview .md-section-twistie {
   display: block;
-  width: 1rem;
-  height: 1rem;
+  /* Scale with the heading (button font-size is 0.55em of the heading). */
+  width: 1.15em;
+  height: 1.15em;
   line-height: 0;
   transform: rotate(0deg);
   transform-origin: center;
@@ -2159,14 +2253,26 @@ body[data-view="slides"] .preview .md-section-toggle {
 
 .preview h1 {
   font-size: 1.85em;
-  padding-bottom: 0.3em;
-  border-bottom: 1px solid var(--preview-rule);
 }
 
 .preview h2 {
   font-size: 1.45em;
-  padding-bottom: 0.25em;
+}
+
+/* Full-width rule on a wrapped flex line so padding does not offset the toggle. */
+.preview h1::after,
+.preview h2::after {
+  content: "";
+  flex: 0 0 100%;
   border-bottom: 1px solid var(--preview-rule);
+}
+
+.preview h1::after {
+  margin-top: 0.3em;
+}
+
+.preview h2::after {
+  margin-top: 0.25em;
 }
 
 .preview h3 {
@@ -2176,6 +2282,7 @@ body[data-view="slides"] .preview .md-section-toggle {
 .preview p,
 .preview ul,
 .preview ol,
+.preview dl,
 .preview blockquote,
 .preview pre,
 .preview table {
@@ -2409,6 +2516,29 @@ body[data-view="slides"] .preview .md-section-toggle {
   font-weight: 700;
 }
 
+/* Front matter: keep keys/values visually distinct (hljs yaml is too flat). */
+.editor-highlight .md-frontmatter .hljs-attr {
+  color: var(--syntax-keyword);
+}
+
+.editor-highlight .md-frontmatter .hljs-punctuation {
+  color: var(--syntax-meta);
+}
+
+.editor-highlight .md-frontmatter .hljs-string {
+  color: var(--syntax-built-in);
+}
+
+.editor-highlight .md-frontmatter .hljs-number,
+.editor-highlight .md-frontmatter .hljs-literal {
+  color: var(--syntax-number);
+}
+
+.editor-highlight .md-frontmatter .hljs-bullet {
+  color: var(--syntax-keyword);
+  font-weight: 700;
+}
+
 .editor-highlight .hljs-code {
   color: var(--syntax-string);
 }
@@ -2427,6 +2557,31 @@ body[data-view="slides"] .preview .md-section-toggle {
   padding: 0.15em 0 0.15em 1em;
   border-left: 3px solid var(--preview-quote);
   color: var(--preview-muted);
+}
+
+.preview dl {
+  padding: 0;
+}
+
+.preview dt {
+  font-weight: 600;
+  margin-top: 0.75em;
+}
+
+.preview dt:first-child {
+  margin-top: 0;
+}
+
+.preview dd {
+  margin: 0.25em 0 0.5em 1.25em;
+}
+
+.preview dd > :first-child {
+  margin-top: 0;
+}
+
+.preview dd > :last-child {
+  margin-bottom: 0;
 }
 
 .preview .markdown-alert {
@@ -2566,6 +2721,14 @@ body[data-view="slides"] .preview .md-section-toggle {
   line-height: 1.45;
   white-space: pre-wrap;
   overflow: visible;
+}
+
+/* Beat theme rules that style `.preview pre` as light-on-dark code blocks
+   (Salesforce Cosmos), so nested FM values stay readable in the table. */
+html[data-theme] .preview pre.markdown-frontmatter-nested,
+html[data-theme] .preview .markdown-frontmatter-error pre {
+  color: var(--preview-fg);
+  background: transparent;
 }
 
 .preview .markdown-frontmatter-error {
@@ -2945,6 +3108,21 @@ html[data-theme="fancy"] .photo-credit:not([hidden]) {
     border: 0;
     box-shadow: none;
     font-weight: 600;
+  }
+
+  .toolbar-actions #sync-scroll-btn[aria-pressed="true"],
+  html[data-theme="fancy"] .toolbar-actions #sync-scroll-btn[aria-pressed="true"],
+  html[data-theme="salesforce"] .toolbar-actions #sync-scroll-btn[aria-pressed="true"] {
+    background: var(--chrome-focus);
+    color: var(--chrome-on-focus);
+  }
+
+  .toolbar-actions #sync-scroll-btn[aria-pressed="true"]:hover,
+  html[data-theme="fancy"] .toolbar-actions #sync-scroll-btn[aria-pressed="true"]:hover,
+  html[data-theme="salesforce"] .toolbar-actions #sync-scroll-btn[aria-pressed="true"]:hover {
+    background: var(--chrome-focus);
+    color: var(--chrome-on-focus);
+    filter: brightness(1.08);
   }
 
   .toolbar-actions #save-btn.is-dirty {

@@ -12,10 +12,12 @@ import {
 import {
   canonicalHljsLang,
   clampSplit,
+  collectEditorLanguages,
   collectFenceLanguages,
   escapeHtml,
   formatRelativeTime,
   highlightEditorMarkdown,
+  highlightFrontmatterYaml,
   joinFsPath,
   parentPathOf,
   parseDraftMirror,
@@ -93,6 +95,71 @@ describe("markdown-utils", () => {
   it("collects fence languages and skips mermaid", () => {
     const langs = collectFenceLanguages("```js\nx\n```\n\n```mermaid\ngraph\n```\n\n~~~python\ny\n~~~");
     assert.deepEqual(langs, ["js", "python"]);
+  });
+
+  it("does not fetch a yaml grammar just for front matter", () => {
+    assert.deepEqual(collectEditorLanguages("---\ntitle: Hi\n---\n\n# Body"), []);
+    assert.deepEqual(
+      collectEditorLanguages("---\nx: 1\n---\n\n```js\n1\n```"),
+      ["js"],
+    );
+    assert.deepEqual(collectEditorLanguages("# No front matter\n```py\n1\n```"), ["py"]);
+  });
+
+  it("highlights front matter YAML with whole-value string tokens", () => {
+    const html = highlightFrontmatterYaml(
+      "title: My First Post\nname_name: Jane Doe\ndraft: false\ndate: 2026-10-05\n",
+    );
+    assert.match(html, /class="hljs-attr">title</);
+    assert.match(html, /class="hljs-string">My First Post</);
+    assert.match(html, /class="hljs-attr">name_name</);
+    assert.match(html, /class="hljs-string">Jane Doe</);
+    assert.match(html, /class="hljs-literal">false</);
+    assert.match(html, /class="hljs-number">2026-10-05</);
+    assert.doesNotMatch(html, /hljs-emphasis/);
+    assert.doesNotMatch(html, /class="hljs-string">My</);
+  });
+
+  it("highlights YAML front matter separately from the markdown body", () => {
+    const langs = new Set(["markdown"]);
+    const hljs = {
+      getLanguage: (name) => langs.has(name),
+      highlight(text, { language }) {
+        return {
+          value: `<span class="lang-${language}">${escapeHtml(text)}</span>`,
+        };
+      },
+    };
+    const source = [
+      "---",
+      "title: My First Post",
+      "tags:",
+      "  - markdown",
+      "author:",
+      "  name_name: Jane Doe",
+      "---",
+      "",
+      "# My First Post",
+      "This is the actual content of the file.",
+      "",
+    ].join("\n");
+    const html = highlightEditorMarkdown(source, hljs);
+    assert.match(html, /class="hljs-meta"/);
+    assert.match(html, /class="md-frontmatter"/);
+    assert.match(html, /class="hljs-string">My First Post</);
+    assert.match(html, /class="hljs-attr">name_name</);
+    assert.match(html, /lang-markdown/);
+    // YAML must not be fed to the markdown grammar (lists / emphasis).
+    assert.doesNotMatch(html, /hljs-emphasis/);
+    assert.doesNotMatch(html, /lang-markdown">[^<]*name_name/);
+    const text = html
+      .replace(/<[^>]+>/g, "")
+      .replace(/&amp;/g, "&")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'");
+    assert.equal(text, source);
   });
 
   it("highlights mermaid fences with a registered grammar", () => {
@@ -237,5 +304,38 @@ describe("embeds", () => {
       true,
     );
     assert.equal(collapsedEmbedUriTouched(emb, 0, 0, "insertText"), false);
+  });
+
+  it("collapses and expands reference-style data URI definitions", () => {
+    const dataUrl =
+      "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
+    const md = [
+      "This paragraph references a transparent pixel right here: ![Pixel][transparent-pixel].",
+      "",
+      `[transparent-pixel]: ${dataUrl}`,
+      "",
+    ].join("\n");
+    const collapsed = collapseDataUris(md);
+    assert.match(collapsed, /\[transparent-pixel\]: data:image\/png;base64,iVBORw0KGgoA…#\d+/);
+    assert.doesNotMatch(collapsed, /AAAAASUVORK5CYII=/);
+    assert.equal(expandEmbeds(collapsed), md);
+
+    const embeds = findCollapsedEmbeds(collapsed);
+    assert.equal(embeds.length, 1);
+    const def = collapsed.match(/\[transparent-pixel\]: data:image\/png;base64,[^\n]+/)?.[0];
+    assert.equal(collapsed.slice(embeds[0].fullStart, embeds[0].fullEnd), def);
+  });
+
+  it("preserves carets when collapsing reference definitions", () => {
+    const dataUrl = `data:image/png;base64,${"E".repeat(80)}`;
+    const before = `![x][ref]\n\n[ref]: ${dataUrl}\n`;
+    const { text, caretStart, caretEnd } = collapseDataUrisPreservingSelection(
+      before,
+      before.length,
+      before.length,
+    );
+    assert.equal(caretStart, text.length);
+    assert.equal(caretEnd, text.length);
+    assert.equal(expandEmbeds(text), before);
   });
 });

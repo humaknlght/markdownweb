@@ -4,7 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <!-- Import map must precede any scripts / modulepreload. Firefox speculative
-       loading otherwise resolves bare CDN imports (e.g. gemoji) without the map. -->
+       loading otherwise resolves bare CDN imports (e.g. gemoji) without the map.
+       serve/build replace "integrity" from src/cdn-integrity.json (full CDN graph). -->
   <script type="importmap">
   {
     "imports": {
@@ -163,9 +164,9 @@
         hidden
       >
         <span class="hamburger" aria-hidden="true">
-          <span class="hamburger-line"></span>
-          <span class="hamburger-line"></span>
-          <span class="hamburger-line"></span>
+          <span class="hamburger-line hamburger-line--1"></span>
+          <span class="hamburger-line hamburger-line--2"></span>
+          <span class="hamburger-line hamburger-line--3"></span>
         </span>
       </button>
       <h1 class="brand">Markdown Preview</h1>
@@ -550,7 +551,7 @@
           <pre class="editor-highlight" id="editor-highlight" aria-hidden="true"><code></code></pre>
           <textarea
             id="editor"
-            spellcheck="false"
+            spellcheck="true"
             placeholder="Paste Markdown or an image…"
             aria-label="Markdown source"
           ></textarea>
@@ -624,8 +625,8 @@
   >
     <h2 class="external-modal-title" id="ai-write-title">Write</h2>
     <p class="external-modal-desc">
-      Generate Markdown with Chrome’s on-device Writer. Inserts at the caret
-      (or replaces the selection).
+      Generate Markdown with Chrome’s on-device AI (Writer or Prompt API).
+      Inserts at the caret (or replaces the selection).
     </p>
     <label class="ai-field">
       <span class="ai-field-label">Prompt</span>

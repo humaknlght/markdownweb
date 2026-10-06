@@ -8,6 +8,7 @@
     "dev": "node scripts/serve.mjs src 3456",
     "build": "node scripts/build.mjs",
     "preview": "node scripts/serve.mjs dist 3456",
+    "update:cdn-sri": "node scripts/cdn-integrity.mjs",
     "test": "node --test 'test/unit/*.test.js' 'test/scripts/*.test.js'",
     "test:e2e": "playwright test",
     "test:build": "RUN_BUILD_TESTS=1 node --test 'test/build/*.test.js'",

@@ -109,6 +109,9 @@ describe("Mermaid theme contrast (WCAG 2.2 AA)", () => {
     assert.match(app, /var\(--mermaid-note-fg\)/);
     assert.match(app, /rect\.actor/);
     assert.match(app, /circle:not\(\[class\]\)/);
+    // foreignObject edge labels use CSS background on labelBkg AND inner <p>
+    assert.match(app, /\.edgeLabel p/);
+    assert.match(app, /background-color:\s*var\(--mermaid-label-bg\)/);
   });
 
   it("meets text (≥4.5:1) and UI (≥3:1) contrast for every theme", async () => {

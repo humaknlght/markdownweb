@@ -52,6 +52,14 @@ describe("production build invariants", { timeout: 180_000 }, () => {
       assert.match(html, /src="app\.[a-f0-9]{8}\.js"/);
       assert.doesNotMatch(html, /src="chunk-/);
       assert.match(html, /type="importmap"/);
+      assert.match(
+        html,
+        /mermaid@12\.0\.0\/dist\/mermaid\.esm\.min\.mjs":\s*"sha384-/,
+      );
+      assert.match(
+        html,
+        /@highlightjs\/cdn-assets@11\.12\.0\/es\/languages\/javascript\.min\.js":\s*"sha384-/,
+      );
       assert.match(html, /href="styles\.[a-f0-9]{8}\.css"/);
       assert.match(html, /href="print\.[a-f0-9]{8}\.css"[^>]*media="print"/);
 

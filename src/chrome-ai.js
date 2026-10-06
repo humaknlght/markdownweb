@@ -1,14 +1,22 @@
 /**
- * Chrome built-in Writing Assistance APIs (Writer, Rewriter, Proofreader).
- * Feature-detect only — callers hide UI when none are present.
+ * Chrome built-in Writing Assistance APIs (Writer, Rewriter, Proofreader)
+ * plus Prompt API (`LanguageModel`) fallback for the same Write / Rewrite /
+ * Proofread flows. Feature-detect only — callers hide UI when none are present.
  */
 
 /** @typedef {"Writer"|"Rewriter"|"Proofreader"} AiKind */
+/** @typedef {"dedicated"|"prompt"} WritingBackend */
 
 const GLOBALS = {
   Writer: "Writer",
   Rewriter: "Rewriter",
   Proofreader: "Proofreader",
+};
+
+/** Shared options for LanguageModel.availability / create (text, English). */
+export const PROMPT_TEXT_OPTIONS = {
+  expectedInputs: [{ type: "text", languages: ["en"] }],
+  expectedOutputs: [{ type: "text", languages: ["en"] }],
 };
 
 /**
@@ -19,13 +27,30 @@ export function isAiSupported(kind) {
   return typeof globalThis[GLOBALS[kind]] !== "undefined";
 }
 
-/** True when at least one writing API exists on this page. */
+/** True when Chrome’s Prompt API (`LanguageModel`) is present. */
+export function isPromptApiSupported() {
+  return typeof globalThis.LanguageModel !== "undefined";
+}
+
+/** True when at least one writing path exists on this page. */
 export function anyWritingAiSupported() {
   return (
     isAiSupported("Writer") ||
     isAiSupported("Rewriter") ||
-    isAiSupported("Proofreader")
+    isAiSupported("Proofreader") ||
+    isPromptApiSupported()
   );
+}
+
+/**
+ * Prefer the dedicated writing API; fall back to Prompt API.
+ * @param {AiKind} kind
+ * @returns {WritingBackend|null}
+ */
+export function writingBackendFor(kind) {
+  if (isAiSupported(kind)) return "dedicated";
+  if (isPromptApiSupported()) return "prompt";
+  return null;
 }
 
 /**
@@ -35,6 +60,30 @@ export function anyWritingAiSupported() {
  */
 export async function checkAvailability(kind, options = {}) {
   const Api = globalThis[GLOBALS[kind]];
+  if (!Api || typeof Api.availability !== "function") return "unavailable";
+  try {
+    const status = await Api.availability(options);
+    if (
+      status === "unavailable" ||
+      status === "downloadable" ||
+      status === "downloading" ||
+      status === "available"
+    ) {
+      return status;
+    }
+    return "unavailable";
+  } catch {
+    return "unavailable";
+  }
+}
+
+/**
+ * Prompt API availability with the same options used for create/prompt.
+ * @param {Record<string, unknown>} [options]
+ * @returns {Promise<"unavailable"|"downloadable"|"downloading"|"available">}
+ */
+export async function checkPromptAvailability(options = PROMPT_TEXT_OPTIONS) {
+  const Api = globalThis.LanguageModel;
   if (!Api || typeof Api.availability !== "function") return "unavailable";
   try {
     const status = await Api.availability(options);
@@ -772,6 +821,209 @@ export async function createAiSession(kind, options = {}, hooks = {}) {
     };
   }
   return Api.create(createOpts);
+}
+
+/**
+ * Create a Prompt API (`LanguageModel`) session.
+ * @param {Record<string, unknown>} [options]
+ * @param {{ signal?: AbortSignal, onProgress?: (loaded: number) => void }} [hooks]
+ * @returns {Promise<object>}
+ */
+export async function createPromptSession(options = PROMPT_TEXT_OPTIONS, hooks = {}) {
+  const Api = globalThis.LanguageModel;
+  if (!Api || typeof Api.create !== "function") {
+    throw new Error("Prompt API is not available");
+  }
+  const { signal, onProgress } = hooks;
+  const createOpts = { ...PROMPT_TEXT_OPTIONS, ...options };
+  if (signal) createOpts.signal = signal;
+  if (typeof onProgress === "function") {
+    createOpts.monitor = (m) => {
+      m.addEventListener("downloadprogress", (e) => {
+        const loaded = typeof e?.loaded === "number" ? e.loaded : 0;
+        onProgress(loaded);
+      });
+    };
+  }
+  return Api.create(createOpts);
+}
+
+/** System instructions for Prompt-backed Write. */
+export const PROMPT_WRITE_SYSTEM =
+  "You write Markdown for a Markdown editor. Output only the Markdown to insert — no preamble, no closing remarks, and do not wrap the entire answer in a code fence.";
+
+/** System instructions for Prompt-backed Rewrite. */
+export const PROMPT_REWRITE_SYSTEM =
+  "You rewrite Markdown. Preserve structure (headings, lists, links, images, code fences). Output only the rewritten Markdown — no preamble, and do not wrap the entire answer in a code fence.";
+
+/** System instructions for Prompt-backed Proofread. */
+export const PROMPT_PROOFREAD_SYSTEM =
+  "You proofread Markdown. Fix spelling, grammar, and punctuation only. Preserve Markdown structure, code fences, URLs, and meaning. Output only the corrected Markdown — no preamble, and do not wrap the entire answer in a code fence.";
+
+/**
+ * @param {AiKind} kind
+ * @returns {string}
+ */
+export function promptSystemFor(kind) {
+  switch (kind) {
+    case "Writer":
+      return PROMPT_WRITE_SYSTEM;
+    case "Rewriter":
+      return PROMPT_REWRITE_SYSTEM;
+    case "Proofreader":
+      return PROMPT_PROOFREAD_SYSTEM;
+    default:
+      return PROMPT_WRITE_SYSTEM;
+  }
+}
+
+/**
+ * Strip a single outer ``` / ```markdown fence if the model wrapped the whole answer.
+ * Also trims a partial opening fence while the stream is still in flight.
+ * @param {string} text
+ * @returns {string}
+ */
+export function stripOuterMarkdownFence(text) {
+  const raw = String(text ?? "");
+  const value = raw.trim();
+  const complete = value.match(/^```(?:markdown|md)?\r?\n([\s\S]*?)\r?\n```$/i);
+  if (complete) return complete[1];
+  const streaming = raw.match(/^```(?:markdown|md)?\r?\n([\s\S]*)$/i);
+  if (streaming) {
+    return streaming[1].replace(/\r?\n```[\t ]*$/, "");
+  }
+  return raw;
+}
+
+/**
+ * @param {string} [tone]
+ * @param {string} [length]
+ * @returns {string}
+ */
+function toneLengthInstructions(tone, length) {
+  const parts = [];
+  if (tone && tone !== "as-is" && tone !== "neutral") {
+    if (tone === "formal" || tone === "more-formal") parts.push("Use a formal tone.");
+    else if (tone === "casual" || tone === "more-casual") parts.push("Use a casual tone.");
+    else parts.push(`Tone: ${tone}.`);
+  }
+  if (length && length !== "as-is") {
+    if (length === "short" || length === "shorter") parts.push("Keep it short.");
+    else if (length === "long" || length === "longer") parts.push("Make it longer.");
+    else if (length === "medium") parts.push("Use a medium length.");
+    else parts.push(`Length: ${length}.`);
+  }
+  return parts.length ? `${parts.join(" ")}\n\n` : "";
+}
+
+/**
+ * Prompt the LanguageModel session (streaming when available).
+ * @param {object} session
+ * @param {string} input
+ * @param {{ signal?: AbortSignal, onChunk?: (s: string) => void }} [opts]
+ * @returns {Promise<string>}
+ */
+export async function runPrompt(session, input, opts = {}) {
+  const { signal, onChunk } = opts;
+  const promptOpts = signal ? { signal } : undefined;
+  const cleanedOnChunk = onChunk
+    ? (s) => onChunk(stripOuterMarkdownFence(s))
+    : undefined;
+
+  if (typeof session.promptStreaming === "function") {
+    const stream = session.promptStreaming(input, promptOpts);
+    const raw = await accumulateStream(stream, { signal, onChunk: cleanedOnChunk });
+    return stripOuterMarkdownFence(raw);
+  }
+  if (typeof session.prompt !== "function") {
+    throw new Error("Prompt API session has no prompt()");
+  }
+  const result = await session.prompt(input, promptOpts);
+  const text = stripOuterMarkdownFence(result == null ? "" : String(result));
+  onChunk?.(text);
+  return text;
+}
+
+/**
+ * @param {object} session
+ * @param {string} prompt
+ * @param {{
+ *   context?: string,
+ *   tone?: string,
+ *   length?: string,
+ *   signal?: AbortSignal,
+ *   onChunk?: (s: string) => void,
+ * }} [opts]
+ */
+export async function runPromptWrite(session, prompt, opts = {}) {
+  const { context, tone, length, signal, onChunk } = opts;
+  const guidance = toneLengthInstructions(tone, length);
+  const ctx = context?.trim() ? `Context:\n${context.trim()}\n\n` : "";
+  const input = `${guidance}${ctx}Write Markdown for this request:\n${prompt}`;
+  return runPrompt(session, input, { signal, onChunk });
+}
+
+/**
+ * @param {object} session
+ * @param {string} text
+ * @param {{
+ *   context?: string,
+ *   tone?: string,
+ *   length?: string,
+ *   signal?: AbortSignal,
+ *   onChunk?: (s: string) => void,
+ * }} [opts]
+ */
+export async function runPromptRewrite(session, text, opts = {}) {
+  const { context, tone, length, signal, onChunk } = opts;
+  const guidance = toneLengthInstructions(tone, length);
+  const ctx = context?.trim() ? `Instructions:\n${context.trim()}\n\n` : "";
+  const input = `${guidance}${ctx}Rewrite the following Markdown:\n\n${text}`;
+  return runPrompt(session, input, { signal, onChunk });
+}
+
+/**
+ * Proofread via Prompt API. Returns a Proofreader-shaped result (no span list).
+ * @param {object} session
+ * @param {string} text
+ * @param {{ signal?: AbortSignal }} [opts]
+ * @returns {Promise<{ correctedInput: string, corrections: Array<{ startIndex: number, endIndex: number }> }>}
+ */
+export async function runPromptProofread(session, text, opts = {}) {
+  const { signal } = opts;
+  const input = String(text ?? "");
+  if (!input.trim()) {
+    return { correctedInput: input, corrections: [] };
+  }
+  const raw = await runPrompt(
+    session,
+    `Proofread the following Markdown. Fix spelling, grammar, and punctuation only.\n\n${input}`,
+    { signal },
+  );
+  const correctedInput = finalizeProofreadSlice(input, raw);
+  return { correctedInput, corrections: [] };
+}
+
+/**
+ * Adapt a LanguageModel session so runProofreadDocument can call `.proofread()`.
+ * @param {object} lmSession
+ * @returns {object}
+ */
+export function wrapPromptSessionAsProofreader(lmSession) {
+  return {
+    get inputQuota() {
+      return lmSession?.inputQuota;
+    },
+    measureInputUsage(text) {
+      return lmSession?.measureInputUsage?.(text);
+    },
+    async proofread(input, proofOpts) {
+      return runPromptProofread(lmSession, input, proofOpts);
+    },
+    destroy() {
+      lmSession?.destroy?.();
+    },
+  };
 }
 
 /**

@@ -16,6 +16,7 @@ import {
   mapWithConcurrency,
   markdownFenceStructureIntact,
   preserveEdgeWhitespace,
+  promptSystemFor,
   proofreadReplaceSpans,
   renderCorrectedDiffHtml,
   renderProofreadMarkup,
@@ -24,11 +25,17 @@ import {
   runProofread,
   runProofreadChunked,
   runProofreadDocument,
+  runPromptProofread,
+  runPromptRewrite,
+  runPromptWrite,
   splitProofreadChunks,
   splitMarkdownProofreadParts,
   findMermaidNoteSpans,
   findLineCommentSpans,
+  stripOuterMarkdownFence,
   tokenizeForDiff,
+  wrapPromptSessionAsProofreader,
+  writingBackendFor,
 } from "../../src/chrome-ai.js";
 
 describe("chrome-ai helpers", () => {
@@ -69,6 +76,99 @@ describe("chrome-ai helpers", () => {
     assert.equal(r.end, 5);
     assert.equal(r.slice, "cde");
     assert.equal(r.isSelection, true);
+  });
+
+  it("stripOuterMarkdownFence removes a wrapping fence", () => {
+    assert.equal(stripOuterMarkdownFence("```markdown\nHi\n```"), "Hi");
+    assert.equal(stripOuterMarkdownFence("```\nHi\n```"), "Hi");
+    assert.equal(stripOuterMarkdownFence("plain"), "plain");
+    assert.equal(stripOuterMarkdownFence("```js\ncode\n```"), "```js\ncode\n```");
+  });
+
+  it("promptSystemFor covers write / rewrite / proofread", () => {
+    assert.match(promptSystemFor("Writer"), /Markdown/);
+    assert.match(promptSystemFor("Rewriter"), /rewrite/i);
+    assert.match(promptSystemFor("Proofreader"), /proofread/i);
+  });
+
+  it("writingBackendFor prefers dedicated APIs over Prompt", () => {
+    const hadWriter = "Writer" in globalThis;
+    const hadLm = "LanguageModel" in globalThis;
+    const prevWriter = globalThis.Writer;
+    const prevLm = globalThis.LanguageModel;
+    try {
+      globalThis.Writer = { availability() {}, create() {} };
+      globalThis.LanguageModel = { availability() {}, create() {} };
+      assert.equal(writingBackendFor("Writer"), "dedicated");
+      delete globalThis.Writer;
+      assert.equal(writingBackendFor("Writer"), "prompt");
+      delete globalThis.LanguageModel;
+      assert.equal(writingBackendFor("Writer"), null);
+    } finally {
+      if (hadWriter) globalThis.Writer = prevWriter;
+      else delete globalThis.Writer;
+      if (hadLm) globalThis.LanguageModel = prevLm;
+      else delete globalThis.LanguageModel;
+    }
+  });
+
+  it("runPromptWrite streams Markdown and strips outer fences", async () => {
+    const session = {
+      async *promptStreaming() {
+        yield "```markdown\n";
+        yield "# Hello\n";
+        yield "```";
+      },
+    };
+    const seen = [];
+    const out = await runPromptWrite(session, "greet", {
+      tone: "casual",
+      length: "short",
+      onChunk: (s) => seen.push(s),
+    });
+    assert.equal(out, "# Hello");
+    assert.ok(seen.length >= 1);
+    assert.equal(seen.at(-1), "# Hello");
+  });
+
+  it("runPromptRewrite includes the source text in the prompt", async () => {
+    let seen = "";
+    const session = {
+      async prompt(input) {
+        seen = input;
+        return "Rewritten";
+      },
+    };
+    const out = await runPromptRewrite(session, "Original body", {
+      tone: "more-formal",
+      context: "Make it polite",
+    });
+    assert.equal(out, "Rewritten");
+    assert.match(seen, /Original body/);
+    assert.match(seen, /Make it polite/);
+    assert.match(seen, /formal/i);
+  });
+
+  it("wrapPromptSessionAsProofreader feeds runProofreadDocument", async () => {
+    const lm = {
+      async prompt() {
+        return "Fixed text.";
+      },
+    };
+    const session = wrapPromptSessionAsProofreader(lm);
+    const result = await runProofread(session, "Fixd text.");
+    assert.equal(result.correctedInput, "Fixed text.");
+  });
+
+  it("runPromptProofread preserves unchanged text", async () => {
+    const session = {
+      async prompt() {
+        return "Same text";
+      },
+    };
+    const result = await runPromptProofread(session, "Same text");
+    assert.equal(result.correctedInput, "Same text");
+    assert.deepEqual(result.corrections, []);
   });
 
   it("accumulateStream joins chunks and reports progress", async () => {

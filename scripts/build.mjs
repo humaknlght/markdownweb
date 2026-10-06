@@ -24,6 +24,7 @@ import {
   hashServiceWorkerName,
   precacheVersion,
 } from "./pwa.mjs";
+import { applyCdnIntegrity, loadCdnIntegrity } from "./cdn-integrity.mjs";
 import { copyGuideTo } from "./sync-guide.mjs";
 
 const zopfliGzipAsync = promisify(zopfliGzip);
@@ -211,6 +212,8 @@ async function buildHtml({
   swUrl,
 }) {
   let html = await readFile(path.join(srcDir, "index.html"), "utf8");
+  const cdnIntegrity = await loadCdnIntegrity();
+  html = applyCdnIntegrity(html, cdnIntegrity);
   html = html.replace(/href="styles\.css"/, `href="${cssName}"`);
   html = html.replace(/href="print\.css"/, `href="${printCssName}"`);
   html = html.replace(/src="app\.js"/, `src="${jsName}"`);
