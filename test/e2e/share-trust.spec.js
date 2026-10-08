@@ -38,7 +38,7 @@ test.describe("share + trust modal", () => {
     await page.goto(`/#mdz=${mdz}&view=edit`);
     await waitForAppReady(page);
 
-    await page.locator(".external-modal-accept").click();
+    await page.locator("#external-modal .external-modal-accept").click();
     await expect(page.locator("#external-modal")).toBeHidden();
     expect(await headingText(page.locator("#preview h1"))).toBe("Accept Me");
     await expect(page).not.toHaveURL(/mdz=/);
@@ -56,7 +56,7 @@ test.describe("share + trust modal", () => {
     await waitForAppReady(page);
     await expect(page.locator("#external-modal")).toBeVisible();
 
-    await page.locator(".external-modal-reject").click();
+    await page.locator("#external-modal .external-modal-reject").click();
     await expect(page.locator("#external-modal")).toBeHidden();
     await expect(page.locator("#editor")).toHaveValue(/My Draft/);
     await expect(page).not.toHaveURL(/mdz=/);

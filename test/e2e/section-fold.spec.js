@@ -4,12 +4,31 @@ import { openFreshApp, headingText } from "./helpers.js";
 /** Click a section twistie and wait until the fold animation has fully settled. */
 async function toggleSectionSettled(page, heading) {
   await heading.locator(":scope > .md-section-toggle").click();
+  // Tall sections skip the height animation; still wait a frame so applySectionCollapse
+  // (and any in-flight paint) can commit is-collapsed before the next toggle.
   await expect(page.locator("#preview .md-section-anim")).toHaveCount(0);
+  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
 }
 
 /** Preview heading by visible label text. */
 function previewHeading(page, tag, label) {
-  return page.locator(`#preview ${tag}`).filter({ hasText: label });
+  return page.locator(`#preview ${tag}`).filter({
+    has: page.locator(":scope > .md-section-label", { hasText: label }),
+  });
+}
+
+/** Wait until preview headings for `labels` are present after an editor fill. */
+async function waitForPreviewHeadings(page, labels) {
+  for (const label of labels) {
+    await expect
+      .poll(async () => {
+        const texts = await page.locator("#preview .md-section-label").allTextContents();
+        return texts.some((t) => t.includes(label));
+      })
+      .toBe(true);
+  }
+  // Debounced render is 80ms; allow a trailing paint to finish before folding.
+  await page.waitForTimeout(150);
 }
 
 /**
@@ -221,9 +240,12 @@ test.describe("section fold", () => {
         "YAML body.",
       ].join("\n"),
     );
-    await expect
-      .poll(async () => headingText(page.locator("#preview h2").first()))
-      .toBe("Getting started");
+    await waitForPreviewHeadings(page, [
+      "Getting started",
+      "Supported Markdown",
+      "Mermaid diagrams",
+      "YAML front matter",
+    ]);
 
     const gettingStarted = previewHeading(page, "h2", "Getting started");
     const supported = previewHeading(page, "h2", "Supported Markdown");
@@ -233,11 +255,12 @@ test.describe("section fold", () => {
     const mermaidBody = page.locator("#preview p", { hasText: "MERMAID_BODY_MARKER" });
 
     await toggleSectionSettled(page, gettingStarted);
-    await toggleSectionSettled(page, supported);
-    await toggleSectionSettled(page, mermaid);
     await expect(gettingStarted).toHaveClass(/is-collapsed/);
+    await toggleSectionSettled(page, supported);
     await expect(supported).toHaveClass(/is-collapsed/);
+    await toggleSectionSettled(page, mermaid);
     await expect(mermaid).toHaveClass(/is-collapsed/);
+    await expect(gettingStarted).toHaveClass(/is-collapsed/);
     await expect(supportedBody).toBeHidden();
     await expect(mermaidBody).toBeHidden();
 
@@ -268,7 +291,9 @@ test.describe("section fold", () => {
       `expand inserted unfolded body before 0fr lock (height ${watch.insertMaxHeight})`,
     ).toBe(false);
     expect(watch.insertMaxHeight).toBe(0);
-    expect(watch.frames).toBeGreaterThan(5);
+    // Tall sections skip the height animation (see animateSectionFold), so only
+    // require that the watch sampled at least one frame around the expand.
+    expect(watch.frames).toBeGreaterThan(0);
 
     await expect(supported).toBeVisible();
     await expect(supported).toHaveClass(/is-collapsed/);

@@ -148,7 +148,7 @@ export async function waitForAppReady(page) {
 export async function acceptExternalIfShown(page) {
   const dialog = page.locator("#external-modal");
   if (await dialog.isVisible().catch(() => false)) {
-    await page.locator(".external-modal-accept").click();
+    await dialog.locator(".external-modal-accept").click();
     await dialog.waitFor({ state: "hidden" });
   }
 }
