@@ -269,7 +269,6 @@ const viewModeDropdown = document.getElementById("view-mode-dropdown");
 const viewModeMainBtn = document.getElementById("view-mode-main-btn");
 const viewModeMenuBtn = document.getElementById("view-mode-menu-btn");
 const viewModeMenu = document.getElementById("view-mode-menu");
-const presentMenuBtn = document.getElementById("present-menu-btn");
 const presentViewBtn = document.getElementById("present-view-btn");
 const printBtn = document.getElementById("print-btn");
 const helpBtn = document.getElementById("help-btn");
@@ -2967,12 +2966,45 @@ function bindCurrentFile(fileHandle, name, path = "") {
   persistCurrentFileBinding();
 }
 
+/** True after we have prompted for notification permission for Dock badging. */
+let appBadgePermissionPrompted = false;
+
+/** Apple platforms tie installed-app icon badges to notification permission. */
+function appBadgeNeedsNotificationPermission() {
+  return /Mac|iPhone|iPad|iPod/i.test(navigator.userAgent || "");
+}
+
+/**
+ * On macOS/iOS, setAppBadge succeeds without permission but the Dock / home-screen
+ * badge stays hidden. Ask once from the installed PWA when edits become unsaved.
+ */
+async function ensureAppBadgePermission() {
+  if (!appBadgeNeedsNotificationPermission()) return;
+  if (!isStandaloneDisplay()) return;
+  if (!("Notification" in window)) return;
+  if (Notification.permission !== "default") return;
+  if (appBadgePermissionPrompted) return;
+  appBadgePermissionPrompted = true;
+  try {
+    showToast("Allow notifications to badge the app icon when unsaved");
+    await Notification.requestPermission();
+  } catch {
+    /* ignore */
+  }
+}
+
 /** Show a generic OS app-icon flag when there are unsaved edits (installed PWA). */
 function updateUnsavedAppBadge(dirty = isDirty()) {
   if (!("setAppBadge" in navigator) || !("clearAppBadge" in navigator)) return;
   try {
-    if (dirty) void navigator.setAppBadge().catch(() => {});
-    else void navigator.clearAppBadge().catch(() => {});
+    if (dirty) {
+      // Request permission first on Apple platforms (may be a no-op), then flag badge.
+      void ensureAppBadgePermission()
+        .then(() => navigator.setAppBadge())
+        .catch(() => {});
+    } else {
+      void navigator.clearAppBadge().catch(() => {});
+    }
   } catch {
     /* NotAllowedError / InvalidStateError — ignore */
   }
@@ -4740,6 +4772,31 @@ function updateViewModeMainBtn() {
     else viewModeMainBtn.textContent = "Slides";
     viewModeMainBtn.title = "Slides preview";
   }
+  updateViewModeMenuSelection();
+}
+
+function updateViewModeMenuSelection() {
+  if (!viewModeMenu) return;
+  for (const btn of viewModeMenu.querySelectorAll("[data-view]")) {
+    btn.classList.toggle(
+      "is-selected",
+      btn.getAttribute("data-view") === currentView,
+    );
+  }
+}
+
+function onViewModeMenuClick(e) {
+  // Scope to menuitems only — body also has [data-view], which closest() would hit.
+  const item = e.target.closest("#view-mode-menu [role='menuitem']");
+  if (!item) return;
+  const view =
+    item.getAttribute("data-view") ||
+    (item.id === "present-menu-btn" ? "present" : null);
+  if (!view) return;
+  closeViewModeMenu();
+  if (view === "present") enterPresentMode();
+  else if (view === "slides") enterSlidesMode();
+  else if (view === "edit") setView("edit");
 }
 
 function openViewModeMenu() {
@@ -6914,10 +6971,7 @@ async function init() {
     closeWritingToolsMenu();
     toggleViewModeMenu();
   });
-  presentMenuBtn?.addEventListener("click", () => {
-    closeViewModeMenu();
-    enterPresentMode();
-  });
+  viewModeMenu?.addEventListener("click", onViewModeMenuClick);
   presentViewBtn?.addEventListener("click", enterPresentMode);
   printBtn?.addEventListener("click", () => window.print());
   helpBtn?.addEventListener("click", (e) => {

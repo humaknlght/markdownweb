@@ -392,8 +392,8 @@
                 type="button"
                 class="btn svg-btn split-btn-toggle"
                 id="view-mode-menu-btn"
-                title="More view modes"
-                aria-label="More view modes"
+                title="View modes"
+                aria-label="View modes"
                 aria-haspopup="menu"
                 aria-expanded="false"
                 aria-controls="view-mode-menu"
@@ -404,8 +404,20 @@
               </button>
             </div>
             <ul class="dropdown-menu" id="view-mode-menu" role="menu" hidden>
+              <li class="view-mode-overflow-only">
+                <button type="button" role="menuitem" data-view="edit" id="edit-mode-menu-btn">
+                  <span class="item-title">Edit</span>
+                </button>
+              </li>
+              <li class="view-mode-overflow-only">
+                <button type="button" role="menuitem" data-view="slides" id="slides-mode-menu-btn">
+                  <span class="item-title">Slides</span>
+                </button>
+              </li>
               <li>
-                <button type="button" role="menuitem" id="present-menu-btn">Present</button>
+                <button type="button" role="menuitem" data-view="present" id="present-menu-btn">
+                  <span class="item-title">Present</span>
+                </button>
               </li>
             </ul>
           </div>

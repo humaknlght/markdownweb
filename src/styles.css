@@ -48,6 +48,7 @@ html[data-theme="github-light"] {
   --font-ui: "Avenir Next", "Segoe UI", "Helvetica Neue", sans-serif;
   --font-mono: "SF Mono", "Menlo", "Consolas", "Liberation Mono", monospace;
   --toolbar-h: 3rem;
+  --toolbar-control-h: 2rem;
   --files-drawer-w: 16.5rem;
   --syntax-comment: #6a737d;
   --syntax-keyword: #cc3745;
@@ -954,12 +955,13 @@ body {
   min-width: 0;
 }
 
-.overflow-btn {
+/* Beat the later .btn { display: inline-flex } so this stays hidden on wide viewports. */
+.btn.overflow-btn {
   display: none;
   align-items: center;
   justify-content: center;
   min-width: 2.25rem;
-  min-height: 2rem;
+  min-height: var(--toolbar-control-h);
   padding: 0.35rem;
   flex-shrink: 0;
 }
@@ -1033,11 +1035,23 @@ body {
   padding: 0.3rem 0.55rem;
   cursor: pointer;
   line-height: 1.2;
+  box-sizing: border-box;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Keep chrome controls on one baseline; selects are otherwise taller than icon buttons. */
+.toolbar .btn,
+.toolbar .select-label select {
+  min-height: var(--toolbar-control-h);
 }
 
 a.btn {
   text-decoration: none;
-  box-sizing: border-box;
 }
 
 .btn:hover,
@@ -1181,6 +1195,11 @@ a.btn {
 
 .dropdown-menu li button.is-selected .item-title::before {
   content: "✓ ";
+}
+
+/* Desktop chevron menu keeps Present only; Edit/Slides stay on the split main button. */
+#view-mode-menu .view-mode-overflow-only {
+  display: none;
 }
 
 /* Each button carries all four arrows; exactly one is shown. The axis follows
@@ -2998,7 +3017,7 @@ html[data-theme="fancy"] .photo-credit:not([hidden]) {
     flex-wrap: nowrap;
   }
 
-  .overflow-btn {
+  .btn.overflow-btn {
     display: inline-flex;
   }
 
@@ -3178,6 +3197,36 @@ html[data-theme="fancy"] .photo-credit:not([hidden]) {
   }
 
   body[data-view="slides"] .toolbar-actions .view-mode-icon-edit {
+    display: block;
+  }
+
+  /* Overflow: one "View modes" row that expands to Edit / Slides / Present. */
+  .toolbar-actions #view-mode-main-btn {
+    display: none !important;
+  }
+
+  .toolbar-actions #view-mode-menu-btn {
+    border-radius: 6px;
+    min-width: 0;
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .toolbar-actions #view-mode-menu-btn::after {
+    content: "View modes";
+  }
+
+  .toolbar-actions #view-mode-menu .view-mode-overflow-only {
+    display: list-item;
+  }
+
+  /* Reader: reuse the same submenu instead of separate Edit / Present rows. */
+  .toolbar-actions #edit-view-btn,
+  .toolbar-actions #present-view-btn {
+    display: none !important;
+  }
+
+  body[data-view="reader"] .toolbar-actions #view-mode-dropdown {
     display: block;
   }
 

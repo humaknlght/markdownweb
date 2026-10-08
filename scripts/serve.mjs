@@ -44,17 +44,14 @@ const port = Number(process.argv[3] || process.env.PORT || 3456);
 const repoRoot = path.resolve(__dirname, "..");
 const srcIndexPath = path.join(repoRoot, "src", "index.html");
 
-/** Transformed index.html for src/ (CDN SRI injected). Dist is pre-baked. */
-let srcIndexHtmlWithSri = null;
-
+/** Transformed index.html for src/ (CDN SRI injected). Dist is pre-baked.
+ *  Re-read on each request so src/ edits show up without restarting the server. */
 async function loadSrcIndexHtmlWithSri() {
-  if (srcIndexHtmlWithSri) return srcIndexHtmlWithSri;
   const [html, integrity] = await Promise.all([
     fs.readFile(srcIndexPath, "utf8"),
     loadCdnIntegrity(),
   ]);
-  srcIndexHtmlWithSri = applyCdnIntegrity(html, integrity);
-  return srcIndexHtmlWithSri;
+  return applyCdnIntegrity(html, integrity);
 }
 
 async function resolveCspConfig() {

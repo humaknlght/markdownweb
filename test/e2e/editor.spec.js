@@ -107,6 +107,79 @@ test.describe("editor + render", () => {
       .not.toMatch(/^data:/);
   });
 
+  test("unsaved edits set the PWA app badge and request notification permission on macOS", async ({
+    page,
+  }) => {
+    await page.addInitScript(() => {
+      Object.defineProperty(navigator, "userAgent", {
+        configurable: true,
+        get: () =>
+          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      });
+      const realMatchMedia = window.matchMedia.bind(window);
+      window.matchMedia = (query) => {
+        if (query === "(display-mode: standalone)") {
+          return {
+            matches: true,
+            media: query,
+            onchange: null,
+            addListener() {},
+            removeListener() {},
+            addEventListener() {},
+            removeEventListener() {},
+            dispatchEvent() {
+              return false;
+            },
+          };
+        }
+        return realMatchMedia(query);
+      };
+      window.__badgeCalls = [];
+      window.__permissionRequests = 0;
+      navigator.setAppBadge = async (n) => {
+        window.__badgeCalls.push(n ?? "flag");
+      };
+      navigator.clearAppBadge = async () => {
+        window.__badgeCalls.push("clear");
+      };
+      Object.defineProperty(window, "Notification", {
+        configurable: true,
+        value: {
+          permission: "default",
+          async requestPermission() {
+            window.__permissionRequests += 1;
+            this.permission = "granted";
+            return "granted";
+          },
+        },
+      });
+    });
+
+    await openFreshApp(page);
+    page.on("dialog", (dialog) => dialog.accept());
+
+    await page.locator("#help-btn").click();
+    await expect
+      .poll(async () => page.locator("#editor").inputValue(), { timeout: 10_000 })
+      .toMatch(/How to use Markdown Preview/);
+
+    await page.locator("#editor").fill("# Draft\n\nUnsaved.");
+    await expect
+      .poll(async () => page.evaluate(() => window.__badgeCalls.includes("flag")))
+      .toBe(true);
+    await expect
+      .poll(async () => page.evaluate(() => window.__permissionRequests))
+      .toBeGreaterThan(0);
+
+    await page.locator("#help-btn").click();
+    await expect
+      .poll(async () => page.locator("#editor").inputValue(), { timeout: 10_000 })
+      .toMatch(/How to use Markdown Preview/);
+    await expect
+      .poll(async () => page.evaluate(() => window.__badgeCalls.at(-1) === "clear"))
+      .toBe(true);
+  });
+
   test("mermaid fence renders an SVG", async ({ page }) => {
     await openFreshApp(page);
 
