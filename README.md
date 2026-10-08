@@ -4,7 +4,9 @@
 
 A fast, client-side Markdown previewer. Paste upload, or open Markdown and see rendered HTML beside it. Everything runs in the browser — no server processing.
 
-Check out the hosted instance: [https://dev.ericperret.org/markdown/](https://dev.ericperret.org/markdown/)
+**Try it:** [https://dev.ericperret.org/markdown/](https://dev.ericperret.org/markdown/)
+
+![Markdown Preview — split editor and live HTML preview with Mermaid and GitHub alerts](docs/screenshot.png)
 
 ## Features
 

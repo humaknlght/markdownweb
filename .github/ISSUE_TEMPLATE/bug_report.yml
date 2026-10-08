@@ -1,0 +1,51 @@
+name: Bug report
+description: Something is broken or behaves unexpectedly
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for a clear report. Security issues → use [private vulnerability reporting](https://github.com/humaknlght/markdownweb/security/advisories/new), not a public issue.
+  - type: input
+    id: url
+    attributes:
+      label: Where did you see it?
+      description: Hosted URL, local `npm run dev`, or installed PWA.
+      placeholder: https://dev.ericperret.org/markdown/
+    validations:
+      required: true
+  - type: input
+    id: browser
+    attributes:
+      label: Browser / OS
+      placeholder: Chrome 148 on macOS 15
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: extras
+    attributes:
+      label: Screenshots / console errors
+      description: Optional. Paste errors or attach images.
