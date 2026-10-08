@@ -306,6 +306,17 @@ async function createServer() {
 
 const { server, protocol, http2: usingHttp2, tlsTrusted } = await createServer();
 
+server.on("error", (err) => {
+  if (err.code === "EADDRINUSE") {
+    console.error(
+      `127.0.0.1:${port} is already in use. Stop the other dev or preview server and try again.`,
+    );
+    process.exit(1);
+  }
+  console.error(err);
+  process.exit(1);
+});
+
 server.listen(port, "127.0.0.1", () => {
   console.log(`Serving ${rootDir}`);
   console.log(`  ${protocol}://127.0.0.1:${port}/`);
