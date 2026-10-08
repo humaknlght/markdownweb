@@ -1,5 +1,7 @@
 # Markdown Preview
 
+[![CI](https://github.com/humaknlght/markdownweb/actions/workflows/ci.yml/badge.svg)](https://github.com/humaknlght/markdownweb/actions/workflows/ci.yml)
+
 A fast, client-side Markdown previewer. Paste upload, or open Markdown and see rendered HTML beside it. Everything runs in the browser — no server processing.
 
 Check out the hosted instance: [https://dev.ericperret.org/markdown/](https://dev.ericperret.org/markdown/)
