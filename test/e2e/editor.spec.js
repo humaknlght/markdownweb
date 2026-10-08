@@ -180,6 +180,36 @@ test.describe("editor + render", () => {
       .toBe(true);
   });
 
+  test("document without diagrams does not request Mermaid after load", async ({ page }) => {
+    // Run before Mermaid-loading tests. Drop any SW (it precaches mermaid.esm)
+    // and ignore in-flight CDN work from earlier navigations before measuring.
+    await openFreshApp(page);
+    await page.evaluate(async () => {
+      const regs = await navigator.serviceWorker?.getRegistrations?.();
+      if (regs?.length) await Promise.all(regs.map((r) => r.unregister()));
+    });
+    await page.waitForLoadState("networkidle");
+    await page.evaluate(() => performance.clearResourceTimings());
+
+    const mermaidRequests = [];
+    const onReq = (req) => {
+      // Nested ESM chunks mean loadMermaid() evaluated the library. The SW may
+      // precache the entry URL even when the doc has no diagrams — ignore that.
+      if (req.url().includes("chunks/mermaid")) mermaidRequests.push(req.url());
+    };
+    page.on("request", onReq);
+    try {
+      await page.locator("#editor").fill("# No diagrams\n\nJust text.");
+      await expect.poll(async () => headingText(page.locator("#preview h1"))).toBe("No diagrams");
+      await expect(page.locator("#preview .mermaid")).toHaveCount(0);
+      await page.waitForTimeout(400);
+
+      expect(mermaidRequests, mermaidRequests.join("\n")).toEqual([]);
+    } finally {
+      page.off("request", onReq);
+    }
+  });
+
   test("mermaid fence renders an SVG", async ({ page }) => {
     await openFreshApp(page);
 
@@ -272,19 +302,5 @@ test.describe("editor + render", () => {
       expect(label.pBg).not.toMatch(/255,\s*255,\s*222/);
       expect(label.bg).not.toBe("rgb(255,255,222)");
     }
-  });
-
-  test("document without diagrams does not request Mermaid after load", async ({ page }) => {
-    await openFreshApp(page);
-
-    const mermaidRequests = [];
-    page.on("request", (req) => {
-      if (req.url().includes("mermaid")) mermaidRequests.push(req.url());
-    });
-
-    await page.locator("#editor").fill("# No diagrams\n\nJust text.");
-    await expect.poll(async () => headingText(page.locator("#preview h1"))).toBe("No diagrams");
-    await page.waitForTimeout(400);
-    expect(mermaidRequests).toEqual([]);
   });
 });

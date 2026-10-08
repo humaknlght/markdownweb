@@ -9,6 +9,8 @@ export default defineConfig({
   expect: { timeout: 10_000 },
   fullyParallel: false,
   workers: 1,
+  // Linux CI runners occasionally see leftover CDN timing flakes across tests.
+  retries: process.env.CI ? 2 : 0,
   reporter: "list",
   use: {
     baseURL: `https://127.0.0.1:${PORT}`,
