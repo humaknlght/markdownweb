@@ -1,5 +1,13 @@
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { test, expect } from "playwright/test";
 import { openFreshApp, headingText } from "./helpers.js";
+
+const mermaidFixture = readFileSync(
+  join(dirname(fileURLToPath(import.meta.url)), "../mermaid_file.md"),
+  "utf8",
+);
 
 test.describe("editor + render", () => {
   test("live-renders GFM headings and lists", async ({ page }) => {
@@ -418,5 +426,111 @@ test.describe("editor + render", () => {
     expect(afterManual.editor).toBe(afterFind.editor + 160);
     expect(afterManual.translateY).toBe(-afterManual.editor);
     expect(afterManual.highlightScrollTop).toBe(0);
+  });
+
+  test("sync scroll stays stable while typing at the end of a Mermaid-heavy doc", async ({
+    page,
+  }) => {
+    test.setTimeout(120_000);
+    await openFreshApp(page);
+    await page.setViewportSize({ width: 1400, height: 900 });
+
+    await page.locator("#editor").fill(`${mermaidFixture.replace(/\s+$/, "")}\n\n`);
+    await expect
+      .poll(async () => page.locator("#preview .mermaid svg").count(), { timeout: 90_000 })
+      .toBeGreaterThanOrEqual(10);
+    await expect
+      .poll(
+        async () => page.locator("#preview .mermaid[data-pending]").count(),
+        { timeout: 90_000 },
+      )
+      .toBe(0);
+
+    const svgCountBefore = await page.locator("#preview .mermaid svg").count();
+
+    await page.locator("#sync-scroll-btn").click();
+    await expect(page.locator("#sync-scroll-btn")).toHaveAttribute("aria-pressed", "true");
+
+    await page.locator("#editor").evaluate((editor) => {
+      editor.focus();
+      editor.setSelectionRange(editor.value.length, editor.value.length);
+      editor.scrollTop = editor.scrollHeight;
+    });
+
+    const marker = "BOTTOM_MARKER_TEXT";
+    const samples = [];
+    for (const ch of marker) {
+      await page.keyboard.type(ch);
+      await page.waitForTimeout(200);
+      samples.push(
+        await page.evaluate(() => {
+          const editor = document.getElementById("editor");
+          const preview = document.getElementById("preview-pane");
+          return {
+            editor: editor.scrollTop,
+            preview: preview.scrollTop,
+            eMax: editor.scrollHeight - editor.clientHeight,
+            pH: preview.scrollHeight,
+            pending: document.querySelectorAll("#preview .mermaid[data-pending]").length,
+            svgs: document.querySelectorAll("#preview .mermaid svg").length,
+          };
+        }),
+      );
+    }
+
+    // Unchanged diagrams must be reused — not wiped/re-rendered on each keystroke.
+    expect(Math.max(...samples.map((s) => s.pending))).toBe(0);
+    expect(Math.min(...samples.map((s) => s.svgs))).toBe(svgCountBefore);
+
+    const editorRange = Math.max(...samples.map((s) => s.editor)) - Math.min(...samples.map((s) => s.editor));
+    const previewRange =
+      Math.max(...samples.map((s) => s.preview)) - Math.min(...samples.map((s) => s.preview));
+    const heightRange = Math.max(...samples.map((s) => s.pH)) - Math.min(...samples.map((s) => s.pH));
+    let editorFlips = 0;
+    let previewFlips = 0;
+    for (let i = 2; i < samples.length; i++) {
+      const de1 = samples[i - 1].editor - samples[i - 2].editor;
+      const de2 = samples[i].editor - samples[i - 1].editor;
+      if (Math.abs(de1) > 20 && Math.abs(de2) > 20 && Math.sign(de1) !== Math.sign(de2)) {
+        editorFlips += 1;
+      }
+      const dp1 = samples[i - 1].preview - samples[i - 2].preview;
+      const dp2 = samples[i].preview - samples[i - 1].preview;
+      if (Math.abs(dp1) > 20 && Math.abs(dp2) > 20 && Math.sign(dp1) !== Math.sign(dp2)) {
+        previewFlips += 1;
+      }
+    }
+
+    // Editor must stay pinned near the bottom — no reverse-sync yank.
+    for (const sample of samples) {
+      expect(sample.eMax - sample.editor).toBeLessThan(80);
+    }
+    expect(editorRange).toBeLessThan(40);
+    expect(editorFlips).toBe(0);
+    expect(previewFlips).toBe(0);
+    expect(heightRange).toBeLessThan(400);
+    expect(previewRange).toBeLessThan(400);
+
+    // Newly added text must remain in the preview viewport after paints settle.
+    await expect
+      .poll(async () => page.locator("#preview").innerText(), { timeout: 10_000 })
+      .toContain(marker);
+    const markerVisible = await page.evaluate((text) => {
+      const pane = document.getElementById("preview-pane");
+      const walker = document.createTreeWalker(document.getElementById("preview"), NodeFilter.SHOW_TEXT);
+      let node = walker.nextNode();
+      while (node) {
+        if ((node.nodeValue || "").includes(text)) {
+          const range = document.createRange();
+          range.selectNodeContents(node.parentElement || node);
+          const rect = range.getBoundingClientRect();
+          const paneRect = pane.getBoundingClientRect();
+          return rect.bottom > paneRect.top && rect.top < paneRect.bottom;
+        }
+        node = walker.nextNode();
+      }
+      return false;
+    }, marker);
+    expect(markerVisible).toBe(true);
   });
 });
