@@ -12,7 +12,6 @@ import {
   ICON_FILES,
   buildManifest,
   buildServiceWorker,
-  hashServiceWorkerName,
   isMutableShellPath,
   precacheVersion,
 } from "../../scripts/pwa.mjs";
@@ -20,8 +19,11 @@ import { applyCdnIntegrity } from "../../scripts/cdn-integrity.mjs";
 import { copyGuideTo, guideSourcePath } from "../../scripts/sync-guide.mjs";
 import {
   headersFor,
+  isNotModified,
   resolveWithCompression,
   safeResolve,
+  strongEtag,
+  toHttpDate,
 } from "../../scripts/serve-utils.mjs";
 import fs from "node:fs/promises";
 import os from "node:os";
@@ -103,8 +105,6 @@ describe("pwa.mjs", () => {
     assert.match(sw, /\.\/index\.html/);
     assert.match(sw, /isMutableShell/);
     assert.match(sw, /cache: "no-cache"/);
-    assert.equal(hashServiceWorkerName(sw), hashServiceWorkerName(sw));
-    assert.match(hashServiceWorkerName(sw), /^sw\.[a-f0-9]{8}\.js$/);
   });
 
   it("treats only unhashed shell paths as mutable", () => {
@@ -169,10 +169,6 @@ describe("serve-utils", () => {
 
     assert.equal(headersFor("/sw.js", null)["Cache-Control"], "no-cache");
     assert.equal(
-      headersFor("/sw.abc12345.js", null)["Cache-Control"],
-      "public, max-age=31536000, immutable",
-    );
-    assert.equal(
       headersFor("/app.abc12345.js", null)["Cache-Control"],
       "public, max-age=31536000, immutable",
     );
@@ -219,5 +215,42 @@ describe("serve-utils", () => {
       path: file,
       encoding: null,
     });
+  });
+
+  it("builds strong ETags and answers conditional GET for 304", () => {
+    const body = Buffer.from("service-worker");
+    const etag = strongEtag(body);
+    const etagBr = strongEtag(body, "br");
+    assert.match(etag, /^"[a-f0-9]{16}"$/);
+    assert.match(etagBr, /^"[a-f0-9]{16}-br"$/);
+    assert.notEqual(etag, etagBr);
+
+    const lastModifiedMs = Date.parse("Wed, 01 Jan 2020 00:00:00 GMT") + 500;
+    assert.equal(toHttpDate(lastModifiedMs), "Wed, 01 Jan 2020 00:00:00 GMT");
+    assert.equal(
+      isNotModified({ "if-none-match": etag }, { etag, lastModifiedMs }),
+      true,
+    );
+    assert.equal(
+      isNotModified({ "if-none-match": '"other"' }, { etag, lastModifiedMs }),
+      false,
+    );
+    assert.equal(
+      isNotModified(
+        { "if-modified-since": "Wed, 01 Jan 2020 00:00:00 GMT" },
+        { etag, lastModifiedMs },
+      ),
+      true,
+    );
+    assert.equal(
+      isNotModified(
+        {
+          "if-none-match": '"other"',
+          "if-modified-since": "Wed, 01 Jan 2020 00:00:00 GMT",
+        },
+        { etag, lastModifiedMs },
+      ),
+      false,
+    );
   });
 });

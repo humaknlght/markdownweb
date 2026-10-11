@@ -9,7 +9,7 @@ FULL="$OWNER/$REPO"
 
 echo "==> About: description, homepage, topics"
 gh api -X PATCH "repos/$FULL" \
-  -f description='Client-side Markdown previewer with live HTML, Mermaid, themes, PWA, and share links' \
+  -f description='Client-side Markdown editor with live HTML, Mermaid, themes, PWA, and share links' \
   -f homepage='https://dev.ericperret.org/markdown/' \
   -F has_issues=true \
   -F has_projects=false \
@@ -59,9 +59,9 @@ else
     --repo "$FULL" \
     --title "v1.0.0" \
     --notes "$(cat <<'NOTES'
-## Markdown Preview v1.0.0
+## Markdown Editor v1.0.0
 
-Client-side Markdown previewer with live HTML rendering.
+Client-side Markdown editor with live HTML rendering.
 
 **Try it:** https://dev.ericperret.org/markdown/
 

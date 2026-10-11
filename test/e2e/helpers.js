@@ -1,9 +1,10 @@
 /**
- * Shared Playwright helpers for Markdown Preview e2e tests.
+ * Shared Playwright helpers for Markdown Editor e2e tests.
  * @param {import('playwright/test').Page} page
+ * @param {{ cloudOnly?: boolean }} [speechOptions]
  */
-export async function preparePage(page) {
-  await stubSpeechSynthesis(page);
+export async function preparePage(page, speechOptions = {}) {
+  await stubSpeechSynthesis(page, speechOptions);
   await page.addInitScript(() => {
     if (navigator.serviceWorker?.getRegistrations) {
       navigator.serviceWorker.getRegistrations().then((regs) => {
@@ -42,18 +43,29 @@ export async function clearAppStorage(page) {
 /**
  * Stub speechSynthesis so read-aloud tests are hermetic.
  * @param {import('playwright/test').Page} page
+ * @param {{ cloudOnly?: boolean }} [options]
  */
-export async function stubSpeechSynthesis(page) {
-  await page.addInitScript(() => {
-    const voices = [
-      {
-        name: "Samantha",
-        lang: "en-US",
-        localService: true,
-        voiceURI: "test-samantha",
-        default: true,
-      },
-    ];
+export async function stubSpeechSynthesis(page, options = {}) {
+  await page.addInitScript((opts) => {
+    const voices = opts.cloudOnly
+      ? [
+          {
+            name: "Google US English",
+            lang: "en-US",
+            localService: false,
+            voiceURI: "test-google",
+            default: true,
+          },
+        ]
+      : [
+          {
+            name: "Samantha",
+            lang: "en-US",
+            localService: true,
+            voiceURI: "test-samantha",
+            default: true,
+          },
+        ];
     /** @type {any} */
     let currentUtterance = null;
     const synth = {
@@ -104,16 +116,17 @@ export async function stubSpeechSynthesis(page) {
       this.onerror = null;
       this.onboundary = null;
     };
-  });
+  }, { cloudOnly: Boolean(options.cloudOnly) });
 }
 
 /**
  * Open a fresh app with empty storage (no GUIDE seed).
  * @param {import('playwright/test').Page} page
  * @param {string} [path]
+ * @param {{ cloudOnly?: boolean }} [speechOptions]
  */
-export async function openFreshApp(page, path = "/") {
-  await preparePage(page);
+export async function openFreshApp(page, path = "/", speechOptions = {}) {
+  await preparePage(page, speechOptions);
   await page.goto(path);
   await waitForAppReady(page);
   await clearAppStorage(page);
@@ -139,6 +152,11 @@ export async function openFreshApp(page, path = "/") {
 export async function waitForAppReady(page) {
   await page.waitForFunction(() => !document.documentElement.classList.contains("is-booting"));
   await page.locator("#editor").waitFor({ state: "attached" });
+  // Initial markdown paint is async (yield + marked); wait until it settles.
+  await page.waitForFunction(() => {
+    const pane = document.getElementById("preview-pane");
+    return !pane || pane.getAttribute("aria-busy") !== "true";
+  });
 }
 
 /**

@@ -58,13 +58,17 @@ describe("DOM exporters", () => {
   it("cleans preview chrome from HTML exports", () => {
     const el = previewWith(
       `<h1 data-source-line="1">Hi</h1><mark class="speech-word">x</mark>` +
-        `<button class="md-section-toggle">▼</button><p hidden>slide2</p>`,
+        `<button class="md-section-toggle">▼</button><p hidden>slide2</p>` +
+        `<div class="mermaid" data-processed="true"><svg data-mermaid-natural="800" data-mermaid-fluid="1"></svg></div>`,
     );
     const html = cleanPreviewHtml(el);
     assert.doesNotMatch(html, /data-source-line/);
     assert.doesNotMatch(html, /speech-word/);
     assert.doesNotMatch(html, /md-section-toggle/);
     assert.doesNotMatch(html, /hidden/);
+    assert.doesNotMatch(html, /data-processed/);
+    assert.doesNotMatch(html, /data-mermaid-natural/);
+    assert.doesNotMatch(html, /data-mermaid-fluid/);
     assert.match(html, /slide2/);
   });
 

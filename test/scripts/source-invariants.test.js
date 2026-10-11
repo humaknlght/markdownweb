@@ -150,5 +150,7 @@ describe("static source invariants", () => {
     assert.match(ht, /Origin-Trial/);
     assert.match(ht, /og-image/);
     assert.match(ht, /Cross-Origin-Resource-Policy/);
+    assert.match(ht, /FileETag MTime Size/);
+    assert.match(ht, /FilesMatch "\^sw\\.js/);
   });
 });

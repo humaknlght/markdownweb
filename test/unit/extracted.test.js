@@ -72,6 +72,16 @@ describe("speech-text", () => {
     assert.equal(voices[0].voiceURI, "local");
   });
 
+  it("lists local voices ahead of higher-scored cloud voices", () => {
+    const voices = listVoices([
+      { name: "Google US English", lang: "en-US", localService: false, voiceURI: "google" },
+      { name: "Samantha", lang: "en-US", localService: true, voiceURI: "samantha" },
+    ]);
+    assert.equal(voices.length, 2);
+    assert.equal(voices[0].voiceURI, "samantha");
+    assert.equal(voices[1].voiceURI, "google");
+  });
+
   it("computes word end offsets", () => {
     assert.equal(wordEndOffset("hello world", 0, 5), 5);
     assert.equal(wordEndOffset("hello world", 6, 0), 11);
@@ -92,9 +102,15 @@ describe("markdown-utils", () => {
     assert.equal(canonicalHljsLang("../evil"), "");
   });
 
-  it("collects fence languages and skips mermaid", () => {
+  it("collects fence languages and skips mermaid by default", () => {
     const langs = collectFenceLanguages("```js\nx\n```\n\n```mermaid\ngraph\n```\n\n~~~python\ny\n~~~");
     assert.deepEqual(langs, ["js", "python"]);
+    assert.deepEqual(
+      collectFenceLanguages("```js\nx\n```\n\n```mermaid\ngraph\n```", {
+        includeMermaid: true,
+      }),
+      ["js", "mermaid"],
+    );
   });
 
   it("does not fetch a yaml grammar just for front matter", () => {
@@ -104,6 +120,10 @@ describe("markdown-utils", () => {
       ["js"],
     );
     assert.deepEqual(collectEditorLanguages("# No front matter\n```py\n1\n```"), ["py"]);
+    assert.deepEqual(
+      collectEditorLanguages("```mermaid\nflowchart LR\n  A-->B\n```"),
+      ["mermaid"],
+    );
   });
 
   it("highlights front matter YAML with whole-value string tokens", () => {

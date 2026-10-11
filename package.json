@@ -1,9 +1,9 @@
 {
-  "name": "markdown-preview",
+  "name": "markdown-editor",
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Client-side Markdown previewer",
+  "description": "Client-side Markdown editor",
   "scripts": {
     "dev": "node scripts/serve.mjs src 3456",
     "build": "node scripts/build.mjs",
@@ -20,6 +20,7 @@
     "esbuild": "^0.25.0",
     "fake-indexeddb": "^6.0.0",
     "happy-dom": "^20.8.9",
+    "highlight.js": "^11.12.0",
     "html-minifier-terser": "^7.2.0",
     "jsdom": "^26.1.0",
     "marked": "^18.0.13",

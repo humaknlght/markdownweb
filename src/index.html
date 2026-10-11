@@ -26,7 +26,7 @@
     }
   }
   </script>
-  <title>Markdown Preview</title>
+  <title>Markdown Editor</title>
   <meta
     name="description"
     content="Paste or upload Markdown and see a live HTML preview in your browser."
@@ -34,8 +34,8 @@
   <link rel="canonical" href="https://dev.ericperret.org/markdown/" />
 
   <meta property="og:type" content="website" />
-  <meta property="og:site_name" content="Markdown Preview" />
-  <meta property="og:title" content="Markdown Preview" />
+  <meta property="og:site_name" content="Markdown Editor" />
+  <meta property="og:title" content="Markdown Editor" />
   <meta
     property="og:description"
     content="Paste or upload Markdown and see a live HTML preview in your browser."
@@ -49,10 +49,10 @@
   <meta property="og:image:type" content="image/png" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
-  <meta property="og:image:alt" content="Markdown Preview" />
+  <meta property="og:image:alt" content="Markdown Editor" />
 
   <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="Markdown Preview" />
+  <meta name="twitter:title" content="Markdown Editor" />
   <meta
     name="twitter:description"
     content="Paste or upload Markdown and see a live HTML preview in your browser."
@@ -169,7 +169,7 @@
           <span class="hamburger-line hamburger-line--3"></span>
         </span>
       </button>
-      <h1 class="brand">Markdown Preview</h1>
+      <h1 class="brand">Markdown Editor</h1>
       <span id="current-file-name" class="current-file-name" hidden></span>
       <a class="brand-link" href="https://www.ericperret.org" target="_blank" rel="noopener">ericperret.org</a>
     </div>
@@ -560,7 +560,7 @@
     <main class="panes" id="panes">
       <section class="pane editor-pane" id="editor-pane" aria-label="Markdown editor">
         <div class="editor-wrap">
-          <pre class="editor-highlight" id="editor-highlight" aria-hidden="true"><code></code></pre>
+          <pre class="editor-highlight" id="editor-highlight" aria-hidden="true" inert><code></code></pre>
           <textarea
             id="editor"
             spellcheck="true"
@@ -578,9 +578,12 @@
         tabindex="0"
       ></div>
       <section class="pane preview-pane" id="preview-pane" aria-label="Rendered preview">
+        <div class="render-loading" id="render-loading" hidden aria-hidden="true">
+          <div class="render-loading-spinner" role="status" aria-label="Loading preview"></div>
+        </div>
         <article class="preview" id="preview"></article>
         <div class="editor-wrap ai-proof-editor-wrap" id="ai-proof-editor-wrap" hidden>
-          <pre class="editor-highlight" id="ai-proof-highlight" aria-hidden="true"><code></code></pre>
+          <pre class="editor-highlight" id="ai-proof-highlight" aria-hidden="true" inert><code></code></pre>
           <textarea
             id="ai-proof-editor"
             readonly
@@ -626,6 +629,27 @@
       </button>
       <button type="submit" class="btn external-modal-accept" value="accept">
         Accept
+      </button>
+    </form>
+  </dialog>
+
+  <dialog
+    class="external-modal"
+    id="cloud-speech-modal"
+    aria-labelledby="cloud-speech-title"
+    aria-describedby="cloud-speech-desc"
+  >
+    <h2 class="external-modal-title" id="cloud-speech-title">Cloud voice</h2>
+    <p class="external-modal-desc" id="cloud-speech-desc">
+      No local voice is available, so read-aloud would use a cloud voice.
+      That sends the document text to the voice provider’s servers.
+    </p>
+    <form method="dialog" class="external-modal-actions">
+      <button type="submit" class="btn external-modal-reject" value="cancel">
+        Cancel
+      </button>
+      <button type="submit" class="btn external-modal-accept" value="continue">
+        Continue
       </button>
     </form>
   </dialog>

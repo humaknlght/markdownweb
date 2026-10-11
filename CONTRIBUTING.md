@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for helping improve Markdown Preview. This is a client-side app; keep changes focused and easy to review.
+Thanks for helping improve Markdown Editor. This is a client-side app; keep changes focused and easy to review.
 
 ## Before you start
 

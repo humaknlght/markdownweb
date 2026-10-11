@@ -36,6 +36,34 @@ test.describe("layout / speech / print", () => {
     await expect(speak).toHaveAttribute("aria-pressed", "false");
   });
 
+  test("cloud-only voices confirm before read-aloud starts", async ({ page }) => {
+    await openFreshApp(page, "/", { cloudOnly: true });
+    await page.locator("#editor").fill("# Speak\n\nHello from a cloud voice.");
+    await expect.poll(async () => headingText(page.locator("#preview h1"))).toBe("Speak");
+
+    const speak = page.locator("#speak-btn");
+    const modal = page.locator("#cloud-speech-modal");
+    await speak.click();
+    await expect(modal).toBeVisible();
+    await expect(speak).toHaveAttribute("aria-pressed", "false");
+
+    await modal.locator('button[value="cancel"]').click();
+    await expect(modal).toBeHidden();
+    await expect(speak).toHaveAttribute("aria-pressed", "false");
+
+    await speak.click();
+    await expect(modal).toBeVisible();
+    await modal.locator('button[value="continue"]').click();
+    await expect(modal).toBeHidden();
+    await expect(speak).toHaveAttribute("aria-pressed", "true");
+
+    await speak.click();
+    await expect(speak).toHaveAttribute("aria-pressed", "false");
+    await speak.click();
+    await expect(modal).toBeHidden();
+    await expect(speak).toHaveAttribute("aria-pressed", "true");
+  });
+
   test("print media does not change data-theme", async ({ page }) => {
     await openFreshApp(page);
     await page.locator("#theme-select").selectOption("github-dark");

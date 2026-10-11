@@ -52,7 +52,7 @@ test.describe("editor + render", () => {
     await page.locator("#help-btn").click();
     await expect
       .poll(async () => page.locator("#editor").inputValue(), { timeout: 10_000 })
-      .toMatch(/How to use Markdown Preview/);
+      .toMatch(/How to use Markdown Editor/);
     await expect(page.locator("#save-btn")).not.toHaveClass(/is-dirty/);
   });
 
@@ -72,7 +72,7 @@ test.describe("editor + render", () => {
     await expect(helpPage.locator("body")).toHaveAttribute("data-view", "reader");
     await expect
       .poll(async () => headingText(helpPage.locator("#preview h1")), { timeout: 10_000 })
-      .toMatch(/How to use Markdown Preview/);
+      .toMatch(/How to use Markdown Editor/);
 
     // Original tab draft is unchanged.
     await expect(page.locator("#editor")).toHaveValue(/Keep working/);
@@ -86,7 +86,7 @@ test.describe("editor + render", () => {
     await page.locator("#help-btn").click();
     await expect
       .poll(async () => page.locator("#editor").inputValue(), { timeout: 10_000 })
-      .toMatch(/How to use Markdown Preview/);
+      .toMatch(/How to use Markdown Editor/);
     await expect
       .poll(async () => page.locator('link[rel="icon"]').first().getAttribute("href"))
       .not.toMatch(/^data:/);
@@ -101,7 +101,7 @@ test.describe("editor + render", () => {
     await page.locator("#help-btn").click();
     await expect
       .poll(async () => page.locator("#editor").inputValue(), { timeout: 10_000 })
-      .toMatch(/How to use Markdown Preview/);
+      .toMatch(/How to use Markdown Editor/);
     await expect
       .poll(async () => page.locator('link[rel="icon"]').first().getAttribute("href"))
       .not.toMatch(/^data:/);
@@ -161,7 +161,7 @@ test.describe("editor + render", () => {
     await page.locator("#help-btn").click();
     await expect
       .poll(async () => page.locator("#editor").inputValue(), { timeout: 10_000 })
-      .toMatch(/How to use Markdown Preview/);
+      .toMatch(/How to use Markdown Editor/);
 
     await page.locator("#editor").fill("# Draft\n\nUnsaved.");
     await expect
@@ -174,7 +174,7 @@ test.describe("editor + render", () => {
     await page.locator("#help-btn").click();
     await expect
       .poll(async () => page.locator("#editor").inputValue(), { timeout: 10_000 })
-      .toMatch(/How to use Markdown Preview/);
+      .toMatch(/How to use Markdown Editor/);
     await expect
       .poll(async () => page.evaluate(() => window.__badgeCalls.at(-1) === "clear"))
       .toBe(true);
@@ -215,6 +215,72 @@ test.describe("editor + render", () => {
 
     await page.locator("#editor").fill("```mermaid\nflowchart LR\n  A-->B\n```");
     await expect(page.locator("#preview .mermaid svg")).toBeVisible({ timeout: 20_000 });
+  });
+
+  test("gantt chart relayouts at full preview width without CSS zoom", async ({ page }) => {
+    await openFreshApp(page);
+    await page.setViewportSize({ width: 1400, height: 900 });
+    // Wide preview so readable (52rem) and full differ clearly.
+    await page.locator("#collapse-editor").click();
+    await expect(page.locator("#panes")).toHaveClass(/editor-collapsed/);
+
+    const gantt = [
+      "```mermaid",
+      "gantt",
+      "  dateFormat YYYY-MM-DD",
+      "  title Width relayout",
+      "  section A",
+      "  Task :a1, 2014-01-01, 30d",
+      "```",
+    ].join("\n");
+
+    await page.locator("#width-select").selectOption("readable");
+    await page.locator("#editor").fill(gantt);
+    const diagram = page.locator("#preview .mermaid").first();
+    await expect(diagram.locator("svg")).toBeVisible({ timeout: 20_000 });
+    await expect
+      .poll(async () => {
+        return diagram.evaluate((host) => {
+          const el = host.querySelector("svg");
+          if (!el) return Number.POSITIVE_INFINITY;
+          return Math.abs(host.clientWidth - el.clientWidth);
+        });
+      }, { timeout: 20_000 })
+      .toBeLessThan(4);
+
+    const readable = await diagram.evaluate((host) => {
+      const el = host.querySelector("svg");
+      const vb = el?.getAttribute("viewBox")?.split(/\s+/).map(Number) ?? [];
+      return {
+        svg: el?.clientWidth ?? 0,
+        host: host.clientWidth,
+        viewBoxW: vb[2] ?? 0,
+      };
+    });
+    expect(readable.host).toBeGreaterThan(100);
+    expect(readable.viewBoxW).toBeGreaterThan(100);
+
+    await page.locator("#width-select").selectOption("full");
+    await expect(page.locator("#preview")).toHaveAttribute("data-width", "full");
+
+    // Mermaid must re-run so viewBox width tracks the host (not a CSS zoom of the old viewBox).
+    await expect
+      .poll(async () => {
+        return diagram.evaluate((host, prevViewBoxW) => {
+          const el = host.querySelector("svg");
+          if (!el || host.hasAttribute("data-pending")) return false;
+          const vb = el.getAttribute("viewBox")?.split(/\s+/).map(Number) ?? [];
+          const viewBoxW = vb[2] ?? 0;
+          const gap = Math.abs(host.clientWidth - el.clientWidth);
+          return (
+            host.clientWidth > 0 &&
+            gap < 4 &&
+            viewBoxW > prevViewBoxW + 80 &&
+            Math.abs(viewBoxW - host.clientWidth) < 20
+          );
+        }, readable.viewBoxW);
+      }, { timeout: 20_000 })
+      .toBe(true);
   });
 
   test("fancy theme Mermaid edge labels meet WCAG AA contrast", async ({ page }) => {
@@ -302,5 +368,55 @@ test.describe("editor + render", () => {
       expect(label.pBg).not.toMatch(/255,\s*255,\s*222/);
       expect(label.bg).not.toBe("rgb(255,255,222)");
     }
+  });
+
+  test("editor highlight tracks textarea scroll after a find-style jump", async ({ page }) => {
+    await openFreshApp(page);
+
+    // Long wrapped lines so the editor scrolls far past the first screen.
+    const line = `${"word ".repeat(40)}UNIQUE_FIND_TOKEN_${"x".repeat(20)}\n`;
+    await page.locator("#editor").fill(`${"# Title\n\n"}${line.repeat(80)}`);
+    await expect
+      .poll(async () => page.locator("#editor").evaluate((el) => el.scrollHeight - el.clientHeight))
+      .toBeGreaterThan(2000);
+
+    // Simulate browser Find: select a late match and jump the textarea there.
+    await page.locator("#editor").evaluate((editor) => {
+      const needle = "UNIQUE_FIND_TOKEN_";
+      const idx = editor.value.indexOf(needle);
+      editor.focus();
+      editor.setSelectionRange(idx, idx + needle.length);
+      const max = editor.scrollHeight - editor.clientHeight;
+      editor.scrollTop = Math.min(max, Math.floor(max * 0.7));
+      editor.dispatchEvent(new Event("scroll"));
+      editor.dispatchEvent(new Event("select"));
+    });
+
+    const readSync = () =>
+      page.evaluate(() => {
+        const editor = document.getElementById("editor");
+        const transform = document.querySelector("#editor-highlight code")?.style.transform || "";
+        const match = /translate\(([-0-9.]+)px,\s*([-0-9.]+)px\)/.exec(transform);
+        return {
+          editor: editor.scrollTop,
+          translateY: match ? Number(match[2]) : null,
+          highlightScrollTop: document.getElementById("editor-highlight").scrollTop,
+        };
+      });
+
+    const afterFind = await readSync();
+    expect(afterFind.editor).toBeGreaterThan(500);
+    expect(afterFind.translateY).toBe(-afterFind.editor);
+    // Highlight layer must not be an independent scrollport.
+    expect(afterFind.highlightScrollTop).toBe(0);
+
+    await page.locator("#editor").evaluate((editor) => {
+      editor.scrollTop += 160;
+      editor.dispatchEvent(new Event("scroll"));
+    });
+    const afterManual = await readSync();
+    expect(afterManual.editor).toBe(afterFind.editor + 160);
+    expect(afterManual.translateY).toBe(-afterManual.editor);
+    expect(afterManual.highlightScrollTop).toBe(0);
   });
 });

@@ -32,8 +32,11 @@ import { guideSourcePath } from "./sync-guide.mjs";
 import {
   CORP,
   headersFor as buildHeaders,
+  isNotModified,
   resolveWithCompression,
   safeResolve as resolveSafePath,
+  strongEtag,
+  toHttpDate,
 } from "./serve-utils.mjs";
 
 const execFileAsync = promisify(execFile);
@@ -127,7 +130,7 @@ async function exists(filePath) {
  * Fall back to an OpenSSL self-signed cert when mkcert is unavailable.
  */
 async function ensureLocalTls() {
-  const dir = path.join(os.tmpdir(), "markdown-preview-certs");
+  const dir = path.join(os.tmpdir(), "markdown-editor-certs");
   await fs.mkdir(dir, { recursive: true });
 
   const mkcertKey = path.join(dir, "localhost-key.pem");
@@ -268,7 +271,23 @@ async function handleRequest(req, res) {
       exists,
     );
     const data = await fs.readFile(chosen.path);
-    res.writeHead(200, headersFor(logicalPath, chosen.encoding));
+    const headers = headersFor(logicalPath, chosen.encoding);
+
+    // Stable sw.js: no-cache revalidation with ETag + Last-Modified (304).
+    if (path.basename(logicalPath) === "sw.js") {
+      const st = await fs.stat(chosen.path);
+      const etag = strongEtag(data, chosen.encoding);
+      const lastModifiedMs = st.mtimeMs;
+      headers.ETag = etag;
+      headers["Last-Modified"] = toHttpDate(lastModifiedMs);
+      if (isNotModified(req.headers, { etag, lastModifiedMs })) {
+        res.writeHead(304, headers);
+        res.end();
+        return;
+      }
+    }
+
+    res.writeHead(200, headers);
     res.end(data);
   } catch (err) {
     console.error(err);

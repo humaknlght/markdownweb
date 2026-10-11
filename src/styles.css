@@ -72,6 +72,19 @@ html[data-theme="github-light"] {
   --mermaid-label-bg: #e8e8e8;
   --mermaid-note-bg: #fff5ad;
   --mermaid-note-fg: #333333;
+  --mermaid-series-1: var(--mermaid-node-bg);
+  --mermaid-series-2: var(--mermaid-cluster-bg);
+  --mermaid-series-3: var(--mermaid-label-bg);
+  --mermaid-series-4: var(--mermaid-node-bg);
+  --mermaid-series-fg: var(--mermaid-fg);
+  /* Gantt weekend/exclude bands (Mermaid default #eee). */
+  --mermaid-exclude: #eeeeee;
+  /* Gantt section row bands — hue-distinct so neighbors read apart at low opacity. */
+  --mermaid-gantt-0: #c5b8f0;
+  --mermaid-gantt-1: #e8d878;
+  --mermaid-gantt-2: #e8a0b4;
+  --mermaid-gantt-3: #7ebfa8;
+  --mermaid-gantt-section-opacity: 0.4;
   --install-fill: var(--chrome-focus);
   --install-fill-hover: color-mix(in srgb, var(--chrome-focus) 82%, white);
   --install-fg: var(--chrome-on-focus);
@@ -135,6 +148,17 @@ html[data-theme="github-dark"] {
   --mermaid-label-bg: #161b22;
   --mermaid-note-bg: #fff5ad;
   --mermaid-note-fg: #1f2328;
+  --mermaid-series-1: var(--mermaid-node-bg);
+  --mermaid-series-2: var(--mermaid-cluster-bg);
+  --mermaid-series-3: var(--mermaid-label-bg);
+  --mermaid-series-4: var(--mermaid-node-bg);
+  --mermaid-series-fg: var(--mermaid-fg);
+  --mermaid-exclude: var(--mermaid-node-bg);
+  --mermaid-gantt-0: #3d6a9e;
+  --mermaid-gantt-1: #7a52b0;
+  --mermaid-gantt-2: #b04a6a;
+  --mermaid-gantt-3: #3d8a68;
+  --mermaid-gantt-section-opacity: 0.5;
   --install-fill: var(--chrome-focus);
   --install-fill-hover: color-mix(in srgb, var(--chrome-focus) 82%, white);
   --install-fg: var(--chrome-on-focus);
@@ -198,6 +222,17 @@ html[data-theme="sepia"] {
   --mermaid-label-bg: #e0d4bc;
   --mermaid-note-bg: #f5e6b8;
   --mermaid-note-fg: #5b4636;
+  --mermaid-series-1: var(--mermaid-node-bg);
+  --mermaid-series-2: var(--mermaid-cluster-bg);
+  --mermaid-series-3: var(--mermaid-label-bg);
+  --mermaid-series-4: var(--mermaid-node-bg);
+  --mermaid-series-fg: var(--mermaid-fg);
+  --mermaid-exclude: var(--mermaid-label-bg);
+  --mermaid-gantt-0: #d4b86a;
+  --mermaid-gantt-1: #c47a5a;
+  --mermaid-gantt-2: #a888b0;
+  --mermaid-gantt-3: #6a9a78;
+  --mermaid-gantt-section-opacity: 0.45;
   --install-fill: var(--chrome-focus);
   --install-fill-hover: color-mix(in srgb, var(--chrome-focus) 82%, white);
   --install-fg: var(--chrome-on-focus);
@@ -261,6 +296,17 @@ html[data-theme="terminal"] {
   --mermaid-label-bg: #121812;
   --mermaid-note-bg: #243024;
   --mermaid-note-fg: #b6f2b0;
+  --mermaid-series-1: var(--mermaid-node-bg);
+  --mermaid-series-2: var(--mermaid-cluster-bg);
+  --mermaid-series-3: var(--mermaid-label-bg);
+  --mermaid-series-4: var(--mermaid-node-bg);
+  --mermaid-series-fg: var(--mermaid-fg);
+  --mermaid-exclude: var(--mermaid-node-bg);
+  --mermaid-gantt-0: #2a6b3e;
+  --mermaid-gantt-1: #6b7a2a;
+  --mermaid-gantt-2: #2a5a6b;
+  --mermaid-gantt-3: #6b3a2a;
+  --mermaid-gantt-section-opacity: 0.5;
   --install-fill: var(--chrome-focus);
   --install-fill-hover: color-mix(in srgb, var(--chrome-focus) 82%, white);
   --install-fg: var(--chrome-on-focus);
@@ -322,6 +368,17 @@ html[data-theme="salesforce"] {
   --mermaid-label-bg: #e5e5e5;
   --mermaid-note-bg: #fff5ad;
   --mermaid-note-fg: #032d60;
+  --mermaid-series-1: var(--mermaid-node-bg);
+  --mermaid-series-2: var(--mermaid-cluster-bg);
+  --mermaid-series-3: var(--mermaid-label-bg);
+  --mermaid-series-4: var(--mermaid-node-bg);
+  --mermaid-series-fg: var(--mermaid-fg);
+  --mermaid-exclude: #eeeeee;
+  --mermaid-gantt-0: #8ec5f0;
+  --mermaid-gantt-1: #f0c878;
+  --mermaid-gantt-2: #b898e8;
+  --mermaid-gantt-3: #78d0a8;
+  --mermaid-gantt-section-opacity: 0.4;
   --install-fill: var(--chrome-focus);
   --install-fill-hover: color-mix(in srgb, var(--chrome-focus) 82%, white);
   --install-fg: var(--chrome-on-focus);
@@ -518,14 +575,26 @@ html[data-theme="fancy"] {
   --syntax-addition: #9de0b0;
   --mermaid-bg: #062436;
   --mermaid-fg: #f4f8fb;
-  --mermaid-node-bg: #0d3a52;
+  --mermaid-node-bg: #156a8c;
   --mermaid-node-border: #7ed0ff;
-  --mermaid-cluster-bg: #0a3044;
+  --mermaid-cluster-bg: #5a3d8a;
   --mermaid-cluster-border: #7ed0ff;
   --mermaid-line: #b7c9d4;
-  --mermaid-label-bg: #083048;
+  --mermaid-label-bg: #2a6b5a;
   --mermaid-note-bg: #14384c;
   --mermaid-note-fg: #f4f8fb;
+  /* Mid-pop categorical fills (pie/quadrant/journey/gantt); dark ink for AA. */
+  --mermaid-series-1: #1588a8;
+  --mermaid-series-2: #9a6fe0;
+  --mermaid-series-3: #d45080;
+  --mermaid-series-4: #d4a040;
+  --mermaid-series-fg: #1a1208;
+  --mermaid-exclude: #0c2838;
+  --mermaid-gantt-0: var(--mermaid-series-1);
+  --mermaid-gantt-1: var(--mermaid-series-2);
+  --mermaid-gantt-2: var(--mermaid-series-3);
+  --mermaid-gantt-3: var(--mermaid-series-4);
+  --mermaid-gantt-section-opacity: 0.22;
   --install-fill: var(--chrome-focus);
   --install-fill-hover: color-mix(in srgb, var(--chrome-focus) 82%, white);
   --install-fg: var(--chrome-on-focus);
@@ -655,6 +724,12 @@ html[data-theme="fancy"] .preview blockquote {
 
 html[data-theme="fancy"] .preview pre {
   border-radius: 10px;
+}
+
+/* Let diagrams sit on the fancy preview glass — solid --mermaid-bg blocks look heavy. */
+html[data-theme="fancy"] .preview .mermaid,
+html[data-theme="fancy"] .preview .mermaid svg {
+  background: transparent;
 }
 
 html[data-theme="fancy"] .preview .line-num {
@@ -2072,29 +2147,32 @@ html.is-booting .panes {
 }
 
 .editor-highlight {
-  overflow: auto;
-  scrollbar-width: none;
+  /* Not a scroll container: browser Find must not scroll this layer independently
+     of the textarea (that caused a jump-to-top on the next manual scroll). */
+  overflow: hidden;
   pointer-events: none;
+  user-select: none;
   z-index: 0;
   color: var(--editor-text);
   background: transparent;
-}
-
-.editor-highlight::-webkit-scrollbar {
-  width: 0;
-  height: 0;
+  /* Padding lives on `code` so absolute positioning does not eat the inset. */
+  padding: 0;
 }
 
 .editor-highlight code {
+  position: absolute;
+  inset: 0;
+  box-sizing: border-box;
   display: block;
   font: inherit;
   color: inherit;
   background: none;
-  padding: 0;
+  padding: 1rem 1.1rem;
   white-space: inherit;
   overflow-wrap: inherit;
   word-wrap: inherit;
   tab-size: inherit;
+  will-change: transform;
 }
 
 #editor {
@@ -2119,6 +2197,50 @@ html.is-booting .panes {
   position: relative;
   overflow: auto;
   background: var(--preview-bg, #fff);
+}
+
+/* app.js reveals .is-visible after RENDER_LOADING_DELAY_MS (700ms). The overlay
+   stays opacity 0 until then so fast renders never flash. */
+.render-loading {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  background: color-mix(in srgb, var(--preview-bg, #fff) 78%, transparent);
+  opacity: 0;
+}
+
+.render-loading.is-visible {
+  opacity: 1;
+}
+
+.render-loading[hidden] {
+  display: none;
+}
+
+.render-loading-spinner {
+  width: 2rem;
+  height: 2rem;
+  border: 3px solid color-mix(in srgb, var(--preview-muted, #656d76) 35%, transparent);
+  border-top-color: var(--preview-link, #0969da);
+  border-radius: 50%;
+  animation: render-spin 0.7s linear infinite;
+}
+
+@keyframes render-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .render-loading-spinner {
+    animation: none;
+    border-top-color: color-mix(in srgb, var(--preview-muted, #656d76) 35%, transparent);
+    border-color: var(--preview-link, #0969da);
+  }
 }
 
 .preview {

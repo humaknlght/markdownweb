@@ -26,7 +26,27 @@ const MERMAID_VARS = [
   "--mermaid-label-bg",
   "--mermaid-note-bg",
   "--mermaid-note-fg",
+  "--mermaid-series-1",
+  "--mermaid-series-2",
+  "--mermaid-series-3",
+  "--mermaid-series-4",
+  "--mermaid-series-fg",
+  "--mermaid-exclude",
+  "--mermaid-gantt-0",
+  "--mermaid-gantt-1",
+  "--mermaid-gantt-2",
+  "--mermaid-gantt-3",
+  "--mermaid-gantt-section-opacity",
 ];
+
+/** Fancy mid-pop categorical palette (WCAG AA with series-fg). */
+const FANCY_SERIES = {
+  "--mermaid-series-1": "#1588a8",
+  "--mermaid-series-2": "#9a6fe0",
+  "--mermaid-series-3": "#d45080",
+  "--mermaid-series-4": "#d4a040",
+  "--mermaid-series-fg": "#1a1208",
+};
 
 /** @param {string} hex */
 function parseColor(hex) {
@@ -63,6 +83,42 @@ function contrastRatio(a, b) {
   const hi = Math.max(L1, L2);
   const lo = Math.min(L1, L2);
   return (hi + 0.05) / (lo + 0.05);
+}
+
+/** Alpha-composite `fg` over `bg` (0–1). @param {string} fg @param {string} bg @param {number} a */
+function blendOver(fg, bg, a) {
+  const f = parseColor(fg);
+  const b = parseColor(bg);
+  const hex = (n) => n.toString(16).padStart(2, "0");
+  return `#${hex(Math.round(a * f.r + (1 - a) * b.r))}${hex(
+    Math.round(a * f.g + (1 - a) * b.g),
+  )}${hex(Math.round(a * f.b + (1 - a) * b.b))}`;
+}
+
+/** RGB Euclidean distance. @param {string} a @param {string} b */
+function rgbDistance(a, b) {
+  const x = parseColor(a);
+  const y = parseColor(b);
+  return Math.hypot(x.r - y.r, x.g - y.g, x.b - y.b);
+}
+
+/**
+ * Resolve `var(--token)` chains against a token map to a concrete color.
+ * @param {Record<string, string>} tokens
+ * @param {string} value
+ */
+function resolveColor(tokens, value) {
+  let v = value.trim();
+  const seen = new Set();
+  while (/^var\(/.test(v)) {
+    const m = v.match(/^var\(\s*(--[\w-]+)\s*\)$/);
+    assert.ok(m, `expected var(--token), got ${value}`);
+    assert.ok(!seen.has(m[1]), `cyclic var in ${value}`);
+    seen.add(m[1]);
+    assert.ok(tokens[m[1]], `unresolved ${m[1]} from ${value}`);
+    v = tokens[m[1]].trim();
+  }
+  return v;
 }
 
 /**
@@ -102,11 +158,28 @@ function parseMermaidTokens(css, theme) {
 }
 
 describe("Mermaid theme contrast (WCAG 2.2 AA)", () => {
-  it("forces tspan / note-fg overrides in MERMAID_THEME_CSS", async () => {
+  it("forces tspan / note-fg / series overrides in MERMAID_THEME_CSS", async () => {
     const app = await fs.readFile(path.join(root, "src/app.js"), "utf8");
     assert.match(app, /text tspan/);
     assert.match(app, /\.noteText tspan/);
     assert.match(app, /var\(--mermaid-note-fg\)/);
+    assert.match(app, /var\(--mermaid-series-1\)/);
+    assert.match(app, /var\(--mermaid-series-fg\)/);
+    assert.match(app, /\.exclude-range/);
+    assert.match(app, /var\(--mermaid-exclude\)/);
+    assert.match(app, /rect\.section/);
+    assert.match(app, /var\(--mermaid-gantt-0\)/);
+    assert.match(app, /var\(--mermaid-gantt-section-opacity\)/);
+    assert.match(app, /\.sectionTitle/);
+    assert.match(app, /\.pieTitleText/);
+    assert.match(app, /\.commit-label/);
+    assert.match(app, /\.titleText/);
+    assert.match(app, /rect\.section-type-0/);
+    assert.match(app, /\.activeText0/);
+    assert.match(app, /\.doneText0\.taskTextOutsideRight/);
+    assert.match(app, /path\.pieCircle:nth-of-type/);
+    assert.match(app, /\.quadrant:nth-child\(4\)/);
+    assert.match(app, /stroke:\s*var\(--mermaid-note-fg\)/);
     assert.match(app, /rect\.actor/);
     assert.match(app, /circle:not\(\[class\]\)/);
     // foreignObject edge labels use CSS background on labelBkg AND inner <p>
@@ -119,18 +192,28 @@ describe("Mermaid theme contrast (WCAG 2.2 AA)", () => {
 
     for (const theme of THEMES) {
       const t = parseMermaidTokens(css, theme);
+      const c = (name) => resolveColor(t, t[name]);
       const textPairs = [
-        ["fg/node", t["--mermaid-fg"], t["--mermaid-node-bg"], 4.5],
-        ["fg/cluster", t["--mermaid-fg"], t["--mermaid-cluster-bg"], 4.5],
-        ["fg/label", t["--mermaid-fg"], t["--mermaid-label-bg"], 4.5],
-        ["note-fg/note", t["--mermaid-note-fg"], t["--mermaid-note-bg"], 4.5],
+        ["fg/bg", c("--mermaid-fg"), c("--mermaid-bg"), 4.5],
+        ["fg/node", c("--mermaid-fg"), c("--mermaid-node-bg"), 4.5],
+        ["fg/cluster", c("--mermaid-fg"), c("--mermaid-cluster-bg"), 4.5],
+        ["fg/label", c("--mermaid-fg"), c("--mermaid-label-bg"), 4.5],
+        ["note-fg/note", c("--mermaid-note-fg"), c("--mermaid-note-bg"), 4.5],
+        ["series-fg/s1", c("--mermaid-series-fg"), c("--mermaid-series-1"), 4.5],
+        ["series-fg/s2", c("--mermaid-series-fg"), c("--mermaid-series-2"), 4.5],
+        ["series-fg/s3", c("--mermaid-series-fg"), c("--mermaid-series-3"), 4.5],
+        ["series-fg/s4", c("--mermaid-series-fg"), c("--mermaid-series-4"), 4.5],
+        // Outside gantt labels sit on exclude/weekend bands.
+        ["fg/exclude", c("--mermaid-fg"), c("--mermaid-exclude"), 4.5],
       ];
       // Borders define the box outline (WCAG 1.4.11); fill-vs-bg may stay subtle.
+      // Note stroke uses note-fg (AA vs note-bg), not node-border.
       const uiPairs = [
-        ["border/node", t["--mermaid-node-border"], t["--mermaid-node-bg"], 3],
-        ["border/cluster", t["--mermaid-cluster-border"], t["--mermaid-cluster-bg"], 3],
-        ["border/bg", t["--mermaid-node-border"], t["--mermaid-bg"], 3],
-        ["line/bg", t["--mermaid-line"], t["--mermaid-bg"], 3],
+        ["border/node", c("--mermaid-node-border"), c("--mermaid-node-bg"), 3],
+        ["border/cluster", c("--mermaid-cluster-border"), c("--mermaid-cluster-bg"), 3],
+        ["border/bg", c("--mermaid-node-border"), c("--mermaid-bg"), 3],
+        ["line/bg", c("--mermaid-line"), c("--mermaid-bg"), 3],
+        ["note-stroke/note", c("--mermaid-note-fg"), c("--mermaid-note-bg"), 3],
       ];
 
       for (const [name, fg, bg, need] of [...textPairs, ...uiPairs]) {
@@ -138,6 +221,52 @@ describe("Mermaid theme contrast (WCAG 2.2 AA)", () => {
         assert.ok(
           ratio >= need,
           `${theme} ${name}: ${fg} on ${bg} is ${ratio.toFixed(2)}:1 (need ≥${need}:1)`,
+        );
+      }
+    }
+  });
+
+  it("locks fancy series mid-pop hexes", async () => {
+    const css = await fs.readFile(path.join(root, "src/styles.css"), "utf8");
+    const fancy = parseMermaidTokens(css, "fancy");
+    for (const [name, hex] of Object.entries(FANCY_SERIES)) {
+      assert.equal(fancy[name].toLowerCase(), hex, `fancy ${name}`);
+    }
+    const series = [
+      fancy["--mermaid-series-1"],
+      fancy["--mermaid-series-2"],
+      fancy["--mermaid-series-3"],
+      fancy["--mermaid-series-4"],
+    ];
+    assert.equal(new Set(series).size, 4, "fancy series fills must be distinct");
+    assert.equal(fancy["--mermaid-gantt-0"], "var(--mermaid-series-1)");
+    assert.equal(fancy["--mermaid-gantt-section-opacity"], "0.22");
+  });
+
+  it("keeps gantt section bands distinct and label-readable when blended", async () => {
+    const css = await fs.readFile(path.join(root, "src/styles.css"), "utf8");
+    for (const theme of THEMES) {
+      const t = parseMermaidTokens(css, theme);
+      const c = (name) => resolveColor(t, t[name]);
+      const op = Number.parseFloat(t["--mermaid-gantt-section-opacity"]);
+      assert.ok(op > 0 && op <= 1, `${theme} gantt opacity`);
+      const bands = [0, 1, 2, 3].map((i) => c(`--mermaid-gantt-${i}`));
+      assert.equal(new Set(bands).size, 4, `${theme} gantt fills must be distinct`);
+      const bg = c("--mermaid-bg");
+      const fg = c("--mermaid-fg");
+      const blends = bands.map((fill) => blendOver(fill, bg, op));
+      for (let i = 0; i < blends.length; i++) {
+        const ratio = contrastRatio(fg, blends[i]);
+        assert.ok(
+          ratio >= 4.5,
+          `${theme} fg on gantt-${i} blend ${blends[i]} is ${ratio.toFixed(2)}:1`,
+        );
+      }
+      for (let i = 0; i < 3; i++) {
+        const d = rgbDistance(blends[i], blends[i + 1]);
+        assert.ok(
+          d >= 18,
+          `${theme} gantt-${i}/gantt-${i + 1} blend ΔRGB ${d.toFixed(1)} (need ≥18)`,
         );
       }
     }
