@@ -29,6 +29,7 @@ import {
 } from "./csp.mjs";
 import { applyCdnIntegrity, loadCdnIntegrity } from "./cdn-integrity.mjs";
 import { guideSourcePath } from "./sync-guide.mjs";
+import { buildDevServiceWorker } from "./pwa.mjs";
 import {
   CORP,
   headersFor as buildHeaders,
@@ -46,6 +47,7 @@ const rootDir = path.resolve(process.cwd(), process.argv[2] || "dist");
 const port = Number(process.argv[3] || process.env.PORT || 3456);
 const repoRoot = path.resolve(__dirname, "..");
 const srcIndexPath = path.join(repoRoot, "src", "index.html");
+const srcSwPath = path.join(repoRoot, "src", "sw.js");
 
 /** Transformed index.html for src/ (CDN SRI injected). Dist is pre-baked.
  *  Re-read on each request so src/ edits show up without restarting the server. */
@@ -228,6 +230,22 @@ async function handleRequest(req, res) {
     if (!logicalPath) {
       res.writeHead(403, { "Cross-Origin-Resource-Policy": CORP });
       res.end("Forbidden");
+      return;
+    }
+
+    // Dev (src/): synthesize sw.js so production builds never dirty a tracked file.
+    if (path.resolve(logicalPath) === path.resolve(srcSwPath)) {
+      const data = Buffer.from(buildDevServiceWorker(), "utf8");
+      const headers = headersFor(logicalPath, null);
+      const etag = strongEtag(data, null);
+      headers.ETag = etag;
+      if (isNotModified(req.headers, { etag, lastModifiedMs: Number.NaN })) {
+        res.writeHead(304, headers);
+        res.end();
+        return;
+      }
+      res.writeHead(200, headers);
+      res.end(data);
       return;
     }
 

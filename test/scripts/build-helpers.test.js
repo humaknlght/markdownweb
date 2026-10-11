@@ -9,7 +9,9 @@ import {
 } from "../../scripts/csp.mjs";
 import {
   CDN_PRECACHE,
+  DEV_PRECACHE,
   ICON_FILES,
+  buildDevServiceWorker,
   buildManifest,
   buildServiceWorker,
   isMutableShellPath,
@@ -122,6 +124,22 @@ describe("pwa.mjs", () => {
     assert.equal(precacheVersion(["a", "b"]), precacheVersion(["a", "b"]));
     assert.notEqual(precacheVersion(["a", "b"]), precacheVersion(["b", "a"]));
     assert.equal(precacheVersion(["a"]).length, 8);
+  });
+
+  it("builds a stable dev service worker from DEV_PRECACHE", () => {
+    assert.ok(DEV_PRECACHE.includes("./app.js"));
+    assert.ok(DEV_PRECACHE.includes("./styles.css"));
+    for (const url of CDN_PRECACHE) {
+      assert.ok(DEV_PRECACHE.includes(url));
+    }
+    const a = buildDevServiceWorker();
+    const b = buildDevServiceWorker();
+    assert.equal(a, b);
+    assert.match(a, /md-preview-dev-[0-9a-f]{8}/);
+    assert.match(a, /PRECACHE/);
+    assert.match(a, /\.\/app\.js/);
+    // Must not embed hashed dist asset names.
+    assert.doesNotMatch(a, /\.\/app\.[0-9a-f]{8}\.js/);
   });
 });
 

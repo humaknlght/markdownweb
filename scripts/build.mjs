@@ -18,7 +18,6 @@ import { promisify } from "node:util";
 import { inlineScriptHashes, buildScriptSrc } from "./csp.mjs";
 import {
   CDN_PRECACHE,
-  ICON_FILES,
   buildManifest,
   buildServiceWorker,
   precacheVersion,
@@ -279,33 +278,16 @@ async function buildPwa({ cssName, printCssName, jsName, jsChunks, fancyName, gu
 
   const manifest = buildManifest(iconNames);
   await writeFile(path.join(distDir, "manifest.webmanifest"), manifest);
-  // Keep src copies in sync for `npm run dev`.
-  await writeFile(path.join(srcDir, "manifest.webmanifest"), manifest);
+  // Dev uses unhashed icon filenames; do not overwrite src/ with dist hashes.
+  await writeFile(path.join(srcDir, "manifest.webmanifest"), buildManifest());
 
   // Stable ./sw.js URL so registration.update() can see new bytes after deploy.
   // Cache-Control: no-cache + ETag/Last-Modified (304) are set by .htaccess / serve.
+  // Dev SW is synthesized by scripts/serve.mjs — never write src/sw.js from build.
   const sw = buildServiceWorker({ precacheUrls, version });
   const swName = "sw.js";
   const swUrl = "./sw.js";
   await writeFile(path.join(distDir, swName), sw);
-  await writeFile(
-    path.join(srcDir, "sw.js"),
-    buildServiceWorker({
-      precacheUrls: [
-        "./",
-        "./index.html",
-        "./styles.css",
-        "./print.css",
-        "./app.js",
-        "./fancy.avif",
-        "./GUIDE.md",
-        "./manifest.webmanifest",
-        ...ICON_FILES.map((name) => `./${name}`),
-        ...CDN_PRECACHE,
-      ],
-      version: `dev-${version}`,
-    })
-  );
 
   return {
     version,

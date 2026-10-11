@@ -20,8 +20,33 @@ export const ICON_FILES = [
   "icon-512.png",
 ];
 
+/** Precache list for `npm run dev` (unhashed src/ paths + CDN modules). */
+export const DEV_PRECACHE = [
+  "./",
+  "./index.html",
+  "./styles.css",
+  "./print.css",
+  "./app.js",
+  "./fancy.avif",
+  "./GUIDE.md",
+  "./manifest.webmanifest",
+  ...ICON_FILES.map((name) => `./${name}`),
+  ...CDN_PRECACHE,
+];
+
 function contentHash(buffer) {
   return createHash("sha256").update(buffer).digest("hex").slice(0, 8);
+}
+
+/**
+ * Service worker for the src/dev server. Versioned from DEV_PRECACHE only so
+ * production builds (hashed dist assets) do not rewrite a tracked src/sw.js.
+ */
+export function buildDevServiceWorker() {
+  return buildServiceWorker({
+    precacheUrls: DEV_PRECACHE,
+    version: `dev-${precacheVersion(DEV_PRECACHE)}`,
+  });
 }
 
 export function buildManifest(iconNames) {
