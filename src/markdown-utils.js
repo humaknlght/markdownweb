@@ -56,13 +56,14 @@ export function canonicalHljsLang(name) {
 }
 
 /**
- * Collect fenced-code language tags from markdown source (excludes mermaid).
- * Mermaid is registered locally for the editor; preview renders it as SVG, so
- * we never fetch a CDN grammar for it.
+ * Collect fenced-code language tags from markdown source.
+ * Mermaid is omitted by default (no CDN grammar); pass `{ includeMermaid: true }`
+ * for the editor, which loads a local grammar on demand.
  * @param {string} source
+ * @param {{ includeMermaid?: boolean }} [opts]
  * @returns {string[]}
  */
-export function collectFenceLanguages(source) {
+export function collectFenceLanguages(source, { includeMermaid = false } = {}) {
   const langs = [];
   const re = /^ {0,3}(`{3,}|~{3,})([^\n`]*)/gm;
   let match;
@@ -70,7 +71,8 @@ export function collectFenceLanguages(source) {
     const info = match[2].trim();
     if (!info) continue;
     const lang = info.split(/\s+/)[0];
-    if (!lang || lang.toLowerCase() === "mermaid") continue;
+    if (!lang) continue;
+    if (lang.toLowerCase() === "mermaid" && !includeMermaid) continue;
     langs.push(lang);
   }
   return langs;
@@ -78,12 +80,13 @@ export function collectFenceLanguages(source) {
 
 /**
  * Languages needed for editor highlighting of fenced code blocks.
- * Front matter uses a local highlighter (no CDN yaml grammar).
+ * Includes mermaid so the app can lazy-load the local grammar. Front matter
+ * uses a local highlighter (no CDN yaml grammar).
  * @param {string} source
  * @returns {string[]}
  */
 export function collectEditorLanguages(source) {
-  return collectFenceLanguages(source);
+  return collectFenceLanguages(source, { includeMermaid: true });
 }
 
 const FM_YAML_BOOL = /^(true|false|null|yes|no|on|off)$/i;

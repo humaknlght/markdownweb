@@ -1,6 +1,6 @@
 # Security Policy
 
-Markdown Preview is a client-side app. Markdown is rendered in the browser; this project does not run a server that stores or processes document contents.
+Markdown Editor is a client-side app. Markdown is rendered in the browser; this project does not run a server that stores or processes document contents.
 
 ## Supported versions
 

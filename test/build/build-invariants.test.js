@@ -68,6 +68,9 @@ describe("production build invariants", { timeout: 180_000 }, () => {
       assert.doesNotMatch(ht, /__GUIDE_URL__/);
       assert.match(ht, /'sha256-/);
       assert.match(ht, /Link "<\.\/GUIDE\.[a-f0-9]{8}\.md>;rel=prefetch"/);
+      assert.match(ht, /FileETag MTime Size/);
+      assert.match(ht, /FilesMatch "\^sw\\.js/);
+      assert.match(ht, /Cache-Control "no-cache"/);
 
       const csp = JSON.parse(await fs.readFile(path.join(dist, "csp.json"), "utf8"));
       assert.match(csp.guideUrl, /^\.\/GUIDE\.[a-f0-9]{8}\.md$/);
@@ -77,9 +80,9 @@ describe("production build invariants", { timeout: 180_000 }, () => {
       assert.ok(files.some((f) => /^print\.[a-f0-9]{8}\.css$/.test(f)));
       assert.ok(files.some((f) => /^icon-192\.[a-f0-9]{8}\.png$/.test(f)));
       assert.ok(files.some((f) => /^GUIDE\.[a-f0-9]{8}\.md$/.test(f)));
-      assert.ok(files.some((f) => /^sw\.[a-f0-9]{8}\.js$/.test(f)));
-      assert.ok(!files.includes("sw.js"));
-      assert.match(html, /window\.__MD_SW__="\.\/sw\.[a-f0-9]{8}\.js"/);
+      assert.ok(files.includes("sw.js"));
+      assert.ok(!files.some((f) => /^sw\.[a-f0-9]{8}\.js$/.test(f)));
+      assert.match(html, /window\.__MD_SW__="\.\/sw\.js"/);
       assert.doesNotMatch(html, /__SW_URL__/);
 
       const appFile = files.find((f) => /^app\.[a-f0-9]{8}\.js$/.test(f));

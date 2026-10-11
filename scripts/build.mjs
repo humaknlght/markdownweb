@@ -21,7 +21,6 @@ import {
   ICON_FILES,
   buildManifest,
   buildServiceWorker,
-  hashServiceWorkerName,
   precacheVersion,
 } from "./pwa.mjs";
 import { applyCdnIntegrity, loadCdnIntegrity } from "./cdn-integrity.mjs";
@@ -283,11 +282,12 @@ async function buildPwa({ cssName, printCssName, jsName, jsChunks, fancyName, gu
   // Keep src copies in sync for `npm run dev`.
   await writeFile(path.join(srcDir, "manifest.webmanifest"), manifest);
 
+  // Stable ./sw.js URL so registration.update() can see new bytes after deploy.
+  // Cache-Control: no-cache + ETag/Last-Modified (304) are set by .htaccess / serve.
   const sw = buildServiceWorker({ precacheUrls, version });
-  const swName = hashServiceWorkerName(sw);
-  const swUrl = `./${swName}`;
+  const swName = "sw.js";
+  const swUrl = "./sw.js";
   await writeFile(path.join(distDir, swName), sw);
-  // Dev keeps a stable ./sw.js name (no content hash in the URL).
   await writeFile(
     path.join(srcDir, "sw.js"),
     buildServiceWorker({

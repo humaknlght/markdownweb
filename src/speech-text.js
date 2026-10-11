@@ -121,7 +121,7 @@ export function isHighQualityVoice(voice) {
 }
 
 /**
- * Deduplicate high-quality English voices (prefer local) and sort by score.
+ * Deduplicate high-quality English voices (prefer local) and sort local-first by score.
  * @param {Iterable<{ name?: string, lang?: string, voiceURI?: string, localService?: boolean }>} voices
  * @returns {Array<object>}
  */
@@ -143,6 +143,10 @@ export function listVoices(voices) {
   }
 
   return [...seen.values()].sort((a, b) => {
+    // Default selection uses listVoices()[0]; keep on-device voices ahead of cloud.
+    if (Boolean(a.localService) !== Boolean(b.localService)) {
+      return a.localService ? -1 : 1;
+    }
     const scoreCmp = voiceQualityScore(b) - voiceQualityScore(a);
     if (scoreCmp) return scoreCmp;
     const langCmp = (a.lang || "").localeCompare(b.lang || "", undefined, { sensitivity: "base" });

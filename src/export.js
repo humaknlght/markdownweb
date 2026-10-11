@@ -83,6 +83,13 @@ function cleanupClone(clone) {
   for (const el of clone.querySelectorAll("[data-pending]")) {
     el.removeAttribute("data-pending");
   }
+  for (const el of clone.querySelectorAll(
+    "[data-processed], [data-mermaid-natural], [data-mermaid-fluid]",
+  )) {
+    el.removeAttribute("data-processed");
+    el.removeAttribute("data-mermaid-natural");
+    el.removeAttribute("data-mermaid-fluid");
+  }
 
   // Section fold chrome (▼ buttons) must not appear in exports.
   for (const el of clone.querySelectorAll(".md-section-toggle")) {
@@ -167,6 +174,17 @@ export function buildHtmlDocument(bodyHtml, title) {
       --mermaid-label-bg: #e8e8e8;
       --mermaid-note-bg: #fff5ad;
       --mermaid-note-fg: #333333;
+      --mermaid-series-1: var(--mermaid-node-bg);
+      --mermaid-series-2: var(--mermaid-cluster-bg);
+      --mermaid-series-3: var(--mermaid-label-bg);
+      --mermaid-series-4: var(--mermaid-node-bg);
+      --mermaid-series-fg: var(--mermaid-fg);
+      --mermaid-exclude: #eeeeee;
+      --mermaid-gantt-0: #c5b8f0;
+      --mermaid-gantt-1: #e8d878;
+      --mermaid-gantt-2: #e8a0b4;
+      --mermaid-gantt-3: #7ebfa8;
+      --mermaid-gantt-section-opacity: 0.4;
     }
     @page { margin: 0.75in; }
     body {

@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import path from "node:path";
 
 export const MIME = {
@@ -114,4 +115,52 @@ export async function resolveWithCompression(logicalPath, acceptEncoding, exists
   }
 
   return { path: logicalPath, encoding: null };
+}
+
+/**
+ * Strong ETag from response body bytes. Encoding distinguishes br/gzip variants.
+ * @param {Buffer | string} body
+ * @param {string | null} [encoding]
+ * @returns {string}
+ */
+export function strongEtag(body, encoding = null) {
+  const digest = createHash("sha256").update(body).digest("hex").slice(0, 16);
+  const tag = encoding ? `${digest}-${encoding}` : digest;
+  return `"${tag}"`;
+}
+
+/** @param {number | Date} date */
+export function toHttpDate(date) {
+  return new Date(date).toUTCString();
+}
+
+/**
+ * Conditional GET: honor If-None-Match over If-Modified-Since when both present.
+ * @param {Record<string, string | string[] | undefined>} reqHeaders
+ * @param {{ etag: string, lastModifiedMs: number }} resource
+ */
+export function isNotModified(reqHeaders, { etag, lastModifiedMs }) {
+  const inm = reqHeaders["if-none-match"];
+  if (typeof inm === "string" && inm.trim()) {
+    if (inm.trim() === "*") return true;
+    const tags = inm.split(",").map((t) => t.trim());
+    for (const tag of tags) {
+      const normalized = tag.startsWith("W/") ? tag.slice(2).trim() : tag;
+      if (normalized === etag) return true;
+    }
+    return false;
+  }
+
+  const ims = reqHeaders["if-modified-since"];
+  if (typeof ims === "string") {
+    const since = Date.parse(ims);
+    // HTTP dates are second-resolution; compare at that granularity.
+    if (
+      !Number.isNaN(since) &&
+      Math.floor(lastModifiedMs / 1000) <= Math.floor(since / 1000)
+    ) {
+      return true;
+    }
+  }
+  return false;
 }

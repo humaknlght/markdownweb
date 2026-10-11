@@ -80,7 +80,6 @@ import DOMPurify from "dompurify";
 import hljs from "highlight.js";
 import hljsMarkdown from "https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.12.0/es/languages/markdown.min.js";
 import hljsXml from "https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.12.0/es/languages/xml.min.js";
-import hljsMermaid from "./hljs-mermaid.js";
 
 /** SRI allowlist from the page import map (injected at serve/build). */
 function cdnIntegrityUrlSet() {
@@ -128,8 +127,6 @@ const hljsLangLoads = new Map();
 hljs.registerLanguage("xml", hljsXml);
 hljs.registerLanguage("html", hljsXml);
 hljs.registerLanguage("markdown", hljsMarkdown);
-// Mermaid is not on the highlight.js CDN; register locally for editor fences.
-hljs.registerLanguage("mermaid", hljsMermaid);
 
 function registerHljsAliases(canonical, grammar) {
   hljs.registerLanguage(canonical, grammar);
@@ -141,18 +138,32 @@ function registerHljsAliases(canonical, grammar) {
 /**
  * Ensure a highlight.js grammar is registered. Returns true if a network load
  * just completed (caller may want to re-render).
- * Only fetches languages present in the CDN SRI allowlist (import-map integrity).
+ * CDN languages require an SRI allowlist entry; mermaid loads from a local chunk.
  */
 function ensureHljsLanguage(name) {
   const canonical = canonicalHljsLang(name);
   if (!canonical) return Promise.resolve(false);
   if (hljs.getLanguage(canonical)) return Promise.resolve(false);
 
-  const url = `${HLJS_LANG_CDN}/${canonical}.min.js`;
-  if (!CDN_INTEGRITY_URLS.has(url)) return Promise.resolve(false);
-
   let pending = hljsLangLoads.get(canonical);
   if (pending) return pending;
+
+  if (canonical === "mermaid") {
+    // Not on the highlight.js CDN — local grammar, code-split from the app entry.
+    pending = import("./hljs-mermaid.js")
+      .then((mod) => {
+        const grammar = mod.default;
+        if (typeof grammar !== "function") return false;
+        hljs.registerLanguage("mermaid", grammar);
+        return true;
+      })
+      .catch(() => false);
+    hljsLangLoads.set(canonical, pending);
+    return pending;
+  }
+
+  const url = `${HLJS_LANG_CDN}/${canonical}.min.js`;
+  if (!CDN_INTEGRITY_URLS.has(url)) return Promise.resolve(false);
 
   pending = import(url)
     .then((mod) => {
@@ -204,6 +215,13 @@ const HISTORY_INDEX_VERSION = 3;
 const PATCH_MAX_CHARS = 100_000;
 const STORAGE_CHANNEL = "md-preview-storage";
 const RENDER_DEBOUNCE_MS = 80;
+/** Delay before the preview loading spinner becomes visible. */
+const RENDER_LOADING_DELAY_MS = 700;
+/**
+ * Docs at or above this size get a paint of the spinner before marked/DOMPurify
+ * run. A long sync task would otherwise prevent the 700ms timer from firing.
+ */
+const RENDER_LOADING_EAGER_CHARS = 16_000;
 const HISTORY_DEBOUNCE_MS = 15_000;
 const EDITOR_HIGHLIGHT_MAX = 100_000;
 const NARROW_MQ = "(max-width: 800px)";
@@ -255,6 +273,7 @@ const collapseEditorBtn = document.getElementById("collapse-editor");
 const collapsePreviewBtn = document.getElementById("collapse-preview");
 const syncScrollBtn = document.getElementById("sync-scroll-btn");
 const previewPane = document.getElementById("preview-pane");
+const renderLoading = document.getElementById("render-loading");
 const historyBtn = document.getElementById("history-btn");
 const historyMenu = document.getElementById("history-menu");
 const historyDropdown = document.getElementById("history-dropdown");
@@ -278,6 +297,7 @@ const presentNextBtn = document.getElementById("present-next-btn");
 const presentExitBtn = document.getElementById("present-exit-btn");
 const presentProgress = document.getElementById("present-progress");
 const externalModal = document.getElementById("external-modal");
+const cloudSpeechModal = document.getElementById("cloud-speech-modal");
 const installBtn = document.getElementById("install-btn");
 const updateToast = document.getElementById("update-toast");
 const updateReloadBtn = document.getElementById("update-reload-btn");
@@ -417,8 +437,9 @@ function syncEditorHighlightScroll() {
   const dx = editor.offsetWidth - editor.clientWidth;
   const dy = editor.offsetHeight - editor.clientHeight;
   editorHighlight.style.inset = `0 ${dx}px ${dy}px 0`;
-  editorHighlight.scrollTop = editor.scrollTop;
-  editorHighlight.scrollLeft = editor.scrollLeft;
+  // Translate the highlight content instead of scrolling the layer — keeps
+  // browser Find from moving a second scrollport out of sync with #editor.
+  editorHighlightCode.style.transform = `translate(${-editor.scrollLeft}px, ${-editor.scrollTop}px)`;
 }
 
 function setEditorValue(text) {
@@ -671,7 +692,7 @@ marked.use({
       const language = (lang || "").trim().split(/\s+/)[0].toLowerCase();
       if (language === "mermaid") {
         return withSourceLine(
-          `<div class="mermaid">${escapeHtml(text.replace(/\n$/, ""))}</div>\n`,
+          `<div class="mermaid">${escapeHtml(normalizeMermaidSource(text))}</div>\n`,
           _sourceLine,
           _sourceLineEnd,
         );
@@ -692,6 +713,10 @@ marked.use({
 let renderTimer = 0;
 let historyTimer = 0;
 let rafId = 0;
+/** Bumps to cancel in-flight async markdown paints. */
+let paintGen = 0;
+/** Timer that reveals the preview loading spinner after RENDER_LOADING_DELAY_MS. */
+let renderLoadingTimer = 0;
 let toastTimer = 0;
 let lastHistoryContent = "";
 let historyIdbReady = false;
@@ -705,6 +730,8 @@ let speechPaused = false;
 let speechQueue = [];
 let speechKeepalive = 0;
 let selectedVoiceURI = "";
+/** Session flag: user accepted cloud TTS after the fallback confirmation. */
+let cloudSpeechAllowedThisSession = false;
 let speechMap = null;
 /** @type {{ title: string, sectionIndex: number, start: number, end: number, chunks: { text: string, start: number }[] }[]} */
 let speechTracks = [];
@@ -742,6 +769,22 @@ let caretRevealRaf = 0;
 const SPEECH_HIGHLIGHT = "speech-word";
 const MERMAID_CDN =
   "https://cdn.jsdelivr.net/npm/mermaid@12.0.0/dist/mermaid.esm.min.mjs";
+
+/**
+ * Mermaid gantt keeps alignment spaces in "Task name    :meta" as part of the
+ * label and centers with text-anchor=middle, which shifts the visible text
+ * left (worse on narrow/readable widths). Collapse those spaces before render.
+ * @param {string} text
+ * @returns {string}
+ */
+function normalizeMermaidSource(text) {
+  const body = String(text ?? "").replace(/\n$/, "");
+  if (!/^\s*gantt\b/im.test(body)) return body;
+  return body
+    .split("\n")
+    .map((line) => line.replace(/(\S)[ \t]+:/, "$1:").replace(/[ \t]+$/g, ""))
+    .join("\n");
+}
 
 // Map Mermaid SVG paints to CSS custom properties (Kirupa-style). Screen themes
 // and @media print then recolor diagrams by redefining the variables — no
@@ -821,7 +864,8 @@ const MERMAID_THEME_CSS = `
   }
   .note {
     fill: var(--mermaid-note-bg) !important;
-    stroke: var(--mermaid-node-border) !important;
+    /* note-fg is AA vs note-bg; node-border can fail on yellow notes (github-dark). */
+    stroke: var(--mermaid-note-fg) !important;
   }
   .activation0,.activation1,.activation2,.activation3,.activation4 {
     fill: var(--mermaid-cluster-bg) !important;
@@ -858,6 +902,185 @@ const MERMAID_THEME_CSS = `
     stroke: var(--mermaid-node-border) !important;
   }
   .er.relationshipLine { stroke: var(--mermaid-line) !important; }
+
+  /*
+   * Mermaid bakes #id { fill:#333 } and per-diagram class fills (pie, gantt,
+   * gitGraph, journey, quadrant). Those rules omit !important, so themeCSS
+   * !important wins — keep noteText / sequenceNumber overrides after this block.
+   */
+  text,text tspan,.sectionTitle,.pieTitleText,.slice,.legend text,
+  .commit-label,.tag-label,.branchLabel,.branch-label,.commit-id,.commit-msg,
+  .titleText,.taskText,.taskTextOutsideRight,.taskTextOutsideLeft,
+  .taskText0,.taskText1,.taskText2,.taskText3,
+  .taskTextOutside0,.taskTextOutside1,.taskTextOutside2,.taskTextOutside3,
+  .sectionTitle0,.sectionTitle1,.sectionTitle2,.sectionTitle3,
+  .activeText0,.activeText1,.activeText2,.activeText3,
+  .doneText0,.doneText1,.doneText2,.doneText3,
+  .critText0,.critText1,.critText2,.critText3,
+  .activeCritText0,.activeCritText1,.activeCritText2,.activeCritText3,
+  .doneCritText0,.doneCritText1,.doneCritText2,.doneCritText3,
+  .milestoneText,.grid .tick text,.error-text,
+  text.journey-section,text.task,text.legend,
+  .journey-section tspan,.task tspan,.legend tspan,
+  /* Mermaid uses compound !important selectors for outside labels — match them. */
+  .doneText0.taskTextOutsideLeft,.doneText0.taskTextOutsideRight,
+  .doneText1.taskTextOutsideLeft,.doneText1.taskTextOutsideRight,
+  .doneText2.taskTextOutsideLeft,.doneText2.taskTextOutsideRight,
+  .doneText3.taskTextOutsideLeft,.doneText3.taskTextOutsideRight,
+  .doneCritText0.taskTextOutsideLeft,.doneCritText0.taskTextOutsideRight,
+  .doneCritText1.taskTextOutsideLeft,.doneCritText1.taskTextOutsideRight,
+  .doneCritText2.taskTextOutsideLeft,.doneCritText2.taskTextOutsideRight,
+  .doneCritText3.taskTextOutsideLeft,.doneCritText3.taskTextOutsideRight,
+  .activeText0.taskTextOutsideLeft,.activeText0.taskTextOutsideRight,
+  .activeText1.taskTextOutsideLeft,.activeText1.taskTextOutsideRight,
+  .activeText2.taskTextOutsideLeft,.activeText2.taskTextOutsideRight,
+  .activeText3.taskTextOutsideLeft,.activeText3.taskTextOutsideRight,
+  .activeCritText0.taskTextOutsideLeft,.activeCritText0.taskTextOutsideRight,
+  .activeCritText1.taskTextOutsideLeft,.activeCritText1.taskTextOutsideRight,
+  .activeCritText2.taskTextOutsideLeft,.activeCritText2.taskTextOutsideRight,
+  .activeCritText3.taskTextOutsideLeft,.activeCritText3.taskTextOutsideRight,
+  .taskText.clickable,.taskTextOutsideLeft.clickable,.taskTextOutsideRight.clickable {
+    fill: var(--mermaid-fg) !important;
+    color: var(--mermaid-fg) !important;
+    stroke: none !important;
+  }
+  /* foreignObject HTML chips (journey tasks, some labels) */
+  foreignObject div,foreignObject span,foreignObject p,
+  foreignObject .task,foreignObject .journey-section {
+    color: var(--mermaid-fg) !important;
+  }
+  .noteText,.noteText tspan {
+    fill: var(--mermaid-note-fg) !important;
+    color: var(--mermaid-note-fg) !important;
+  }
+  .sequenceNumber,.sequenceNumber tspan {
+    fill: var(--mermaid-bg) !important;
+    stroke: none !important;
+  }
+
+  /* Categorical fills: series tokens (fancy mid-pop; other themes alias node/cluster/label). */
+  .pieCircle,.pieOuterCircle {
+    stroke: var(--mermaid-node-border) !important;
+  }
+  path.pieCircle:nth-of-type(3n+1) { fill: var(--mermaid-series-1) !important; }
+  path.pieCircle:nth-of-type(3n+2) { fill: var(--mermaid-series-2) !important; }
+  path.pieCircle:nth-of-type(3n+3) { fill: var(--mermaid-series-3) !important; }
+  g.legend:nth-of-type(3n+1) rect { fill: var(--mermaid-series-1) !important; }
+  g.legend:nth-of-type(3n+2) rect { fill: var(--mermaid-series-2) !important; }
+  g.legend:nth-of-type(3n+3) rect { fill: var(--mermaid-series-3) !important; }
+  /* Slice % sits on series fills — use series-fg. Title/legend on diagram bg keep fg. */
+  text.slice,.slice {
+    fill: var(--mermaid-series-fg) !important;
+    color: var(--mermaid-series-fg) !important;
+  }
+  .pieTitleText,.legend text {
+    fill: var(--mermaid-fg) !important;
+    color: var(--mermaid-fg) !important;
+  }
+
+  /* gitGraph label chips */
+  .commit-label-bkg {
+    fill: var(--mermaid-label-bg) !important;
+    opacity: 1 !important;
+  }
+  .tag-label-bkg {
+    fill: var(--mermaid-node-bg) !important;
+    stroke: var(--mermaid-node-border) !important;
+  }
+  .branchLabelBkg {
+    fill: var(--mermaid-cluster-bg) !important;
+    stroke: var(--mermaid-cluster-border) !important;
+  }
+
+  /* Journey section/task bars */
+  rect.section-type-0,rect.task-type-0 { fill: var(--mermaid-series-1) !important; }
+  rect.section-type-1,rect.task-type-1 { fill: var(--mermaid-series-2) !important; }
+  rect.section-type-2,rect.task-type-2 { fill: var(--mermaid-series-3) !important; }
+  rect.section-type-3,rect.task-type-3 { fill: var(--mermaid-series-4) !important; }
+  rect.section-type-4,rect.task-type-4 { fill: var(--mermaid-series-1) !important; }
+  rect.section-type-5,rect.task-type-5 { fill: var(--mermaid-series-2) !important; }
+  rect.section-type-6,rect.task-type-6 { fill: var(--mermaid-series-3) !important; }
+  rect.section-type-7,rect.task-type-7 { fill: var(--mermaid-series-4) !important; }
+  text.journey-section,text.task,.journey-section tspan,.task tspan {
+    fill: var(--mermaid-series-fg) !important;
+    color: var(--mermaid-series-fg) !important;
+  }
+  foreignObject .task,foreignObject .journey-section {
+    color: var(--mermaid-series-fg) !important;
+  }
+
+  /* Gantt bars — cycle series; on-bar labels use series-fg; outside labels keep fg */
+  /* Section row bands use dedicated tokens (series 1≡4 on non-fancy themes). */
+  rect.section {
+    opacity: var(--mermaid-gantt-section-opacity) !important;
+  }
+  .section0 { fill: var(--mermaid-gantt-0) !important; }
+  .section1 { fill: var(--mermaid-gantt-1) !important; }
+  .section2 { fill: var(--mermaid-gantt-2) !important; }
+  .section3 { fill: var(--mermaid-gantt-3) !important; }
+  /* Weekend/exclude bands — Mermaid defaults to #eee, which kills light outside labels. */
+  .exclude-range { fill: var(--mermaid-exclude) !important; }
+  .grid .tick { stroke: var(--mermaid-line) !important; }
+  .active0,.activeCrit0,.task0 {
+    fill: var(--mermaid-series-1) !important;
+    stroke: var(--mermaid-node-border) !important;
+  }
+  .active1,.activeCrit1,.task1,.done0,.doneCrit0 {
+    fill: var(--mermaid-series-2) !important;
+    stroke: var(--mermaid-node-border) !important;
+  }
+  .active2,.activeCrit2,.task2,.done1,.doneCrit1,.crit0,.crit1 {
+    fill: var(--mermaid-series-3) !important;
+    stroke: var(--mermaid-cluster-border) !important;
+  }
+  .active3,.activeCrit3,.task3,.done2,.done3,.doneCrit2,.doneCrit3,.crit2,.crit3 {
+    fill: var(--mermaid-series-4) !important;
+    stroke: var(--mermaid-line) !important;
+  }
+  .taskText:not(.taskTextOutsideLeft):not(.taskTextOutsideRight),
+  .activeText0:not(.taskTextOutsideLeft):not(.taskTextOutsideRight),
+  .activeText1:not(.taskTextOutsideLeft):not(.taskTextOutsideRight),
+  .activeText2:not(.taskTextOutsideLeft):not(.taskTextOutsideRight),
+  .activeText3:not(.taskTextOutsideLeft):not(.taskTextOutsideRight),
+  .doneText0:not(.taskTextOutsideLeft):not(.taskTextOutsideRight),
+  .doneText1:not(.taskTextOutsideLeft):not(.taskTextOutsideRight),
+  .doneText2:not(.taskTextOutsideLeft):not(.taskTextOutsideRight),
+  .doneText3:not(.taskTextOutsideLeft):not(.taskTextOutsideRight),
+  .critText0:not(.taskTextOutsideLeft):not(.taskTextOutsideRight),
+  .critText1:not(.taskTextOutsideLeft):not(.taskTextOutsideRight),
+  .critText2:not(.taskTextOutsideLeft):not(.taskTextOutsideRight),
+  .critText3:not(.taskTextOutsideLeft):not(.taskTextOutsideRight),
+  .activeCritText0:not(.taskTextOutsideLeft):not(.taskTextOutsideRight),
+  .activeCritText1:not(.taskTextOutsideLeft):not(.taskTextOutsideRight),
+  .activeCritText2:not(.taskTextOutsideLeft):not(.taskTextOutsideRight),
+  .activeCritText3:not(.taskTextOutsideLeft):not(.taskTextOutsideRight),
+  .doneCritText0:not(.taskTextOutsideLeft):not(.taskTextOutsideRight),
+  .doneCritText1:not(.taskTextOutsideLeft):not(.taskTextOutsideRight),
+  .doneCritText2:not(.taskTextOutsideLeft):not(.taskTextOutsideRight),
+  .doneCritText3:not(.taskTextOutsideLeft):not(.taskTextOutsideRight) {
+    fill: var(--mermaid-series-fg) !important;
+    color: var(--mermaid-series-fg) !important;
+  }
+
+  /* Quadrant chart panels + in-panel labels */
+  .quadrants .quadrant { stroke: var(--mermaid-line) !important; }
+  .quadrant:nth-child(1) rect,.quadrants > .quadrant:nth-child(1) > rect {
+    fill: var(--mermaid-series-1) !important;
+  }
+  .quadrant:nth-child(2) rect,.quadrants > .quadrant:nth-child(2) > rect {
+    fill: var(--mermaid-series-2) !important;
+  }
+  .quadrant:nth-child(3) rect,.quadrants > .quadrant:nth-child(3) > rect {
+    fill: var(--mermaid-series-3) !important;
+  }
+  .quadrant:nth-child(4) rect,.quadrants > .quadrant:nth-child(4) > rect {
+    fill: var(--mermaid-series-4) !important;
+  }
+  .quadrant text,.quadrant tspan {
+    fill: var(--mermaid-series-fg) !important;
+    color: var(--mermaid-series-fg) !important;
+  }
+  .border { stroke: var(--mermaid-line) !important; }
 `;
 
 let mermaidModule;
@@ -910,6 +1133,167 @@ function mermaidNodeIsVisible(el) {
   return !el.closest("[hidden], .md-section-folded");
 }
 
+/** @type {WeakMap<HTMLElement, string>} */
+const mermaidSources = new WeakMap();
+let mermaidScaleRaf = 0;
+let mermaidRelayoutTimer = 0;
+
+/**
+ * Mermaid replaces diagram text with SVG. Keep the source so fluid diagrams
+ * (gantt, etc.) can re-run at a new width without CSS-zooming text/bars.
+ * @param {HTMLElement} el
+ */
+function rememberMermaidSource(el) {
+  if (!mermaidSources.has(el)) {
+    mermaidSources.set(el, el.textContent ?? "");
+  }
+}
+
+/**
+ * Tag natural size after Mermaid paints. Fluid = filled the host at render
+ * (should re-layout when the preview width changes). Content-sized diagrams
+ * only CSS-shrink when the host is narrower.
+ */
+function syncMermaidSvgSizes() {
+  let needsRelayout = false;
+  for (const host of preview.querySelectorAll(".mermaid")) {
+    const svg = host.querySelector("svg");
+    if (!svg) continue;
+    const hostW = host.clientWidth;
+    if (hostW < 1) continue;
+
+    let natural = Number(svg.dataset.mermaidNatural);
+    if (!Number.isFinite(natural) || natural <= 0) {
+      const fromStyle = parseFloat(svg.style.maxWidth);
+      natural =
+        Number.isFinite(fromStyle) && fromStyle > 0
+          ? fromStyle
+          : svg.getBoundingClientRect().width;
+      if (!(natural > 0)) continue;
+      svg.dataset.mermaidNatural = String(natural);
+      svg.dataset.mermaidFluid = Math.abs(natural - hostW) < 8 ? "1" : "0";
+    }
+
+    if (svg.dataset.mermaidFluid === "1") {
+      // Do not scale the SVG up — that zooms fonts/bars. Keep the natural
+      // size until a debounced Mermaid re-run lays out at the new width.
+      if (Math.abs(hostW - natural) >= 16) {
+        svg.style.maxWidth = `${Math.min(natural, hostW)}px`;
+        needsRelayout = true;
+      } else {
+        svg.style.maxWidth = `${hostW}px`;
+      }
+    } else {
+      svg.style.maxWidth = `${Math.min(natural, hostW)}px`;
+    }
+  }
+  if (needsRelayout) scheduleMermaidRelayout();
+}
+
+function scheduleMermaidScale() {
+  if (mermaidScaleRaf) return;
+  mermaidScaleRaf = requestAnimationFrame(() => {
+    mermaidScaleRaf = 0;
+    syncMermaidSvgSizes();
+  });
+}
+
+/**
+ * Re-run Mermaid for fluid diagrams whose host width drifted, so gantt (etc.)
+ * get a real wider/narrower layout instead of a CSS zoom. Debounced so splitter
+ * drags do not flash on every frame.
+ */
+function scheduleMermaidRelayout() {
+  window.clearTimeout(mermaidRelayoutTimer);
+  mermaidRelayoutTimer = window.setTimeout(() => {
+    mermaidRelayoutTimer = 0;
+    relayoutFluidMermaidDiagrams();
+  }, 220);
+}
+
+function relayoutFluidMermaidDiagrams() {
+  /** @type {HTMLElement[]} */
+  const targets = [];
+  for (const el of preview.querySelectorAll(".mermaid")) {
+    const svg = el.querySelector("svg");
+    if (!svg || svg.dataset.mermaidFluid !== "1") continue;
+    if (!mermaidSources.has(el)) continue;
+    const natural = Number(svg.dataset.mermaidNatural);
+    if (!Number.isFinite(natural)) continue;
+    if (Math.abs(el.clientWidth - natural) < 16) continue;
+    targets.push(el);
+  }
+  if (!targets.length) return;
+
+  mermaidGen += 1;
+  for (const el of targets) {
+    const prevH = el.clientHeight;
+    if (prevH > 0) el.style.minHeight = `${prevH}px`;
+    el.removeAttribute("data-processed");
+    el.textContent = mermaidSources.get(el) ?? "";
+    // Source was just written back; keep the WeakMap entry for the next pass.
+    el.setAttribute("data-pending", "");
+  }
+  void renderMermaidDiagrams().finally(() => {
+    for (const el of targets) {
+      if (preview.contains(el)) el.style.minHeight = "";
+    }
+  });
+}
+
+/**
+ * Mermaid sometimes keeps `taskText` + middle anchoring when the label is wider
+ * than the bar, but still parks `x` at the bar's right edge. That reads as a
+ * large left gap inside the bar (common in readable width). Promote those
+ * labels to outside-right placement.
+ * @param {SVGElement} svg
+ */
+function fixMermaidGanttLabels(svg) {
+  if (svg.getAttribute("aria-roledescription") !== "gantt") return;
+  const bars = [...svg.querySelectorAll("rect")]
+    .map((r) => ({
+      className: r.getAttribute("class") || "",
+      x: Number(r.getAttribute("x")),
+      y: Number(r.getAttribute("y")),
+      w: Number(r.getAttribute("width")),
+      h: Number(r.getAttribute("height")),
+    }))
+    .filter(
+      (b) =>
+        /\b(task|active|done|crit)\b/i.test(b.className) &&
+        Number.isFinite(b.x) &&
+        Number.isFinite(b.w) &&
+        b.h >= 12 &&
+        b.h <= 28 &&
+        b.w > 0,
+    );
+
+  for (const text of svg.querySelectorAll("text")) {
+    const cls = text.getAttribute("class") || "";
+    if (!/\btaskText\b|\b(?:active|done|crit)Text\d/.test(cls)) continue;
+    if (/\btaskTextOutside(?:Left|Right)\b/.test(cls)) continue;
+
+    const widthMatch = cls.match(/\bwidth-([\d.]+)\b/);
+    const textW = widthMatch ? Number(widthMatch[1]) : 0;
+    const x = Number(text.getAttribute("x"));
+    const y = Number(text.getAttribute("y"));
+    if (!(textW > 0) || !Number.isFinite(x) || !Number.isFinite(y)) continue;
+
+    const bar = bars
+      .map((b) => ({ ...b, yDist: Math.abs(b.y + b.h / 2 - y) }))
+      .sort((a, b) => a.yDist - b.yDist)[0];
+    if (!bar || bar.yDist > bar.h || textW <= bar.w + 1) continue;
+
+    const barEnd = bar.x + bar.w;
+    const sec = cls.match(/\btaskText(\d)\b/)?.[1];
+    text.classList.add("taskTextOutsideRight");
+    if (sec != null) text.classList.add(`taskTextOutside${sec}`);
+    text.setAttribute("text-anchor", "start");
+    // Mermaid's outside-right offset is ~5px past the bar end.
+    text.setAttribute("x", String(barEnd + 5));
+  }
+}
+
 /**
  * Render Mermaid diagrams that still need it. Skips nodes that are not laid out
  * (`[hidden]` / `.md-section-folded`) unless `force` is set — those get a wrong
@@ -923,7 +1307,10 @@ async function renderMermaidDiagrams({ force = false } = {}) {
   const gen = mermaidGen;
   for (const el of all) {
     // Don't blank diagrams that already rendered (re-entry from slide change).
-    if (!el.querySelector("svg")) el.setAttribute("data-pending", "");
+    if (!el.querySelector("svg")) {
+      rememberMermaidSource(el);
+      el.setAttribute("data-pending", "");
+    }
   }
 
   /** @type {Array<() => void>} */
@@ -961,7 +1348,15 @@ async function renderMermaidDiagrams({ force = false } = {}) {
   if (gen !== mermaidGen) return;
   for (const el of nodes) {
     el.removeAttribute("data-pending");
+    // Fresh SVG from this run — retag natural/fluid at the current host width.
+    const svg = el.querySelector("svg");
+    if (svg) {
+      fixMermaidGanttLabels(svg);
+      delete svg.dataset.mermaidNatural;
+      delete svg.dataset.mermaidFluid;
+    }
   }
+  syncMermaidSvgSizes();
 }
 
 function showToast(message) {
@@ -1007,6 +1402,8 @@ function stashPreExternalState(contentOverride) {
 function clearUntrustedPreview() {
   if (speechActive) stopSpeaking();
   window.clearTimeout(renderTimer);
+  paintGen += 1;
+  endRenderLoading();
   if (rafId) {
     cancelAnimationFrame(rafId);
     rafId = 0;
@@ -1016,6 +1413,70 @@ function clearUntrustedPreview() {
     '<p class="external-preview-placeholder">Preview is paused until you accept this content.</p>';
   invalidateScrollAnchors();
   updateDocOutline();
+}
+
+/** Yield until after the next paint so a loading spinner can appear on screen. */
+function yieldToPaint() {
+  return new Promise((resolve) => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        // Macrotask after the frame so the browser can commit the paint.
+        setTimeout(resolve, 0);
+      });
+    });
+  });
+}
+
+/** Drop the current preview DOM so a prior document is not shown under the spinner. */
+function clearPreviewContent() {
+  if (rafId) {
+    cancelAnimationFrame(rafId);
+    rafId = 0;
+  }
+  mermaidGen += 1;
+  preview.innerHTML = "";
+  if (previewPane) previewPane.scrollTop = 0;
+  invalidateScrollAnchors();
+  updateDocOutline();
+}
+
+/**
+ * Mount the loading overlay and arm the 700ms reveal timer.
+ * @param {{ eager?: boolean }} [opts] eager: show immediately (large docs)
+ */
+function beginRenderLoading(opts = {}) {
+  if (!(renderLoading instanceof HTMLElement)) return;
+  window.clearTimeout(renderLoadingTimer);
+  const alreadyVisible = renderLoading.classList.contains("is-visible") && !renderLoading.hidden;
+  renderLoading.hidden = false;
+  previewPane?.setAttribute("aria-busy", "true");
+  if (opts.eager || alreadyVisible) {
+    revealRenderLoading();
+    return;
+  }
+  renderLoading.classList.remove("is-visible");
+  renderLoading.setAttribute("aria-hidden", "true");
+  renderLoadingTimer = window.setTimeout(() => {
+    renderLoadingTimer = 0;
+    revealRenderLoading();
+  }, RENDER_LOADING_DELAY_MS);
+}
+
+/** Make the armed loading overlay visible (idempotent). */
+function revealRenderLoading() {
+  if (!(renderLoading instanceof HTMLElement) || renderLoading.hidden) return;
+  renderLoading.classList.add("is-visible");
+  renderLoading.setAttribute("aria-hidden", "false");
+}
+
+function endRenderLoading() {
+  window.clearTimeout(renderLoadingTimer);
+  renderLoadingTimer = 0;
+  if (!(renderLoading instanceof HTMLElement)) return;
+  renderLoading.classList.remove("is-visible");
+  renderLoading.hidden = true;
+  renderLoading.setAttribute("aria-hidden", "true");
+  previewPane?.removeAttribute("aria-busy");
 }
 
 function isExternalModalOpen() {
@@ -1499,33 +1960,69 @@ async function buildShareUrl({ markdown, theme } = {}) {
   return url.toString();
 }
 
-function renderMarkdown(source) {
+async function renderMarkdown(source) {
   if (contentIsExternal) {
     clearUntrustedPreview();
     return;
   }
   if (speechActive) stopSpeaking();
 
+  const gen = ++paintGen;
+  const large = (source || "").length >= RENDER_LOADING_EAGER_CHARS;
+
+  // Editor first: finish highlight and let it paint before any preview spinner.
+  if (editorHighlightRaf) {
+    cancelAnimationFrame(editorHighlightRaf);
+    editorHighlightRaf = 0;
+  }
+  updateEditorHighlight();
+  await yieldToPaint();
+  if (gen !== paintGen) return;
+
+  // Large sync preview work blocks timers, so reveal the spinner before parse
+  // (after the editor is already on screen). Smaller docs keep the 700ms delay.
+  if (large) {
+    // Clear the previous document so it is not visible under the spinner.
+    clearPreviewContent();
+    beginRenderLoading({ eager: true });
+    await yieldToPaint();
+    if (gen !== paintGen) return;
+  } else {
+    beginRenderLoading();
+  }
+
   // Load missing fence grammars in the background; re-render once they arrive.
   void ensureHljsLanguagesForSource(source).then((loadedAny) => {
     if (!loadedAny || contentIsExternal) return;
     if (getMarkdownSource() !== source) return;
-    paintMarkdown(source);
-    scheduleEditorHighlight();
+    void renderMarkdown(source).then(() => scheduleEditorHighlight());
   });
 
-  paintMarkdown(source);
+  try {
+    paintMarkdown(source, gen);
+  } catch (err) {
+    if (gen === paintGen) endRenderLoading();
+    throw err;
+  }
 }
 
-function paintMarkdown(source) {
+/**
+ * @param {string} source
+ * @param {number} [gen]
+ */
+function paintMarkdown(source, gen = paintGen) {
   const raw = marked.parse(source || "", { async: false });
   const clean = DOMPurify.sanitize(raw, {
     USE_PROFILES: { html: true, svg: true },
     ADD_ATTR: ["data-source-line", "data-source-line-end"],
   });
 
+  if (gen !== paintGen) return;
+
   if (rafId) cancelAnimationFrame(rafId);
   rafId = requestAnimationFrame(() => {
+    rafId = 0;
+    if (gen !== paintGen) return;
     mermaidGen += 1;
     preview.innerHTML = clean;
     addCodeLineNumbers(preview);
@@ -1535,11 +2032,12 @@ function paintMarkdown(source) {
       showPresentSection(presentIndex);
     }
     invalidateScrollAnchors();
-    rafId = 0;
     updateDocOutline();
     syncPreviewFromEditor();
     revealPreviewForEditorCaret();
+    if (gen === paintGen) endRenderLoading();
     renderMermaidDiagrams().finally(() => {
+      if (gen !== paintGen) return;
       enhanceSectionToggles();
       if (isSlideNavView()) {
         buildPresentSections();
@@ -2072,6 +2570,7 @@ function setTheme(theme, { persist = true } = {}) {
 
 function setPreviewWidth(width, { persist = true } = {}) {
   const next = WIDTHS.includes(width) ? width : "readable";
+  const changed = preview.dataset.width !== next;
   preview.dataset.width = next;
   widthSelect.value = next;
   invalidateScrollAnchors();
@@ -2082,6 +2581,8 @@ function setPreviewWidth(width, { persist = true } = {}) {
       /* storage may be unavailable */
     }
   }
+  // Fluid Mermaid diagrams (gantt) need a width sync / possible re-layout.
+  if (changed) scheduleMermaidScale();
 }
 
 function applyCollapseState() {
@@ -2428,9 +2929,8 @@ function isProofreadPreviewActive() {
 }
 
 function syncProofEditorHighlightScroll() {
-  if (!aiProofEditor || !aiProofHighlight) return;
-  aiProofHighlight.scrollTop = aiProofEditor.scrollTop;
-  aiProofHighlight.scrollLeft = aiProofEditor.scrollLeft;
+  if (!aiProofEditor || !aiProofHighlight || !aiProofHighlightCode) return;
+  aiProofHighlightCode.style.transform = `translate(${-aiProofEditor.scrollLeft}px, ${-aiProofEditor.scrollTop}px)`;
 }
 
 function syncPreviewFromEditor() {
@@ -2806,7 +3306,7 @@ function confirmDiscardIfDirty() {
 }
 
 function updateDocumentTitle() {
-  const base = "Markdown Preview";
+  const base = "Markdown Editor";
   document.title = currentFileName ? `${currentFileName} · ${base}` : base;
   if (currentFileNameEl) {
     if (currentFileName) {
@@ -5132,7 +5632,7 @@ function buildSpeechTracks() {
 
   return [
     {
-      title: currentFileName || "Markdown Preview",
+      title: currentFileName || "Markdown Editor",
       sectionIndex: 0,
       start: 0,
       end: text.length,
@@ -5238,8 +5738,8 @@ function preferredVoice() {
     if (match) return match;
   }
 
-  // Highest scored English voice (Siri/Google/neural rise to the top).
-  return voices[0] || null;
+  // Best local English voice when available; otherwise highest-scored cloud voice.
+  return voices.find((v) => v.localService) || voices[0] || null;
 }
 
 function setVoice(voiceURI, { persist = true, restart = false } = {}) {
@@ -5464,8 +5964,8 @@ function updateSpeechMediaSession() {
 
     const track = speechTracks[speechTrackIndex];
     const trackCount = speechTracks.length;
-    const title = track?.title || currentFileName || "Markdown Preview";
-    const artist = currentFileName || "Markdown Preview";
+    const title = track?.title || currentFileName || "Markdown Editor";
+    const artist = currentFileName || "Markdown Editor";
     const album =
       trackCount > 1 ? `${speechTrackIndex + 1} / ${trackCount}` : "Read aloud";
 
@@ -5493,7 +5993,7 @@ function setupSpeechMediaSession() {
   };
 
   setHandler("play", () => {
-    if (!speechActive) startSpeaking();
+    if (!speechActive) void requestStartSpeaking();
     else resumeSpeaking();
   });
   setHandler("pause", () => {
@@ -5710,6 +6210,52 @@ function speakNextChunk(generation = speechGeneration) {
   if (speechPaused) window.speechSynthesis.pause();
 }
 
+/**
+ * True when read-aloud would use a cloud voice because no local high-quality
+ * English voice is available (the privacy-sensitive fallback default).
+ */
+function isDefaultedToCloudVoice() {
+  const voice = preferredVoice();
+  if (!voice || voice.localService) return false;
+  return !listVoices().some((v) => v.localService);
+}
+
+/**
+ * Confirm before starting cloud TTS when that voice is only the fallback default.
+ * @returns {Promise<boolean>}
+ */
+function confirmCloudSpeechIfNeeded() {
+  if (cloudSpeechAllowedThisSession || !isDefaultedToCloudVoice()) {
+    return Promise.resolve(true);
+  }
+  if (!cloudSpeechModal || typeof cloudSpeechModal.showModal !== "function") {
+    return Promise.resolve(
+      window.confirm(
+        "No local voice is available. Read aloud will use a cloud voice and send document text to the voice provider. Continue?",
+      ),
+    );
+  }
+  if (cloudSpeechModal.open) return Promise.resolve(false);
+
+  return new Promise((resolve) => {
+    const onClose = () => {
+      cloudSpeechModal.removeEventListener("close", onClose);
+      const ok = cloudSpeechModal.returnValue === "continue";
+      if (ok) cloudSpeechAllowedThisSession = true;
+      resolve(ok);
+    };
+    cloudSpeechModal.addEventListener("close", onClose);
+    cloudSpeechModal.returnValue = "";
+    cloudSpeechModal.showModal();
+  });
+}
+
+async function requestStartSpeaking() {
+  const allowed = await confirmCloudSpeechIfNeeded();
+  if (!allowed) return;
+  startSpeaking();
+}
+
 function startSpeaking() {
   const tracks = buildSpeechTracks();
   if (!tracks.length) {
@@ -5756,7 +6302,7 @@ function startSpeaking() {
 
 function toggleSpeaking() {
   if (speechActive) stopSpeaking();
-  else startSpeaking();
+  else void requestStartSpeaking();
 }
 
 function setupSpeech() {
@@ -6137,7 +6683,7 @@ async function setupChromeAi() {
       syncPreviewFromEditor();
     } else {
       aiProofEditor.scrollTop = 0;
-      aiProofHighlight.scrollTop = 0;
+      syncProofEditorHighlightScroll();
     }
     scheduleRestoreHeldEditorSelection();
   }
@@ -6167,9 +6713,9 @@ async function setupChromeAi() {
     const dx = aiProofEditor.offsetWidth - aiProofEditor.clientWidth;
     const dy = aiProofEditor.offsetHeight - aiProofEditor.clientHeight;
     aiProofHighlight.style.inset = `0 ${dx}px ${dy}px 0`;
-    aiProofHighlight.scrollTop = aiProofEditor.scrollTop;
-    aiProofHighlight.scrollLeft = aiProofEditor.scrollLeft;
+    syncProofEditorHighlightScroll();
   }
+
 
   function onProofEditorScroll() {
     syncProofEditorHighlightScroll();
@@ -6536,6 +7082,14 @@ async function setupChromeAi() {
   });
 
   aiProofEditor?.addEventListener("scroll", onProofEditorScroll);
+  aiProofHighlight?.addEventListener(
+    "scroll",
+    () => {
+      if (aiProofHighlight.scrollTop) aiProofHighlight.scrollTop = 0;
+      if (aiProofHighlight.scrollLeft) aiProofHighlight.scrollLeft = 0;
+    },
+    { passive: true },
+  );
 
   aiWriteMenuBtn?.addEventListener("click", () => openWriteDialog());
   aiRewriteMenuBtn?.addEventListener("click", () => openRewriteDialog());
@@ -6895,8 +7449,6 @@ async function init() {
     markDirtyBaseline();
   }
 
-  renderMarkdown(getMarkdownSource());
-
   const initialView = urlIsExternal
     ? "edit"
     : shareState.view || (guideSession ? "reader" : "edit");
@@ -6909,6 +7461,10 @@ async function init() {
   // position is the first one shown and later collapses still animate.
   void getComputedStyle(panes).gridTemplateColumns;
   document.documentElement.classList.remove("is-booting");
+
+  // Paint the shell first, then render — large drafts can block marked/DOMPurify
+  // for well over a second; the preview shows a delayed spinner while that runs.
+  void renderMarkdown(getMarkdownSource());
 
   // Non-critical UI — after first paint (next frame), so speak/history work ASAP.
   requestAnimationFrame(() => {
@@ -7014,6 +7570,16 @@ async function init() {
     },
     { passive: true },
   );
+  // overflow:hidden still lets scrollIntoView move scrollTop; pin it so Find cannot
+  // desync the highlight layer from the textarea (which owns scrolling).
+  editorHighlight.addEventListener(
+    "scroll",
+    () => {
+      if (editorHighlight.scrollTop) editorHighlight.scrollTop = 0;
+      if (editorHighlight.scrollLeft) editorHighlight.scrollLeft = 0;
+    },
+    { passive: true },
+  );
   previewPane.addEventListener(
     "scroll",
     () => {
@@ -7047,12 +7613,16 @@ async function init() {
   });
   editor.addEventListener("select", () => {
     outlineScrollSource = "editor";
+    // Browser Find scrolls the textarea to the match; that scroll is not always
+    // accompanied by a "scroll" event, so re-align the highlight layer here.
+    syncEditorHighlightScroll();
     scheduleRevealPreviewForCaret();
   });
   if (typeof ResizeObserver === "function") {
     const ro = new ResizeObserver(() => {
       syncEditorHighlightScroll();
       invalidateScrollAnchors();
+      scheduleMermaidScale();
       if (syncScrollEnabled) {
         syncPreviewFromEditor();
         scheduleRevealPreviewForCaret();

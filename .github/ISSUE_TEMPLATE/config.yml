@@ -5,4 +5,4 @@ contact_links:
     about: Report security issues privately (do not open a public issue).
   - name: Hosted app
     url: https://dev.ericperret.org/markdown/
-    about: Try the live Markdown Preview instance.
+    about: Try the live Markdown Editor instance.

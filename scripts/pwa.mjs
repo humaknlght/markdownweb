@@ -29,8 +29,8 @@ export function buildManifest(iconNames) {
   const icon512 = iconNames?.icon512 ?? "./icon-512.png";
   return `${JSON.stringify(
     {
-      name: "Markdown Preview",
-      short_name: "Markdown",
+      name: "Markdown Editor",
+      short_name: "MD Editor",
       description:
         "Paste or upload Markdown and see a live HTML preview in your browser.",
       id: "./",
@@ -96,7 +96,7 @@ export function isMutableShellPath(pathname) {
 
 export function buildServiceWorker({ precacheUrls, version }) {
   const urls = JSON.stringify(precacheUrls, null, 2);
-  return `/* Markdown Preview service worker — generated at build time */
+  return `/* Markdown Editor service worker — generated at build time */
 /* eslint-disable no-restricted-globals */
 const CACHE = ${JSON.stringify(`md-preview-${version}`)};
 const PRECACHE = ${urls};
@@ -223,10 +223,4 @@ self.addEventListener("fetch", (event) => {
 
 export function precacheVersion(urls) {
   return contentHash(Buffer.from(urls.join("\\n"), "utf8"));
-}
-
-/** Content-hash a service worker source string into a stable filename. */
-export function hashServiceWorkerName(source) {
-  const hash = contentHash(Buffer.from(source, "utf8"));
-  return `sw.${hash}.js`;
 }

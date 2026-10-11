@@ -1,12 +1,12 @@
-# Markdown Preview
+# Markdown Editor
 
 [![CI](https://github.com/humaknlght/markdownweb/actions/workflows/ci.yml/badge.svg)](https://github.com/humaknlght/markdownweb/actions/workflows/ci.yml)
 
-A fast, client-side Markdown previewer. Paste upload, or open Markdown and see rendered HTML beside it. Everything runs in the browser — no server processing.
+A fast, client-side Markdown editor. Paste upload, or open Markdown and see rendered HTML beside it. Everything runs in the browser — no server processing.
 
 **Try it:** [https://dev.ericperret.org/markdown/](https://dev.ericperret.org/markdown/)
 
-![Markdown Preview — split editor and live HTML preview with Mermaid and GitHub alerts](docs/screenshot.png)
+![Markdown Editor — split editor and live HTML preview with Mermaid and GitHub alerts](docs/screenshot.png)
 
 ## Features
 

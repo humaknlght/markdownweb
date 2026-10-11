@@ -1,6 +1,6 @@
 {
-  "name": "Markdown Preview",
-  "short_name": "Markdown",
+  "name": "Markdown Editor",
+  "short_name": "MD Editor",
   "description": "Paste or upload Markdown and see a live HTML preview in your browser.",
   "id": "./",
   "start_url": "./?source=pwa",

@@ -1,6 +1,6 @@
-# How to use Markdown Preview
+# How to use Markdown Editor
 
-Markdown Preview is a browser-based editor: type or open Markdown on the left, and see a live preview on the right. Everything runs locally in your browser.
+Markdown Editor is a browser-based editor: type or open Markdown on the left, and see a live preview on the right. Everything runs locally in your browser.
 
 This guide covers how to use the app and every Markdown feature it supports.
 
