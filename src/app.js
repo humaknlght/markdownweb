@@ -1135,6 +1135,8 @@ function mermaidNodeIsVisible(el) {
 
 /** @type {WeakMap<HTMLElement, string>} */
 const mermaidSources = new WeakMap();
+/** Last rendered host height per Mermaid source — reserves space across paints. */
+const mermaidHeightCache = new Map();
 let mermaidScaleRaf = 0;
 let mermaidRelayoutTimer = 0;
 
@@ -1147,6 +1149,57 @@ function rememberMermaidSource(el) {
   if (!mermaidSources.has(el)) {
     mermaidSources.set(el, el.textContent ?? "");
   }
+}
+
+/**
+ * Collect rendered Mermaid SVGs before the preview DOM is replaced so unchanged
+ * diagrams can be restored without a Mermaid re-run (avoids height/scroll thrash
+ * when typing below diagrams).
+ * @returns {Map<string, { svg: SVGElement, height: number }[]>}
+ */
+function takeMermaidRenderReuse() {
+  /** @type {Map<string, { svg: SVGElement, height: number }[]>} */
+  const bySource = new Map();
+  for (const el of preview.querySelectorAll(".mermaid")) {
+    const svg = el.querySelector("svg");
+    const src = mermaidSources.get(el);
+    if (!svg || !src) continue;
+    const height = el.offsetHeight;
+    if (height > 0) mermaidHeightCache.set(src, height);
+    const list = bySource.get(src) || [];
+    list.push({ svg: /** @type {SVGElement} */ (svg.cloneNode(true)), height });
+    bySource.set(src, list);
+  }
+  return bySource;
+}
+
+/**
+ * Restore unchanged Mermaid SVGs after a preview repaint; reserve height and mark
+ * pending only for diagrams whose source is new or changed.
+ * @param {Map<string, { svg: SVGElement, height: number }[]>} bySource
+ */
+function restoreMermaidRenders(bySource) {
+  for (const el of preview.querySelectorAll(".mermaid")) {
+    // Capture source from the fresh fence text before we swap in an SVG.
+    rememberMermaidSource(el);
+    const src = mermaidSources.get(el) ?? "";
+    const list = bySource.get(src);
+    const reuse = list?.shift();
+    if (reuse) {
+      el.replaceChildren(reuse.svg);
+      el.style.minHeight = "";
+      el.removeAttribute("data-pending");
+      continue;
+    }
+    el.setAttribute("data-pending", "");
+    const h = mermaidHeightCache.get(src);
+    if (h > 0) el.style.minHeight = `${h}px`;
+  }
+}
+
+/** True while any Mermaid host is still waiting for (or mid) SVG paint. */
+function mermaidPreviewUnsettled() {
+  return Boolean(preview.querySelector(".mermaid[data-pending]"));
 }
 
 /**
@@ -1355,6 +1408,11 @@ async function renderMermaidDiagrams({ force = false } = {}) {
       delete svg.dataset.mermaidNatural;
       delete svg.dataset.mermaidFluid;
     }
+    // Release the paint reservation now that the real SVG owns layout.
+    el.style.minHeight = "";
+    const src = mermaidSources.get(el);
+    const h = el.offsetHeight;
+    if (src && h > 0) mermaidHeightCache.set(src, h);
   }
   syncMermaidSvgSizes();
 }
@@ -2023,8 +2081,12 @@ function paintMarkdown(source, gen = paintGen) {
   rafId = requestAnimationFrame(() => {
     rafId = 0;
     if (gen !== paintGen) return;
+    // Reuse unchanged Mermaid SVGs so typing below diagrams does not wipe and
+    // re-paint them (that collapse was hiding newly added preview text).
+    const mermaidReuse = takeMermaidRenderReuse();
     mermaidGen += 1;
     preview.innerHTML = clean;
+    restoreMermaidRenders(mermaidReuse);
     addCodeLineNumbers(preview);
     enhanceSectionToggles();
     if (isSlideNavView()) {
@@ -2033,6 +2095,9 @@ function paintMarkdown(source, gen = paintGen) {
     }
     invalidateScrollAnchors();
     updateDocOutline();
+    // Hold the editor as sync driver through any async Mermaid pass so reverse
+    // sync cannot yank the textarea while preview height is still settling.
+    beginSyncDriver("editor");
     syncPreviewFromEditor();
     revealPreviewForEditorCaret();
     if (gen === paintGen) endRenderLoading();
@@ -2044,6 +2109,7 @@ function paintMarkdown(source, gen = paintGen) {
         showPresentSection(presentIndex);
       }
       invalidateScrollAnchors();
+      beginSyncDriver("editor");
       syncPreviewFromEditor();
       revealPreviewForEditorCaret();
     });
@@ -2968,6 +3034,9 @@ function syncEditorFromPreview() {
   if (panes.classList.contains("editor-collapsed") || panes.classList.contains("preview-collapsed")) {
     return;
   }
+  // Preview height is mid-flight while Mermaid paints; mapping back into the
+  // editor causes the up/down jitter seen when typing at the end of diagram-heavy docs.
+  if (mermaidPreviewUnsettled()) return;
   if (isProofreadPreviewActive()) {
     beginSyncDriver("preview");
     applyScrollRatio(editor, scrollRatio(aiProofEditor));
@@ -3013,6 +3082,45 @@ function previewElementForLine(line) {
 }
 
 /**
+ * Whether `el` needs scrolling into `pane` (nearest semantics). Tall Mermaid
+ * blocks taller than the pane are treated as in-view when they intersect it —
+ * requiring the whole block to fit caused endless top/bottom thrash.
+ * @param {Element} el
+ * @param {HTMLElement} pane
+ */
+function previewElementNeedsReveal(el, pane) {
+  const paneRect = pane.getBoundingClientRect();
+  const elRect = el.getBoundingClientRect();
+  const pad = 8;
+  const viewTop = paneRect.top + pad;
+  const viewBottom = paneRect.bottom - pad;
+  if (elRect.bottom <= viewTop || elRect.top >= viewBottom) return true;
+  // Fully visible.
+  if (elRect.top >= viewTop && elRect.bottom <= viewBottom) return false;
+  // Oversized but intersecting — leave the current scroll alone.
+  if (elRect.height > pane.clientHeight - pad * 2) return false;
+  // Partially clipped smaller block — nudge into view.
+  return true;
+}
+
+/**
+ * Scroll `pane` so `el` is visible with nearest-edge alignment.
+ * @param {HTMLElement} el
+ * @param {HTMLElement} pane
+ */
+function revealPreviewElement(el, pane) {
+  const paneRect = pane.getBoundingClientRect();
+  const elRect = el.getBoundingClientRect();
+  const pad = 8;
+  const top = offsetWithin(el, pane);
+  if (elRect.bottom > paneRect.bottom - pad) {
+    clampScrollTop(pane, top + el.offsetHeight - pane.clientHeight + pad);
+  } else {
+    clampScrollTop(pane, top - pad);
+  }
+}
+
+/**
  * Keep the rendered block for the editor caret in view. Uses nearest so we
  * only scroll when the matching preview content is actually off-screen.
  * In slides mode, also switches to the slide that contains the caret line.
@@ -3037,21 +3145,10 @@ function revealPreviewForEditorCaret() {
   // Expand collapsed ancestors so caret sync measures real geometry.
   ensurePreviewElementExpanded(el);
   if (!previewNodeIsLaidOut(el)) return;
-
-  const paneRect = previewPane.getBoundingClientRect();
-  const elRect = el.getBoundingClientRect();
-  const pad = 8;
-  if (elRect.top >= paneRect.top + pad && elRect.bottom <= paneRect.bottom - pad) {
-    return;
-  }
+  if (!previewElementNeedsReveal(el, previewPane)) return;
 
   beginSyncDriver("editor");
-  const top = offsetWithin(el, previewPane);
-  if (elRect.bottom > paneRect.bottom - pad) {
-    clampScrollTop(previewPane, top + el.offsetHeight - previewPane.clientHeight + pad);
-  } else {
-    clampScrollTop(previewPane, top - pad);
-  }
+  revealPreviewElement(el, previewPane);
 }
 
 /** 1-based source line nearest the top of the editor viewport. */
@@ -3128,20 +3225,9 @@ function syncSlidesFromEditor({ preferCaret = true } = {}) {
 
   const el = previewElementForLine(line);
   if (!previewNodeIsLaidOut(el)) return;
+  if (!previewElementNeedsReveal(el, previewPane)) return;
 
-  const paneRect = previewPane.getBoundingClientRect();
-  const elRect = el.getBoundingClientRect();
-  const pad = 8;
-  if (elRect.top >= paneRect.top + pad && elRect.bottom <= paneRect.bottom - pad) {
-    return;
-  }
-
-  const top = offsetWithin(el, previewPane);
-  if (elRect.bottom > paneRect.bottom - pad) {
-    clampScrollTop(previewPane, top + el.offsetHeight - previewPane.clientHeight + pad);
-  } else {
-    clampScrollTop(previewPane, top - pad);
-  }
+  revealPreviewElement(el, previewPane);
 }
 
 function scheduleRevealPreviewForCaret() {

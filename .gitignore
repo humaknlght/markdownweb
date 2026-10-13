@@ -6,3 +6,5 @@ dist/
 test-results/
 playwright-report/
 blob-report/
+# Synthesized by scripts/serve.mjs for npm run dev; never commit build output.
+src/sw.js
