@@ -222,7 +222,8 @@ test.describe("editor + render", () => {
     await openFreshApp(page);
 
     await page.locator("#editor").fill("```mermaid\nflowchart LR\n  A-->B\n```");
-    await expect(page.locator("#preview .mermaid svg")).toBeVisible({ timeout: 20_000 });
+    // Direct child only — zoom-button icons are nested SVGs inside .mermaid.
+    await expect(page.locator("#preview .mermaid > svg")).toBeVisible({ timeout: 20_000 });
   });
 
   test("mermaid zoom enlarges only the diagram", async ({ page }) => {
@@ -232,7 +233,7 @@ test.describe("editor + render", () => {
       "# Before\n\n```mermaid\nflowchart LR\n  A-->B\n```\n\n# After",
     );
     const diagram = page.locator("#preview .mermaid").first();
-    await expect(diagram.locator("svg")).toBeVisible({ timeout: 20_000 });
+    await expect(diagram.locator("> svg")).toBeVisible({ timeout: 20_000 });
     await expect(diagram.locator(".mermaid-zoom-btn")).toBeVisible();
 
     const previewHeading = page.locator("#preview h1", { hasText: "Before" });
@@ -277,11 +278,11 @@ test.describe("editor + render", () => {
     await page.locator("#width-select").selectOption("readable");
     await page.locator("#editor").fill(gantt);
     const diagram = page.locator("#preview .mermaid").first();
-    await expect(diagram.locator("svg")).toBeVisible({ timeout: 20_000 });
+    await expect(diagram.locator("> svg")).toBeVisible({ timeout: 20_000 });
     await expect
       .poll(async () => {
         return diagram.evaluate((host) => {
-          const el = host.querySelector("svg");
+          const el = host.querySelector(":scope > svg");
           if (!el) return Number.POSITIVE_INFINITY;
           return Math.abs(host.clientWidth - el.clientWidth);
         });
@@ -289,7 +290,7 @@ test.describe("editor + render", () => {
       .toBeLessThan(4);
 
     const readable = await diagram.evaluate((host) => {
-      const el = host.querySelector("svg");
+      const el = host.querySelector(":scope > svg");
       const vb = el?.getAttribute("viewBox")?.split(/\s+/).map(Number) ?? [];
       return {
         svg: el?.clientWidth ?? 0,
@@ -307,7 +308,7 @@ test.describe("editor + render", () => {
     await expect
       .poll(async () => {
         return diagram.evaluate((host, prevViewBoxW) => {
-          const el = host.querySelector("svg");
+          const el = host.querySelector(":scope > svg");
           if (!el || host.hasAttribute("data-pending")) return false;
           const vb = el.getAttribute("viewBox")?.split(/\s+/).map(Number) ?? [];
           const viewBoxW = vb[2] ?? 0;
@@ -332,7 +333,7 @@ test.describe("editor + render", () => {
     await page.locator("#editor").fill(
       "```mermaid\ngraph TD\n  A[Start] --> B{OK?}\n  B -->|Yes| C[Done]\n  B -->|No| A\n```",
     );
-    await expect(page.locator("#preview .mermaid svg")).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator("#preview .mermaid > svg")).toBeVisible({ timeout: 20_000 });
     await expect(page.locator("#preview .mermaid .edgeLabel p")).toHaveCount(2, {
       timeout: 20_000,
     });
@@ -469,7 +470,7 @@ test.describe("editor + render", () => {
 
     await page.locator("#editor").fill(`${mermaidFixture.replace(/\s+$/, "")}\n\n`);
     await expect
-      .poll(async () => page.locator("#preview .mermaid svg").count(), { timeout: 90_000 })
+      .poll(async () => page.locator("#preview .mermaid > svg").count(), { timeout: 90_000 })
       .toBeGreaterThanOrEqual(10);
     await expect
       .poll(
@@ -478,7 +479,7 @@ test.describe("editor + render", () => {
       )
       .toBe(0);
 
-    const svgCountBefore = await page.locator("#preview .mermaid svg").count();
+    const svgCountBefore = await page.locator("#preview .mermaid > svg").count();
 
     await page.locator("#sync-scroll-btn").click();
     await expect(page.locator("#sync-scroll-btn")).toHaveAttribute("aria-pressed", "true");
@@ -504,7 +505,7 @@ test.describe("editor + render", () => {
             eMax: editor.scrollHeight - editor.clientHeight,
             pH: preview.scrollHeight,
             pending: document.querySelectorAll("#preview .mermaid[data-pending]").length,
-            svgs: document.querySelectorAll("#preview .mermaid svg").length,
+            svgs: document.querySelectorAll("#preview .mermaid > svg").length,
           };
         }),
       );
