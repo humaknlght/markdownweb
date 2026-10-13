@@ -6,6 +6,15 @@ import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 
+/** Main + lazy Zen theme CSS (zen tokens live in src/zen.css). */
+async function readThemeCss() {
+  const [styles, zen] = await Promise.all([
+    fs.readFile(path.join(root, "src/styles.css"), "utf8"),
+    fs.readFile(path.join(root, "src/zen.css"), "utf8"),
+  ]);
+  return `${styles}\n${zen}`;
+}
+
 const THEMES = [
   "github-light",
   "github-dark",
@@ -13,6 +22,7 @@ const THEMES = [
   "terminal",
   "salesforce",
   "fancy",
+  "zen",
 ];
 
 /** Text pairs that must meet WCAG 2.2 AA normal-text contrast (≥4.5:1). */
@@ -170,10 +180,24 @@ function parseThemeTokens(css, theme) {
 
 /** Fancy uses transparent chrome/editor over a fixed photo; blend against that base. */
 const FANCY_BASE = { r: 0x06, g: 0x24, b: 0x36, a: 1 };
+/** Zen uses transparent chrome/editor over WebGL water / #0b1c24. */
+const ZEN_BASE = { r: 0x0b, g: 0x1c, b: 0x24, a: 1 };
+
+/** @param {string} theme */
+function themePageBase(theme) {
+  if (theme === "fancy") return FANCY_BASE;
+  if (theme === "zen") return ZEN_BASE;
+  return { r: 255, g: 255, b: 255, a: 1 };
+}
+
+/** @param {string} theme */
+function isGlassTheme(theme) {
+  return theme === "fancy" || theme === "zen";
+}
 
 describe("Theme text contrast (WCAG 2.2 AA)", () => {
   it("meets ≥4.5:1 for chrome, preview, alert, and syntax text tokens", async () => {
-    const css = await fs.readFile(path.join(root, "src/styles.css"), "utf8");
+    const css = await readThemeCss();
 
     for (const theme of THEMES) {
       const tokens = parseThemeTokens(css, theme);
@@ -186,14 +210,14 @@ describe("Theme text contrast (WCAG 2.2 AA)", () => {
         const fgVal = resolveValue(tokens, fgRaw);
         const bgVal = resolveValue(tokens, bgRaw);
 
-        // Transparent surfaces (Fancy glass) are checked over the page base color.
+        // Transparent surfaces (Fancy / Zen glass) are checked over the page base color.
         if (bgVal === "transparent") {
-          if (theme === "fancy") {
+          if (isGlassTheme(theme)) {
             const fg = parseColor(fgVal);
-            const ratio = contrastRatio(fg, FANCY_BASE);
+            const ratio = contrastRatio(fg, themePageBase(theme));
             assert.ok(
               ratio >= 4.5,
-              `${theme} ${fgVar} on fancy base: ${fgVal} is ${ratio.toFixed(2)}:1 (need ≥4.5:1)`,
+              `${theme} ${fgVar} on page base: ${fgVal} is ${ratio.toFixed(2)}:1 (need ≥4.5:1)`,
             );
             continue;
           }
@@ -203,7 +227,7 @@ describe("Theme text contrast (WCAG 2.2 AA)", () => {
         const fg = parseColor(fgVal);
         let bg = parseColor(bgVal);
         if ((bg.a ?? 1) < 1) {
-          const base = theme === "fancy" ? FANCY_BASE : { r: 255, g: 255, b: 255, a: 1 };
+          const base = themePageBase(theme);
           const a = bg.a;
           bg = {
             r: Math.round(bg.r * a + base.r * (1 - a)),
@@ -223,7 +247,7 @@ describe("Theme text contrast (WCAG 2.2 AA)", () => {
   });
 
   it("keeps Salesforce brand text ≥4.5:1 on chrome background", async () => {
-    const css = await fs.readFile(path.join(root, "src/styles.css"), "utf8");
+    const css = await readThemeCss();
     const brand = css.match(
       /html\[data-theme="salesforce"\]\s*\.brand\s*\{\s*color:\s*([^;]+);/,
     );
@@ -239,7 +263,7 @@ describe("Theme text contrast (WCAG 2.2 AA)", () => {
   });
 
   it("meets ≥4.5:1 for syntax tokens on the editor background", async () => {
-    const css = await fs.readFile(path.join(root, "src/styles.css"), "utf8");
+    const css = await readThemeCss();
 
     for (const theme of THEMES) {
       const tokens = parseThemeTokens(css, theme);
@@ -257,12 +281,12 @@ describe("Theme text contrast (WCAG 2.2 AA)", () => {
       const bgRaw = resolveValue(tokens, tokens["--editor-bg"]);
       let bg;
       if (bgRaw === "transparent") {
-        if (theme !== "fancy") continue;
-        bg = FANCY_BASE;
+        if (!isGlassTheme(theme)) continue;
+        bg = themePageBase(theme);
       } else {
         bg = parseColor(bgRaw);
         if ((bg.a ?? 1) < 1) {
-          const base = theme === "fancy" ? FANCY_BASE : { r: 255, g: 255, b: 255, a: 1 };
+          const base = themePageBase(theme);
           const a = bg.a;
           bg = {
             r: Math.round(bg.r * a + base.r * (1 - a)),
@@ -285,18 +309,18 @@ describe("Theme text contrast (WCAG 2.2 AA)", () => {
   });
 
   it("keeps blockquote markers ≥3:1 (WCAG 1.4.11)", async () => {
-    const css = await fs.readFile(path.join(root, "src/styles.css"), "utf8");
+    const css = await readThemeCss();
     for (const theme of THEMES) {
       const tokens = parseThemeTokens(css, theme);
       const fgVal = resolveValue(tokens, tokens["--preview-quote"]);
       const bgRaw = resolveValue(tokens, tokens["--preview-bg"]);
       let bg;
       if (bgRaw === "transparent") {
-        bg = FANCY_BASE;
+        bg = themePageBase(theme);
       } else {
         bg = parseColor(bgRaw);
         if ((bg.a ?? 1) < 1) {
-          const base = theme === "fancy" ? FANCY_BASE : { r: 255, g: 255, b: 255, a: 1 };
+          const base = themePageBase(theme);
           const a = bg.a;
           bg = {
             r: Math.round(bg.r * a + base.r * (1 - a)),
@@ -315,7 +339,7 @@ describe("Theme text contrast (WCAG 2.2 AA)", () => {
   });
 
   it("keeps Fancy editor placeholder ≥4.5:1 on the page base", async () => {
-    const css = await fs.readFile(path.join(root, "src/styles.css"), "utf8");
+    const css = await readThemeCss();
     const m = css.match(
       /html\[data-theme="fancy"\]\s*#editor::placeholder\s*\{[\s\S]*?color:\s*rgba\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*([\d.]+)\s*\)/,
     );
@@ -330,6 +354,25 @@ describe("Theme text contrast (WCAG 2.2 AA)", () => {
     assert.ok(
       ratio >= 4.5,
       `fancy placeholder rgba(${m[1]},${m[2]},${m[3]},${m[4]}) is ${ratio.toFixed(2)}:1`,
+    );
+  });
+
+  it("keeps Zen editor placeholder ≥4.5:1 on the page base", async () => {
+    const css = await readThemeCss();
+    const m = css.match(
+      /html\[data-theme="zen"\]\s*#editor::placeholder\s*\{[\s\S]*?color:\s*rgba\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*([\d.]+)\s*\)/,
+    );
+    assert.ok(m, "zen placeholder color missing");
+    const fg = {
+      r: +m[1],
+      g: +m[2],
+      b: +m[3],
+      a: +m[4],
+    };
+    const ratio = contrastRatio(fg, ZEN_BASE);
+    assert.ok(
+      ratio >= 4.5,
+      `zen placeholder rgba(${m[1]},${m[2]},${m[3]},${m[4]}) is ${ratio.toFixed(2)}:1`,
     );
   });
 });

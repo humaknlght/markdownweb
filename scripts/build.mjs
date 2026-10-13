@@ -77,6 +77,19 @@ async function optimizeImage() {
   return { before, after: buffer.length, name, hash };
 }
 
+async function copyDropsAudio() {
+  const input = path.join(srcDir, "drops.mp3");
+  const before = await fileSize(input);
+  if (!before) {
+    throw new Error("Missing droplet sound: src/drops.mp3");
+  }
+  const buffer = await readFile(input);
+  const hash = contentHash(buffer);
+  const name = hashedName("drops", ".mp3", hash);
+  await writeFile(path.join(distDir, name), buffer);
+  return { bytes: buffer.length, name, hash };
+}
+
 async function buildOgImage() {
   const input = path.join(srcDir, "og-image.png");
   const before = await fileSize(input);
@@ -144,10 +157,11 @@ async function minifyCssFile(fileName, { rewriteFancy } = {}) {
 async function buildCss(fancyFileName) {
   const styles = await minifyCssFile("styles.css", { rewriteFancy: fancyFileName });
   const print = await minifyCssFile("print.css");
-  return { styles, print };
+  const zen = await minifyCssFile("zen.css");
+  return { styles, print, zen };
 }
 
-async function buildJs(guideUrl) {
+async function buildJs(guideUrl, dropsUrl, zenCssUrl) {
   const result = await esbuild.build({
     entryPoints: [path.join(srcDir, "app.js")],
     bundle: true,
@@ -165,11 +179,22 @@ async function buildJs(guideUrl) {
     external: ["marked", "dompurify", "highlight.js", "gemoji", "yaml"],
     define: {
       __GUIDE_URL__: JSON.stringify(guideUrl),
+      __DROPS_URL__: JSON.stringify(dropsUrl),
+      __ZEN_CSS_URL__: JSON.stringify(zenCssUrl),
     },
   });
 
   const chunks = [];
   let entry = null;
+  /** @type {Set<string>} */
+  const lazyChunkNames = new Set();
+
+  for (const [outPath, meta] of Object.entries(result.metafile?.outputs || {})) {
+    const inputs = Object.keys(meta.inputs || {});
+    if (inputs.some((input) => input.includes("theme-zen"))) {
+      lazyChunkNames.add(path.basename(outPath));
+    }
+  }
 
   for (const output of result.outputFiles) {
     const buffer = Buffer.from(output.contents);
@@ -182,7 +207,11 @@ async function buildJs(guideUrl) {
     } else {
       const name = base;
       await writeFile(path.join(distDir, name), buffer);
-      chunks.push({ bytes: buffer.length, name });
+      chunks.push({
+        bytes: buffer.length,
+        name,
+        lazy: lazyChunkNames.has(name),
+      });
     }
   }
 
@@ -252,14 +281,25 @@ async function buildHtml({
   };
 }
 
-async function buildPwa({ cssName, printCssName, jsName, jsChunks, fancyName, guideName, iconResults }) {
+async function buildPwa({
+  cssName,
+  printCssName,
+  jsName,
+  jsChunks,
+  fancyName,
+  guideName,
+  iconResults,
+}) {
   const icon192 = iconResults.find((icon) => icon.base === "icon-192.png");
   const icon512 = iconResults.find((icon) => icon.base === "icon-512.png");
   const iconNames = {
     icon192: `./${icon192.name}`,
     icon512: `./${icon512.name}`,
   };
-  const chunkUrls = (jsChunks || []).map((chunk) => `./${chunk.name}`);
+  // Skip Zen WebGL chunk — loaded on unlock (SW still runtime-caches it).
+  const chunkUrls = (jsChunks || [])
+    .filter((chunk) => !chunk.lazy)
+    .map((chunk) => `./${chunk.name}`);
   const localPrecache = [
     "./",
     "./index.html",
@@ -358,10 +398,11 @@ async function main() {
   const guide = await copyGuideTo(distDir, { hash: true });
 
   const image = await optimizeImage();
+  const drops = await copyDropsAudio();
   const ogImage = await buildOgImage();
   const icons = await buildIcons();
   const css = await buildCss(image.name);
-  const js = await buildJs(guide.url);
+  const js = await buildJs(guide.url, `./${drops.name}`, `./${css.zen.name}`);
   const icon192 = icons.find((icon) => icon.base === "icon-192.png");
   const icon512 = icons.find((icon) => icon.base === "icon-512.png");
   const pwa = await buildPwa({
@@ -390,10 +431,14 @@ async function main() {
   console.log(`  ${css.styles.name.padEnd(22)} ${formatBytes(css.styles.bytes)}`);
   console.log(`  ${css.print.name.padEnd(22)} ${formatBytes(css.print.bytes)}`);
   console.log(
+    `  ${css.zen.name.padEnd(22)} ${formatBytes(css.zen.bytes)}  (lazy Zen theme)`
+  );
+  console.log(
     `  ${js.name.padEnd(22)} ${formatBytes(js.bytes)}  (${js.bundledInputs} modules bundled)`
   );
   for (const chunk of js.chunks || []) {
-    console.log(`  ${chunk.name.padEnd(22)} ${formatBytes(chunk.bytes)}  (lazy chunk)`);
+    const tag = chunk.lazy ? "lazy Zen chunk" : "lazy chunk";
+    console.log(`  ${chunk.name.padEnd(22)} ${formatBytes(chunk.bytes)}  (${tag})`);
   }
   console.log(
     `  ${guide.name.padEnd(22)} ${formatBytes(guide.bytes)}`
@@ -401,6 +446,7 @@ async function main() {
   console.log(
     `  ${image.name.padEnd(22)} ${formatBytes(image.after)}  (from ${formatBytes(image.before)})`
   );
+  console.log(`  ${drops.name.padEnd(22)} ${formatBytes(drops.bytes)}`);
   console.log(
     `  ${ogImage.name.padEnd(22)} ${formatBytes(ogImage.after)}  (from ${formatBytes(ogImage.before)})`
   );
