@@ -81,6 +81,7 @@
           terminal: 1,
           salesforce: 1,
           fancy: 1,
+          zen: 1,
         };
         var urlTheme = null;
         try {
@@ -233,6 +234,8 @@
               <option value="terminal">Terminal</option>
               <option value="salesforce">Salesforce Cosmos</option>
               <option value="fancy">Fancy</option>
+              <!-- Secret: #theme=zen or 7× click brand (hidden from the open list). -->
+              <option value="zen">Zen</option>
             </select>
           </label>
           <label class="select-label reader-visible">
@@ -767,6 +770,21 @@
       <button type="button" class="btn external-modal-accept" id="ai-proofread-run">Proofread</button>
       <button type="button" class="btn external-modal-accept" id="ai-proofread-apply" hidden disabled>Apply</button>
     </div>
+  </dialog>
+
+  <dialog
+    class="mermaid-zoom-dialog"
+    id="mermaid-zoom-dialog"
+    aria-label="Zoomed diagram"
+  >
+    <div class="mermaid-zoom-toolbar">
+      <button type="button" class="btn" id="mermaid-zoom-out" title="Zoom out" aria-label="Zoom out">−</button>
+      <span class="mermaid-zoom-level" id="mermaid-zoom-level" aria-live="polite">100%</span>
+      <button type="button" class="btn" id="mermaid-zoom-in" title="Zoom in" aria-label="Zoom in">+</button>
+      <button type="button" class="btn" id="mermaid-zoom-reset" title="Reset zoom" aria-label="Reset zoom">Reset</button>
+      <button type="button" class="btn" id="mermaid-zoom-close" title="Close" aria-label="Close">Close</button>
+    </div>
+    <div class="mermaid-zoom-stage" id="mermaid-zoom-stage" tabindex="0"></div>
   </dialog>
 
   <div class="toast" id="toast" hidden role="status"></div>

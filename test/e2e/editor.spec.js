@@ -222,7 +222,40 @@ test.describe("editor + render", () => {
     await openFreshApp(page);
 
     await page.locator("#editor").fill("```mermaid\nflowchart LR\n  A-->B\n```");
-    await expect(page.locator("#preview .mermaid svg")).toBeVisible({ timeout: 20_000 });
+    // Direct child only — zoom-button icons are nested SVGs inside .mermaid.
+    await expect(page.locator("#preview .mermaid > svg")).toBeVisible({ timeout: 20_000 });
+  });
+
+  test("mermaid zoom enlarges only the diagram", async ({ page }) => {
+    await openFreshApp(page);
+
+    await page.locator("#editor").fill(
+      "# Before\n\n```mermaid\nflowchart LR\n  A-->B\n```\n\n# After",
+    );
+    const diagram = page.locator("#preview .mermaid").first();
+    await expect(diagram.locator("> svg")).toBeVisible({ timeout: 20_000 });
+    await expect(diagram.locator(".mermaid-zoom-btn")).toBeVisible();
+
+    const previewHeading = page.locator("#preview h1", { hasText: "Before" });
+    await expect(previewHeading).toBeVisible();
+
+    await diagram.locator(".mermaid-zoom-btn").click();
+    const zoomDialog = page.locator("#mermaid-zoom-dialog");
+    await expect(zoomDialog).toBeVisible();
+    await expect(zoomDialog.locator(".mermaid-zoom-stage svg")).toBeVisible();
+
+    // Preview content stays put; only the dialog shows the enlarged diagram.
+    await expect(previewHeading).toBeVisible();
+    await expect(page.locator("#preview h1", { hasText: "After" })).toBeVisible();
+
+    const beforeIn = await zoomDialog.locator("#mermaid-zoom-level").textContent();
+    await zoomDialog.locator("#mermaid-zoom-in").click();
+    await expect
+      .poll(async () => zoomDialog.locator("#mermaid-zoom-level").textContent())
+      .not.toBe(beforeIn);
+
+    await zoomDialog.locator("#mermaid-zoom-close").click();
+    await expect(zoomDialog).toBeHidden();
   });
 
   test("gantt chart relayouts at full preview width without CSS zoom", async ({ page }) => {
@@ -245,11 +278,11 @@ test.describe("editor + render", () => {
     await page.locator("#width-select").selectOption("readable");
     await page.locator("#editor").fill(gantt);
     const diagram = page.locator("#preview .mermaid").first();
-    await expect(diagram.locator("svg")).toBeVisible({ timeout: 20_000 });
+    await expect(diagram.locator("> svg")).toBeVisible({ timeout: 20_000 });
     await expect
       .poll(async () => {
         return diagram.evaluate((host) => {
-          const el = host.querySelector("svg");
+          const el = host.querySelector(":scope > svg");
           if (!el) return Number.POSITIVE_INFINITY;
           return Math.abs(host.clientWidth - el.clientWidth);
         });
@@ -257,7 +290,7 @@ test.describe("editor + render", () => {
       .toBeLessThan(4);
 
     const readable = await diagram.evaluate((host) => {
-      const el = host.querySelector("svg");
+      const el = host.querySelector(":scope > svg");
       const vb = el?.getAttribute("viewBox")?.split(/\s+/).map(Number) ?? [];
       return {
         svg: el?.clientWidth ?? 0,
@@ -275,7 +308,7 @@ test.describe("editor + render", () => {
     await expect
       .poll(async () => {
         return diagram.evaluate((host, prevViewBoxW) => {
-          const el = host.querySelector("svg");
+          const el = host.querySelector(":scope > svg");
           if (!el || host.hasAttribute("data-pending")) return false;
           const vb = el.getAttribute("viewBox")?.split(/\s+/).map(Number) ?? [];
           const viewBoxW = vb[2] ?? 0;
@@ -300,7 +333,7 @@ test.describe("editor + render", () => {
     await page.locator("#editor").fill(
       "```mermaid\ngraph TD\n  A[Start] --> B{OK?}\n  B -->|Yes| C[Done]\n  B -->|No| A\n```",
     );
-    await expect(page.locator("#preview .mermaid svg")).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator("#preview .mermaid > svg")).toBeVisible({ timeout: 20_000 });
     await expect(page.locator("#preview .mermaid .edgeLabel p")).toHaveCount(2, {
       timeout: 20_000,
     });
@@ -436,8 +469,11 @@ test.describe("editor + render", () => {
     await page.setViewportSize({ width: 1400, height: 900 });
 
     await page.locator("#editor").fill(`${mermaidFixture.replace(/\s+$/, "")}\n\n`);
+    // Diagram SVGs use id="mermaid-…"; zoom-button icons do not. Some fences in
+    // the fixture can fail to paint, so do not require hostCount === svgCount.
+    const diagramSvg = page.locator('#preview .mermaid svg[id^="mermaid-"]');
     await expect
-      .poll(async () => page.locator("#preview .mermaid svg").count(), { timeout: 90_000 })
+      .poll(async () => diagramSvg.count(), { timeout: 90_000 })
       .toBeGreaterThanOrEqual(10);
     await expect
       .poll(
@@ -446,7 +482,7 @@ test.describe("editor + render", () => {
       )
       .toBe(0);
 
-    const svgCountBefore = await page.locator("#preview .mermaid svg").count();
+    const svgCountBefore = await diagramSvg.count();
 
     await page.locator("#sync-scroll-btn").click();
     await expect(page.locator("#sync-scroll-btn")).toHaveAttribute("aria-pressed", "true");
@@ -472,15 +508,16 @@ test.describe("editor + render", () => {
             eMax: editor.scrollHeight - editor.clientHeight,
             pH: preview.scrollHeight,
             pending: document.querySelectorAll("#preview .mermaid[data-pending]").length,
-            svgs: document.querySelectorAll("#preview .mermaid svg").length,
+            svgs: document.querySelectorAll('#preview .mermaid svg[id^="mermaid-"]').length,
           };
         }),
       );
     }
 
-    // Unchanged diagrams must be reused — not wiped/re-rendered on each keystroke.
+    // Unchanged diagrams must be reused — not wiped on each keystroke.
+    // Count may rise if a late success lands; it must not fall (wipe/re-render).
     expect(Math.max(...samples.map((s) => s.pending))).toBe(0);
-    expect(Math.min(...samples.map((s) => s.svgs))).toBe(svgCountBefore);
+    expect(Math.min(...samples.map((s) => s.svgs))).toBeGreaterThanOrEqual(svgCountBefore);
 
     const editorRange = Math.max(...samples.map((s) => s.editor)) - Math.min(...samples.map((s) => s.editor));
     const previewRange =

@@ -19,6 +19,7 @@ RewriteEngine On
   AddType image/jpeg .jpg .jpeg
   AddType image/avif .avif
   AddType image/png .png
+  AddType audio/mpeg .mp3
   AddType application/manifest+json .webmanifest
   # Precompressed siblings keep the original MIME via ForceType below
   AddEncoding br .br
@@ -131,6 +132,7 @@ FileETag MTime Size
   ExpiresByType application/manifest+json "access plus 0 seconds"
   ExpiresByType image/jpeg "access plus 1 year"
   ExpiresByType image/avif "access plus 1 year"
+  ExpiresByType audio/mpeg "access plus 1 year"
   ExpiresByType image/png "access plus 1 year"
 </IfModule>
 
@@ -164,6 +166,9 @@ FileETag MTime Size
     Header set Cache-Control "no-cache"
   </FilesMatch>
   <FilesMatch "\.(jpg|jpeg|avif|png)$">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+  <FilesMatch "^drops\.[a-f0-9]+\.mp3$">
     Header set Cache-Control "public, max-age=31536000, immutable"
   </FilesMatch>
 

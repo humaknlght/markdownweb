@@ -827,6 +827,11 @@ html[data-theme="fancy"] .outline-row.is-active {
   }
 }
 
+/* Keep Zen out of the open list; the closed select still shows the label. */
+#theme-select option[value="zen"] {
+  display: none;
+}
+
 html {
   color-scheme: var(--color-scheme);
 }
@@ -2493,6 +2498,7 @@ body[data-view="slides"] .preview .md-section-toggle {
 }
 
 .preview .mermaid {
+  position: relative;
   overflow: auto;
   margin: 1rem 0;
   background: var(--mermaid-bg);
@@ -2506,10 +2512,66 @@ body[data-view="slides"] .preview .md-section-toggle {
   background: var(--mermaid-bg);
 }
 
+.preview .mermaid-zoom-btn {
+  position: absolute;
+  top: 0.4rem;
+  right: 0.4rem;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--chrome-border, rgba(127, 127, 127, 0.35));
+  border-radius: 0.4rem;
+  background: color-mix(in srgb, var(--mermaid-bg) 88%, var(--chrome-surface, #fff));
+  color: var(--mermaid-fg, var(--preview-fg, inherit));
+  cursor: pointer;
+  opacity: 0.55;
+  transition: opacity 0.15s ease, background 0.15s ease;
+}
+
+.preview .mermaid:hover .mermaid-zoom-btn,
+.preview .mermaid:focus-within .mermaid-zoom-btn,
+.preview .mermaid-zoom-btn:focus-visible {
+  opacity: 1;
+}
+
+.preview .mermaid-zoom-btn:hover,
+.preview .mermaid-zoom-btn:focus-visible {
+  background: var(--chrome-surface, var(--mermaid-bg));
+}
+
+.preview .mermaid-zoom-btn:focus-visible {
+  outline: 2px solid var(--chrome-focus, Highlight);
+  outline-offset: 1px;
+}
+
+.preview .mermaid-zoom-btn svg {
+  display: block;
+  width: 1.05rem;
+  height: 1.05rem;
+  margin: 0;
+  max-width: none;
+  background: transparent;
+}
+
+@media (hover: none) {
+  .preview .mermaid-zoom-btn {
+    opacity: 0.85;
+  }
+}
+
 .preview .mermaid[data-pending] {
   position: relative;
   min-height: 2.5rem;
   color: transparent;
+}
+
+.preview .mermaid[data-pending] .mermaid-zoom-btn {
+  display: none;
 }
 
 .preview .mermaid[data-pending]::before {
@@ -2520,6 +2582,88 @@ body[data-view="slides"] .preview .md-section-toggle {
   color: var(--preview-muted);
   font-family: var(--font-ui);
   font-size: 0.875rem;
+}
+
+.mermaid-zoom-dialog {
+  width: 96vw;
+  height: min(92vh, 52rem);
+  max-width: 96vw;
+  max-height: calc(100% - 1.5rem);
+  margin: auto;
+  padding: 0;
+  border: 1px solid var(--chrome-border);
+  border-radius: 12px;
+  background: var(--mermaid-bg, var(--chrome-surface));
+  color: var(--mermaid-fg, var(--chrome-text));
+  box-shadow: var(--chrome-shadow, 0 16px 48px rgba(0, 0, 0, 0.28));
+  overflow: hidden;
+}
+
+.mermaid-zoom-dialog::backdrop {
+  background: color-mix(in srgb, #080a0e 72%, transparent);
+}
+
+.mermaid-zoom-dialog[open] {
+  display: flex;
+  flex-direction: column;
+}
+
+.mermaid-zoom-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.55rem 0.65rem;
+  border-bottom: 1px solid var(--chrome-border, rgba(127, 127, 127, 0.35));
+  background: var(--chrome-surface, var(--mermaid-bg));
+  color: var(--chrome-text);
+}
+
+.mermaid-zoom-level {
+  min-width: 3.25rem;
+  text-align: center;
+  font: 600 0.8125rem / 1 var(--font-ui, system-ui, sans-serif);
+  font-variant-numeric: tabular-nums;
+  color: var(--chrome-muted, var(--chrome-text));
+}
+
+.mermaid-zoom-toolbar .btn {
+  min-height: 2rem;
+  padding: 0 0.65rem;
+}
+
+.mermaid-zoom-toolbar #mermaid-zoom-close {
+  margin-left: auto;
+}
+
+.mermaid-zoom-stage {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 1rem;
+  background: var(--mermaid-bg);
+  outline: none;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.mermaid-zoom-stage svg {
+  display: block;
+  margin: 0 auto;
+  max-width: none;
+  height: auto;
+  background: var(--mermaid-bg);
+}
+
+html[data-theme="fancy"] .mermaid-zoom-dialog {
+  background: var(--fancy-glass, var(--mermaid-bg));
+  border-color: var(--fancy-glass-border, var(--chrome-border));
+  backdrop-filter: blur(18px) saturate(1.35);
+  -webkit-backdrop-filter: blur(18px) saturate(1.35);
+}
+
+html[data-theme="fancy"] .mermaid-zoom-toolbar {
+  background: color-mix(in srgb, var(--fancy-glass, #fff) 80%, transparent);
 }
 
 .preview .hljs-comment,

@@ -12,6 +12,7 @@ export const MIME = {
   ".jpeg": "image/jpeg",
   ".avif": "image/avif",
   ".png": "image/png",
+  ".mp3": "audio/mpeg",
   ".svg": "image/svg+xml",
   ".json": "application/json",
   ".webmanifest": "application/manifest+json",
@@ -70,6 +71,11 @@ export function headersFor(logicalPath, encoding, opts = {}) {
       : "no-cache";
   } else if (ext === ".jpg" || ext === ".jpeg" || ext === ".avif" || ext === ".png") {
     const hashed = /\.[a-f0-9]{8,}\.(?:jpg|jpeg|avif|png)$/i.test(base);
+    headers["Cache-Control"] = hashed
+      ? "public, max-age=31536000, immutable"
+      : "no-cache";
+  } else if (ext === ".mp3") {
+    const hashed = /\.[a-f0-9]{8,}\.mp3$/i.test(base);
     headers["Cache-Control"] = hashed
       ? "public, max-age=31536000, immutable"
       : "no-cache";
