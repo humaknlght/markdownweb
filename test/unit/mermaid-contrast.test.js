@@ -6,6 +6,15 @@ import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 
+/** Main + lazy Zen theme CSS (zen Mermaid tokens live in src/zen.css). */
+async function readThemeCss() {
+  const [styles, zen] = await Promise.all([
+    fs.readFile(path.join(root, "src/styles.css"), "utf8"),
+    fs.readFile(path.join(root, "src/zen.css"), "utf8"),
+  ]);
+  return `${styles}\n${zen}`;
+}
+
 const THEMES = [
   "github-light",
   "github-dark",
@@ -13,6 +22,7 @@ const THEMES = [
   "terminal",
   "salesforce",
   "fancy",
+  "zen",
 ];
 
 const MERMAID_VARS = [
@@ -188,7 +198,7 @@ describe("Mermaid theme contrast (WCAG 2.2 AA)", () => {
   });
 
   it("meets text (≥4.5:1) and UI (≥3:1) contrast for every theme", async () => {
-    const css = await fs.readFile(path.join(root, "src/styles.css"), "utf8");
+    const css = await readThemeCss();
 
     for (const theme of THEMES) {
       const t = parseMermaidTokens(css, theme);
@@ -227,7 +237,7 @@ describe("Mermaid theme contrast (WCAG 2.2 AA)", () => {
   });
 
   it("locks fancy series mid-pop hexes", async () => {
-    const css = await fs.readFile(path.join(root, "src/styles.css"), "utf8");
+    const css = await readThemeCss();
     const fancy = parseMermaidTokens(css, "fancy");
     for (const [name, hex] of Object.entries(FANCY_SERIES)) {
       assert.equal(fancy[name].toLowerCase(), hex, `fancy ${name}`);
@@ -244,7 +254,7 @@ describe("Mermaid theme contrast (WCAG 2.2 AA)", () => {
   });
 
   it("keeps gantt section bands distinct and label-readable when blended", async () => {
-    const css = await fs.readFile(path.join(root, "src/styles.css"), "utf8");
+    const css = await readThemeCss();
     for (const theme of THEMES) {
       const t = parseMermaidTokens(css, theme);
       const c = (name) => resolveColor(t, t[name]);

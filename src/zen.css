@@ -1,0 +1,317 @@
+/* Secret Zen theme — #theme=zen or 7× brand click. Page base #0b1c24. */
+html[data-theme="zen"] {
+  --chrome-bg: transparent;
+  --chrome-surface: rgba(255, 255, 255, 0.12);
+  --chrome-border: rgba(140, 200, 210, 0.42);
+  --chrome-text: #e8f4f6;
+  --chrome-muted: #9eb8be;
+  --chrome-hover: rgba(255, 255, 255, 0.2);
+  --chrome-focus: #5ec8c8;
+  --chrome-pressed-border: #7dd3c8;
+  --chrome-on-focus: #0b1c24;
+  --chrome-shadow: 0 14px 40px rgba(0, 0, 0, 0.4);
+  --editor-bg: transparent;
+  --editor-text: #e8f4f6;
+  --preview-bg: rgba(8, 28, 36, 0.5);
+  --preview-fg: #e8f4f6;
+  --preview-muted: #9eb8be;
+  --preview-link: #7dd3c8;
+  --preview-link-hover: #a8e6dc;
+  --preview-rule: rgba(140, 200, 210, 0.22);
+  --preview-code-bg: rgba(0, 0, 0, 0.3);
+  --preview-pre-bg: rgba(4, 18, 24, 0.62);
+  --preview-pre-border: rgba(140, 200, 210, 0.2);
+  --preview-quote: #7dd3c8;
+  --preview-font: "Avenir Next", "Segoe UI", "Helvetica Neue", sans-serif;
+  --preview-size: 1rem;
+  --heading-color: #ffffff;
+  --alert-note: #7dd3c8;
+  --alert-tip: #86efac;
+  --alert-important: #a5b4fc;
+  --alert-warning: #fcd34d;
+  --alert-caution: #fb7185;
+  --toast-bg: rgba(8, 28, 36, 0.82);
+  --toast-fg: #e8f4f6;
+  --color-scheme: dark;
+  --zen-glass: rgba(8, 28, 36, 0.5);
+  --zen-glass-border: rgba(140, 200, 210, 0.42);
+  --zen-margin: 0.85rem;
+  --syntax-comment: #7a9aa3;
+  --syntax-keyword: #f9a8d4;
+  --syntax-string: #86efac;
+  --syntax-number: #fcd34d;
+  --syntax-literal: #7dd3c8;
+  --syntax-built-in: #fdba74;
+  --syntax-type: #a5b4fc;
+  --syntax-attr: #7dd3c8;
+  --syntax-title: #fde68a;
+  --syntax-meta: #7a9aa3;
+  --syntax-deletion: #fb7185;
+  --syntax-addition: #86efac;
+  --mermaid-bg: #0b1c24;
+  --mermaid-fg: #e8f4f6;
+  --mermaid-node-bg: #1a4a52;
+  --mermaid-node-border: #7dd3c8;
+  --mermaid-cluster-bg: #2a3d5c;
+  --mermaid-cluster-border: #a5b4fc;
+  --mermaid-line: #9eb8be;
+  --mermaid-label-bg: #1a4a3a;
+  --mermaid-note-bg: #143038;
+  --mermaid-note-fg: #e8f4f6;
+  /* Distinct mid-pop fills (aligned with fancy) for gantt band separation + AA ink. */
+  --mermaid-series-1: #1588a8;
+  --mermaid-series-2: #9a6fe0;
+  --mermaid-series-3: #d45080;
+  --mermaid-series-4: #d4a040;
+  --mermaid-series-fg: #1a1208;
+  --mermaid-exclude: #102830;
+  --mermaid-gantt-0: var(--mermaid-series-1);
+  --mermaid-gantt-1: var(--mermaid-series-2);
+  --mermaid-gantt-2: var(--mermaid-series-3);
+  --mermaid-gantt-3: var(--mermaid-series-4);
+  --mermaid-gantt-section-opacity: 0.22;
+  --install-fill: var(--chrome-focus);
+  --install-fill-hover: color-mix(in srgb, var(--chrome-focus) 82%, white);
+  --install-fg: var(--chrome-on-focus);
+  --install-grad-a: #7dd3c8;
+  --install-grad-b: #5ec8c8;
+}
+
+html[data-theme="zen"],
+html[data-theme="zen"] body {
+  background-color: #0b1c24;
+  background-image: none;
+}
+
+#zen-canvas {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  display: block;
+}
+
+html[data-theme="zen"] .toolbar,
+html[data-theme="zen"] .panes,
+html[data-theme="zen"] .files-drawer,
+html[data-theme="zen"] .files-backdrop,
+html[data-theme="zen"] .toast,
+html[data-theme="zen"] .update-toast,
+html[data-theme="zen"] .external-modal,
+html[data-theme="zen"] .present-chrome {
+  position: relative;
+  z-index: 1;
+}
+
+html[data-theme="zen"] .toolbar {
+  /* Above .panes so dropdown menus (Present, etc.) aren't covered by the glass panels. */
+  z-index: 5;
+  margin: var(--zen-margin) var(--zen-margin) 0;
+  height: auto;
+  min-height: var(--toolbar-h);
+  border: 1px solid var(--zen-glass-border);
+  border-radius: 14px;
+  background: var(--zen-glass);
+  backdrop-filter: blur(18px) saturate(1.25);
+  -webkit-backdrop-filter: blur(18px) saturate(1.25);
+  box-shadow: var(--chrome-shadow);
+}
+
+html[data-theme="zen"] .brand {
+  color: #ffffff;
+  cursor: default;
+  text-shadow: 0 0 14px rgba(125, 211, 200, 0.28);
+}
+
+html[data-theme="zen"] .btn,
+html[data-theme="zen"] .select-label select {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(140, 200, 210, 0.42);
+  color: var(--chrome-text);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+html[data-theme="zen"] .dropdown-menu {
+  background: rgba(8, 28, 36, 0.82);
+  border-color: rgba(140, 200, 210, 0.42);
+  color: var(--chrome-text);
+  backdrop-filter: blur(22px) saturate(1.3);
+  -webkit-backdrop-filter: blur(22px) saturate(1.3);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+}
+
+html[data-theme="zen"] .btn:hover,
+html[data-theme="zen"] .select-label select:hover,
+html[data-theme="zen"] .dropdown-menu li button:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+html[data-theme="zen"] #share-btn {
+  background: var(--chrome-focus);
+  border-color: var(--chrome-focus);
+  color: var(--chrome-on-focus);
+}
+
+html[data-theme="zen"] #share-btn:hover {
+  background: color-mix(in srgb, var(--chrome-focus) 82%, white);
+  border-color: color-mix(in srgb, var(--chrome-focus) 82%, white);
+  color: var(--chrome-on-focus);
+}
+
+html[data-theme="zen"] .panes {
+  --splitter-track: 10px;
+  margin: 0.7rem var(--zen-margin) var(--zen-margin);
+  min-height: 0;
+  column-gap: var(--zen-margin);
+}
+
+html[data-theme="zen"] .panes.editor-collapsed,
+html[data-theme="zen"] .panes.preview-collapsed {
+  --splitter-track: 0px;
+  column-gap: 0;
+}
+
+html[data-theme="zen"] .editor-pane,
+html[data-theme="zen"] .preview-pane {
+  border: 1px solid var(--zen-glass-border);
+  border-radius: 14px;
+  background: var(--zen-glass);
+  backdrop-filter: blur(20px) saturate(1.3);
+  -webkit-backdrop-filter: blur(20px) saturate(1.3);
+  box-shadow: var(--chrome-shadow);
+}
+
+html[data-theme="zen"] .editor-pane {
+  overflow: hidden;
+}
+
+html[data-theme="zen"] .editor-wrap {
+  background: transparent;
+}
+
+html[data-theme="zen"] #editor::placeholder {
+  /* ≥4.5:1 vs zen page base (#0b1c24) when blended */
+  color: rgba(232, 244, 246, 0.72);
+}
+
+html[data-theme="zen"] .preview-pane {
+  overflow: auto;
+}
+
+html[data-theme="zen"] .preview {
+  color: var(--preview-fg);
+}
+
+html[data-theme="zen"] .preview h1::after,
+html[data-theme="zen"] .preview h2::after {
+  border-bottom-color: rgba(140, 200, 210, 0.22);
+}
+
+html[data-theme="zen"] .preview blockquote {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 0 10px 10px 0;
+  padding: 0.55rem 0.9rem;
+}
+
+html[data-theme="zen"] .preview pre {
+  border-radius: 10px;
+}
+
+html[data-theme="zen"] .preview .mermaid,
+html[data-theme="zen"] .preview .mermaid svg {
+  background: transparent;
+}
+
+html[data-theme="zen"] .preview .line-num {
+  background: transparent;
+  border-right-color: rgba(140, 200, 210, 0.16);
+  color: rgba(232, 244, 246, 0.5);
+}
+
+html[data-theme="zen"] .splitter {
+  background: rgba(140, 200, 210, 0.32);
+  border-radius: 999px;
+  align-self: stretch;
+  margin-block: 0.35rem;
+}
+
+html[data-theme="zen"] .splitter:hover,
+html[data-theme="zen"] .splitter:focus-visible,
+html[data-theme="zen"] .panes.is-resizing .splitter {
+  background: var(--chrome-focus);
+}
+
+html[data-theme="zen"] .toast {
+  border: 1px solid var(--zen-glass-border);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+html[data-theme="zen"] .files-drawer {
+  background: var(--zen-glass);
+  box-shadow: var(--chrome-shadow);
+  border-right-color: transparent;
+}
+
+html[data-theme="zen"] body.files-drawer-open .files-drawer {
+  border-right-color: var(--zen-glass-border);
+}
+
+html[data-theme="zen"] .files-drawer-header,
+html[data-theme="zen"] .files-section,
+html[data-theme="zen"] .outline-header {
+  border-bottom-color: var(--zen-glass-border);
+}
+
+html[data-theme="zen"] .files-drawer-actions .btn {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(140, 200, 210, 0.42);
+  color: var(--chrome-text);
+}
+
+html[data-theme="zen"] .files-drawer-actions .btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+html[data-theme="zen"] .files-tree-row:hover,
+html[data-theme="zen"] .files-tree-row:focus-visible,
+html[data-theme="zen"] .files-tree-row.is-selected,
+html[data-theme="zen"] .outline-row:hover,
+html[data-theme="zen"] .outline-row:focus-visible {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+html[data-theme="zen"] .files-tree-row.is-active-file,
+html[data-theme="zen"] .outline-row.is-active {
+  color: #fde68a;
+}
+
+@media (max-width: 800px) {
+  html[data-theme="zen"] .panes {
+    column-gap: 0;
+    row-gap: var(--zen-margin);
+    flex: 0 0 calc(100% - 2 * var(--zen-margin));
+    width: calc(100% - 2 * var(--zen-margin));
+    min-width: calc(100% - 2 * var(--zen-margin));
+  }
+
+  html[data-theme="zen"] .panes.editor-collapsed,
+  html[data-theme="zen"] .panes.preview-collapsed {
+    row-gap: 0;
+  }
+
+  html[data-theme="zen"] .splitter {
+    margin-block: 0;
+    margin-inline: 0.35rem;
+  }
+
+  html[data-theme="zen"] .toolbar-actions {
+    background: rgba(8, 28, 36, 0.78);
+    backdrop-filter: blur(18px) saturate(1.25);
+    -webkit-backdrop-filter: blur(18px) saturate(1.25);
+    border-color: var(--zen-glass-border);
+  }
+}

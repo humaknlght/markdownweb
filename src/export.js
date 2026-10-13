@@ -96,6 +96,11 @@ function cleanupClone(clone) {
     el.remove();
   }
 
+  // Mermaid zoom controls are screen-only chrome.
+  for (const el of clone.querySelectorAll(".mermaid-zoom-btn")) {
+    el.remove();
+  }
+
   // Unwrap temporary fold animation wrappers (deepest first).
   const anims = [...clone.querySelectorAll(".md-section-anim")].reverse();
   for (const wrap of anims) {

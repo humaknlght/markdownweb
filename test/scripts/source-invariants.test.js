@@ -55,12 +55,22 @@ describe("static source invariants", () => {
     const app = await fs.readFile(path.join(root, "src/app.js"), "utf8");
     assert.match(
       app,
-      /THEMES = \["github-light", "github-dark", "sepia", "terminal", "salesforce", "fancy"\]/,
+      /THEMES = \[\s*"github-light",\s*"github-dark",\s*"sepia",\s*"terminal",\s*"salesforce",\s*"fancy",\s*"zen",\s*\]/,
     );
     assert.match(app, /import\("\.\/export\.js"\)/);
     assert.doesNotMatch(app, /from ["']\.\/export\.js["']/);
     assert.match(app, /import\("\.\/chrome-ai\.js"\)/);
     assert.doesNotMatch(app, /from ["']\.\/chrome-ai\.js["']/);
+    assert.match(app, /import\("\.\/theme-zen\.js"\)/);
+    assert.doesNotMatch(app, /from ["']\.\/theme-zen\.js["']/);
+    assert.match(app, /loadZenCss/);
+    assert.match(app, /zen\.css/);
+    const zenCss = await fs.readFile(path.join(root, "src/zen.css"), "utf8");
+    assert.match(zenCss, /data-theme="zen"/);
+    assert.doesNotMatch(
+      await fs.readFile(path.join(root, "src/styles.css"), "utf8"),
+      /\/\* Secret Zen theme/,
+    );
     assert.doesNotMatch(app, /cdn-integrity-urls\.js/);
     assert.match(app, /cdnIntegrityUrlSet/);
     assert.match(app, /script\[type=["']importmap["']\]/);
@@ -72,6 +82,7 @@ describe("static source invariants", () => {
       "terminal",
       "salesforce",
       "fancy",
+      "zen",
     ]) {
       assert.match(html, new RegExp(theme));
     }

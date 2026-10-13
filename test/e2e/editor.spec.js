@@ -225,6 +225,38 @@ test.describe("editor + render", () => {
     await expect(page.locator("#preview .mermaid svg")).toBeVisible({ timeout: 20_000 });
   });
 
+  test("mermaid zoom enlarges only the diagram", async ({ page }) => {
+    await openFreshApp(page);
+
+    await page.locator("#editor").fill(
+      "# Before\n\n```mermaid\nflowchart LR\n  A-->B\n```\n\n# After",
+    );
+    const diagram = page.locator("#preview .mermaid").first();
+    await expect(diagram.locator("svg")).toBeVisible({ timeout: 20_000 });
+    await expect(diagram.locator(".mermaid-zoom-btn")).toBeVisible();
+
+    const previewHeading = page.locator("#preview h1", { hasText: "Before" });
+    await expect(previewHeading).toBeVisible();
+
+    await diagram.locator(".mermaid-zoom-btn").click();
+    const zoomDialog = page.locator("#mermaid-zoom-dialog");
+    await expect(zoomDialog).toBeVisible();
+    await expect(zoomDialog.locator(".mermaid-zoom-stage svg")).toBeVisible();
+
+    // Preview content stays put; only the dialog shows the enlarged diagram.
+    await expect(previewHeading).toBeVisible();
+    await expect(page.locator("#preview h1", { hasText: "After" })).toBeVisible();
+
+    const beforeIn = await zoomDialog.locator("#mermaid-zoom-level").textContent();
+    await zoomDialog.locator("#mermaid-zoom-in").click();
+    await expect
+      .poll(async () => zoomDialog.locator("#mermaid-zoom-level").textContent())
+      .not.toBe(beforeIn);
+
+    await zoomDialog.locator("#mermaid-zoom-close").click();
+    await expect(zoomDialog).toBeHidden();
+  });
+
   test("gantt chart relayouts at full preview width without CSS zoom", async ({ page }) => {
     await openFreshApp(page);
     await page.setViewportSize({ width: 1400, height: 900 });

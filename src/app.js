@@ -107,6 +107,36 @@ function loadChromeAiModule() {
   return chromeAiModulePromise;
 }
 
+/** Lazy-loaded WebGL water backdrop for the secret Zen theme. */
+let zenModulePromise;
+function loadZenModule() {
+  zenModulePromise ??= import("./theme-zen.js");
+  return zenModulePromise;
+}
+
+/** Lazy-loaded Zen stylesheet (not in the main CSS bundle). */
+let zenCssPromise;
+function loadZenCss() {
+  zenCssPromise ??= new Promise((resolve, reject) => {
+    if (document.getElementById("zen-theme-css")) {
+      resolve();
+      return;
+    }
+    const href =
+      typeof __ZEN_CSS_URL__ !== "undefined"
+        ? /** @type {string} */ (__ZEN_CSS_URL__)
+        : new URL("./zen.css", import.meta.url).href;
+    const link = document.createElement("link");
+    link.id = "zen-theme-css";
+    link.rel = "stylesheet";
+    link.href = href;
+    link.onload = () => resolve();
+    link.onerror = () => reject(new Error("Failed to load zen.css"));
+    document.head.appendChild(link);
+  });
+  return zenCssPromise;
+}
+
 /** Cheap probe so unsupported browsers never fetch the chrome-ai chunk. */
 function anyWritingAiGlobalPresent() {
   return (
@@ -229,7 +259,15 @@ const TEXT_FILE_RE = /\.(md|markdown|mdown|mkd|txt|html|htm)$/i;
 const IMAGE_MIME_RE = /^image\/(png|jpe?g|gif|webp|bmp|svg\+xml)$/i;
 /** Raw clipboard image size cap before base64 (keeps drafts / history workable). */
 const IMAGE_PASTE_MAX_BYTES = 2 * 1024 * 1024;
-const THEMES = ["github-light", "github-dark", "sepia", "terminal", "salesforce", "fancy"];
+const THEMES = [
+  "github-light",
+  "github-dark",
+  "sepia",
+  "terminal",
+  "salesforce",
+  "fancy",
+  "zen",
+];
 const WIDTHS = ["readable", "full"];
 const VIEWS = ["edit", "reader", "present", "slides"];
 
@@ -298,6 +336,13 @@ const presentExitBtn = document.getElementById("present-exit-btn");
 const presentProgress = document.getElementById("present-progress");
 const externalModal = document.getElementById("external-modal");
 const cloudSpeechModal = document.getElementById("cloud-speech-modal");
+const mermaidZoomDialog = document.getElementById("mermaid-zoom-dialog");
+const mermaidZoomStage = document.getElementById("mermaid-zoom-stage");
+const mermaidZoomLevel = document.getElementById("mermaid-zoom-level");
+const mermaidZoomInBtn = document.getElementById("mermaid-zoom-in");
+const mermaidZoomOutBtn = document.getElementById("mermaid-zoom-out");
+const mermaidZoomResetBtn = document.getElementById("mermaid-zoom-reset");
+const mermaidZoomCloseBtn = document.getElementById("mermaid-zoom-close");
 const installBtn = document.getElementById("install-btn");
 const updateToast = document.getElementById("update-toast");
 const updateReloadBtn = document.getElementById("update-reload-btn");
@@ -1139,6 +1184,15 @@ const mermaidSources = new WeakMap();
 const mermaidHeightCache = new Map();
 let mermaidScaleRaf = 0;
 let mermaidRelayoutTimer = 0;
+const MERMAID_ZOOM_MIN = 0.5;
+const MERMAID_ZOOM_MAX = 4;
+const MERMAID_ZOOM_STEP = 0.25;
+/** @type {number} */
+let mermaidZoomFactor = 1;
+/** @type {number} */
+let mermaidZoomBaseW = 0;
+const MERMAID_ZOOM_BTN_SVG =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/><path d="M11 8v6"/><path d="M8 11h6"/></svg>';
 
 /**
  * Mermaid replaces diagram text with SVG. Keep the source so fluid diagrams
@@ -1203,6 +1257,153 @@ function mermaidPreviewUnsettled() {
 }
 
 /**
+ * Add a zoom control on a rendered Mermaid host (idempotent).
+ * @param {HTMLElement} host
+ */
+function ensureMermaidZoomControls(host) {
+  if (!host.querySelector("svg")) {
+    host.querySelector(".mermaid-zoom-btn")?.remove();
+    return;
+  }
+  if (host.querySelector(":scope > .mermaid-zoom-btn")) return;
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "mermaid-zoom-btn";
+  btn.title = "Zoom diagram";
+  btn.setAttribute("aria-label", "Zoom diagram");
+  btn.innerHTML = MERMAID_ZOOM_BTN_SVG;
+  host.appendChild(btn);
+}
+
+function clampMermaidZoom(factor) {
+  return Math.min(MERMAID_ZOOM_MAX, Math.max(MERMAID_ZOOM_MIN, factor));
+}
+
+function applyMermaidZoom() {
+  const svg = mermaidZoomStage?.querySelector("svg");
+  if (!svg || !(mermaidZoomBaseW > 0)) return;
+  mermaidZoomFactor = clampMermaidZoom(mermaidZoomFactor);
+  svg.style.width = `${mermaidZoomBaseW * mermaidZoomFactor}px`;
+  svg.style.height = "auto";
+  svg.style.maxWidth = "none";
+  if (mermaidZoomLevel) {
+    mermaidZoomLevel.textContent = `${Math.round(mermaidZoomFactor * 100)}%`;
+  }
+}
+
+/** Fit the zoomed SVG to the dialog stage width. */
+function fitMermaidZoom() {
+  if (!(mermaidZoomBaseW > 0) || !mermaidZoomStage) return;
+  const stageW = mermaidZoomStage.clientWidth;
+  if (!(stageW > 0)) {
+    mermaidZoomFactor = 1;
+  } else {
+    mermaidZoomFactor = clampMermaidZoom((stageW * 0.92) / mermaidZoomBaseW);
+  }
+  applyMermaidZoom();
+}
+
+/**
+ * Open the zoom dialog for a Mermaid host. Scales only that diagram so text
+ * stays readable without changing the rest of the preview.
+ * @param {HTMLElement} host
+ */
+function openMermaidZoom(host) {
+  if (!mermaidZoomDialog || !mermaidZoomStage) return;
+  const srcSvg = host.querySelector("svg");
+  if (!srcSvg) return;
+
+  const clone = /** @type {SVGElement} */ (srcSvg.cloneNode(true));
+  clone.removeAttribute("width");
+  clone.removeAttribute("height");
+  clone.style.maxWidth = "none";
+  clone.style.width = "";
+  clone.style.height = "auto";
+
+  const vb = clone.viewBox?.baseVal;
+  const fromNatural = Number(clone.dataset.mermaidNatural);
+  const fromVb = vb && vb.width > 0 ? vb.width : 0;
+  mermaidZoomBaseW =
+    fromVb ||
+    (Number.isFinite(fromNatural) && fromNatural > 0
+      ? fromNatural
+      : srcSvg.getBoundingClientRect().width) ||
+    400;
+  mermaidZoomFactor = 1;
+  mermaidZoomStage.replaceChildren(clone);
+  applyMermaidZoom();
+  mermaidZoomDialog.showModal();
+
+  // After layout, fit to the stage (preview often rendered the diagram narrow).
+  requestAnimationFrame(() => {
+    if (!mermaidZoomDialog?.open) return;
+    fitMermaidZoom();
+    mermaidZoomStage.focus({ preventScroll: true });
+  });
+}
+
+function closeMermaidZoom() {
+  if (!mermaidZoomDialog?.open) return;
+  mermaidZoomDialog.close();
+}
+
+function onMermaidZoomDialogClose() {
+  mermaidZoomStage?.replaceChildren();
+  mermaidZoomBaseW = 0;
+  mermaidZoomFactor = 1;
+}
+
+function stepMermaidZoom(delta) {
+  mermaidZoomFactor = clampMermaidZoom(mermaidZoomFactor + delta);
+  applyMermaidZoom();
+}
+
+function setupMermaidZoom() {
+  preview?.addEventListener("click", (e) => {
+    const btn = e.target.closest(".mermaid-zoom-btn");
+    if (!btn || !preview.contains(btn)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const host = btn.closest(".mermaid");
+    if (host) openMermaidZoom(host);
+  });
+
+  mermaidZoomInBtn?.addEventListener("click", () => stepMermaidZoom(MERMAID_ZOOM_STEP));
+  mermaidZoomOutBtn?.addEventListener("click", () => stepMermaidZoom(-MERMAID_ZOOM_STEP));
+  mermaidZoomResetBtn?.addEventListener("click", () => fitMermaidZoom());
+  mermaidZoomCloseBtn?.addEventListener("click", () => closeMermaidZoom());
+  mermaidZoomDialog?.addEventListener("close", onMermaidZoomDialogClose);
+  mermaidZoomDialog?.addEventListener("click", (e) => {
+    // Click on the dialog frame (not toolbar/stage) closes — same as backdrop intent
+    // when the dialog is sized under the viewport.
+    if (e.target === mermaidZoomDialog) closeMermaidZoom();
+  });
+  mermaidZoomStage?.addEventListener(
+    "wheel",
+    (e) => {
+      if (!mermaidZoomDialog?.open) return;
+      if (!(e.ctrlKey || e.metaKey)) return;
+      e.preventDefault();
+      stepMermaidZoom(e.deltaY < 0 ? MERMAID_ZOOM_STEP : -MERMAID_ZOOM_STEP);
+    },
+    { passive: false },
+  );
+  mermaidZoomDialog?.addEventListener("keydown", (e) => {
+    if (!mermaidZoomDialog.open) return;
+    if (e.key === "+" || e.key === "=") {
+      e.preventDefault();
+      stepMermaidZoom(MERMAID_ZOOM_STEP);
+    } else if (e.key === "-" || e.key === "_") {
+      e.preventDefault();
+      stepMermaidZoom(-MERMAID_ZOOM_STEP);
+    } else if (e.key === "0" && !e.metaKey && !e.ctrlKey) {
+      e.preventDefault();
+      fitMermaidZoom();
+    }
+  });
+}
+
+/**
  * Tag natural size after Mermaid paints. Fluid = filled the host at render
  * (should re-layout when the preview width changes). Content-sized diagrams
  * only CSS-shrink when the host is narrower.
@@ -1211,7 +1412,11 @@ function syncMermaidSvgSizes() {
   let needsRelayout = false;
   for (const host of preview.querySelectorAll(".mermaid")) {
     const svg = host.querySelector("svg");
-    if (!svg) continue;
+    if (!svg) {
+      ensureMermaidZoomControls(host);
+      continue;
+    }
+    ensureMermaidZoomControls(host);
     const hostW = host.clientWidth;
     if (hostW < 1) continue;
 
@@ -1915,32 +2120,40 @@ function registerServiceWorker() {
   if (!("serviceWorker" in navigator)) return;
 
   let waitingForUpdateReload = false;
+  const desiredSwUrl = new URL(resolveServiceWorkerUrl(), window.location.href).href;
 
   navigator.serviceWorker.addEventListener("controllerchange", () => {
     if (waitingForUpdateReload) window.location.reload();
   });
 
+  const activateWaiting = (worker) => {
+    if (!worker) return;
+    waitingForUpdateReload = true;
+    worker.postMessage("SKIP_WAITING");
+  };
+
   const watchRegistration = (registration) => {
     const offerUpdate = (worker) => {
-      if (!updateToast || !worker) return;
+      if (!worker) return;
+      const activeUrl = registration.active?.scriptURL || "";
+      // Hashed → stable sw.js (or any script-URL change): activate immediately so
+      // users are not stuck on a deleted sw.<hash>.js with only a tiny toast.
+      if (activeUrl && activeUrl !== desiredSwUrl) {
+        activateWaiting(worker);
+        return;
+      }
+      if (!updateToast || !navigator.serviceWorker.controller) return;
       updateToast.hidden = false;
-      updateReloadBtn.onclick = () => {
-        waitingForUpdateReload = true;
-        worker.postMessage("SKIP_WAITING");
-      };
+      updateReloadBtn.onclick = () => activateWaiting(worker);
     };
 
-    if (registration.waiting && navigator.serviceWorker.controller) {
-      offerUpdate(registration.waiting);
-    }
+    if (registration.waiting) offerUpdate(registration.waiting);
 
     registration.addEventListener("updatefound", () => {
       const worker = registration.installing;
       if (!worker) return;
       worker.addEventListener("statechange", () => {
-        if (worker.state === "installed" && navigator.serviceWorker.controller) {
-          offerUpdate(worker);
-        }
+        if (worker.state === "installed") offerUpdate(worker);
       });
     });
   };
@@ -1956,8 +2169,8 @@ function registerServiceWorker() {
         }
       });
     })
-    .catch(() => {
-      /* SW optional — app still works online without it */
+    .catch((err) => {
+      console.warn("Service worker registration failed:", err);
     });
 }
 
@@ -2573,6 +2786,10 @@ function toggleOverflowMenu() {
 
 /** Close the topmost open menu/drawer. Returns true if something was dismissed. */
 function dismissOpenOverlay() {
+  if (mermaidZoomDialog?.open) {
+    closeMermaidZoom();
+    return true;
+  }
   if (viewModeMenu && !viewModeMenu.hidden) {
     closeViewModeMenu();
     return true;
@@ -2625,6 +2842,7 @@ function setTheme(theme, { persist = true } = {}) {
   if (photoCredit) {
     photoCredit.hidden = next !== "fancy";
   }
+  syncZenTheme(next === "zen");
   if (persist) {
     try {
       localStorage.setItem(STORAGE_KEYS.theme, next);
@@ -2632,6 +2850,83 @@ function setTheme(theme, { persist = true } = {}) {
       /* storage may be unavailable */
     }
   }
+}
+
+/** Desired Zen backdrop state — guards against theme flips during import. */
+let zenThemeWanted = false;
+/** @type {null | ((e: Event) => void)} */
+let zenTypingListener = null;
+let zenTypingLastMs = 0;
+
+function detachZenTypingRipples() {
+  if (!zenTypingListener) return;
+  editor.removeEventListener("input", zenTypingListener);
+  zenTypingListener = null;
+}
+
+function attachZenTypingRipples(mod) {
+  detachZenTypingRipples();
+  if (prefersReducedMotion()) return;
+  zenTypingListener = () => {
+    const now = performance.now();
+    if (now - zenTypingLastMs < 100) return;
+    zenTypingLastMs = now;
+    const len = Math.max(1, editor.value.length);
+    const x = Math.min(1, Math.max(0, editor.selectionStart / len));
+    const y = 0.35 + Math.random() * 0.3;
+    mod.addZenRipple({ x, y, strength: 0.16 });
+  };
+  editor.addEventListener("input", zenTypingListener);
+}
+
+async function syncZenTheme(active) {
+  zenThemeWanted = active;
+  if (!active) {
+    detachZenTypingRipples();
+    if (zenModulePromise) {
+      try {
+        const mod = await zenModulePromise;
+        mod.stopZenBackdrop();
+      } catch {
+        /* module load failed; nothing to stop */
+      }
+    }
+    return;
+  }
+  try {
+    // Stylesheet + WebGL chunk load only when Zen is unlocked.
+    const [, mod] = await Promise.all([loadZenCss(), loadZenModule()]);
+    if (!zenThemeWanted) {
+      mod.stopZenBackdrop();
+      detachZenTypingRipples();
+      return;
+    }
+    mod.startZenBackdrop({ reducedMotion: prefersReducedMotion() });
+    attachZenTypingRipples(mod);
+  } catch {
+    /* CSS / WebGL unavailable — fall back to whatever tokens are present */
+  }
+}
+
+/** Secret unlock: 7 rapid clicks on the brand title. */
+let zenBrandClicks = 0;
+let zenBrandClickTimer = 0;
+
+function setupZenBrandUnlock() {
+  const brand = document.querySelector(".brand");
+  if (!brand) return;
+  brand.addEventListener("click", () => {
+    if (document.documentElement.dataset.theme === "zen") return;
+    window.clearTimeout(zenBrandClickTimer);
+    zenBrandClicks += 1;
+    zenBrandClickTimer = window.setTimeout(() => {
+      zenBrandClicks = 0;
+    }, 2000);
+    if (zenBrandClicks < 7) return;
+    zenBrandClicks = 0;
+    setTheme("zen");
+    showToast("Zen");
+  });
 }
 
 function setPreviewWidth(width, { persist = true } = {}) {
@@ -7397,6 +7692,7 @@ async function init() {
   setupPwa();
   setupFilesDrawer();
   setupDocOutline();
+  setupMermaidZoom();
   setupStorageSync();
   historyIdbReady = await probeHistoryIdb();
   if (historyIdbReady) {
@@ -7571,6 +7867,8 @@ async function init() {
       syncHashForView(currentView);
     }
   });
+
+  setupZenBrandUnlock();
 
   widthSelect.addEventListener("change", () => {
     setPreviewWidth(widthSelect.value, { persist: true });
@@ -7761,6 +8059,10 @@ async function init() {
         e.preventDefault();
         e.stopPropagation();
       }
+      return;
+    }
+    if (mermaidZoomDialog?.open) {
+      // Zoom dialog owns Escape / +/- ; skip app shortcuts (incl. present nav).
       return;
     }
     if (setupChromeAi.isDialogOpen?.()) {
