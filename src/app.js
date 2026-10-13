@@ -1215,7 +1215,8 @@ function takeMermaidRenderReuse() {
   /** @type {Map<string, { svg: SVGElement, height: number }[]>} */
   const bySource = new Map();
   for (const el of preview.querySelectorAll(".mermaid")) {
-    const svg = el.querySelector("svg");
+    // Direct child only — zoom-button icons are nested SVGs.
+    const svg = el.querySelector(":scope > svg");
     const src = mermaidSources.get(el);
     if (!svg || !src) continue;
     const height = el.offsetHeight;
@@ -1261,7 +1262,7 @@ function mermaidPreviewUnsettled() {
  * @param {HTMLElement} host
  */
 function ensureMermaidZoomControls(host) {
-  if (!host.querySelector("svg")) {
+  if (!host.querySelector(":scope > svg")) {
     host.querySelector(".mermaid-zoom-btn")?.remove();
     return;
   }
@@ -1310,7 +1311,7 @@ function fitMermaidZoom() {
  */
 function openMermaidZoom(host) {
   if (!mermaidZoomDialog || !mermaidZoomStage) return;
-  const srcSvg = host.querySelector("svg");
+  const srcSvg = host.querySelector(":scope > svg");
   if (!srcSvg) return;
 
   const clone = /** @type {SVGElement} */ (srcSvg.cloneNode(true));
@@ -1411,7 +1412,7 @@ function setupMermaidZoom() {
 function syncMermaidSvgSizes() {
   let needsRelayout = false;
   for (const host of preview.querySelectorAll(".mermaid")) {
-    const svg = host.querySelector("svg");
+    const svg = host.querySelector(":scope > svg");
     if (!svg) {
       ensureMermaidZoomControls(host);
       continue;
@@ -1473,7 +1474,7 @@ function relayoutFluidMermaidDiagrams() {
   /** @type {HTMLElement[]} */
   const targets = [];
   for (const el of preview.querySelectorAll(".mermaid")) {
-    const svg = el.querySelector("svg");
+    const svg = el.querySelector(":scope > svg");
     if (!svg || svg.dataset.mermaidFluid !== "1") continue;
     if (!mermaidSources.has(el)) continue;
     const natural = Number(svg.dataset.mermaidNatural);
@@ -1565,7 +1566,7 @@ async function renderMermaidDiagrams({ force = false } = {}) {
   const gen = mermaidGen;
   for (const el of all) {
     // Don't blank diagrams that already rendered (re-entry from slide change).
-    if (!el.querySelector("svg")) {
+    if (!el.querySelector(":scope > svg")) {
       rememberMermaidSource(el);
       el.setAttribute("data-pending", "");
     }
@@ -1607,7 +1608,7 @@ async function renderMermaidDiagrams({ force = false } = {}) {
   for (const el of nodes) {
     el.removeAttribute("data-pending");
     // Fresh SVG from this run — retag natural/fluid at the current host width.
-    const svg = el.querySelector("svg");
+    const svg = el.querySelector(":scope > svg");
     if (svg) {
       fixMermaidGanttLabels(svg);
       delete svg.dataset.mermaidNatural;

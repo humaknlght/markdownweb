@@ -469,17 +469,21 @@ test.describe("editor + render", () => {
     await page.setViewportSize({ width: 1400, height: 900 });
 
     await page.locator("#editor").fill(`${mermaidFixture.replace(/\s+$/, "")}\n\n`);
+    // Wait until every Mermaid host has its diagram SVG — pending=0 alone can
+    // race a late paint (fixture has 19 fences; CI saw 18 then 19 while typing).
     await expect
-      .poll(async () => page.locator("#preview .mermaid > svg").count(), { timeout: 90_000 })
-      .toBeGreaterThanOrEqual(10);
-    await expect
-      .poll(
-        async () => page.locator("#preview .mermaid[data-pending]").count(),
-        { timeout: 90_000 },
-      )
-      .toBe(0);
+      .poll(async () => {
+        return page.evaluate(() => {
+          const hosts = [...document.querySelectorAll("#preview .mermaid")];
+          if (hosts.length < 10) return false;
+          if (hosts.some((h) => h.hasAttribute("data-pending"))) return false;
+          return hosts.every((h) => h.querySelector(":scope > svg"));
+        });
+      }, { timeout: 90_000 })
+      .toBe(true);
 
     const svgCountBefore = await page.locator("#preview .mermaid > svg").count();
+    expect(svgCountBefore).toBe(await page.locator("#preview .mermaid").count());
 
     await page.locator("#sync-scroll-btn").click();
     await expect(page.locator("#sync-scroll-btn")).toHaveAttribute("aria-pressed", "true");
