@@ -8,3 +8,6 @@ playwright-report/
 blob-report/
 # Synthesized by scripts/serve.mjs for npm run dev; never commit build output.
 src/sw.js
+# Host-specific Google Drive credentials (copy from google-drive-config.example.json).
+src/google-drive-config.json
+google-drive-config.json

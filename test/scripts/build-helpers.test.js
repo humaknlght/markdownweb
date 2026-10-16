@@ -2,6 +2,8 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
   buildContentSecurityPolicy,
+  buildDriveHelperContentSecurityPolicy,
+  buildDriveHelperScriptSrc,
   buildScriptSrc,
   extractInlineScripts,
   inlineScriptHashes,
@@ -52,6 +54,18 @@ describe("csp.mjs", () => {
     assert.match(csp, /default-src 'self'/);
     assert.match(csp, /object-src 'none'/);
     assert.match(csp, /media-src 'self' data: blob:/);
+    assert.match(csp, /connect-src[^;]*www\.googleapis\.com/);
+    assert.doesNotMatch(csp, /apis\.google\.com/);
+  });
+
+  it("builds Drive helper CSP with Google origins", () => {
+    const src = buildDriveHelperScriptSrc([]);
+    assert.match(src, /accounts\.google\.com/);
+    assert.doesNotMatch(src, /apis\.google\.com/);
+    const csp = buildDriveHelperContentSecurityPolicy(src);
+    assert.match(csp, /frame-src[^;]*accounts\.google\.com/);
+    assert.doesNotMatch(csp, /docs\.google\.com/);
+    assert.match(csp, /connect-src[^;]*www\.googleapis\.com/);
   });
 });
 
@@ -111,6 +125,8 @@ describe("pwa.mjs", () => {
 
   it("treats only unhashed shell paths as mutable", () => {
     assert.equal(isMutableShellPath("/index.html"), true);
+    assert.equal(isMutableShellPath("/drive-helper.html"), true);
+    assert.equal(isMutableShellPath("/google-drive-config.json"), true);
     assert.equal(isMutableShellPath("/"), true);
     assert.equal(isMutableShellPath("/manifest.webmanifest"), true);
     assert.equal(isMutableShellPath("/sw.js"), true);

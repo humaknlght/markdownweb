@@ -1809,6 +1809,33 @@ html.is-booting .files-backdrop {
   white-space: nowrap;
 }
 
+.files-source-toggle {
+  display: inline-flex;
+  flex-shrink: 0;
+  border: 1px solid var(--chrome-border, #30363d);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.files-source-toggle .files-source-btn {
+  font-size: 0.65rem;
+  padding: 0.15rem 0.4rem;
+  min-height: 1.35rem;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--chrome-muted, #8b949e);
+}
+
+.files-source-toggle .files-source-btn.is-active {
+  background: var(--chrome-hover, #21262d);
+  color: var(--chrome-fg, #e6edf3);
+}
+
+body.files-source-drive .local-only {
+  display: none !important;
+}
+
 .files-drawer-actions {
   display: flex;
   flex-wrap: wrap;

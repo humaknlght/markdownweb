@@ -151,6 +151,8 @@ describe("static source invariants", () => {
     assert.match(ht, /DirectorySlash On/);
     assert.match(ht, /__SCRIPT_SRC__/);
     assert.match(ht, /__GUIDE_URL__/);
+    assert.match(ht, /__DRIVE_HELPER_CSP__/);
+    assert.match(ht, /Files "drive-helper\.html"/);
     assert.match(ht, /rel=prefetch/);
     assert.match(ht, /web-share=\(\)/);
     assert.match(ht, /fullscreen=\(self\)/);
@@ -163,5 +165,7 @@ describe("static source invariants", () => {
     assert.match(ht, /Cross-Origin-Resource-Policy/);
     assert.match(ht, /FileETag MTime Size/);
     assert.match(ht, /FilesMatch "\^sw\\.js/);
+    assert.match(ht, /Cross-Origin-Embedder-Policy "require-corp"/);
+    assert.match(ht, /www\.googleapis\.com/);
   });
 });

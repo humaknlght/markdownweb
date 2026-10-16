@@ -26,6 +26,8 @@ import {
   inlineScriptHashes,
   buildScriptSrc,
   buildContentSecurityPolicy,
+  buildDriveHelperScriptSrc,
+  buildDriveHelperContentSecurityPolicy,
 } from "./csp.mjs";
 import { applyCdnIntegrity, loadCdnIntegrity } from "./cdn-integrity.mjs";
 import { guideSourcePath } from "./sync-guide.mjs";
@@ -67,6 +69,10 @@ async function resolveCspConfig() {
       return {
         scriptSrc: parsed.scriptSrc,
         guideUrl: typeof parsed.guideUrl === "string" ? parsed.guideUrl : "./GUIDE.md",
+        driveHelperCsp:
+          typeof parsed.driveHelperCsp === "string"
+            ? parsed.driveHelperCsp
+            : buildDriveHelperContentSecurityPolicy(buildDriveHelperScriptSrc([])),
       };
     }
   } catch {
@@ -82,10 +88,14 @@ async function resolveCspConfig() {
   if (!hashes.length) {
     throw new Error(`No inline scripts found in ${htmlPath}`);
   }
-  return { scriptSrc: buildScriptSrc(hashes), guideUrl: "./GUIDE.md" };
+  return {
+    scriptSrc: buildScriptSrc(hashes),
+    guideUrl: "./GUIDE.md",
+    driveHelperCsp: buildDriveHelperContentSecurityPolicy(buildDriveHelperScriptSrc([])),
+  };
 }
 
-const { scriptSrc, guideUrl } = await resolveCspConfig();
+const { scriptSrc, guideUrl, driveHelperCsp } = await resolveCspConfig();
 const contentSecurityPolicy = buildContentSecurityPolicy(scriptSrc);
 
 const HTML_HEADERS = {
@@ -101,7 +111,22 @@ const HTML_HEADERS = {
   "Referrer-Policy": "strict-origin-when-cross-origin",
 };
 
+/** Drive helper popup: same security baseline, no COEP, Google-capable CSP. */
+const DRIVE_HELPER_HTML_HEADERS = {
+  "Cache-Control": "no-cache",
+  "Permissions-Policy": HTML_HEADERS["Permissions-Policy"],
+  "Strict-Transport-Security": "max-age=31536000",
+  "Content-Security-Policy": driveHelperCsp,
+  "X-Frame-Options": "DENY",
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+};
+
 function headersFor(logicalPath, encoding) {
+  const base = path.basename(logicalPath);
+  if (base === "drive-helper.html") {
+    return buildHeaders(logicalPath, encoding, { htmlHeaders: DRIVE_HELPER_HTML_HEADERS });
+  }
   return buildHeaders(logicalPath, encoding, { htmlHeaders: HTML_HEADERS });
 }
 

@@ -66,17 +66,25 @@ describe("production build invariants", { timeout: 180_000 }, () => {
       const ht = await fs.readFile(path.join(dist, ".htaccess"), "utf8");
       assert.doesNotMatch(ht, /__SCRIPT_SRC__/);
       assert.doesNotMatch(ht, /__GUIDE_URL__/);
+      assert.doesNotMatch(ht, /__DRIVE_HELPER_CSP__/);
       assert.match(ht, /'sha256-/);
       assert.match(ht, /Link "<\.\/GUIDE\.[a-f0-9]{8}\.md>;rel=prefetch"/);
       assert.match(ht, /FileETag MTime Size/);
       assert.match(ht, /FilesMatch "\^sw\\.js/);
       assert.match(ht, /Cache-Control "no-cache"/);
+      assert.match(ht, /Files "drive-helper\.html"/);
+      assert.match(ht, /Cross-Origin-Embedder-Policy "require-corp"/);
 
       const csp = JSON.parse(await fs.readFile(path.join(dist, "csp.json"), "utf8"));
       assert.match(csp.guideUrl, /^\.\/GUIDE\.[a-f0-9]{8}\.md$/);
+      assert.match(csp.driveHelperCsp, /accounts\.google\.com/);
+      assert.doesNotMatch(csp.driveHelperCsp, /apis\.google\.com/);
 
       const files = await fs.readdir(dist);
       assert.ok(files.some((f) => /^app\.[a-f0-9]{8}\.js$/.test(f)));
+      assert.ok(files.some((f) => /^drive-helper\.[a-f0-9]{8}\.js$/.test(f)));
+      assert.ok(files.includes("drive-helper.html"));
+      assert.ok(files.includes("google-drive-config.example.json"));
       assert.ok(files.some((f) => /^print\.[a-f0-9]{8}\.css$/.test(f)));
       assert.ok(files.some((f) => /^icon-192\.[a-f0-9]{8}\.png$/.test(f)));
       assert.ok(files.some((f) => /^GUIDE\.[a-f0-9]{8}\.md$/.test(f)));

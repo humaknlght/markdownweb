@@ -24,9 +24,11 @@ export const ICON_FILES = [
 export const DEV_PRECACHE = [
   "./",
   "./index.html",
+  "./drive-helper.html",
   "./styles.css",
   "./print.css",
   "./app.js",
+  "./drive-helper.js",
   "./fancy.avif",
   "./GUIDE.md",
   "./manifest.webmanifest",
@@ -113,6 +115,8 @@ export function isMutableShellPath(pathname) {
     : pathname.split("/").pop() || "";
   return (
     file === "index.html" ||
+    file === "drive-helper.html" ||
+    file === "google-drive-config.json" ||
     file === "manifest.webmanifest" ||
     file === "sw.js" ||
     file === "GUIDE.md"
@@ -132,6 +136,8 @@ function isMutableShell(pathname) {
     : pathname.split("/").pop() || "";
   return (
     file === "index.html" ||
+    file === "drive-helper.html" ||
+    file === "google-drive-config.json" ||
     file === "manifest.webmanifest" ||
     file === "sw.js" ||
     file === "GUIDE.md"
