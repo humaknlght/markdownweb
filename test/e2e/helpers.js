@@ -27,7 +27,7 @@ export async function clearAppStorage(page) {
       /* ignore */
     }
     await Promise.all(
-      ["md-preview-history", "md-preview-fs"].map(
+      ["md-editor-history", "md-editor-fs"].map(
         (name) =>
           new Promise((resolve) => {
             const req = indexedDB.deleteDatabase(name);
@@ -136,7 +136,7 @@ export async function openFreshApp(page, path = "/", speechOptions = {}) {
   // A savedSnapshot from an earlier seed may remain; that is fine and avoids a GUIDE fetch.
   await page.evaluate(() => {
     localStorage.setItem(
-      "md-preview:draft",
+      "md-editor:draft",
       JSON.stringify({ v: 1, docKey: "untitled", content: "" }),
     );
   });

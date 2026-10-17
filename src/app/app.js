@@ -236,20 +236,20 @@ async function ensureHljsLanguagesForSource(source) {
 }
 
 const STORAGE_KEYS = {
-  draft: "md-preview:draft",
-  theme: "md-preview:theme",
-  editorCollapsed: "md-preview:editor-collapsed",
-  previewCollapsed: "md-preview:preview-collapsed",
-  history: "md-preview:history",
-  split: "md-preview:split",
-  width: "md-preview:width",
-  voice: "md-preview:voice",
-  syncScroll: "md-preview:sync-scroll",
-  filesDrawer: "md-preview:filesDrawer",
-  filesSource: "md-preview:filesSource",
-  currentFile: "md-preview:currentFile",
-  currentFilePath: "md-preview:currentFilePath",
-  savedSnapshot: "md-preview:savedSnapshot",
+  draft: "md-editor:draft",
+  theme: "md-editor:theme",
+  editorCollapsed: "md-editor:editor-collapsed",
+  previewCollapsed: "md-editor:preview-collapsed",
+  history: "md-editor:history",
+  split: "md-editor:split",
+  width: "md-editor:width",
+  voice: "md-editor:voice",
+  syncScroll: "md-editor:sync-scroll",
+  filesDrawer: "md-editor:filesDrawer",
+  filesSource: "md-editor:filesSource",
+  currentFile: "md-editor:currentFile",
+  currentFilePath: "md-editor:currentFilePath",
+  savedSnapshot: "md-editor:savedSnapshot",
 };
 
 /** Soft max for how many per-doc saved snapshots to keep in localStorage. */
@@ -264,7 +264,7 @@ const HISTORY_TIP_MAX = 5 * 1024 * 1024;
 const EMERGENCY_LS_MAX = 100_000;
 const HISTORY_INDEX_VERSION = 3;
 const PATCH_MAX_CHARS = 100_000;
-const STORAGE_CHANNEL = "md-preview-storage";
+const STORAGE_CHANNEL = "md-editor-storage";
 const RENDER_DEBOUNCE_MS = 80;
 /** Delay before the preview loading spinner becomes visible. */
 const RENDER_LOADING_DELAY_MS = 700;

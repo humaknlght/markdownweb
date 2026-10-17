@@ -1,6 +1,6 @@
 /** File System Access API helpers for the Files drawer. */
 
-const IDB_NAME = "md-preview-fs";
+const IDB_NAME = "md-editor-fs";
 const IDB_VERSION = 1;
 const IDB_STORE = "handles";
 const DIR_HANDLE_KEY = "directory";

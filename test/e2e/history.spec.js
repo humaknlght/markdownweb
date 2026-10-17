@@ -17,7 +17,7 @@ async function pushHistoryNow(page, titleRe) {
       async () => {
         const title = await page.evaluate(() => {
           try {
-            const hist = JSON.parse(localStorage.getItem("md-preview:history") || "{}");
+            const hist = JSON.parse(localStorage.getItem("md-editor:history") || "{}");
             return hist.entries?.[0]?.title || "";
           } catch {
             return "";

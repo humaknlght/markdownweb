@@ -117,7 +117,7 @@ describe("pwa.mjs", () => {
       precacheUrls: ["./", "./index.html"],
       version: "test123",
     });
-    assert.match(sw, /md-preview-test123/);
+    assert.match(sw, /md-editor-test123/);
     assert.match(sw, /SKIP_WAITING/);
     assert.match(sw, /\.\/index\.html/);
     assert.match(sw, /isMutableShell/);
@@ -171,7 +171,7 @@ describe("pwa.mjs", () => {
     const a = buildDevServiceWorker();
     const b = buildDevServiceWorker();
     assert.equal(a, b);
-    assert.match(a, /md-preview-dev-[0-9a-f]{8}/);
+    assert.match(a, /md-editor-dev-[0-9a-f]{8}/);
     assert.match(a, /PRECACHE/);
     assert.match(a, /\.\/app\/app\.js/);
     // Must not embed hashed dist asset names.

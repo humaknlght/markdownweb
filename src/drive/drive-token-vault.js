@@ -4,12 +4,12 @@
  * when the authenticator/browser has no PRF support.
  */
 
-export const DRIVE_TOKEN_STORAGE_KEY = "md-preview:driveAccessToken";
-export const DRIVE_VAULT_META_KEY = "md-preview:driveTokenVault";
+export const DRIVE_TOKEN_STORAGE_KEY = "md-editor:driveAccessToken";
+export const DRIVE_VAULT_META_KEY = "md-editor:driveTokenVault";
 
-const HKDF_INFO = new TextEncoder().encode("md-preview:drive-token-vault:v1");
+const HKDF_INFO = new TextEncoder().encode("md-editor:drive-token-vault:v1");
 const IV_BYTES = 12;
-const IDB_NAME = "md-preview-drive-vault";
+const IDB_NAME = "md-editor-drive-vault";
 const IDB_STORE = "keys";
 const IDB_KEY_NAME = "aes";
 const VAULT_KIND_PRF = "prf";

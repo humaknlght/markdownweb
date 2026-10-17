@@ -138,7 +138,7 @@ export function buildServiceWorker({ precacheUrls, version }) {
   const urls = JSON.stringify(precacheUrls, null, 2);
   return `/* Markdown Editor service worker — generated at build time */
 /* eslint-disable no-restricted-globals */
-const CACHE = ${JSON.stringify(`md-preview-${version}`)};
+const CACHE = ${JSON.stringify(`md-editor-${version}`)};
 const PRECACHE = ${urls};
 
 function isMutableShell(pathname) {

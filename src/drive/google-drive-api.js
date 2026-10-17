@@ -2,19 +2,19 @@
 
 import { EDITABLE_FILE_RE, isEditableFileName } from "../lib/fs.js";
 
-export const DRIVE_MSG_TYPE = "md-preview:google-drive";
+export const DRIVE_MSG_TYPE = "md-editor:google-drive";
 export const DRIVE_MSG_VERSION = 1;
 
 /** Auth popup (own directory + .htaccess so COEP/CSP stay Google-capable). */
 export const DRIVE_HELPER_PATH = "./drive-helper/";
 
 /** Same-origin BroadcastChannel the auth popup reports results on. */
-export const DRIVE_AUTH_CHANNEL = "md-preview:google-drive-auth";
+export const DRIVE_AUTH_CHANNEL = "md-editor:google-drive-auth";
 
 /** Default My Drive folder for new files created by this app. */
 export const DRIVE_DEFAULT_FOLDER_NAME = "markdown-editor";
 
-const DRIVE_FOLDER_ID_KEY = "md-preview:driveFolderId";
+const DRIVE_FOLDER_ID_KEY = "md-editor:driveFolderId";
 
 /** Mime types preferred in the Drive Picker for this editor. */
 export const DRIVE_EDITABLE_MIME_TYPES = [
