@@ -3,6 +3,9 @@
  * Google returns the access token in the URL fragment of ./drive-helper/.
  * Results go to the editor over a BroadcastChannel tagged with the request id,
  * so the flow does not depend on window.opener surviving Google's COOP.
+ *
+ * The editor `req` id rides in OAuth `state` (echoed back by Google). sessionStorage
+ * only holds a short-lived CSRF nonce — never the access token or req id.
  */
 
 import { DRIVE_AUTH_CHANNEL, makeDriveMessage } from "./google-drive-api.js";
@@ -15,13 +18,13 @@ import {
 } from "./google-drive-config.js";
 
 const OAUTH_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
-const SS_STATE = "md-drive-oauth-state";
-const SS_REQ = "md-drive-oauth-req";
+/** CSRF nonce only (random bytes we generated) — not a credential. */
+const SS_NONCE = "md-dh-csrf";
 
 const statusEl = document.getElementById("status");
 const channel = new BroadcastChannel(DRIVE_AUTH_CHANNEL);
 
-/** Editor request id: from ?req= on first load, from sessionStorage after Google. */
+/** Editor request id: from ?req= on first load, from OAuth state after Google. */
 let req = new URLSearchParams(window.location.search).get("req") || "";
 
 function setStatus(text) {
@@ -62,18 +65,77 @@ function oauthRedirectUri() {
   return `${origin}${basePath}`;
 }
 
-function randomState() {
+function randomNonce() {
   const bytes = new Uint8Array(16);
   crypto.getRandomValues(bytes);
   return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
+/**
+ * @param {string} value
+ * @returns {string}
+ */
+function toBase64Url(value) {
+  const bytes = new TextEncoder().encode(value);
+  let bin = "";
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+  return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+/**
+ * @param {string} state
+ * @returns {string}
+ */
+function fromBase64Url(state) {
+  const b64 = state.replace(/-/g, "+").replace(/_/g, "/");
+  const pad = b64.length % 4 === 0 ? "" : "=".repeat(4 - (b64.length % 4));
+  const bin = atob(b64 + pad);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new TextDecoder().decode(bytes);
+}
+
+/**
+ * Build OAuth `state` carrying the BroadcastChannel req id; persist CSRF nonce only.
+ * @param {string} reqId
+ * @returns {string}
+ */
+function beginOAuthState(reqId) {
+  const nonce = randomNonce();
+  try {
+    sessionStorage.setItem(SS_NONCE, nonce);
+  } catch {
+    /* private mode — CSRF check may fail on return */
+  }
+  return toBase64Url(JSON.stringify({ n: nonce, r: reqId }));
+}
+
+/**
+ * Verify CSRF nonce and recover the editor req id from Google's echoed state.
+ * @param {string | null} stateParam
+ * @returns {string} req id or ""
+ */
+function finishOAuthState(stateParam) {
+  let expected = "";
+  try {
+    expected = sessionStorage.getItem(SS_NONCE) || "";
+    sessionStorage.removeItem(SS_NONCE);
+  } catch {
+    /* ignore */
+  }
+  if (!stateParam || !expected) return "";
+  try {
+    const parsed = JSON.parse(fromBase64Url(stateParam));
+    if (typeof parsed?.n !== "string" || parsed.n !== expected) return "";
+    if (typeof parsed?.r !== "string" || !parsed.r) return "";
+    return parsed.r;
+  } catch {
+    return "";
+  }
+}
+
 function beginOAuthRedirect() {
-  const state = randomState();
-  // Correlation ids only (CSRF state + BroadcastChannel req) — not credentials.
-  // Required across the top-level Google redirect; cleared on callback.
-  sessionStorage.setItem(SS_STATE, state);
-  sessionStorage.setItem(SS_REQ, req);
+  const state = beginOAuthState(req);
 
   const params = new URLSearchParams({
     client_id: GOOGLE_DRIVE.clientId,
@@ -104,13 +166,11 @@ function tryHandleOAuthCallback() {
   // Drop the token from the URL / history before doing anything else.
   history.replaceState(null, "", window.location.pathname + window.location.search);
 
-  const expected = sessionStorage.getItem(SS_STATE);
-  req = sessionStorage.getItem(SS_REQ) || "";
-  sessionStorage.removeItem(SS_STATE);
-  sessionStorage.removeItem(SS_REQ);
+  req = finishOAuthState(params.get("state"));
 
   if (!req) {
-    setStatus("Open Google Drive from the Markdown editor.");
+    // CSRF failed or state missing — drop any token; cannot notify the editor.
+    setStatus("OAuth state mismatch — try Connect Drive again.");
     return true;
   }
 
@@ -120,9 +180,8 @@ function tryHandleOAuthCallback() {
     return true;
   }
 
-  const state = params.get("state");
-  if (!state || state !== expected) {
-    replyError("OAuth state mismatch — try Connect Drive again");
+  if (!accessToken) {
+    replyError("Missing access token — try Connect Drive again");
     return true;
   }
 
