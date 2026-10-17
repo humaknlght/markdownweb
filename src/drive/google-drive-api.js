@@ -230,6 +230,16 @@ async function driveFolderExists(accessToken, folderId) {
 }
 
 /**
+ * Escape a value for Drive `files.list` `q` string literals.
+ * Backslash must be escaped before apostrophe (Drive query grammar).
+ * @param {string} value
+ * @returns {string}
+ */
+export function escapeDriveQueryValue(value) {
+  return String(value).replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+}
+
+/**
  * @param {string} accessToken
  * @param {string} folderName
  * @returns {Promise<string | null>}
@@ -237,7 +247,7 @@ async function driveFolderExists(accessToken, folderId) {
 async function findDriveFolderByName(accessToken, folderName) {
   const q = [
     `mimeType='application/vnd.google-apps.folder'`,
-    `name='${folderName.replace(/'/g, "\\'")}'`,
+    `name='${escapeDriveQueryValue(folderName)}'`,
     `trashed=false`,
   ].join(" and ");
   const url = new URL("https://www.googleapis.com/drive/v3/files");

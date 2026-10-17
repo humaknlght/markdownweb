@@ -70,6 +70,8 @@ function randomState() {
 
 function beginOAuthRedirect() {
   const state = randomState();
+  // Correlation ids only (CSRF state + BroadcastChannel req) — not credentials.
+  // Required across the top-level Google redirect; cleared on callback.
   sessionStorage.setItem(SS_STATE, state);
   sessionStorage.setItem(SS_REQ, req);
 

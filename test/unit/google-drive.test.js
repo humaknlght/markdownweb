@@ -6,6 +6,7 @@ import {
   createDriveFile,
   createDriveFolder,
   ensureDriveAppFolder,
+  escapeDriveQueryValue,
   listDriveAppFolder,
   listDriveFolderChildren,
   renameDriveItem,
@@ -83,6 +84,13 @@ describe("google-drive-config", () => {
 });
 
 describe("google-drive-api helpers", () => {
+  it("escapes backslash before apostrophe in Drive q literals", () => {
+    assert.equal(escapeDriveQueryValue("plain"), "plain");
+    assert.equal(escapeDriveQueryValue("quinn's"), "quinn\\'s");
+    assert.equal(escapeDriveQueryValue("a\\b"), "a\\\\b");
+    assert.equal(escapeDriveQueryValue("quinn's paper\\essay"), "quinn\\'s paper\\\\essay");
+  });
+
   it("validates editable Drive files", () => {
     assert.equal(isDriveEditableFile("notes.md"), true);
     assert.equal(isDriveEditableFile("page.html"), true);

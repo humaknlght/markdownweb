@@ -103,7 +103,7 @@
       (under the app’s <code>markdown-editor</code> folder), not your entire Drive.
     </p>
     <ul>
-      <li>Access tokens are kept in the browser session for Drive API calls; they are not sent to the Markdown Editor operator’s server for storage.</li>
+      <li>Access tokens stay in the browser for Drive API calls. They are encrypted before any at-rest storage (non-extractable key in IndexedDB; ciphertext in localStorage) and restore on reload; they are not sent to the Markdown Editor operator’s server.</li>
       <li>File names and contents you open or save go between your browser and Google’s Drive API.</li>
       <li>Google’s use of account data is governed by
         <a href="https://policies.google.com/privacy" rel="noopener">Google’s Privacy Policy</a>.</li>

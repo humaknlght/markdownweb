@@ -167,6 +167,8 @@ describe("static source invariants", () => {
     assert.match(ht, /rewriter=\(self\)/);
     assert.match(ht, /proofreader=\(self\)/);
     assert.match(ht, /language-model=\(self\)/);
+    assert.match(ht, /publickey-credentials-create=\(self\)/);
+    assert.match(ht, /publickey-credentials-get=\(self\)/);
     assert.match(ht, /Origin-Trial/);
     assert.match(ht, /og-image/);
     assert.match(ht, /Cross-Origin-Resource-Policy/);

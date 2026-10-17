@@ -1,6 +1,7 @@
 /**
  * Main-app Google Drive bridge: auth via COEP-free helper popup, then Drive REST
  * on the main page (drawer listing + open/save). Scoped to the markdown-editor folder.
+ * Access tokens are sealed at rest with WebAuthn PRF (see drive-token-vault.js).
  */
 
 import {
@@ -14,6 +15,18 @@ import {
   updateDriveFile,
 } from "./google-drive-api.js";
 import { isGoogleDriveConfigured } from "./google-drive-config.js";
+import {
+  clearVaultStorage,
+  ensureIdbVaultKey,
+  ensureVaultKey,
+  getCachedVaultKey,
+  hasSealedDriveSession,
+  purgeLegacyCleartextToken,
+  readVaultMeta,
+  sealToken,
+  setCachedVaultKey,
+  unsealToken,
+} from "./drive-token-vault.js";
 
 export {
   DRIVE_DEFAULT_FOLDER_NAME,
@@ -25,13 +38,17 @@ export {
   ensureDriveAppFolder,
 } from "./google-drive-api.js";
 
-const DRIVE_TOKEN_STORAGE_KEY = "md-preview:driveAccessToken";
+export { hasSealedDriveSession } from "./drive-token-vault.js";
+
 /** Drop tokens this early so a refresh near expiry does not use a dead token. */
 const TOKEN_EXPIRY_SKEW_MS = 60_000;
 const DEFAULT_TOKEN_TTL_SEC = 3600;
 
 /** @type {string | null} */
 let accessToken = null;
+
+/** True when the last connect could not seal (PRF unavailable) — memory-only. */
+let memoryOnlySession = false;
 
 /**
  * @returns {boolean}
@@ -41,10 +58,11 @@ export function googleDriveEnabled() {
 }
 
 /**
+ * In-memory token only (no silent localStorage restore — that requires WebAuthn).
  * @returns {string | null}
  */
 export function getDriveAccessToken() {
-  return accessToken || (restoreDriveAccessToken() ? accessToken : null);
+  return accessToken;
 }
 
 /**
@@ -56,61 +74,114 @@ export function setDriveAccessToken(token, expiresInSec) {
     clearDriveAccessToken();
     return;
   }
-  persistDriveSession(token, expiresInSec);
+  void persistDriveSession(token, expiresInSec);
 }
 
 export function clearDriveAccessToken() {
   accessToken = null;
-  try {
-    localStorage.removeItem(DRIVE_TOKEN_STORAGE_KEY);
-  } catch {
-    /* ignore */
-  }
+  memoryOnlySession = false;
+  setCachedVaultKey(null);
+  clearVaultStorage();
 }
 
 /**
- * Load a still-valid token from localStorage into memory.
+ * @deprecated Sync clear-text restore removed; use unlockDriveAccessToken / ensureDriveAccessToken.
+ * Kept as a no-op false so callers that still import it do not silently load plaintext.
  * @returns {boolean}
  */
 export function restoreDriveAccessToken() {
-  if (accessToken) return true;
-  try {
-    const raw = localStorage.getItem(DRIVE_TOKEN_STORAGE_KEY);
-    if (!raw) return false;
-    const parsed = JSON.parse(raw);
-    const token = typeof parsed?.token === "string" ? parsed.token : "";
-    const expiresAt = Number(parsed?.expiresAt);
-    if (!token || !Number.isFinite(expiresAt) || Date.now() >= expiresAt) {
-      localStorage.removeItem(DRIVE_TOKEN_STORAGE_KEY);
-      return false;
-    }
-    accessToken = token;
-    return true;
-  } catch {
-    try {
-      localStorage.removeItem(DRIVE_TOKEN_STORAGE_KEY);
-    } catch {
-      /* ignore */
-    }
-    return false;
-  }
+  purgeLegacyCleartextToken();
+  return Boolean(accessToken);
 }
 
 /**
  * @param {string} token
  * @param {number} [expiresInSec]
+ * @returns {Promise<{ sealed: boolean }>}
  */
-function persistDriveSession(token, expiresInSec) {
+async function persistDriveSession(token, expiresInSec) {
   accessToken = token;
   const ttlSec = Math.max(60, Number(expiresInSec) || DEFAULT_TOKEN_TTL_SEC);
   const expiresAt = Date.now() + ttlSec * 1000 - TOKEN_EXPIRY_SKEW_MS;
+
+  const key = getCachedVaultKey();
+  const meta = readVaultMeta();
+  if (!key || !meta) {
+    memoryOnlySession = true;
+    return { sealed: false };
+  }
+
   try {
-    localStorage.setItem(
-      DRIVE_TOKEN_STORAGE_KEY,
-      JSON.stringify({ token, expiresAt }),
-    );
+    await sealToken(token, expiresAt, key, meta);
+    memoryOnlySession = false;
+    return { sealed: true };
   } catch {
-    /* private mode / quota — memory-only session */
+    memoryOnlySession = true;
+    return { sealed: false };
+  }
+}
+
+/**
+ * Silent restore for IndexedDB-sealed sessions (no user gesture).
+ * PRF-backed vaults need Connect/Unlock and are skipped here.
+ * @returns {Promise<boolean>}
+ */
+export async function tryRestoreDriveAccessToken() {
+  if (accessToken) return true;
+  purgeLegacyCleartextToken();
+  if (!hasSealedDriveSession()) return false;
+  const meta = readVaultMeta();
+  if (!meta || meta.kind !== "idb") return false;
+  try {
+    const { key } = await ensureIdbVaultKey();
+    const opened = await unsealToken(key);
+    if (!opened?.token) {
+      clearVaultStorage();
+      return false;
+    }
+    accessToken = opened.token;
+    memoryOnlySession = false;
+    setCachedVaultKey(key);
+    return true;
+  } catch (err) {
+    console.warn("[google-drive] silent sealed restore failed", err);
+    return false;
+  }
+}
+
+/**
+ * Unlock a sealed session (IDB or WebAuthn PRF). PRF requires a user gesture.
+ * @returns {Promise<string | null>} access token or null if none / cancelled / failed
+ */
+export async function unlockDriveAccessToken() {
+  if (accessToken) return accessToken;
+  purgeLegacyCleartextToken();
+  if (!hasSealedDriveSession()) return null;
+
+  const meta = readVaultMeta();
+  if (!meta) {
+    clearVaultStorage();
+    return null;
+  }
+
+  try {
+    const { key } = await ensureVaultKey();
+    const opened = await unsealToken(key);
+    if (!opened?.token) {
+      clearVaultStorage();
+      return null;
+    }
+    accessToken = opened.token;
+    memoryOnlySession = false;
+    return accessToken;
+  } catch (err) {
+    if (err?.name === "AbortError" || err?.name === "NotAllowedError") throw err;
+    if (err?.name === "NotSupportedError") {
+      memoryOnlySession = true;
+      return null;
+    }
+    clearVaultStorage();
+    return null;
   }
 }
 
@@ -128,7 +199,7 @@ function abortError() {
  * Google's sign-in page sends COOP, so after the popup visits it the opener
  * link is reported (and may later be severed). For the same reason
  * popup.closed is only polled until the helper leaves for Google.
- * @returns {Promise<{ action: string, accessToken?: string, expiresIn?: number }>}
+ * @returns {Promise<{ action: string, accessToken?: string, expiresIn?: number, sealed?: boolean }>}
  */
 function openDriveAuthHelper() {
   return new Promise((resolve, reject) => {
@@ -197,14 +268,19 @@ function openDriveAuthHelper() {
       }
 
       if (msg.action === "auth") {
-        if (msg.accessToken) {
-          persistDriveSession(msg.accessToken, msg.expiresIn);
-        }
-        finish(resolve, {
-          action: msg.action,
-          accessToken: msg.accessToken,
-          expiresIn: msg.expiresIn,
-        });
+        void (async () => {
+          let sealed = false;
+          if (msg.accessToken) {
+            const result = await persistDriveSession(msg.accessToken, msg.expiresIn);
+            sealed = result.sealed;
+          }
+          finish(resolve, {
+            action: msg.action,
+            accessToken: msg.accessToken,
+            expiresIn: msg.expiresIn,
+            sealed,
+          });
+        })();
       }
     };
 
@@ -229,15 +305,57 @@ function openDriveAuthHelper() {
 }
 
 /**
- * Ensure we have a usable access token (opens helper auth if needed).
+ * Prepare WebAuthn vault key under the current user gesture (before OAuth popup).
+ * Soft-fails to memory-only when PRF is unavailable.
+ * @returns {Promise<{ ready: boolean, reason?: string }>}
+ */
+export async function prepareDriveTokenVault() {
+  purgeLegacyCleartextToken();
+  try {
+    await ensureVaultKey();
+    return { ready: true };
+  } catch (err) {
+    // ensureVaultKey already falls back to IndexedDB; failure here means storage is blocked.
+    console.warn("[google-drive] vault prepare failed", err);
+    setCachedVaultKey(null);
+    memoryOnlySession = true;
+    return {
+      ready: false,
+      reason: err?.message || "Could not seal Drive session — it will not persist across refresh",
+    };
+  }
+}
+
+/**
+ * Ensure we have a usable access token (unlock sealed session or open helper auth).
+ * Call from a user-gesture handler (Connect) so WebAuthn can run.
  * @returns {Promise<string>}
  */
 export async function ensureDriveAccessToken() {
-  if (accessToken || restoreDriveAccessToken()) return /** @type {string} */ (accessToken);
+  if (accessToken) return accessToken;
+
+  purgeLegacyCleartextToken();
+
+  if (hasSealedDriveSession()) {
+    const unlocked = await unlockDriveAccessToken();
+    if (unlocked) return unlocked;
+  }
+
+  // User gesture still holds: establish PRF key before the OAuth popup steals focus.
+  const prep = await prepareDriveTokenVault();
   const result = await openDriveAuthHelper();
   if (!result.accessToken) throw new Error("Could not authorize Google Drive");
-  persistDriveSession(result.accessToken, result.expiresIn);
+  // persist already ran inside openDriveAuthHelper; ensure memory is set
+  accessToken = result.accessToken;
+  if (!result.sealed && !prep.ready) {
+    memoryOnlySession = true;
+  }
   return result.accessToken;
+}
+
+/** @returns {boolean} */
+export function isDriveSessionMemoryOnly() {
+  return memoryOnlySession;
 }
 
 /**

@@ -42,13 +42,16 @@ import {
   ensureDriveAppFolder,
   getDriveAccessToken,
   googleDriveEnabled,
+  hasSealedDriveSession,
+  isDriveSessionMemoryOnly,
   listDriveFolderChildren,
   readDriveFileText,
   renameDriveItemWithToken,
-  restoreDriveAccessToken,
   saveExistingDriveFile,
   trashDriveItemWithToken,
+  tryRestoreDriveAccessToken,
 } from "../drive/google-drive.js";
+import { purgeLegacyCleartextToken, readVaultMeta } from "../drive/drive-token-vault.js";
 import { applyPatch, contentHash, makeRevisionBody } from "../lib/history-diff.js";
 import {
   clearHistoryBodies,
@@ -4357,7 +4360,13 @@ function updateFilesChrome() {
     filesConnectDriveBtn.hidden = !driveConfigured || !driveMode;
     if (hasDriveRoot) {
       filesConnectDriveBtn.textContent = "Disconnect";
-      filesConnectDriveBtn.title = "Disconnect Google Drive and clear the saved token";
+      filesConnectDriveBtn.title = "Disconnect Google Drive and clear the sealed session";
+    } else if (hasSealedDriveSession()) {
+      filesConnectDriveBtn.textContent = "Unlock Drive";
+      const prf = readVaultMeta()?.kind !== "idb";
+      filesConnectDriveBtn.title = prf
+        ? "Unlock the sealed Google Drive session with your passkey"
+        : "Restore the sealed Google Drive session for this browser";
     } else {
       filesConnectDriveBtn.textContent = "Connect Drive";
       filesConnectDriveBtn.title = "Connect Google Drive";
@@ -4571,9 +4580,13 @@ async function connectGoogleDrive() {
     } finally {
       endDriveFilesLoading();
     }
-    showToast(`Connected — ${DRIVE_ROOT_UI_NAME}`);
+    if (isDriveSessionMemoryOnly()) {
+      showToast(`Connected — ${DRIVE_ROOT_UI_NAME} (session not persisted across refresh)`);
+    } else {
+      showToast(`Connected — ${DRIVE_ROOT_UI_NAME}`);
+    }
   } catch (err) {
-    if (err?.name === "AbortError") return;
+    if (err?.name === "AbortError" || err?.name === "NotAllowedError") return;
     console.error(err);
     driveConnected = false;
     endDriveFilesLoading();
@@ -5790,7 +5803,9 @@ function setupFilesDrawer() {
     });
     const savedSource = localStorage.getItem(STORAGE_KEYS.filesSource);
     if (savedSource === "drive" || savedSource === "local") filesSource = savedSource;
-    if (restoreDriveAccessToken()) driveConnected = true;
+    // Clear legacy plaintext; silent IDB unlock runs later in boot (PRF still needs Unlock).
+    purgeLegacyCleartextToken();
+    driveConnected = false;
     filesSourceLocalBtn?.addEventListener("click", () => setFilesSource("local"));
     filesSourceDriveBtn?.addEventListener("click", () => setFilesSource("drive"));
     filesConnectDriveBtn?.addEventListener("click", () => {
@@ -8421,6 +8436,11 @@ async function init() {
     clearCurrentFileBinding();
   } else {
     await restoreCurrentFileBindingOnLoad();
+  }
+  if (driveConfigured) {
+    // IndexedDB-sealed sessions restore without a gesture; PRF vaults stay on Unlock.
+    driveConnected = await tryRestoreDriveAccessToken();
+    updateFilesChrome();
   }
   if (driveConfigured && driveConnected && isDriveFilesSource()) {
     await refreshDriveTree();
