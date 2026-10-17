@@ -377,6 +377,7 @@ const filesSourceToggle = document.getElementById("files-source-toggle");
 const filesSourceLocalBtn = document.getElementById("files-source-local-btn");
 const filesSourceDriveBtn = document.getElementById("files-source-drive-btn");
 const filesConnectDriveBtn = document.getElementById("files-connect-drive-btn");
+const filesDriveOfflineHint = document.getElementById("files-drive-offline-hint");
 const filesEmptyConnectBtn = document.getElementById("files-empty-connect-btn");
 const filesEmptyCopy = document.getElementById("files-empty-copy");
 const filesNewFileBtn = document.getElementById("files-new-file-btn");
@@ -4302,11 +4303,17 @@ function normalizeEntryName(rawName, kind) {
   return newName;
 }
 
+function isBrowserOnline() {
+  return typeof navigator === "undefined" || navigator.onLine !== false;
+}
+
 function updateFilesChrome() {
   const driveMode = isDriveFilesSource();
   const hasLocalRoot = Boolean(rootDirHandle) && !awaitingFsPermission;
   const hasDriveRoot = driveConnected;
   const hasRoot = driveMode ? hasDriveRoot : hasLocalRoot;
+  const online = isBrowserOnline();
+  const needsOnlineToConnect = driveConfigured && driveMode && !hasDriveRoot && !online;
 
   document.body.classList.toggle("files-source-drive", driveMode);
   document.body.classList.toggle("files-source-local", !driveMode);
@@ -4332,9 +4339,13 @@ function updateFilesChrome() {
   }
 
   if (filesEmptyCopy) {
-    filesEmptyCopy.textContent = driveMode
-      ? `Connect Google Drive to browse the ${DRIVE_ROOT_UI_NAME} folder.`
-      : "Open a folder to browse Markdown, text, and HTML files.";
+    if (!driveMode) {
+      filesEmptyCopy.textContent = "Open a folder to browse Markdown, text, and HTML files.";
+    } else if (needsOnlineToConnect) {
+      filesEmptyCopy.textContent = "You need to be online to connect Google Drive.";
+    } else {
+      filesEmptyCopy.textContent = `Connect Google Drive to browse the ${DRIVE_ROOT_UI_NAME} folder.`;
+    }
   }
 
   if (filesLoading) {
@@ -4357,7 +4368,7 @@ function updateFilesChrome() {
     filesRefreshBtn.disabled = driveMode ? !hasDriveRoot : !hasLocalRoot;
   }
   if (filesConnectDriveBtn) {
-    filesConnectDriveBtn.hidden = !driveConfigured || !driveMode;
+    filesConnectDriveBtn.hidden = !driveConfigured || !driveMode || needsOnlineToConnect;
     if (hasDriveRoot) {
       filesConnectDriveBtn.textContent = "Disconnect";
       filesConnectDriveBtn.title = "Disconnect Google Drive and clear the sealed session";
@@ -4372,8 +4383,12 @@ function updateFilesChrome() {
       filesConnectDriveBtn.title = "Connect Google Drive";
     }
   }
+  if (filesDriveOfflineHint) {
+    filesDriveOfflineHint.hidden = !needsOnlineToConnect;
+  }
   if (filesEmptyConnectBtn) {
-    filesEmptyConnectBtn.hidden = !driveConfigured || !driveMode || hasDriveRoot;
+    filesEmptyConnectBtn.hidden =
+      !driveConfigured || !driveMode || hasDriveRoot || needsOnlineToConnect;
   }
   if (filesEmptyOpenBtn) {
     filesEmptyOpenBtn.hidden = driveMode;
@@ -4565,6 +4580,11 @@ async function refreshDriveTree() {
 
 async function connectGoogleDrive() {
   if (!driveConfigured) return;
+  if (!isBrowserOnline()) {
+    updateFilesChrome();
+    showToast("You need to be online to connect Google Drive");
+    return;
+  }
   try {
     await ensureDriveAccessToken();
     driveConnected = true;
@@ -4590,7 +4610,16 @@ async function connectGoogleDrive() {
     console.error(err);
     driveConnected = false;
     endDriveFilesLoading();
-    showToast(err?.message || "Could not connect Google Drive");
+    const offlineish =
+      !isBrowserOnline() ||
+      err?.name === "TypeError" ||
+      /Failed to fetch|NetworkError|ERR_INTERNET/i.test(String(err?.message || ""));
+    showToast(
+      offlineish
+        ? "You need to be online to connect Google Drive"
+        : err?.message || "Could not connect Google Drive",
+    );
+    updateFilesChrome();
   }
 }
 
@@ -5813,6 +5842,8 @@ function setupFilesDrawer() {
       else void connectGoogleDrive();
     });
     filesEmptyConnectBtn?.addEventListener("click", () => void connectGoogleDrive());
+    window.addEventListener("online", () => updateFilesChrome());
+    window.addEventListener("offline", () => updateFilesChrome());
   }
 
   if (fsAccessSupported || driveConfigured) {

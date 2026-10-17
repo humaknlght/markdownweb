@@ -1850,6 +1850,13 @@ body.files-source-drive .local-only {
   min-height: 1.6rem;
 }
 
+.files-drawer-actions .files-drive-offline-hint {
+  align-self: center;
+  font-size: 0.7rem;
+  line-height: 1.3;
+  color: var(--chrome-muted);
+}
+
 .files-drawer-actions .svg-btn {
   width: 1.6rem;
   padding: 0.2rem;
