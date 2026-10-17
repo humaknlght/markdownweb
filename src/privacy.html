@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Privacy Policy — Markdown Editor</title>
+  <meta
+    name="description"
+    content="Privacy policy for Markdown Editor: how local drafts, optional Google Drive, and analytics-free browsing work."
+  />
+  <link rel="canonical" href="https://dev.ericperret.org/markdown/privacy.html" />
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #0d1117;
+      --fg: #e6edf3;
+      --muted: #8b949e;
+      --link: #58a6ff;
+      --border: #30363d;
+    }
+    @media (prefers-color-scheme: light) {
+      :root {
+        --bg: #ffffff;
+        --fg: #1f2328;
+        --muted: #656d76;
+        --link: #0969da;
+        --border: #d0d7de;
+      }
+    }
+    html, body {
+      margin: 0;
+      min-height: 100%;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--fg);
+      line-height: 1.55;
+    }
+    main {
+      box-sizing: border-box;
+      max-width: 42rem;
+      margin: 0 auto;
+      padding: 2rem 1.25rem 4rem;
+    }
+    h1 { font-size: 1.75rem; margin: 0 0 0.35rem; }
+    h2 { font-size: 1.15rem; margin: 2rem 0 0.5rem; }
+    p, li { color: var(--fg); }
+    .meta, .muted { color: var(--muted); font-size: 0.95rem; }
+    a { color: var(--link); }
+    ul { padding-left: 1.25rem; }
+    hr {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 2rem 0;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <p class="meta"><a href="./">← Markdown Editor</a></p>
+    <h1>Privacy Policy</h1>
+    <p class="meta">Last updated: 16 October 2026</p>
+
+    <p>
+      Markdown Editor (<a href="https://dev.ericperret.org/markdown/">https://dev.ericperret.org/markdown/</a>)
+      is a browser-based Markdown editor. This policy explains what data the app handles and what it does not.
+    </p>
+
+    <h2>Summary</h2>
+    <ul>
+      <li>Your documents are processed in your browser.</li>
+      <li>This site does not run a backend that stores the contents of your Markdown files.</li>
+      <li>Optional Google Drive access is limited to files and folders you create or open with this app.</li>
+      <li>We do not sell personal data and do not use advertising trackers in the app.</li>
+    </ul>
+
+    <h2>Who operates this app</h2>
+    <p>
+      The hosted instance at ericperret.org is operated by the project maintainer.
+      Contact: <a href="mailto:markdown@ericperret.org">markdown@ericperret.org</a>.
+      Security reports: see
+      <a href="https://github.com/humaknlght/markdownweb/blob/main/SECURITY.md">SECURITY.md</a>.
+    </p>
+
+    <h2>Data processed in your browser</h2>
+    <p>Depending on how you use the app, it may store or process the following <strong>on your device</strong>:</p>
+    <ul>
+      <li><strong>Editor content</strong> — Markdown you type, paste, upload, or open.</li>
+      <li><strong>Drafts and history</strong> — recent document drafts and revision data in browser storage (including IndexedDB and localStorage).</li>
+      <li><strong>Preferences</strong> — settings such as theme, layout, and files-drawer options.</li>
+      <li><strong>Local files</strong> — if you use “Open folder” (Chromium File System Access), the app reads and writes files you choose on your computer. Those files stay on your device unless you export or share them yourself.</li>
+      <li><strong>Share links</strong> — if you create a share URL, the Markdown is encoded in the link (for example in the URL fragment). Anyone with the link can open that content. The app does not host that payload on a document server.</li>
+    </ul>
+    <p>
+      Clearing site data in your browser removes local drafts, history, and preferences for this origin.
+    </p>
+
+    <h2>Optional Google Drive</h2>
+    <p>
+      If the host enables Google Drive and you choose <strong>Connect Drive</strong>, you sign in with Google.
+      The app requests the OAuth scope
+      <code>https://www.googleapis.com/auth/drive.file</code>,
+      which allows it to create, open, edit, rename, and trash only Drive files and folders that you use with this app
+      (under the app’s <code>markdown-editor</code> folder), not your entire Drive.
+    </p>
+    <ul>
+      <li>Access tokens stay in the browser for Drive API calls. They are encrypted before any at-rest storage (non-extractable key in IndexedDB; ciphertext in localStorage) and restore on reload; they are not sent to the Markdown Editor operator’s server.</li>
+      <li>File names and contents you open or save go between your browser and Google’s Drive API.</li>
+      <li>Google’s use of account data is governed by
+        <a href="https://policies.google.com/privacy" rel="noopener">Google’s Privacy Policy</a>.</li>
+      <li>You can disconnect by signing out of Google / revoking the app under your Google Account permissions,
+        and by clearing this site’s data.</li>
+    </ul>
+
+    <h2>Network requests</h2>
+    <p>Besides loading the app itself, the browser may request:</p>
+    <ul>
+      <li>Libraries and assets from this site (and, when needed, from CDNs configured by the build, such as jsDelivr for Mermaid).</li>
+      <li>Google Identity / Drive endpoints when you use Connect Drive.</li>
+    </ul>
+    <p>Those third parties may receive standard technical data (for example IP address and User-Agent) as part of HTTPS requests.</p>
+
+    <h2>Cookies and analytics</h2>
+    <p>
+      The app does not set advertising cookies and does not include a third-party analytics product for tracking personal browsing across sites.
+      Browser storage described above is used for app functionality (drafts, settings), not ads.
+    </p>
+
+    <h2>Children</h2>
+    <p>
+      The app is a general-purpose writing tool and is not directed at children under 13.
+      Do not use Google sign-in features if you are not allowed to consent under applicable law.
+    </p>
+
+    <h2>Changes</h2>
+    <p>
+      We may update this policy when the app’s behavior changes.
+      The “Last updated” date at the top will change when we do.
+      Continued use of the hosted app after an update means you accept the revised policy.
+    </p>
+
+    <h2>Contact</h2>
+    <p>
+      Questions about this policy:
+      <a href="mailto:markdown@ericperret.org">markdown@ericperret.org</a>.
+    </p>
+
+    <hr />
+    <p class="muted">
+      Forks and self-hosted copies are separate deployments. Their operators should publish their own privacy policy and OAuth branding if they enable Google Drive.
+    </p>
+  </main>
+</body>
+</html>

@@ -4,7 +4,7 @@ import {
   extractFrontmatter,
   formatFrontmatterValue,
   renderFrontmatterHtml,
-} from "../../src/frontmatter.js";
+} from "../../src/markdown/frontmatter.js";
 import { renderMarkdownHtml } from "../helpers/render.js";
 
 describe("extractFrontmatter", () => {

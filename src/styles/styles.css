@@ -531,7 +531,8 @@ html[data-theme="fancy"] {
   --chrome-text: #f4f8fb;
   --chrome-muted: #b7c9d4;
   --chrome-hover: rgba(255, 255, 255, 0.22);
-  --chrome-focus: #f1b965;
+  /* Slightly lighter than #f1b965 so focus text stays ≥4.5:1 on --chrome-hover. */
+  --chrome-focus: #f5c882;
   --chrome-pressed-border: #f1b965;
   --chrome-on-focus: #1a1208;
   --chrome-shadow: 0 10px 40px rgba(0, 0, 0, 0.35);
@@ -605,7 +606,7 @@ html[data-theme="fancy"] {
 html[data-theme="fancy"],
 html[data-theme="fancy"] body {
   background-color: #062436;
-  background-image: url("fancy.avif");
+  background-image: url("../assets/fancy.avif");
   background-position: center;
   background-size: cover;
   background-repeat: no-repeat;
@@ -1809,6 +1810,34 @@ html.is-booting .files-backdrop {
   white-space: nowrap;
 }
 
+.files-source-toggle {
+  display: inline-flex;
+  flex-shrink: 0;
+  border: 1px solid var(--chrome-border, #30363d);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.files-source-toggle .files-source-btn {
+  font-size: 0.65rem;
+  padding: 0.15rem 0.4rem;
+  min-height: 1.35rem;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--chrome-muted, #8b949e);
+}
+
+.files-source-toggle .files-source-btn.is-active {
+  background: var(--chrome-hover, #21262d);
+  /* Use --chrome-text (not a missing --chrome-fg fallback) so light themes stay ≥4.5:1. */
+  color: var(--chrome-text);
+}
+
+body.files-source-drive .local-only {
+  display: none !important;
+}
+
 .files-drawer-actions {
   display: flex;
   flex-wrap: wrap;
@@ -1819,6 +1848,13 @@ html.is-booting .files-backdrop {
   font-size: 0.7rem;
   padding: 0.2rem 0.4rem;
   min-height: 1.6rem;
+}
+
+.files-drawer-actions .files-drive-offline-hint {
+  align-self: center;
+  font-size: 0.7rem;
+  line-height: 1.3;
+  color: var(--chrome-muted);
 }
 
 .files-drawer-actions .svg-btn {
@@ -1834,7 +1870,8 @@ html.is-booting .files-backdrop {
 }
 
 .files-empty,
-.files-permission {
+.files-permission,
+.files-loading {
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -1845,13 +1882,46 @@ html.is-booting .files-backdrop {
 }
 
 .files-empty p,
-.files-permission p {
+.files-permission p,
+.files-loading p {
   margin: 0;
   line-height: 1.4;
 }
 
+.files-loading {
+  align-items: center;
+  text-align: center;
+  gap: 0.75rem;
+  padding-top: 1.25rem;
+  padding-bottom: 1.25rem;
+}
+
+.files-loading-spinner {
+  width: 1.35rem;
+  height: 1.35rem;
+  border: 2px solid color-mix(in srgb, var(--chrome-muted) 35%, transparent);
+  border-top-color: var(--chrome-accent, var(--chrome-focus, var(--chrome-text)));
+  border-radius: 50%;
+  animation: files-spin 0.7s linear infinite;
+}
+
+@keyframes files-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .files-loading-spinner {
+    animation: none;
+    border-color: var(--chrome-accent, var(--chrome-focus, var(--chrome-text)));
+    border-top-color: color-mix(in srgb, var(--chrome-muted) 35%, transparent);
+  }
+}
+
 .files-empty[hidden],
 .files-permission[hidden],
+.files-loading[hidden],
 .files-tree[hidden] {
   display: none;
 }

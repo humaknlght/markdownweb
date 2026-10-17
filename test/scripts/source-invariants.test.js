@@ -52,23 +52,23 @@ describe("static source invariants", () => {
       if (bare) assert.match(html, new RegExp(bare));
     }
 
-    const app = await fs.readFile(path.join(root, "src/app.js"), "utf8");
+    const app = await fs.readFile(path.join(root, "src/app/app.js"), "utf8");
     assert.match(
       app,
       /THEMES = \[\s*"github-light",\s*"github-dark",\s*"sepia",\s*"terminal",\s*"salesforce",\s*"fancy",\s*"zen",\s*\]/,
     );
-    assert.match(app, /import\("\.\/export\.js"\)/);
-    assert.doesNotMatch(app, /from ["']\.\/export\.js["']/);
-    assert.match(app, /import\("\.\/chrome-ai\.js"\)/);
-    assert.doesNotMatch(app, /from ["']\.\/chrome-ai\.js["']/);
-    assert.match(app, /import\("\.\/theme-zen\.js"\)/);
-    assert.doesNotMatch(app, /from ["']\.\/theme-zen\.js["']/);
+    assert.match(app, /import\("\.\.\/lib\/export\.js"\)/);
+    assert.doesNotMatch(app, /from ["']\.\.\/lib\/export\.js["']/);
+    assert.match(app, /import\("\.\.\/lib\/chrome-ai\.js"\)/);
+    assert.doesNotMatch(app, /from ["']\.\.\/lib\/chrome-ai\.js["']/);
+    assert.match(app, /import\("\.\.\/lib\/theme-zen\.js"\)/);
+    assert.doesNotMatch(app, /from ["']\.\.\/lib\/theme-zen\.js["']/);
     assert.match(app, /loadZenCss/);
     assert.match(app, /zen\.css/);
-    const zenCss = await fs.readFile(path.join(root, "src/zen.css"), "utf8");
+    const zenCss = await fs.readFile(path.join(root, "src/styles/zen.css"), "utf8");
     assert.match(zenCss, /data-theme="zen"/);
     assert.doesNotMatch(
-      await fs.readFile(path.join(root, "src/styles.css"), "utf8"),
+      await fs.readFile(path.join(root, "src/styles/styles.css"), "utf8"),
       /\/\* Secret Zen theme/,
     );
     assert.doesNotMatch(app, /cdn-integrity-urls\.js/);
@@ -151,6 +151,15 @@ describe("static source invariants", () => {
     assert.match(ht, /DirectorySlash On/);
     assert.match(ht, /__SCRIPT_SRC__/);
     assert.match(ht, /__GUIDE_URL__/);
+    assert.match(ht, /SetEnvIf Request_URI "drive-helper" IS_DRIVE_HELPER/);
+    assert.match(ht, /env=!IS_DRIVE_HELPER/);
+    assert.doesNotMatch(ht, /__DRIVE_HELPER_CSP__/);
+    const helperHt = await fs.readFile(
+      path.join(root, "public/drive-helper/.htaccess"),
+      "utf8",
+    );
+    assert.match(helperHt, /__DRIVE_HELPER_CSP__/);
+    assert.match(helperHt, /Cross-Origin-Embedder-Policy "unsafe-none"/);
     assert.match(ht, /rel=prefetch/);
     assert.match(ht, /web-share=\(\)/);
     assert.match(ht, /fullscreen=\(self\)/);
@@ -158,10 +167,14 @@ describe("static source invariants", () => {
     assert.match(ht, /rewriter=\(self\)/);
     assert.match(ht, /proofreader=\(self\)/);
     assert.match(ht, /language-model=\(self\)/);
+    assert.match(ht, /publickey-credentials-create=\(self\)/);
+    assert.match(ht, /publickey-credentials-get=\(self\)/);
     assert.match(ht, /Origin-Trial/);
     assert.match(ht, /og-image/);
     assert.match(ht, /Cross-Origin-Resource-Policy/);
     assert.match(ht, /FileETag MTime Size/);
     assert.match(ht, /FilesMatch "\^sw\\.js/);
+    assert.match(ht, /Cross-Origin-Embedder-Policy "require-corp"/);
+    assert.match(ht, /www\.googleapis\.com/);
   });
 });

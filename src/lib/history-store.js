@@ -4,7 +4,7 @@
  * Legacy: draft (single blob, migrated into drafts.untitled)
  */
 
-const IDB_NAME = "md-preview-history";
+const IDB_NAME = "md-editor-history";
 const IDB_VERSION = 1;
 const IDB_STORE = "kv";
 

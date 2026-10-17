@@ -8,7 +8,7 @@ import {
   decodeMdzParam,
   decompressBase64UrlToUtf8,
   readShareParams,
-} from "../../src/share.js";
+} from "../../src/lib/share.js";
 
 describe("share encoding", () => {
   it("round-trips UTF-8 and emoji through base64url", () => {

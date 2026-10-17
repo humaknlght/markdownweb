@@ -370,7 +370,7 @@ function createProgram(gl) {
 const DROPS_URL =
   typeof __DROPS_URL__ !== "undefined"
     ? /** @type {string} */ (__DROPS_URL__)
-    : new URL("./drops.mp3", import.meta.url).href;
+    : new URL("../assets/drops.mp3", import.meta.url).href;
 
 /** @type {AudioContext | null} */
 let audioCtx = null;
@@ -450,7 +450,7 @@ async function ensureDropBuffer() {
 const DROP_ATTACK_OFFSET = 0.2;
 
 /**
- * Play src/drops.mp3 for a droplet (rate, volume, attack sync + stereo pan).
+ * Play src/assets/drops.mp3 for a droplet (rate, volume, attack sync + stereo pan).
  * @param {number} strength
  * @param {number} panX UV 0–1 → stereo pan
  */

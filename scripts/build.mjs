@@ -8,6 +8,7 @@ import {
   mkdir,
   readFile,
   writeFile,
+  copyFile,
   rm,
   stat,
   readdir,
@@ -15,7 +16,12 @@ import {
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
-import { inlineScriptHashes, buildScriptSrc } from "./csp.mjs";
+import {
+  inlineScriptHashes,
+  buildScriptSrc,
+  buildDriveHelperScriptSrc,
+  buildDriveHelperContentSecurityPolicy,
+} from "./csp.mjs";
 import {
   CDN_PRECACHE,
   buildManifest,
@@ -35,6 +41,7 @@ const COMPRESS_EXTENSIONS = new Set([".html", ".css", ".js", ".webmanifest", ".m
 const SCRIPT_SRC_PLACEHOLDER = "__SCRIPT_SRC__";
 const GUIDE_URL_PLACEHOLDER = "__GUIDE_URL__";
 const SW_URL_PLACEHOLDER = "__SW_URL__";
+const DRIVE_HELPER_CSP_PLACEHOLDER = "__DRIVE_HELPER_CSP__";
 
 function formatBytes(bytes) {
   if (bytes < 1024) return `${bytes} B`;
@@ -64,10 +71,10 @@ async function cleanDist() {
 }
 
 async function optimizeImage() {
-  const input = path.join(srcDir, "fancy.avif");
+  const input = path.join(srcDir, "assets", "fancy.avif");
   const before = await fileSize(input);
   if (!before) {
-    throw new Error("Missing background image: src/fancy.avif");
+    throw new Error("Missing background image: src/assets/fancy.avif");
   }
 
   const buffer = await readFile(input);
@@ -78,10 +85,10 @@ async function optimizeImage() {
 }
 
 async function copyDropsAudio() {
-  const input = path.join(srcDir, "drops.mp3");
+  const input = path.join(srcDir, "assets", "drops.mp3");
   const before = await fileSize(input);
   if (!before) {
-    throw new Error("Missing droplet sound: src/drops.mp3");
+    throw new Error("Missing droplet sound: src/assets/drops.mp3");
   }
   const buffer = await readFile(input);
   const hash = contentHash(buffer);
@@ -91,7 +98,7 @@ async function copyDropsAudio() {
 }
 
 async function buildOgImage() {
-  const input = path.join(srcDir, "og-image.png");
+  const input = path.join(srcDir, "assets", "og-image.png");
   const before = await fileSize(input);
   const buffer = await sharp(input)
     .resize({
@@ -112,10 +119,10 @@ async function buildOgImage() {
 async function buildIcons() {
   const results = [];
   for (const base of ["icon-192", "icon-512"]) {
-    const input = path.join(srcDir, `${base}.png`);
+    const input = path.join(srcDir, "assets", `${base}.png`);
     const before = await fileSize(input);
     if (!before) {
-      throw new Error(`Missing PWA icon: src/${base}.png`);
+      throw new Error(`Missing PWA icon: src/assets/${base}.png`);
     }
     const buffer = await readFile(input);
     const hash = contentHash(buffer);
@@ -133,11 +140,20 @@ async function buildIcons() {
 }
 
 async function minifyCssFile(fileName, { rewriteFancy } = {}) {
-  let css = await readFile(path.join(srcDir, fileName), "utf8");
+  let css = await readFile(path.join(srcDir, "styles", fileName), "utf8");
   if (rewriteFancy) {
-    css = css.replaceAll("url(\"fancy.avif\")", `url("${rewriteFancy}")`);
-    css = css.replaceAll("url('fancy.avif')", `url('${rewriteFancy}')`);
-    css = css.replaceAll("url(fancy.avif)", `url(${rewriteFancy})`);
+    for (const pattern of [
+      'url("../assets/fancy.avif")',
+      "url('../assets/fancy.avif')",
+      "url(../assets/fancy.avif)",
+      'url("fancy.avif")',
+      "url('fancy.avif')",
+      "url(fancy.avif)",
+    ]) {
+      const quote = pattern.includes('"') ? '"' : pattern.includes("'") ? "'" : "";
+      const next = quote ? `url(${quote}${rewriteFancy}${quote})` : `url(${rewriteFancy})`;
+      css = css.replaceAll(pattern, next);
+    }
   }
 
   const result = await esbuild.transform(css, {
@@ -163,7 +179,10 @@ async function buildCss(fancyFileName) {
 
 async function buildJs(guideUrl, dropsUrl, zenCssUrl) {
   const result = await esbuild.build({
-    entryPoints: [path.join(srcDir, "app.js")],
+    entryPoints: [
+      path.join(srcDir, "app", "app.js"),
+      path.join(srcDir, "drive", "drive-helper.js"),
+    ],
     bundle: true,
     minify: true,
     format: "esm",
@@ -171,7 +190,7 @@ async function buildJs(guideUrl, dropsUrl, zenCssUrl) {
     target: ["es2020"],
     write: false,
     outdir: distDir,
-    entryNames: "app",
+    entryNames: "[name]",
     chunkNames: "chunk-[hash]",
     legalComments: "none",
     treeShaking: true,
@@ -186,6 +205,7 @@ async function buildJs(guideUrl, dropsUrl, zenCssUrl) {
 
   const chunks = [];
   let entry = null;
+  let driveHelper = null;
   /** @type {Set<string>} */
   const lazyChunkNames = new Set();
 
@@ -204,6 +224,11 @@ async function buildJs(guideUrl, dropsUrl, zenCssUrl) {
       const name = hashedName("app", ".js", hash);
       await writeFile(path.join(distDir, name), buffer);
       entry = { bytes: buffer.length, name, hash };
+    } else if (base === "drive-helper.js") {
+      const hash = contentHash(buffer);
+      const name = hashedName("drive-helper", ".js", hash);
+      await writeFile(path.join(distDir, name), buffer);
+      driveHelper = { bytes: buffer.length, name, hash };
     } else {
       const name = base;
       await writeFile(path.join(distDir, name), buffer);
@@ -218,6 +243,9 @@ async function buildJs(guideUrl, dropsUrl, zenCssUrl) {
   if (!entry) {
     throw new Error("esbuild produced no app.js entry");
   }
+  if (!driveHelper) {
+    throw new Error("esbuild produced no drive-helper.js entry");
+  }
 
   const bundledInputs = Object.keys(result.metafile?.inputs || {}).length;
   return {
@@ -226,6 +254,7 @@ async function buildJs(guideUrl, dropsUrl, zenCssUrl) {
     hash: entry.hash,
     chunks,
     bundledInputs,
+    driveHelper,
   };
 }
 
@@ -241,10 +270,13 @@ async function buildHtml({
   let html = await readFile(path.join(srcDir, "index.html"), "utf8");
   const cdnIntegrity = await loadCdnIntegrity();
   html = applyCdnIntegrity(html, cdnIntegrity);
-  html = html.replace(/href="styles\.css"/, `href="${cssName}"`);
-  html = html.replace(/href="print\.css"/, `href="${printCssName}"`);
-  html = html.replace(/src="app\.js"/, `src="${jsName}"`);
+  html = html.replace(/href="styles\/styles\.css"/, `href="${cssName}"`);
+  html = html.replace(/href="styles\/print\.css"/, `href="${printCssName}"`);
+  html = html.replace(/src="app\/app\.js"/, `src="${jsName}"`);
+  html = html.replaceAll("assets/og-image.png", ogImageName);
   html = html.replaceAll("og-image.png", ogImageName);
+  html = html.replaceAll("assets/icon-192.png", icon192Name);
+  html = html.replaceAll("assets/icon-512.png", icon512Name);
   html = html.replaceAll("icon-192.png", icon192Name);
   html = html.replaceAll("icon-512.png", icon512Name);
   if (!html.includes(SW_URL_PLACEHOLDER)) {
@@ -281,11 +313,58 @@ async function buildHtml({
   };
 }
 
+/**
+ * @param {{ jsName: string }} opts
+ */
+async function minifyStaticHtml(html) {
+  return minifyHtml(html, {
+    collapseBooleanAttributes: true,
+    collapseWhitespace: true,
+    conservativeCollapse: true,
+    decodeEntities: true,
+    minifyCSS: true,
+    minifyJS: true,
+    removeComments: true,
+    removeRedundantAttributes: true,
+    removeScriptTypeAttributes: false,
+    removeStyleLinkTypeAttributes: true,
+    useShortDoctype: true,
+  });
+}
+
+async function buildDriveHelperHtml({ jsName }) {
+  let html = await readFile(path.join(srcDir, "drive-helper", "index.html"), "utf8");
+  html = html.replace(
+    /src="\.\.\/drive\/drive-helper\.js"/,
+    `src="../${jsName}"`,
+  );
+
+  const minified = await minifyStaticHtml(html);
+  const buffer = Buffer.from(minified, "utf8");
+  const outDir = path.join(distDir, "drive-helper");
+  await mkdir(outDir, { recursive: true });
+  await writeFile(path.join(outDir, "index.html"), buffer);
+
+  const hashes = inlineScriptHashes(minified);
+  const scriptSrc = buildDriveHelperScriptSrc(hashes);
+  const csp = buildDriveHelperContentSecurityPolicy(scriptSrc);
+  return { bytes: buffer.length, scriptSrc, csp };
+}
+
+async function buildPrivacyHtml() {
+  const html = await readFile(path.join(srcDir, "privacy.html"), "utf8");
+  const minified = await minifyStaticHtml(html);
+  const buffer = Buffer.from(minified, "utf8");
+  await writeFile(path.join(distDir, "privacy.html"), buffer);
+  return { bytes: buffer.length };
+}
+
 async function buildPwa({
   cssName,
   printCssName,
   jsName,
   jsChunks,
+  driveHelperJsName,
   fancyName,
   guideName,
   iconResults,
@@ -303,9 +382,12 @@ async function buildPwa({
   const localPrecache = [
     "./",
     "./index.html",
+    // drive-helper/: network-only (SW bypass) so GIS gets the helper CSP.
+    "./privacy.html",
     `./${cssName}`,
     `./${printCssName}`,
     `./${jsName}`,
+    `./${driveHelperJsName}`,
     ...chunkUrls,
     `./${fancyName}`,
     `./${guideName}`,
@@ -339,42 +421,54 @@ async function buildPwa({
 }
 
 async function precompressAssets() {
-  const entries = await readdir(distDir);
   const results = [];
 
-  for (const name of entries) {
-    const ext = path.extname(name).toLowerCase();
-    if (!COMPRESS_EXTENSIONS.has(ext)) continue;
+  /** @param {string} dir @param {string} prefix */
+  async function walk(dir, prefix) {
+    const entries = await readdir(dir);
+    for (const name of entries) {
+      const filePath = path.join(dir, name);
+      const rel = prefix ? `${prefix}/${name}` : name;
+      const st = await stat(filePath);
+      if (st.isDirectory()) {
+        // Skip precompressed siblings; .htaccess is not compressed.
+        if (name === "node_modules") continue;
+        await walk(filePath, rel);
+        continue;
+      }
+      const ext = path.extname(name).toLowerCase();
+      if (!COMPRESS_EXTENSIONS.has(ext)) continue;
 
-    const filePath = path.join(distDir, name);
-    const source = await readFile(filePath);
+      const source = await readFile(filePath);
 
-    const gzipped = await zopfliGzipAsync(source, {
-      numiterations: 15,
-      blocksplitting: true,
-    });
-    await writeFile(`${filePath}.gz`, gzipped);
+      const gzipped = await zopfliGzipAsync(source, {
+        numiterations: 15,
+        blocksplitting: true,
+      });
+      await writeFile(`${filePath}.gz`, gzipped);
 
-    const brotli = brotliCompressSync(source, {
-      params: {
-        [zlibConstants.BROTLI_PARAM_QUALITY]: 11,
-        [zlibConstants.BROTLI_PARAM_SIZE_HINT]: source.length,
-      },
-    });
-    await writeFile(`${filePath}.br`, brotli);
+      const brotli = brotliCompressSync(source, {
+        params: {
+          [zlibConstants.BROTLI_PARAM_QUALITY]: 11,
+          [zlibConstants.BROTLI_PARAM_SIZE_HINT]: source.length,
+        },
+      });
+      await writeFile(`${filePath}.br`, brotli);
 
-    results.push({
-      name,
-      raw: source.length,
-      gzip: gzipped.length,
-      brotli: brotli.length,
-    });
+      results.push({
+        name: rel,
+        raw: source.length,
+        gzip: gzipped.length,
+        brotli: brotli.length,
+      });
+    }
   }
 
+  await walk(distDir, "");
   return results;
 }
 
-async function writeApacheConfig(scriptSrc, guideUrl) {
+async function writeApacheConfig(scriptSrc, guideUrl, driveHelperCsp) {
   let htaccess = await readFile(path.join(root, "public", ".htaccess"), "utf8");
   if (!htaccess.includes(SCRIPT_SRC_PLACEHOLDER)) {
     throw new Error(`public/.htaccess missing ${SCRIPT_SRC_PLACEHOLDER} placeholder`);
@@ -385,9 +479,23 @@ async function writeApacheConfig(scriptSrc, guideUrl) {
   htaccess = htaccess.replaceAll(SCRIPT_SRC_PLACEHOLDER, scriptSrc);
   htaccess = htaccess.replaceAll(GUIDE_URL_PLACEHOLDER, guideUrl);
   await writeFile(path.join(distDir, ".htaccess"), htaccess);
+
+  let helperHt = await readFile(
+    path.join(root, "public", "drive-helper", ".htaccess"),
+    "utf8",
+  );
+  if (!helperHt.includes(DRIVE_HELPER_CSP_PLACEHOLDER)) {
+    throw new Error(
+      `public/drive-helper/.htaccess missing ${DRIVE_HELPER_CSP_PLACEHOLDER} placeholder`,
+    );
+  }
+  helperHt = helperHt.replaceAll(DRIVE_HELPER_CSP_PLACEHOLDER, driveHelperCsp);
+  await mkdir(path.join(distDir, "drive-helper"), { recursive: true });
+  await writeFile(path.join(distDir, "drive-helper", ".htaccess"), helperHt);
+
   await writeFile(
     path.join(distDir, "csp.json"),
-    JSON.stringify({ scriptSrc, guideUrl }, null, 2) + "\n"
+    JSON.stringify({ scriptSrc, guideUrl, driveHelperCsp }, null, 2) + "\n"
   );
 }
 
@@ -410,6 +518,7 @@ async function main() {
     printCssName: css.print.name,
     jsName: js.name,
     jsChunks: js.chunks,
+    driveHelperJsName: js.driveHelper.name,
     fancyName: image.name,
     guideName: guide.name,
     iconResults: icons,
@@ -423,11 +532,24 @@ async function main() {
     icon512Name: icon512.name,
     swUrl: pwa.swUrl,
   });
-  await writeApacheConfig(html.scriptSrc, guide.url);
+  const driveHelperHtml = await buildDriveHelperHtml({ jsName: js.driveHelper.name });
+  const privacyHtml = await buildPrivacyHtml();
+  await writeApacheConfig(html.scriptSrc, guide.url, driveHelperHtml.csp);
+  // Optional host credentials — never required; gitignored when present under src/.
+  try {
+    await copyFile(
+      path.join(srcDir, "google-drive-config.json"),
+      path.join(distDir, "google-drive-config.json"),
+    );
+  } catch (err) {
+    if (err?.code !== "ENOENT") throw err;
+  }
   const compressed = await precompressAssets();
 
   console.log("Assets (content-hashed for cache busting)");
   console.log(`  index.html     ${formatBytes(html.bytes)}`);
+  console.log(`  drive-helper/     ${formatBytes(driveHelperHtml.bytes)}`);
+  console.log(`  privacy.html  ${formatBytes(privacyHtml.bytes)}`);
   console.log(`  ${css.styles.name.padEnd(22)} ${formatBytes(css.styles.bytes)}`);
   console.log(`  ${css.print.name.padEnd(22)} ${formatBytes(css.print.bytes)}`);
   console.log(
@@ -435,6 +557,9 @@ async function main() {
   );
   console.log(
     `  ${js.name.padEnd(22)} ${formatBytes(js.bytes)}  (${js.bundledInputs} modules bundled)`
+  );
+  console.log(
+    `  ${js.driveHelper.name.padEnd(22)} ${formatBytes(js.driveHelper.bytes)}  (Drive helper)`
   );
   for (const chunk of js.chunks || []) {
     const tag = chunk.lazy ? "lazy Zen chunk" : "lazy chunk";

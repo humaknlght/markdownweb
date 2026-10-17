@@ -1,6 +1,6 @@
 import { describe, it, before } from "node:test";
 import assert from "node:assert/strict";
-import hljsMermaid from "../../src/hljs-mermaid.js";
+import hljsMermaid from "../../src/markdown/hljs-mermaid.js";
 
 /** @type {import("highlight.js").HLJSApi} */
 let hljs;

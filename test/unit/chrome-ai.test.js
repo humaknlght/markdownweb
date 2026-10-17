@@ -36,7 +36,7 @@ import {
   tokenizeForDiff,
   wrapPromptSessionAsProofreader,
   writingBackendFor,
-} from "../../src/chrome-ai.js";
+} from "../../src/lib/chrome-ai.js";
 
 describe("chrome-ai helpers", () => {
   it("resolveTargetRange prefers a non-empty selection", () => {

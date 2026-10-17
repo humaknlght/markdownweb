@@ -35,10 +35,16 @@ A fast, client-side Markdown editor. Paste upload, or open Markdown and see rend
 ## Project layout
 
 ```
-src/          Source (edit here)
-public/       Apache .htaccess copied into the build
-scripts/      Production build script
-dist/         Optimized build output (deploy this)
+src/              Source (edit here)
+  app/            Main app entry (app.js)
+  markdown/       Markdown extensions and highlight helpers
+  lib/            Editor features (fs, history, share, export, …)
+  drive/          Optional Google Drive bridge
+  styles/         CSS
+  assets/         Images, icons, audio
+public/           Apache .htaccess copied into the build
+scripts/          Production build script
+dist/             Optimized build output (deploy this; flat URLs)
 ```
 
 ## Develop
