@@ -14,7 +14,7 @@ import {
   setDraft,
   setRev,
   setTip,
-} from "../../src/history-store.js";
+} from "../../src/lib/history-store.js";
 
 describe("history-store", () => {
   beforeEach(async () => {

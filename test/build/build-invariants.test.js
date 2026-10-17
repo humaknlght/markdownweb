@@ -66,14 +66,21 @@ describe("production build invariants", { timeout: 180_000 }, () => {
       const ht = await fs.readFile(path.join(dist, ".htaccess"), "utf8");
       assert.doesNotMatch(ht, /__SCRIPT_SRC__/);
       assert.doesNotMatch(ht, /__GUIDE_URL__/);
-      assert.doesNotMatch(ht, /__DRIVE_HELPER_CSP__/);
       assert.match(ht, /'sha256-/);
       assert.match(ht, /Link "<\.\/GUIDE\.[a-f0-9]{8}\.md>;rel=prefetch"/);
       assert.match(ht, /FileETag MTime Size/);
       assert.match(ht, /FilesMatch "\^sw\\.js/);
       assert.match(ht, /Cache-Control "no-cache"/);
-      assert.match(ht, /Files "drive-helper\.html"/);
       assert.match(ht, /Cross-Origin-Embedder-Policy "require-corp"/);
+      assert.match(ht, /SetEnvIf Request_URI "drive-helper" IS_DRIVE_HELPER/);
+      assert.match(ht, /env=!IS_DRIVE_HELPER/);
+      const helperHt = await fs.readFile(
+        path.join(dist, "drive-helper", ".htaccess"),
+        "utf8",
+      );
+      assert.doesNotMatch(helperHt, /__DRIVE_HELPER_CSP__/);
+      assert.match(helperHt, /Cross-Origin-Embedder-Policy "unsafe-none"/);
+      assert.match(helperHt, /accounts\.google\.com/);
 
       const csp = JSON.parse(await fs.readFile(path.join(dist, "csp.json"), "utf8"));
       assert.match(csp.guideUrl, /^\.\/GUIDE\.[a-f0-9]{8}\.md$/);
@@ -83,8 +90,11 @@ describe("production build invariants", { timeout: 180_000 }, () => {
       const files = await fs.readdir(dist);
       assert.ok(files.some((f) => /^app\.[a-f0-9]{8}\.js$/.test(f)));
       assert.ok(files.some((f) => /^drive-helper\.[a-f0-9]{8}\.js$/.test(f)));
-      assert.ok(files.includes("drive-helper.html"));
-      assert.ok(files.includes("google-drive-config.example.json"));
+      assert.ok(files.includes("drive-helper"));
+      const helperFiles = await fs.readdir(path.join(dist, "drive-helper"));
+      assert.ok(helperFiles.includes("index.html"));
+      assert.ok(helperFiles.includes(".htaccess"));
+      assert.ok(!files.includes("google-drive-config.example.json"));
       assert.ok(files.some((f) => /^print\.[a-f0-9]{8}\.css$/.test(f)));
       assert.ok(files.some((f) => /^icon-192\.[a-f0-9]{8}\.png$/.test(f)));
       assert.ok(files.some((f) => /^GUIDE\.[a-f0-9]{8}\.md$/.test(f)));
@@ -101,7 +111,7 @@ describe("production build invariants", { timeout: 180_000 }, () => {
       assert.deepEqual(br, original);
 
       // Source icons must be untouched by the build
-      const icon = await fs.readFile(path.join(root, "src/icon-192.png"));
+      const icon = await fs.readFile(path.join(root, "src/assets/icon-192.png"));
       assert.ok(icon.byteLength > 0);
     } finally {
       // leave dist as built (useful); backup kept in tmp for debugging

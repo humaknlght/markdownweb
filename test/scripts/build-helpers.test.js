@@ -16,6 +16,7 @@ import {
   buildDevServiceWorker,
   buildManifest,
   buildServiceWorker,
+  isDriveHelperPath,
   isMutableShellPath,
   precacheVersion,
 } from "../../scripts/pwa.mjs";
@@ -58,14 +59,14 @@ describe("csp.mjs", () => {
     assert.doesNotMatch(csp, /apis\.google\.com/);
   });
 
-  it("builds Drive helper CSP with Google origins", () => {
+  it("builds Drive helper CSP without a Google script host", () => {
     const src = buildDriveHelperScriptSrc([]);
-    assert.match(src, /accounts\.google\.com/);
-    assert.doesNotMatch(src, /apis\.google\.com/);
+    assert.equal(src, "'self'");
     const csp = buildDriveHelperContentSecurityPolicy(src);
     assert.match(csp, /frame-src[^;]*accounts\.google\.com/);
-    assert.doesNotMatch(csp, /docs\.google\.com/);
     assert.match(csp, /connect-src[^;]*www\.googleapis\.com/);
+    assert.doesNotMatch(csp, /oauth2\.googleapis\.com/);
+    assert.doesNotMatch(csp, /docs\.google\.com/);
   });
 });
 
@@ -100,7 +101,7 @@ describe("pwa.mjs", () => {
   it("pins CDN precache URLs and icon names", () => {
     assert.ok(CDN_PRECACHE.length >= 6);
     assert.ok(CDN_PRECACHE.every((u) => u.startsWith("https://cdn.jsdelivr.net")));
-    assert.deepEqual(ICON_FILES, ["icon-192.png", "icon-512.png"]);
+    assert.deepEqual(ICON_FILES, ["assets/icon-192.png", "assets/icon-512.png"]);
   });
 
   it("builds a standalone manifest with file handlers", () => {
@@ -125,7 +126,9 @@ describe("pwa.mjs", () => {
 
   it("treats only unhashed shell paths as mutable", () => {
     assert.equal(isMutableShellPath("/index.html"), true);
-    assert.equal(isMutableShellPath("/drive-helper.html"), true);
+    // Auth helper directory is network-only (not a mutable SW shell).
+    assert.equal(isMutableShellPath("/drive-helper/"), false);
+    assert.equal(isMutableShellPath("/drive-helper/index.html"), false);
     assert.equal(isMutableShellPath("/google-drive-config.json"), true);
     assert.equal(isMutableShellPath("/"), true);
     assert.equal(isMutableShellPath("/manifest.webmanifest"), true);
@@ -136,6 +139,23 @@ describe("pwa.mjs", () => {
     assert.equal(isMutableShellPath("/app.abc12345.js"), false);
   });
 
+  it("bypasses the service worker for drive-helper/", () => {
+    const sw = buildServiceWorker({
+      precacheUrls: ["./", "./index.html", "./privacy.html"],
+      version: "test123",
+    });
+    assert.match(sw, /function isDriveHelperPath/);
+    assert.match(sw, /if \(isDriveHelperPath\(url\.pathname\)\) return;/);
+    assert.match(sw, /parts\.indexOf\("drive-helper"\)/);
+    assert.ok(!DEV_PRECACHE.includes("./drive-helper.html"));
+    assert.ok(!DEV_PRECACHE.includes("./drive-helper/"));
+    assert.equal(isDriveHelperPath("/drive-helper"), true);
+    assert.equal(isDriveHelperPath("/drive-helper/"), true);
+    assert.equal(isDriveHelperPath("/drive-helper/index.html"), true);
+    assert.equal(isDriveHelperPath("/markdown/drive-helper/"), true);
+    assert.equal(isDriveHelperPath("/index.html"), false);
+  });
+
   it("versions precache lists deterministically", () => {
     assert.equal(precacheVersion(["a", "b"]), precacheVersion(["a", "b"]));
     assert.notEqual(precacheVersion(["a", "b"]), precacheVersion(["b", "a"]));
@@ -143,8 +163,8 @@ describe("pwa.mjs", () => {
   });
 
   it("builds a stable dev service worker from DEV_PRECACHE", () => {
-    assert.ok(DEV_PRECACHE.includes("./app.js"));
-    assert.ok(DEV_PRECACHE.includes("./styles.css"));
+    assert.ok(DEV_PRECACHE.includes("./app/app.js"));
+    assert.ok(DEV_PRECACHE.includes("./styles/styles.css"));
     for (const url of CDN_PRECACHE) {
       assert.ok(DEV_PRECACHE.includes(url));
     }
@@ -153,7 +173,7 @@ describe("pwa.mjs", () => {
     assert.equal(a, b);
     assert.match(a, /md-preview-dev-[0-9a-f]{8}/);
     assert.match(a, /PRECACHE/);
-    assert.match(a, /\.\/app\.js/);
+    assert.match(a, /\.\/app\/app\.js/);
     // Must not embed hashed dist asset names.
     assert.doesNotMatch(a, /\.\/app\.[0-9a-f]{8}\.js/);
   });

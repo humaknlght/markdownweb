@@ -10,8 +10,14 @@
  * optional leftovers from an earlier Picker-based flow and are ignored.
  */
 
-/** Same-origin config path (relative to the page URL). */
+/** Same-origin config path relative to the main app HTML. */
 export const GOOGLE_DRIVE_CONFIG_URL = "./google-drive-config.json";
+
+/**
+ * Config URL for the Drive auth helper under ./drive-helper/.
+ * Resolves to the app-root google-drive-config.json.
+ */
+export const GOOGLE_DRIVE_HELPER_CONFIG_URL = "../google-drive-config.json";
 
 /** @type {{ clientId: string, apiKey: string, appId: string }} */
 export const GOOGLE_DRIVE = {
@@ -51,15 +57,16 @@ export function applyGoogleDriveConfig(data) {
 }
 
 /**
- * Fetch optional ./google-drive-config.json. 404 / network errors leave Drive disabled.
+ * Fetch optional google-drive-config.json. 404 / network errors leave Drive disabled.
  * Safe to call multiple times; shares one in-flight promise.
+ * @param {string} [configUrl] Override path (helper uses ../google-drive-config.json).
  * @returns {Promise<boolean>}
  */
-export function loadGoogleDriveConfig() {
+export function loadGoogleDriveConfig(configUrl = GOOGLE_DRIVE_CONFIG_URL) {
   if (loadPromise) return loadPromise;
   loadPromise = (async () => {
     try {
-      const res = await fetch(GOOGLE_DRIVE_CONFIG_URL, { cache: "no-cache" });
+      const res = await fetch(configUrl, { cache: "no-cache" });
       if (!res.ok) return false;
       const data = await res.json();
       return applyGoogleDriveConfig(data);

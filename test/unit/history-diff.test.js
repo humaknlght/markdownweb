@@ -5,7 +5,7 @@ import {
   contentHash,
   makePatch,
   makeRevisionBody,
-} from "../../src/history-diff.js";
+} from "../../src/lib/history-diff.js";
 
 describe("history-diff", () => {
   it("hashes stably and treats null like empty", () => {

@@ -1,4 +1,4 @@
-import { extractFrontmatter } from "./frontmatter.js";
+import { extractFrontmatter } from "../markdown/frontmatter.js";
 
 /** Generator / provenance stamped into every export. */
 export const GENERATOR_URL = "https://dev.ericperret.org/markdown/";

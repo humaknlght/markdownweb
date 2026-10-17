@@ -73,6 +73,7 @@
     <p id="status">Starting…</p>
     <button type="button" id="cancel-btn">Cancel</button>
   </main>
-  <script type="module" src="drive-helper.js"></script>
+  <!-- OAuth uses top-level redirect + PKCE (no accounts.google.com script). -->
+  <script type="module" src="../drive/drive-helper.js"></script>
 </body>
 </html>

@@ -6,11 +6,11 @@ import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 
-/** Main + lazy Zen theme CSS (zen Mermaid tokens live in src/zen.css). */
+/** Main + lazy Zen theme CSS (zen Mermaid tokens live in src/styles/zen.css). */
 async function readThemeCss() {
   const [styles, zen] = await Promise.all([
-    fs.readFile(path.join(root, "src/styles.css"), "utf8"),
-    fs.readFile(path.join(root, "src/zen.css"), "utf8"),
+    fs.readFile(path.join(root, "src/styles/styles.css"), "utf8"),
+    fs.readFile(path.join(root, "src/styles/zen.css"), "utf8"),
   ]);
   return `${styles}\n${zen}`;
 }
@@ -169,7 +169,7 @@ function parseMermaidTokens(css, theme) {
 
 describe("Mermaid theme contrast (WCAG 2.2 AA)", () => {
   it("forces tspan / note-fg / series overrides in MERMAID_THEME_CSS", async () => {
-    const app = await fs.readFile(path.join(root, "src/app.js"), "utf8");
+    const app = await fs.readFile(path.join(root, "src/app/app.js"), "utf8");
     assert.match(app, /text tspan/);
     assert.match(app, /\.noteText tspan/);
     assert.match(app, /var\(--mermaid-note-fg\)/);
@@ -283,10 +283,10 @@ describe("Mermaid theme contrast (WCAG 2.2 AA)", () => {
   });
 
   it("keeps print/export Mermaid tokens in sync with github-light", async () => {
-    const css = await fs.readFile(path.join(root, "src/styles.css"), "utf8");
+    const css = await fs.readFile(path.join(root, "src/styles/styles.css"), "utf8");
     const light = parseMermaidTokens(css, "github-light");
-    const print = await fs.readFile(path.join(root, "src/print.css"), "utf8");
-    const exp = await fs.readFile(path.join(root, "src/export.js"), "utf8");
+    const print = await fs.readFile(path.join(root, "src/styles/print.css"), "utf8");
+    const exp = await fs.readFile(path.join(root, "src/lib/export.js"), "utf8");
     for (const name of MERMAID_VARS) {
       const re = new RegExp(`${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*:\\s*([^;]+);`);
       const p = print.match(re);

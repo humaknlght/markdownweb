@@ -4,10 +4,11 @@
  */
 
 import {
+  DRIVE_AUTH_CHANNEL,
   DRIVE_HELPER_PATH,
   createDriveFile,
+  createDriveFolder,
   isDriveMessage,
-  makeDriveMessage,
   renameDriveItem,
   trashDriveItem,
   updateDriveFile,
@@ -24,6 +25,11 @@ export {
   ensureDriveAppFolder,
 } from "./google-drive-api.js";
 
+const DRIVE_TOKEN_STORAGE_KEY = "md-preview:driveAccessToken";
+/** Drop tokens this early so a refresh near expiry does not use a dead token. */
+const TOKEN_EXPIRY_SKEW_MS = 60_000;
+const DEFAULT_TOKEN_TTL_SEC = 3600;
+
 /** @type {string | null} */
 let accessToken = null;
 
@@ -38,22 +44,91 @@ export function googleDriveEnabled() {
  * @returns {string | null}
  */
 export function getDriveAccessToken() {
-  return accessToken;
+  return accessToken || (restoreDriveAccessToken() ? accessToken : null);
 }
 
 /**
  * @param {string | null} token
+ * @param {number} [expiresInSec]
  */
-export function setDriveAccessToken(token) {
-  accessToken = token || null;
+export function setDriveAccessToken(token, expiresInSec) {
+  if (!token) {
+    clearDriveAccessToken();
+    return;
+  }
+  persistDriveSession(token, expiresInSec);
 }
 
 export function clearDriveAccessToken() {
   accessToken = null;
+  try {
+    localStorage.removeItem(DRIVE_TOKEN_STORAGE_KEY);
+  } catch {
+    /* ignore */
+  }
 }
 
 /**
- * @returns {Promise<{ action: string, accessToken?: string }>}
+ * Load a still-valid token from localStorage into memory.
+ * @returns {boolean}
+ */
+export function restoreDriveAccessToken() {
+  if (accessToken) return true;
+  try {
+    const raw = localStorage.getItem(DRIVE_TOKEN_STORAGE_KEY);
+    if (!raw) return false;
+    const parsed = JSON.parse(raw);
+    const token = typeof parsed?.token === "string" ? parsed.token : "";
+    const expiresAt = Number(parsed?.expiresAt);
+    if (!token || !Number.isFinite(expiresAt) || Date.now() >= expiresAt) {
+      localStorage.removeItem(DRIVE_TOKEN_STORAGE_KEY);
+      return false;
+    }
+    accessToken = token;
+    return true;
+  } catch {
+    try {
+      localStorage.removeItem(DRIVE_TOKEN_STORAGE_KEY);
+    } catch {
+      /* ignore */
+    }
+    return false;
+  }
+}
+
+/**
+ * @param {string} token
+ * @param {number} [expiresInSec]
+ */
+function persistDriveSession(token, expiresInSec) {
+  accessToken = token;
+  const ttlSec = Math.max(60, Number(expiresInSec) || DEFAULT_TOKEN_TTL_SEC);
+  const expiresAt = Date.now() + ttlSec * 1000 - TOKEN_EXPIRY_SKEW_MS;
+  try {
+    localStorage.setItem(
+      DRIVE_TOKEN_STORAGE_KEY,
+      JSON.stringify({ token, expiresAt }),
+    );
+  } catch {
+    /* private mode / quota — memory-only session */
+  }
+}
+
+/** Abort for the auth attempt still waiting on a popup, if any. */
+let abortPendingAuth = null;
+
+const AUTH_TIMEOUT_MS = 10 * 60 * 1000;
+
+function abortError() {
+  return Object.assign(new Error("Cancelled"), { name: "AbortError" });
+}
+
+/**
+ * Results arrive over a same-origin BroadcastChannel instead of postMessage:
+ * Google's sign-in page sends COOP, so after the popup visits it the opener
+ * link is reported (and may later be severed). For the same reason
+ * popup.closed is only polled until the helper leaves for Google.
+ * @returns {Promise<{ action: string, accessToken?: string, expiresIn?: number }>}
  */
 function openDriveAuthHelper() {
   return new Promise((resolve, reject) => {
@@ -62,8 +137,12 @@ function openDriveAuthHelper() {
       return;
     }
 
+    abortPendingAuth?.();
+
+    const req = crypto.randomUUID();
     const url = new URL(DRIVE_HELPER_PATH, window.location.href);
     url.searchParams.set("mode", "auth");
+    url.searchParams.set("req", req);
 
     const popup = window.open(
       url.href,
@@ -75,39 +154,40 @@ function openDriveAuthHelper() {
       return;
     }
 
+    const channel = new BroadcastChannel(DRIVE_AUTH_CHANNEL);
     let settled = false;
+    let closedPoll = 0;
 
-    const cleanup = () => {
-      window.removeEventListener("message", onMessage);
-      window.clearInterval(closedPoll);
+    const stopClosedPoll = () => {
+      if (closedPoll) window.clearInterval(closedPoll);
+      closedPoll = 0;
     };
 
     const finish = (fn, value) => {
       if (settled) return;
       settled = true;
-      cleanup();
-      try {
-        if (!popup.closed) popup.close();
-      } catch {
-        /* ignore */
-      }
+      stopClosedPoll();
+      window.clearTimeout(timeout);
+      channel.close();
+      if (abortPendingAuth === abort) abortPendingAuth = null;
       fn(value);
     };
 
-    /** @param {MessageEvent} event */
-    const onMessage = (event) => {
-      if (event.origin !== window.location.origin) return;
-      if (event.source !== popup) return;
-      if (!isDriveMessage(event.data)) return;
+    const abort = () => finish(reject, abortError());
+    abortPendingAuth = abort;
 
+    /** @param {MessageEvent} event */
+    channel.onmessage = (event) => {
       const msg = event.data;
-      if (msg.action === "ready") {
-        popup.postMessage(makeDriveMessage({ action: "auth" }), window.location.origin);
+      if (!isDriveMessage(msg) || msg.req !== req) return;
+
+      if (msg.action === "redirecting") {
+        stopClosedPoll();
         return;
       }
 
       if (msg.action === "cancel") {
-        finish(reject, Object.assign(new Error("Cancelled"), { name: "AbortError" }));
+        abort();
         return;
       }
 
@@ -117,18 +197,23 @@ function openDriveAuthHelper() {
       }
 
       if (msg.action === "auth") {
-        if (msg.accessToken) accessToken = msg.accessToken;
+        if (msg.accessToken) {
+          persistDriveSession(msg.accessToken, msg.expiresIn);
+        }
         finish(resolve, {
           action: msg.action,
           accessToken: msg.accessToken,
+          expiresIn: msg.expiresIn,
         });
       }
     };
 
-    window.addEventListener("message", onMessage);
+    // Closing the popup on Google's page goes unnoticed; Connect Drive again
+    // supersedes this attempt, and the timeout releases it eventually.
+    const timeout = window.setTimeout(abort, AUTH_TIMEOUT_MS);
 
     let closeSeenAt = 0;
-    const closedPoll = window.setInterval(() => {
+    closedPoll = window.setInterval(() => {
       if (!popup.closed) {
         closeSeenAt = 0;
         return;
@@ -138,7 +223,7 @@ function openDriveAuthHelper() {
         return;
       }
       if (Date.now() - closeSeenAt < 500) return;
-      finish(reject, Object.assign(new Error("Cancelled"), { name: "AbortError" }));
+      abort();
     }, 100);
   });
 }
@@ -148,11 +233,11 @@ function openDriveAuthHelper() {
  * @returns {Promise<string>}
  */
 export async function ensureDriveAccessToken() {
-  if (accessToken) return accessToken;
+  if (accessToken || restoreDriveAccessToken()) return /** @type {string} */ (accessToken);
   const result = await openDriveAuthHelper();
   if (!result.accessToken) throw new Error("Could not authorize Google Drive");
-  accessToken = result.accessToken;
-  return accessToken;
+  persistDriveSession(result.accessToken, result.expiresIn);
+  return result.accessToken;
 }
 
 /**
@@ -166,7 +251,7 @@ export async function saveExistingDriveFile(fileId, { name, content }) {
     return await updateDriveFile(token, fileId, { name, content });
   } catch (err) {
     if (err?.status === 401) {
-      accessToken = null;
+      clearDriveAccessToken();
       token = await ensureDriveAccessToken();
       return updateDriveFile(token, fileId, { name, content });
     }
@@ -204,7 +289,7 @@ export async function renameDriveItemWithToken(fileId, newName) {
     return await renameDriveItem(token, fileId, newName);
   } catch (err) {
     if (err?.status === 401) {
-      accessToken = null;
+      clearDriveAccessToken();
       token = await ensureDriveAccessToken();
       return renameDriveItem(token, fileId, newName);
     }
@@ -221,7 +306,7 @@ export async function trashDriveItemWithToken(fileId) {
     return await trashDriveItem(token, fileId);
   } catch (err) {
     if (err?.status === 401) {
-      accessToken = null;
+      clearDriveAccessToken();
       token = await ensureDriveAccessToken();
       return trashDriveItem(token, fileId);
     }

@@ -605,7 +605,7 @@ html[data-theme="fancy"] {
 html[data-theme="fancy"],
 html[data-theme="fancy"] body {
   background-color: #062436;
-  background-image: url("fancy.avif");
+  background-image: url("../assets/fancy.avif");
   background-position: center;
   background-size: cover;
   background-repeat: no-repeat;
@@ -1861,7 +1861,8 @@ body.files-source-drive .local-only {
 }
 
 .files-empty,
-.files-permission {
+.files-permission,
+.files-loading {
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -1872,13 +1873,46 @@ body.files-source-drive .local-only {
 }
 
 .files-empty p,
-.files-permission p {
+.files-permission p,
+.files-loading p {
   margin: 0;
   line-height: 1.4;
 }
 
+.files-loading {
+  align-items: center;
+  text-align: center;
+  gap: 0.75rem;
+  padding-top: 1.25rem;
+  padding-bottom: 1.25rem;
+}
+
+.files-loading-spinner {
+  width: 1.35rem;
+  height: 1.35rem;
+  border: 2px solid color-mix(in srgb, var(--chrome-muted) 35%, transparent);
+  border-top-color: var(--chrome-accent, var(--chrome-focus, var(--chrome-text)));
+  border-radius: 50%;
+  animation: files-spin 0.7s linear infinite;
+}
+
+@keyframes files-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .files-loading-spinner {
+    animation: none;
+    border-color: var(--chrome-accent, var(--chrome-focus, var(--chrome-text)));
+    border-top-color: color-mix(in srgb, var(--chrome-muted) 35%, transparent);
+  }
+}
+
 .files-empty[hidden],
 .files-permission[hidden],
+.files-loading[hidden],
 .files-tree[hidden] {
   display: none;
 }

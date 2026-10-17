@@ -1,6 +1,6 @@
-import { alertExtension } from "./alert.js";
-import { defListExtension } from "./deflist.js";
-import { emojiExtension } from "./emoji.js";
+import { alertExtension } from "../markdown/alert.js";
+import { defListExtension } from "../markdown/deflist.js";
+import { emojiExtension } from "../markdown/emoji.js";
 import {
   collapseDataUris,
   collapseDataUrisPreservingSelection,
@@ -8,9 +8,9 @@ import {
   expandEmbeds,
   findCollapsedEmbeds,
   formatEmbedMarkdown,
-} from "./embeds.js";
-import { frontmatterExtension } from "./frontmatter.js";
-import { tablePipesExtension } from "./tablePipes.js";
+} from "../markdown/embeds.js";
+import { frontmatterExtension } from "../markdown/frontmatter.js";
+import { tablePipesExtension } from "../markdown/tablePipes.js";
 import {
   clearStoredDirectory,
   createFile,
@@ -31,8 +31,8 @@ import {
   storeCurrentFileHandle,
   suggestedUntitledName,
   writeTextFile,
-} from "./fs.js";
-import { loadGoogleDriveConfig } from "./google-drive-config.js";
+} from "../lib/fs.js";
+import { loadGoogleDriveConfig } from "../drive/google-drive-config.js";
 import {
   DRIVE_DEFAULT_FOLDER_NAME,
   clearDriveAccessToken,
@@ -45,10 +45,11 @@ import {
   listDriveFolderChildren,
   readDriveFileText,
   renameDriveItemWithToken,
+  restoreDriveAccessToken,
   saveExistingDriveFile,
   trashDriveItemWithToken,
-} from "./google-drive.js";
-import { applyPatch, contentHash, makeRevisionBody } from "./history-diff.js";
+} from "../drive/google-drive.js";
+import { applyPatch, contentHash, makeRevisionBody } from "../lib/history-diff.js";
 import {
   clearHistoryBodies,
   commitHistoryBodies,
@@ -63,7 +64,7 @@ import {
   setHistoryIndex,
   setTip,
   storageBudgetOk,
-} from "./history-store.js";
+} from "../lib/history-store.js";
 import {
   HLJS_LANG_ALIASES,
   SPLIT_MAX,
@@ -79,18 +80,18 @@ import {
   parseDraftMirror,
   titleFromMarkdown,
   wrapHighlightedLines,
-} from "./markdown-utils.js";
+} from "../markdown/markdown-utils.js";
 import {
   compressUtf8ToBase64Url,
   readShareParams as readShareParamsFromUrl,
-} from "./share.js";
+} from "../lib/share.js";
 import {
   chunkSpeechText,
   listVoices as listVoicesFromList,
   voiceKey,
   voiceQualityScore,
   wordEndOffset,
-} from "./speech-text.js";
+} from "../lib/speech-text.js";
 import { marked, Renderer } from "marked";
 import DOMPurify from "dompurify";
 import hljs from "highlight.js";
@@ -112,21 +113,21 @@ const CDN_INTEGRITY_URLS = cdnIntegrityUrlSet();
 /** Lazy-loaded export helpers — not needed until the user exports/prints. */
 let exportModulePromise;
 function loadExportModule() {
-  exportModulePromise ??= import("./export.js");
+  exportModulePromise ??= import("../lib/export.js");
   return exportModulePromise;
 }
 
 /** Lazy-loaded Chrome Writing Assistance helpers — only when APIs exist. */
 let chromeAiModulePromise;
 function loadChromeAiModule() {
-  chromeAiModulePromise ??= import("./chrome-ai.js");
+  chromeAiModulePromise ??= import("../lib/chrome-ai.js");
   return chromeAiModulePromise;
 }
 
 /** Lazy-loaded WebGL water backdrop for the secret Zen theme. */
 let zenModulePromise;
 function loadZenModule() {
-  zenModulePromise ??= import("./theme-zen.js");
+  zenModulePromise ??= import("../lib/theme-zen.js");
   return zenModulePromise;
 }
 
@@ -141,7 +142,7 @@ function loadZenCss() {
     const href =
       typeof __ZEN_CSS_URL__ !== "undefined"
         ? /** @type {string} */ (__ZEN_CSS_URL__)
-        : new URL("./zen.css", import.meta.url).href;
+        : new URL("../styles/zen.css", import.meta.url).href;
     const link = document.createElement("link");
     link.id = "zen-theme-css";
     link.rel = "stylesheet";
@@ -196,7 +197,7 @@ function ensureHljsLanguage(name) {
 
   if (canonical === "mermaid") {
     // Not on the highlight.js CDN — local grammar, code-split from the app entry.
-    pending = import("./hljs-mermaid.js")
+    pending = import("../markdown/hljs-mermaid.js")
       .then((mod) => {
         const grammar = mod.default;
         if (typeof grammar !== "function") return false;
@@ -380,6 +381,7 @@ const filesNewFolderBtn = document.getElementById("files-new-folder-btn");
 const filesRefreshBtn = document.getElementById("files-refresh-btn");
 const filesEmpty = document.getElementById("files-empty");
 const filesEmptyOpenBtn = document.getElementById("files-empty-open-btn");
+const filesLoading = document.getElementById("files-loading");
 const filesPermission = document.getElementById("files-permission");
 const filesRegrantBtn = document.getElementById("files-regrant-btn");
 const filesReopenBtn = document.getElementById("files-reopen-btn");
@@ -417,6 +419,8 @@ const DRIVE_ROOT_UI_NAME = `/${DRIVE_DEFAULT_FOLDER_NAME}`;
 /** @type {{ id: string, name: string }[]} navigation stack; [0] is markdown-editor root */
 let driveNavStack = [];
 let driveConnected = false;
+/** True while the Drive files tree is fetching from Google. */
+let driveFilesLoading = false;
 
 function driveCurrentFolderId() {
   return driveNavStack.length ? driveNavStack[driveNavStack.length - 1].id : "";
@@ -3880,16 +3884,13 @@ function clearCurrentFileBinding() {
  * @param {string} [path]
  */
 function bindCurrentFile(fileHandle, name, path = "") {
-  const prevKey = currentDocKey();
   currentDriveFile = null;
   currentFileHandle = fileHandle;
   currentFileName = name || fileHandle?.name || "";
   currentFilePath = path || pathForHandle(fileHandle) || "";
-  const nextKey = currentDocKey();
-  if (prevKey !== nextKey) {
-    const snap = readSavedSnapshot(nextKey);
-    if (snap != null) savedSnapshot = snap;
-  }
+  // Do not reload savedSnapshot here — open/create paths set the editor first and
+  // markClean afterward. Restoring a stale snap made rapid switches (and disconnect)
+  // look dirty via the same confirmDiscardIfDirty() check.
   updateDocumentTitle();
   updateSaveButton();
   highlightActiveFileInTree();
@@ -3900,16 +3901,10 @@ function bindCurrentFile(fileHandle, name, path = "") {
  * @param {{ id: string, name: string, mimeType?: string }} file
  */
 function bindCurrentDriveFile(file) {
-  const prevKey = currentDocKey();
   currentFileHandle = null;
   currentFilePath = "";
   currentDriveFile = { id: file.id, name: file.name, mimeType: file.mimeType };
   currentFileName = file.name || "";
-  const nextKey = currentDocKey();
-  if (prevKey !== nextKey) {
-    const snap = readSavedSnapshot(nextKey);
-    if (snap != null) savedSnapshot = snap;
-  }
   updateDocumentTitle();
   updateSaveButton();
   highlightActiveFileInTree();
@@ -4339,15 +4334,18 @@ function updateFilesChrome() {
       : "Open a folder to browse Markdown, text, and HTML files.";
   }
 
+  if (filesLoading) {
+    filesLoading.hidden = !driveMode || !driveFilesLoading;
+  }
   if (filesEmpty) {
-    filesEmpty.hidden = driveMode
+    filesEmpty.hidden = driveFilesLoading || (driveMode
       ? hasDriveRoot
-      : hasLocalRoot || awaitingFsPermission;
+      : hasLocalRoot || awaitingFsPermission);
   }
   if (filesPermission) {
     filesPermission.hidden = driveMode || !awaitingFsPermission;
   }
-  if (filesTree) filesTree.hidden = !hasRoot;
+  if (filesTree) filesTree.hidden = driveFilesLoading || !hasRoot;
   if (filesNewFileBtn) filesNewFileBtn.disabled = false;
   if (filesNewFolderBtn) {
     filesNewFolderBtn.disabled = driveMode ? !hasDriveRoot : !hasLocalRoot;
@@ -4356,11 +4354,17 @@ function updateFilesChrome() {
     filesRefreshBtn.disabled = driveMode ? !hasDriveRoot : !hasLocalRoot;
   }
   if (filesConnectDriveBtn) {
-    filesConnectDriveBtn.hidden = !driveConfigured || !driveMode || hasDriveRoot;
-    filesConnectDriveBtn.textContent = "Connect Drive";
+    filesConnectDriveBtn.hidden = !driveConfigured || !driveMode;
+    if (hasDriveRoot) {
+      filesConnectDriveBtn.textContent = "Disconnect";
+      filesConnectDriveBtn.title = "Disconnect Google Drive and clear the saved token";
+    } else {
+      filesConnectDriveBtn.textContent = "Connect Drive";
+      filesConnectDriveBtn.title = "Connect Google Drive";
+    }
   }
   if (filesEmptyConnectBtn) {
-    filesEmptyConnectBtn.hidden = !driveConfigured || !driveMode;
+    filesEmptyConnectBtn.hidden = !driveConfigured || !driveMode || hasDriveRoot;
   }
   if (filesEmptyOpenBtn) {
     filesEmptyOpenBtn.hidden = driveMode;
@@ -4441,7 +4445,6 @@ async function ensureDriveNavRoot(token) {
 async function renderDriveTree() {
   if (!filesTree) return;
   driveEntries.clear();
-  filesTree.replaceChildren();
 
   const token = getDriveAccessToken();
   if (!token) return;
@@ -4449,6 +4452,10 @@ async function renderDriveTree() {
   await ensureDriveNavRoot(token);
   const folderId = driveCurrentFolderId();
   const { entries } = await listDriveFolderChildren(token, folderId);
+
+  // Re-check after awaits: local restore must not leave a half-painted shared tree.
+  if (!isDriveFilesSource() || !driveConnected) return;
+  filesTree.replaceChildren();
 
   if (driveNavStack.length > 1) {
     const { li } = createFilesTreeItem({
@@ -4512,8 +4519,23 @@ async function resolveDriveCreateParentId(target = null) {
   return driveCurrentFolderId() || (await ensureDriveAppFolder(await ensureDriveAccessToken()));
 }
 
+function beginDriveFilesLoading() {
+  driveFilesLoading = true;
+  if (filesTree) {
+    filesTree.replaceChildren();
+    filesTree.hidden = true;
+  }
+  updateFilesChrome();
+}
+
+function endDriveFilesLoading() {
+  driveFilesLoading = false;
+  updateFilesChrome();
+}
+
 async function refreshDriveTree() {
   if (!isDriveFilesSource() || !driveConnected) return;
+  beginDriveFilesLoading();
   try {
     await renderDriveTree();
   } catch (err) {
@@ -4523,11 +4545,12 @@ async function refreshDriveTree() {
       driveConnected = false;
       driveNavStack = [];
       driveEntries.clear();
-      updateFilesChrome();
       showToast("Google Drive session expired — connect again");
       return;
     }
     showToast(err?.message || "Could not refresh Drive");
+  } finally {
+    endDriveFilesLoading();
   }
 }
 
@@ -4542,17 +4565,48 @@ async function connectGoogleDrive() {
     } catch {
       /* ignore */
     }
-    updateFilesChrome();
-    await renderDriveTree();
-    updateFilesChrome();
+    beginDriveFilesLoading();
+    try {
+      await renderDriveTree();
+    } finally {
+      endDriveFilesLoading();
+    }
     showToast(`Connected — ${DRIVE_ROOT_UI_NAME}`);
   } catch (err) {
     if (err?.name === "AbortError") return;
     console.error(err);
     driveConnected = false;
-    updateFilesChrome();
+    endDriveFilesLoading();
     showToast(err?.message || "Could not connect Google Drive");
   }
+}
+
+async function disconnectGoogleDrive() {
+  if (!driveConfigured) return;
+  // Closing a Drive-backed doc must happen before the token is cleared so Cancel
+  // leaves the session intact, and so Save cannot reconnect to an orphaned binding.
+  if (currentDriveFile) {
+    if (!confirmDiscardIfDirty()) return;
+    openDocumentSeq += 1;
+    await persistDraft(getMarkdownSource());
+    setEditorValue("");
+    clearCurrentFileBinding();
+    await persistDraft("");
+    renderMarkdown("");
+    markDirtyBaseline();
+    setContentExternal(false);
+  }
+  clearDriveAccessToken();
+  driveConnected = false;
+  driveFilesLoading = false;
+  driveNavStack = [];
+  driveEntries.clear();
+  if (filesTree) {
+    filesTree.replaceChildren();
+    filesTree.hidden = true;
+  }
+  updateFilesChrome();
+  showToast("Disconnected from Google Drive");
 }
 
 function setFilesSource(next) {
@@ -4564,27 +4618,47 @@ function setFilesSource(next) {
   } catch {
     /* ignore */
   }
-  updateFilesChrome();
   if (filesSource === "drive") {
-    if (driveConnected) void refreshActiveFilesTree();
-    else if (filesTree) {
-      filesTree.replaceChildren();
-      filesTree.hidden = true;
+    if (driveConnected) {
+      // Drop local rows immediately so they are not visible under the spinner.
+      beginDriveFilesLoading();
+      void refreshActiveFilesTree();
+    } else {
+      driveFilesLoading = false;
+      if (filesTree) {
+        filesTree.replaceChildren();
+        filesTree.hidden = true;
+      }
+      updateFilesChrome();
     }
-  } else if (rootDirHandle && !awaitingFsPermission) {
-    void refreshActiveFilesTree();
+  } else {
+    driveFilesLoading = false;
+    updateFilesChrome();
+    if (rootDirHandle && !awaitingFsPermission) {
+      void refreshActiveFilesTree();
+    }
   }
-  updateFilesChrome();
 }
+
+/**
+ * Bumped when starting a file open so a slow fetch cannot finish after a newer
+ * click (which incorrectly looked like unsaved edits).
+ * @type {number}
+ */
+let openDocumentSeq = 0;
 
 /**
  * Shared post-load path after content is in the editor and the file is bound.
  * @param {string} name
+ * @param {number} [seq]
  */
-async function finishOpenDocument(name) {
+async function finishOpenDocument(name, seq = openDocumentSeq) {
+  if (seq !== openDocumentSeq) return;
   await persistDraft(getMarkdownSource());
+  if (seq !== openDocumentSeq) return;
   renderMarkdown(getMarkdownSource());
   await pushHistory(getMarkdownSource());
+  if (seq !== openDocumentSeq) return;
   markCleanFromEditor();
   setContentExternal(false);
   highlightActiveFileInTree();
@@ -4599,10 +4673,14 @@ async function openDriveTreeFile(fileId) {
     return;
   }
   if (!confirmDiscardIfDirty()) return;
+  const seq = ++openDocumentSeq;
   try {
     await persistDraft(getMarkdownSource());
+    if (seq !== openDocumentSeq) return;
     const token = await ensureDriveAccessToken();
+    if (seq !== openDocumentSeq) return;
     const content = await readDriveFileText(token, fileId);
+    if (seq !== openDocumentSeq) return;
     setEditorValue(content);
     const fromKey = currentDocKey();
     bindCurrentDriveFile({ id: entry.id, name: entry.name, mimeType: entry.mimeType });
@@ -4611,9 +4689,13 @@ async function openDriveTreeFile(fileId) {
       void moveDraft(fromKey, toKey);
       moveSavedSnapshot(fromKey, toKey);
     }
-    await finishOpenDocument(entry.name);
+    // Mark clean under the new doc key before any further awaits so the same
+    // confirmDiscardIfDirty() used by switch/disconnect is not a false positive.
+    markCleanFromEditor();
+    await finishOpenDocument(entry.name, seq);
   } catch (err) {
     if (err?.name === "AbortError") return;
+    if (seq !== openDocumentSeq) return;
     console.error(err);
     showToast(err?.message || "Could not open Drive file");
   }
@@ -4698,6 +4780,8 @@ async function renderFilesTree() {
 
 async function refreshFilesTree() {
   if (!rootDirHandle) return;
+  // Drive mode owns the same #files-tree; do not paint local entries into it.
+  if (isDriveFilesSource()) return;
   try {
     await renderFilesTree();
   } catch (err) {
@@ -4714,7 +4798,7 @@ async function setRootDirectory(handle, { permissionOk = true } = {}) {
   updateFilesChrome();
   if (permissionOk && handle) {
     await refreshFilesTree();
-  } else if (filesTree) {
+  } else if (filesTree && !isDriveFilesSource()) {
     filesTree.replaceChildren();
     fsEntries.clear();
   }
@@ -4770,15 +4854,20 @@ async function openFsFile(path) {
     return;
   }
   if (!confirmDiscardIfDirty()) return;
+  const seq = ++openDocumentSeq;
   try {
     // Persist the outgoing document under its own key before switching.
     await persistDraft(getMarkdownSource());
+    if (seq !== openDocumentSeq) return;
     const text = await readTextFile(/** @type {FileSystemFileHandle} */ (entry.handle));
+    if (seq !== openDocumentSeq) return;
     setEditorValue(text);
     bindCurrentFile(/** @type {FileSystemFileHandle} */ (entry.handle), entry.handle.name, path);
     selectFsPath(path);
-    await finishOpenDocument(entry.handle.name);
+    markCleanFromEditor();
+    await finishOpenDocument(entry.handle.name, seq);
   } catch (err) {
+    if (seq !== openDocumentSeq) return;
     console.error(err);
     showToast("Could not open file");
   }
@@ -5701,9 +5790,13 @@ function setupFilesDrawer() {
     });
     const savedSource = localStorage.getItem(STORAGE_KEYS.filesSource);
     if (savedSource === "drive" || savedSource === "local") filesSource = savedSource;
+    if (restoreDriveAccessToken()) driveConnected = true;
     filesSourceLocalBtn?.addEventListener("click", () => setFilesSource("local"));
     filesSourceDriveBtn?.addEventListener("click", () => setFilesSource("drive"));
-    filesConnectDriveBtn?.addEventListener("click", () => void connectGoogleDrive());
+    filesConnectDriveBtn?.addEventListener("click", () => {
+      if (driveConnected) void disconnectGoogleDrive();
+      else void connectGoogleDrive();
+    });
     filesEmptyConnectBtn?.addEventListener("click", () => void connectGoogleDrive());
   }
 
@@ -5821,7 +5914,13 @@ async function restoreCurrentFileBindingOnLoad() {
     /* ignore */
   }
 
-  if (fsAccessSupported && rootDirHandle && !awaitingFsPermission && savedPath) {
+  if (
+    !isDriveFilesSource() &&
+    fsAccessSupported &&
+    rootDirHandle &&
+    !awaitingFsPermission &&
+    savedPath
+  ) {
     for (let p = parentPathOf(savedPath); p; p = parentPathOf(p)) {
       expandedPaths.add(p);
     }
@@ -8315,12 +8414,16 @@ async function init() {
     await hydrateHistoryIndexFromIdb();
   }
   // Sequential: file binding restore reads rootDirHandle set by directory restore.
+  // Drive tree refresh waits until after local restore so both cannot race into #files-tree.
   await restoreFilesDirectoryOnLoad();
   if (guideSession) {
     // Help-preview tabs must not adopt the other tab's open file.
     clearCurrentFileBinding();
   } else {
     await restoreCurrentFileBindingOnLoad();
+  }
+  if (driveConfigured && driveConnected && isDriveFilesSource()) {
+    await refreshDriveTree();
   }
 
   const savedSyncScroll = localStorage.getItem(STORAGE_KEYS.syncScroll) === "1";

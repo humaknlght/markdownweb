@@ -67,9 +67,9 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Markdown" />
   <link rel="manifest" href="manifest.webmanifest" />
-  <link rel="apple-touch-icon" href="icon-192.png" />
-  <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png" />
-  <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png" />
+  <link rel="apple-touch-icon" href="assets/icon-192.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="assets/icon-192.png" />
+  <link rel="icon" type="image/png" sizes="512x512" href="assets/icon-512.png" />
   <script>window.__MD_SW__="__SW_URL__";</script>
   <script>
     (function () {
@@ -106,8 +106,8 @@
       }
     })();
   </script>
-  <link rel="stylesheet" href="styles.css" />
-  <link rel="stylesheet" href="print.css" media="print" />
+  <link rel="stylesheet" href="styles/styles.css" />
+  <link rel="stylesheet" href="styles/print.css" media="print" />
   <link
     rel="modulepreload"
     href="https://cdn.jsdelivr.net/npm/marked@18.0.13/lib/marked.esm.js"
@@ -547,6 +547,10 @@
             <button type="button" class="btn local-only" id="files-empty-open-btn">Open folder</button>
             <button type="button" class="btn drive-only" id="files-empty-connect-btn" hidden>Connect Drive</button>
           </div>
+          <div class="files-loading" id="files-loading" hidden aria-live="polite" aria-busy="true">
+            <span class="files-loading-spinner" aria-hidden="true"></span>
+            <p>Loading Google Drive…</p>
+          </div>
           <div class="files-permission" id="files-permission" hidden>
             <p>Permission needed to access the saved folder.</p>
             <button type="button" class="btn" id="files-regrant-btn">Allow access</button>
@@ -806,6 +810,6 @@
     <a href="https://unsplash.com/@jtbean" target="_blank" rel="noopener noreferrer">Josh Bean</a>
   </p>
 
-  <script type="module" src="app.js"></script>
+  <script type="module" src="app/app.js"></script>
 </body>
 </html>

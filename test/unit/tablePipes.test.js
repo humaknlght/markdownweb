@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { escapePipesInTableCodeSpans } from "../../src/tablePipes.js";
+import { escapePipesInTableCodeSpans } from "../../src/markdown/tablePipes.js";
 import { renderMarkdownHtml } from "../helpers/render.js";
 
 describe("escapePipesInTableCodeSpans", () => {

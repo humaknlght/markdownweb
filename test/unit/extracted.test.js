@@ -8,7 +8,7 @@ import {
   listVoices,
   voiceQualityScore,
   wordEndOffset,
-} from "../../src/speech-text.js";
+} from "../../src/lib/speech-text.js";
 import {
   canonicalHljsLang,
   clampSplit,
@@ -25,8 +25,8 @@ import {
   wrapHighlightedLines,
   SPLIT_MIN,
   SPLIT_MAX,
-} from "../../src/markdown-utils.js";
-import hljsMermaid from "../../src/hljs-mermaid.js";
+} from "../../src/markdown/markdown-utils.js";
+import hljsMermaid from "../../src/markdown/hljs-mermaid.js";
 import {
   clearEmbeds,
   collapseDataUris,
@@ -36,7 +36,7 @@ import {
   findCollapsedEmbeds,
   formatEmbedMarkdown,
   rememberEmbed,
-} from "../../src/embeds.js";
+} from "../../src/markdown/embeds.js";
 
 describe("speech-text", () => {
   it("chunks long text at sentence boundaries under the max", () => {

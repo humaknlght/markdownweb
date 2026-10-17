@@ -6,11 +6,11 @@ import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 
-/** Main + lazy Zen theme CSS (zen tokens live in src/zen.css). */
+/** Main + lazy Zen theme CSS (zen tokens live in src/styles/zen.css). */
 async function readThemeCss() {
   const [styles, zen] = await Promise.all([
-    fs.readFile(path.join(root, "src/styles.css"), "utf8"),
-    fs.readFile(path.join(root, "src/zen.css"), "utf8"),
+    fs.readFile(path.join(root, "src/styles/styles.css"), "utf8"),
+    fs.readFile(path.join(root, "src/styles/zen.css"), "utf8"),
   ]);
   return `${styles}\n${zen}`;
 }

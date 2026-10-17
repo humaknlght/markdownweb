@@ -16,14 +16,14 @@ import {
   mimeTypeForName,
   readDriveFileText,
   updateDriveFile,
-} from "../../src/google-drive-api.js";
+} from "../../src/drive/google-drive-api.js";
 import {
   GOOGLE_DRIVE,
   applyGoogleDriveConfig,
   isGoogleDriveConfigured,
   loadGoogleDriveConfig,
   resetGoogleDriveConfigForTests,
-} from "../../src/google-drive-config.js";
+} from "../../src/drive/google-drive-config.js";
 
 describe("google-drive-config", () => {
   beforeEach(() => {

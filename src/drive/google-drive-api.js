@@ -1,11 +1,15 @@
 /** Shared Google Drive REST helpers and opener↔helper message protocol. */
 
-import { EDITABLE_FILE_RE, isEditableFileName } from "./fs.js";
+import { EDITABLE_FILE_RE, isEditableFileName } from "../lib/fs.js";
 
 export const DRIVE_MSG_TYPE = "md-preview:google-drive";
 export const DRIVE_MSG_VERSION = 1;
 
-export const DRIVE_HELPER_PATH = "./drive-helper.html";
+/** Auth popup (own directory + .htaccess so COEP/CSP stay Google-capable). */
+export const DRIVE_HELPER_PATH = "./drive-helper/";
+
+/** Same-origin BroadcastChannel the auth popup reports results on. */
+export const DRIVE_AUTH_CHANNEL = "md-preview:google-drive-auth";
 
 /** Default My Drive folder for new files created by this app. */
 export const DRIVE_DEFAULT_FOLDER_NAME = "markdown-editor";
@@ -30,7 +34,9 @@ export const DRIVE_EDITABLE_MIME_TYPES = [
  *   content?: string,
  *   name?: string,
  *   accessToken?: string,
+ *   expiresIn?: number,
  *   error?: string,
+ *   req?: string,
  * }} DriveMessage
  */
 

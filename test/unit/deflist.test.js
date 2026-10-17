@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { findDefListStart, parseDefList } from "../../src/deflist.js";
+import { findDefListStart, parseDefList } from "../../src/markdown/deflist.js";
 import { renderMarkdownHtml } from "../helpers/render.js";
 
 describe("parseDefList", () => {

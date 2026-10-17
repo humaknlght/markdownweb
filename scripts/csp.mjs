@@ -1,8 +1,6 @@
 import { createHash } from "node:crypto";
 
 const CDN_SCRIPT_ORIGINS = ["https://cdn.jsdelivr.net"];
-/** GIS only — Drive REST needs no Google script beyond the token client. */
-const GOOGLE_SCRIPT_ORIGINS = ["https://accounts.google.com"];
 
 /**
  * Extract bodies of inline <script> tags (no src attribute).
@@ -36,9 +34,9 @@ export function buildScriptSrc(hashes) {
   return parts.join(" ");
 }
 
-/** script-src for the COEP-free Drive helper popup (GIS + Picker). */
+/** script-src for drive-helper/ (same-origin modules only; OAuth is a top-level redirect). */
 export function buildDriveHelperScriptSrc(hashes = []) {
-  const parts = ["'self'", ...GOOGLE_SCRIPT_ORIGINS, ...hashes];
+  const parts = ["'self'", ...hashes];
   return parts.join(" ");
 }
 
@@ -62,7 +60,7 @@ export function buildContentSecurityPolicy(scriptSrc) {
 }
 
 /**
- * CSP for drive-helper.html — no COEP; GIS token client + Drive REST only.
+ * CSP for drive-helper/ — no COEP; OAuth is a top-level redirect to Google.
  * @param {string} scriptSrc
  */
 export function buildDriveHelperContentSecurityPolicy(scriptSrc) {
@@ -76,7 +74,7 @@ export function buildDriveHelperContentSecurityPolicy(scriptSrc) {
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: https:",
     "font-src 'self'",
-    "connect-src 'self' https://www.googleapis.com https://accounts.google.com",
+    "connect-src 'self' https://www.googleapis.com",
     "frame-src https://accounts.google.com",
     "upgrade-insecure-requests",
   ].join("; ");

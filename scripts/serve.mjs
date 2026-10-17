@@ -113,18 +113,28 @@ const HTML_HEADERS = {
 
 /** Drive helper popup: same security baseline, no COEP, Google-capable CSP. */
 const DRIVE_HELPER_HTML_HEADERS = {
-  "Cache-Control": "no-cache",
+  "Cache-Control": "no-store",
   "Permissions-Policy": HTML_HEADERS["Permissions-Policy"],
   "Strict-Transport-Security": "max-age=31536000",
   "Content-Security-Policy": driveHelperCsp,
   "X-Frame-Options": "DENY",
+  // Explicit unsafe-none so a stale SW / proxy cannot leave require-corp in place.
+  "Cross-Origin-Embedder-Policy": "unsafe-none",
   "X-Content-Type-Options": "nosniff",
   "Referrer-Policy": "strict-origin-when-cross-origin",
 };
 
+/** True for HTML under the Drive auth helper directory (own CSP / no COEP). */
+function isDriveHelperHtml(logicalPath) {
+  const parts = logicalPath.split(path.sep);
+  const i = parts.lastIndexOf("drive-helper");
+  if (i < 0 || i >= parts.length - 1) return false;
+  const file = parts[parts.length - 1];
+  return file === "index.html" || file.endsWith(".html");
+}
+
 function headersFor(logicalPath, encoding) {
-  const base = path.basename(logicalPath);
-  if (base === "drive-helper.html") {
+  if (isDriveHelperHtml(logicalPath)) {
     return buildHeaders(logicalPath, encoding, { htmlHeaders: DRIVE_HELPER_HTML_HEADERS });
   }
   return buildHeaders(logicalPath, encoding, { htmlHeaders: HTML_HEADERS });
