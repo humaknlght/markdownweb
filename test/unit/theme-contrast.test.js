@@ -375,4 +375,73 @@ describe("Theme text contrast (WCAG 2.2 AA)", () => {
       `zen placeholder rgba(${m[1]},${m[2]},${m[3]},${m[4]}) is ${ratio.toFixed(2)}:1`,
     );
   });
+
+  /**
+   * Local / Drive files-drawer chrome (source toggle, empty/loading copy, Connect,
+   * active-file accent) — same tokens across all themes including Fancy/Zen glass.
+   */
+  it("keeps Local/Drive files-drawer text ≥4.5:1 on drawer surfaces for every theme", async () => {
+    const css = await readThemeCss();
+    assert.match(
+      css,
+      /\.files-source-toggle\s+\.files-source-btn\.is-active\s*\{[^}]*color:\s*var\(--chrome-text\)/,
+      "active Local/Drive tab must use --chrome-text (not a missing --chrome-fg fallback)",
+    );
+
+    for (const theme of THEMES) {
+      const tokens = parseThemeTokens(css, theme);
+      const base = themePageBase(theme);
+
+      /** @param {string} raw */
+      function solidBg(raw) {
+        const val = resolveValue(tokens, raw);
+        if (val === "transparent") {
+          // Files drawer uses glass fills on Fancy/Zen, not bare page photo.
+          const glassRaw =
+            theme === "fancy"
+              ? tokens["--fancy-glass"]
+              : theme === "zen"
+                ? tokens["--zen-glass"]
+                : null;
+          if (glassRaw) return solidBg(glassRaw);
+          return base;
+        }
+        let bg = parseColor(val);
+        if ((bg.a ?? 1) < 1) {
+          const a = bg.a;
+          bg = {
+            r: Math.round(bg.r * a + base.r * (1 - a)),
+            g: Math.round(bg.g * a + base.g * (1 - a)),
+            b: Math.round(bg.b * a + base.b * (1 - a)),
+            a: 1,
+          };
+        }
+        return bg;
+      }
+
+      const drawer = solidBg(tokens["--chrome-bg"]);
+      const hover = solidBg(tokens["--chrome-hover"]);
+      const pairs = [
+        ["inactive Local/Drive", tokens["--chrome-muted"], drawer],
+        ["active Local/Drive", tokens["--chrome-text"], hover],
+        ["empty/loading", tokens["--chrome-muted"], drawer],
+        ["drawer title / Connect label", tokens["--chrome-text"], drawer],
+        ["active file accent", tokens["--chrome-focus"], drawer],
+        ["active file accent on hover", tokens["--chrome-focus"], hover],
+      ];
+
+      if (theme === "fancy") {
+        pairs.push(["fancy active-file gold", "#ffe08a", drawer]);
+      }
+
+      for (const [label, fgRaw, bg] of pairs) {
+        const fgVal = resolveValue(tokens, fgRaw);
+        const ratio = contrastRatio(parseColor(fgVal), bg);
+        assert.ok(
+          ratio >= 4.5,
+          `${theme} ${label}: ${fgVal} is ${ratio.toFixed(2)}:1 (need ≥4.5:1)`,
+        );
+      }
+    }
+  });
 });

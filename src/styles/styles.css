@@ -531,7 +531,8 @@ html[data-theme="fancy"] {
   --chrome-text: #f4f8fb;
   --chrome-muted: #b7c9d4;
   --chrome-hover: rgba(255, 255, 255, 0.22);
-  --chrome-focus: #f1b965;
+  /* Slightly lighter than #f1b965 so focus text stays ≥4.5:1 on --chrome-hover. */
+  --chrome-focus: #f5c882;
   --chrome-pressed-border: #f1b965;
   --chrome-on-focus: #1a1208;
   --chrome-shadow: 0 10px 40px rgba(0, 0, 0, 0.35);
@@ -1829,7 +1830,8 @@ html.is-booting .files-backdrop {
 
 .files-source-toggle .files-source-btn.is-active {
   background: var(--chrome-hover, #21262d);
-  color: var(--chrome-fg, #e6edf3);
+  /* Use --chrome-text (not a missing --chrome-fg fallback) so light themes stay ≥4.5:1. */
+  color: var(--chrome-text);
 }
 
 body.files-source-drive .local-only {
