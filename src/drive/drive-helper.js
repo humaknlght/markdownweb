@@ -4,10 +4,16 @@
  * Results go to the editor over a BroadcastChannel tagged with the request id,
  * so the flow does not depend on window.opener surviving Google's COOP.
  *
- * The editor `req` id rides in OAuth `state` (echoed back by Google). sessionStorage
- * only holds a short-lived CSRF nonce — never the access token or req id.
+ * The editor passes an ephemeral AES key in ?k= (stripped into sessionStorage before
+ * redirect). Auth success broadcasts ciphertext only — never the access token.
+ * sessionStorage also holds a short-lived CSRF nonce — never the access token or req id.
  */
 
+import {
+  encryptDriveAuthHandoff,
+  importDriveAuthHandoffKey,
+  isDriveAuthHandoffKeyParam,
+} from "./drive-auth-handoff.js";
 import { DRIVE_AUTH_CHANNEL, makeDriveMessage } from "./google-drive-api.js";
 import {
   GOOGLE_DRIVE,
@@ -20,6 +26,8 @@ import {
 const OAUTH_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 /** CSRF nonce only (random bytes we generated) — not a credential. */
 const SS_NONCE = "md-dh-csrf";
+/** Ephemeral BroadcastChannel handoff key (base64url raw AES-256). */
+const SS_HANDOFF = "md-dh-handoff";
 
 const statusEl = document.getElementById("status");
 const channel = new BroadcastChannel(DRIVE_AUTH_CHANNEL);
@@ -55,6 +63,51 @@ function replyCancel() {
 function replyError(error) {
   send({ action: "error", error });
   closeSoon();
+}
+
+/**
+ * Pull ?k= into sessionStorage and strip it from the address bar before any
+ * navigation (so it never appears on the Google redirect or in history after).
+ */
+function captureHandoffKeyFromUrl() {
+  const params = new URLSearchParams(window.location.search);
+  const k = params.get("k");
+  if (!k) return;
+  if (isDriveAuthHandoffKeyParam(k)) {
+    try {
+      sessionStorage.setItem(SS_HANDOFF, k);
+    } catch {
+      /* private mode — encrypt step will fail and report */
+    }
+  }
+  params.delete("k");
+  const qs = params.toString();
+  const next = `${window.location.pathname}${qs ? `?${qs}` : ""}${window.location.hash}`;
+  history.replaceState(null, "", next);
+}
+
+function clearHandoffKey() {
+  try {
+    sessionStorage.removeItem(SS_HANDOFF);
+  } catch {
+    /* ignore */
+  }
+}
+
+/** @returns {Promise<CryptoKey | null>} */
+async function loadHandoffKey() {
+  let raw = "";
+  try {
+    raw = sessionStorage.getItem(SS_HANDOFF) || "";
+  } catch {
+    return null;
+  }
+  if (!isDriveAuthHandoffKeyParam(raw)) return null;
+  try {
+    return await importDriveAuthHandoffKey(raw);
+  } catch {
+    return null;
+  }
 }
 
 /** Canonical redirect URI: …/drive-helper/ (must match Cloud Console). */
@@ -152,9 +205,9 @@ function beginOAuthRedirect() {
 
 /**
  * Handle return from Google (#access_token= / #error=).
- * @returns {boolean} true if this load was an OAuth callback
+ * @returns {Promise<boolean>} true if this load was an OAuth callback
  */
-function tryHandleOAuthCallback() {
+async function tryHandleOAuthCallback() {
   const hash = window.location.hash.replace(/^#/, "");
   const params = new URLSearchParams(hash);
   const error = params.get("error");
@@ -170,33 +223,54 @@ function tryHandleOAuthCallback() {
 
   if (!req) {
     // CSRF failed or state missing — drop any token; cannot notify the editor.
+    clearHandoffKey();
     setStatus("OAuth state mismatch — try Connect Drive again.");
     return true;
   }
 
   if (error) {
+    clearHandoffKey();
     if (error === "access_denied") replyCancel();
     else replyError(params.get("error_description") || error);
     return true;
   }
 
   if (!accessToken) {
+    clearHandoffKey();
     replyError("Missing access token — try Connect Drive again");
     return true;
   }
 
-  setStatus("Connected");
-  send({
-    action: "auth",
-    accessToken,
-    ...(Number.isFinite(expiresIn) && expiresIn > 0 ? { expiresIn } : {}),
-  });
-  closeSoon();
+  const handoffKey = await loadHandoffKey();
+  clearHandoffKey();
+  if (!handoffKey) {
+    setStatus("Missing handoff key — try Connect Drive again.");
+    replyError("Missing handoff key — try Connect Drive again");
+    return true;
+  }
+
+  try {
+    const cipher = await encryptDriveAuthHandoff(handoffKey, {
+      accessToken,
+      ...(Number.isFinite(expiresIn) && expiresIn > 0 ? { expiresIn } : {}),
+    });
+    setStatus("Connected");
+    send({
+      action: "auth",
+      iv: cipher.iv,
+      ct: cipher.ct,
+    });
+    closeSoon();
+  } catch (err) {
+    console.error(err);
+    replyError(err?.message || "Failed to seal auth result");
+  }
   return true;
 }
 
 async function main() {
-  if (tryHandleOAuthCallback()) return;
+  captureHandoffKeyFromUrl();
+  if (await tryHandleOAuthCallback()) return;
 
   if (!req) {
     setStatus("Open Google Drive from the Markdown editor.");

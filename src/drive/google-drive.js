@@ -5,6 +5,11 @@
  */
 
 import {
+  decryptDriveAuthHandoff,
+  exportDriveAuthHandoffKey,
+  generateDriveAuthHandoffKey,
+} from "./drive-auth-handoff.js";
+import {
   DRIVE_AUTH_CHANNEL,
   DRIVE_HELPER_PATH,
   createDriveFile,
@@ -199,22 +204,27 @@ function abortError() {
  * Google's sign-in page sends COOP, so after the popup visits it the opener
  * link is reported (and may later be severed). For the same reason
  * popup.closed is only polled until the helper leaves for Google.
+ *
+ * The access token is AES-GCM sealed for the hop (ephemeral key in ?k= / memory);
+ * cleartext tokens on the channel are ignored.
  * @returns {Promise<{ action: string, accessToken?: string, expiresIn?: number, sealed?: boolean }>}
  */
-function openDriveAuthHelper() {
+async function openDriveAuthHelper() {
+  if (!isGoogleDriveConfigured()) {
+    throw new Error("Google Drive is not configured");
+  }
+
+  abortPendingAuth?.();
+
+  const handoffKey = await generateDriveAuthHandoffKey();
+  const keyParam = await exportDriveAuthHandoffKey(handoffKey);
+  const req = crypto.randomUUID();
+  const url = new URL(DRIVE_HELPER_PATH, window.location.href);
+  url.searchParams.set("mode", "auth");
+  url.searchParams.set("req", req);
+  url.searchParams.set("k", keyParam);
+
   return new Promise((resolve, reject) => {
-    if (!isGoogleDriveConfigured()) {
-      reject(new Error("Google Drive is not configured"));
-      return;
-    }
-
-    abortPendingAuth?.();
-
-    const req = crypto.randomUUID();
-    const url = new URL(DRIVE_HELPER_PATH, window.location.href);
-    url.searchParams.set("mode", "auth");
-    url.searchParams.set("req", req);
-
     const popup = window.open(
       url.href,
       "md-google-drive",
@@ -269,17 +279,22 @@ function openDriveAuthHelper() {
 
       if (msg.action === "auth") {
         void (async () => {
-          let sealed = false;
-          if (msg.accessToken) {
-            const result = await persistDriveSession(msg.accessToken, msg.expiresIn);
-            sealed = result.sealed;
+          try {
+            // Reject cleartext tokens — only the ephemeral-key ciphertext is trusted.
+            const opened = await decryptDriveAuthHandoff(handoffKey, {
+              iv: msg.iv,
+              ct: msg.ct,
+            });
+            const result = await persistDriveSession(opened.accessToken, opened.expiresIn);
+            finish(resolve, {
+              action: msg.action,
+              accessToken: opened.accessToken,
+              expiresIn: opened.expiresIn,
+              sealed: result.sealed,
+            });
+          } catch (err) {
+            finish(reject, err instanceof Error ? err : new Error(String(err)));
           }
-          finish(resolve, {
-            action: msg.action,
-            accessToken: msg.accessToken,
-            expiresIn: msg.expiresIn,
-            sealed,
-          });
         })();
       }
     };

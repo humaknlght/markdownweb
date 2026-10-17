@@ -8,7 +8,11 @@ export const DRIVE_MSG_VERSION = 1;
 /** Auth popup (own directory + .htaccess so COEP/CSP stay Google-capable). */
 export const DRIVE_HELPER_PATH = "./drive-helper/";
 
-/** Same-origin BroadcastChannel the auth popup reports results on. */
+/**
+ * Same-origin BroadcastChannel the auth popup reports results on.
+ * Auth success carries AES-GCM ciphertext (iv + ct), not a cleartext token —
+ * see drive-auth-handoff.js.
+ */
 export const DRIVE_AUTH_CHANNEL = "md-editor:google-drive-auth";
 
 /** Default My Drive folder for new files created by this app. */
@@ -35,6 +39,8 @@ export const DRIVE_EDITABLE_MIME_TYPES = [
  *   name?: string,
  *   accessToken?: string,
  *   expiresIn?: number,
+ *   iv?: string,
+ *   ct?: string,
  *   error?: string,
  *   req?: string,
  * }} DriveMessage
