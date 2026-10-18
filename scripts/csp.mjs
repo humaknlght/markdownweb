@@ -34,6 +34,12 @@ export function buildScriptSrc(hashes) {
   return parts.join(" ");
 }
 
+/** script-src for drive-helper/ (same-origin modules only; OAuth is a top-level redirect). */
+export function buildDriveHelperScriptSrc(hashes = []) {
+  const parts = ["'self'", ...hashes];
+  return parts.join(" ");
+}
+
 export function buildContentSecurityPolicy(scriptSrc) {
   return [
     "default-src 'self'",
@@ -46,8 +52,30 @@ export function buildContentSecurityPolicy(scriptSrc) {
     "img-src 'self' data: blob: https:",
     "media-src 'self' data: blob:",
     "font-src 'self' https://cdn.jsdelivr.net",
-    "connect-src 'self' https://cdn.jsdelivr.net",
+    // Drive REST uploads/downloads from the main app (token from helper popup).
+    "connect-src 'self' https://cdn.jsdelivr.net https://www.googleapis.com",
     "worker-src 'self' blob:",
+    "upgrade-insecure-requests",
+  ].join("; ");
+}
+
+/**
+ * CSP for drive-helper/ — no COEP; OAuth is a top-level redirect to Google.
+ * @param {string} scriptSrc
+ */
+export function buildDriveHelperContentSecurityPolicy(scriptSrc) {
+  return [
+    "default-src 'self'",
+    "base-uri 'self'",
+    "object-src 'none'",
+    "frame-ancestors 'none'",
+    "form-action 'self'",
+    `script-src ${scriptSrc}`,
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: https:",
+    "font-src 'self'",
+    "connect-src 'self' https://www.googleapis.com",
+    "frame-src https://accounts.google.com",
     "upgrade-insecure-requests",
   ].join("; ");
 }

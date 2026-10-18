@@ -172,6 +172,13 @@ FileETag MTime Size
     Header set Cache-Control "public, max-age=31536000, immutable"
   </FilesMatch>
 
+  # Drive auth helper has its own .htaccess. Parent "Header always set" inside
+  # FilesMatch cannot be unset reliably from a subdirectory — skip it instead.
+  # (Evidence: helper was getting app CSP + Link prefetch → …/drive-helper/GUIDE.*.md.)
+  <IfModule mod_setenvif.c>
+    SetEnvIf Request_URI "drive-helper" IS_DRIVE_HELPER
+  </IfModule>
+
   # Parent public_html/.htaccess sets CSP / Speculation-Rules / Link / etc. inside
   # <FilesMatch "\.html">. Directory-level "Header unset" runs too early and loses.
   # Use the same FilesMatch pattern so our unset runs in that same files scope.
@@ -193,16 +200,17 @@ FileETag MTime Size
     Header unset Permissions-Policy
     Header always unset Permissions-Policy
 
-    Header set Cache-Control "no-cache"
-    Header set Permissions-Policy "accelerometer=(), ambient-light-sensor=(), autoplay=(self), camera=(), display-capture=(), encrypted-media=(), execution-while-not-rendered=(), execution-while-out-of-viewport=(), fullscreen=(self), gamepad=(), geolocation=(), gyroscope=(), hid=(), identity-credentials-get=(), idle-detection=(), local-fonts=(), magnetometer=(), microphone=(), midi=(), otp-credentials=(), payment=(), picture-in-picture=(), publickey-credentials-create=(), publickey-credentials-get=(), screen-wake-lock=(), serial=(), speaker-selection=(), storage-access=(), usb=(), web-share=(), window-management=(), xr-spatial-tracking=(), interest-cohort=(), writer=(self), rewriter=(self), proofreader=(self), language-model=(self)"
-    Header set Strict-Transport-Security "max-age=31536000"
-    Header always set Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src __SCRIPT_SRC__; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; media-src 'self' data: blob:; font-src 'self' https://cdn.jsdelivr.net; connect-src 'self' https://cdn.jsdelivr.net; worker-src 'self' blob:; upgrade-insecure-requests"
+    # env=!IS_DRIVE_HELPER → drive-helper/.htaccess owns those responses.
+    Header set Cache-Control "no-cache" env=!IS_DRIVE_HELPER
+    Header set Permissions-Policy "accelerometer=(), ambient-light-sensor=(), autoplay=(self), camera=(), display-capture=(), encrypted-media=(), execution-while-not-rendered=(), execution-while-out-of-viewport=(), fullscreen=(self), gamepad=(), geolocation=(), gyroscope=(), hid=(), identity-credentials-get=(), idle-detection=(), local-fonts=(), magnetometer=(), microphone=(), midi=(), otp-credentials=(), payment=(), picture-in-picture=(), publickey-credentials-create=(self), publickey-credentials-get=(self), screen-wake-lock=(), serial=(), speaker-selection=(), storage-access=(), usb=(), web-share=(), window-management=(), xr-spatial-tracking=(), interest-cohort=(), writer=(self), rewriter=(self), proofreader=(self), language-model=(self)" env=!IS_DRIVE_HELPER
+    Header set Strict-Transport-Security "max-age=31536000" env=!IS_DRIVE_HELPER
+    Header always set Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src __SCRIPT_SRC__; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; media-src 'self' data: blob:; font-src 'self' https://cdn.jsdelivr.net; connect-src 'self' https://cdn.jsdelivr.net https://www.googleapis.com; worker-src 'self' blob:; upgrade-insecure-requests" env=!IS_DRIVE_HELPER
     # Low-priority hint for first-visit GUIDE seed (app fetches lazily only when needed).
-    Header always set Link "<__GUIDE_URL__>;rel=prefetch"
-    Header set X-Frame-Options "DENY"
-    Header always set Cross-Origin-Embedder-Policy "require-corp"
-    Header set X-Content-Type-Options "nosniff"
-    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+    Header always set Link "<__GUIDE_URL__>;rel=prefetch" env=!IS_DRIVE_HELPER
+    Header set X-Frame-Options "DENY" env=!IS_DRIVE_HELPER
+    Header always set Cross-Origin-Embedder-Policy "require-corp" env=!IS_DRIVE_HELPER
+    Header set X-Content-Type-Options "nosniff" env=!IS_DRIVE_HELPER
+    Header always set Referrer-Policy "strict-origin-when-cross-origin" env=!IS_DRIVE_HELPER
     # Chrome Writing Assistance origin trials for https://dev.ericperret.org
     # Register Writer/Rewriter + Proofreader, then uncomment and paste tokens
     # (use `add`, not `set`, so both headers are sent):

@@ -26,6 +26,8 @@ import {
   inlineScriptHashes,
   buildScriptSrc,
   buildContentSecurityPolicy,
+  buildDriveHelperScriptSrc,
+  buildDriveHelperContentSecurityPolicy,
 } from "./csp.mjs";
 import { applyCdnIntegrity, loadCdnIntegrity } from "./cdn-integrity.mjs";
 import { guideSourcePath } from "./sync-guide.mjs";
@@ -67,6 +69,10 @@ async function resolveCspConfig() {
       return {
         scriptSrc: parsed.scriptSrc,
         guideUrl: typeof parsed.guideUrl === "string" ? parsed.guideUrl : "./GUIDE.md",
+        driveHelperCsp:
+          typeof parsed.driveHelperCsp === "string"
+            ? parsed.driveHelperCsp
+            : buildDriveHelperContentSecurityPolicy(buildDriveHelperScriptSrc([])),
       };
     }
   } catch {
@@ -82,16 +88,20 @@ async function resolveCspConfig() {
   if (!hashes.length) {
     throw new Error(`No inline scripts found in ${htmlPath}`);
   }
-  return { scriptSrc: buildScriptSrc(hashes), guideUrl: "./GUIDE.md" };
+  return {
+    scriptSrc: buildScriptSrc(hashes),
+    guideUrl: "./GUIDE.md",
+    driveHelperCsp: buildDriveHelperContentSecurityPolicy(buildDriveHelperScriptSrc([])),
+  };
 }
 
-const { scriptSrc, guideUrl } = await resolveCspConfig();
+const { scriptSrc, guideUrl, driveHelperCsp } = await resolveCspConfig();
 const contentSecurityPolicy = buildContentSecurityPolicy(scriptSrc);
 
 const HTML_HEADERS = {
   "Cache-Control": "no-cache",
   "Permissions-Policy":
-    "accelerometer=(), ambient-light-sensor=(), autoplay=(self), camera=(), display-capture=(), encrypted-media=(), execution-while-not-rendered=(), execution-while-out-of-viewport=(), fullscreen=(self), gamepad=(), geolocation=(), gyroscope=(), hid=(), identity-credentials-get=(), idle-detection=(), local-fonts=(), magnetometer=(), microphone=(), midi=(), otp-credentials=(), payment=(), picture-in-picture=(), publickey-credentials-create=(), publickey-credentials-get=(), screen-wake-lock=(), serial=(), speaker-selection=(), storage-access=(), usb=(), web-share=(), window-management=(), xr-spatial-tracking=(), interest-cohort=(), writer=(self), rewriter=(self), proofreader=(self), language-model=(self)",
+    "accelerometer=(), ambient-light-sensor=(), autoplay=(self), camera=(), display-capture=(), encrypted-media=(), execution-while-not-rendered=(), execution-while-out-of-viewport=(), fullscreen=(self), gamepad=(), geolocation=(), gyroscope=(), hid=(), identity-credentials-get=(), idle-detection=(), local-fonts=(), magnetometer=(), microphone=(), midi=(), otp-credentials=(), payment=(), picture-in-picture=(), publickey-credentials-create=(self), publickey-credentials-get=(self), screen-wake-lock=(), serial=(), speaker-selection=(), storage-access=(), usb=(), web-share=(), window-management=(), xr-spatial-tracking=(), interest-cohort=(), writer=(self), rewriter=(self), proofreader=(self), language-model=(self)",
   "Strict-Transport-Security": "max-age=31536000",
   "Content-Security-Policy": contentSecurityPolicy,
   Link: `<${guideUrl}>;rel=prefetch`,
@@ -101,7 +111,32 @@ const HTML_HEADERS = {
   "Referrer-Policy": "strict-origin-when-cross-origin",
 };
 
+/** Drive helper popup: same security baseline, no COEP, Google-capable CSP. */
+const DRIVE_HELPER_HTML_HEADERS = {
+  "Cache-Control": "no-store",
+  "Permissions-Policy": HTML_HEADERS["Permissions-Policy"],
+  "Strict-Transport-Security": "max-age=31536000",
+  "Content-Security-Policy": driveHelperCsp,
+  "X-Frame-Options": "DENY",
+  // Explicit unsafe-none so a stale SW / proxy cannot leave require-corp in place.
+  "Cross-Origin-Embedder-Policy": "unsafe-none",
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+};
+
+/** True for HTML under the Drive auth helper directory (own CSP / no COEP). */
+function isDriveHelperHtml(logicalPath) {
+  const parts = logicalPath.split(path.sep);
+  const i = parts.lastIndexOf("drive-helper");
+  if (i < 0 || i >= parts.length - 1) return false;
+  const file = parts[parts.length - 1];
+  return file === "index.html" || file.endsWith(".html");
+}
+
 function headersFor(logicalPath, encoding) {
+  if (isDriveHelperHtml(logicalPath)) {
+    return buildHeaders(logicalPath, encoding, { htmlHeaders: DRIVE_HELPER_HTML_HEADERS });
+  }
   return buildHeaders(logicalPath, encoding, { htmlHeaders: HTML_HEADERS });
 }
 

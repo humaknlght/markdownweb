@@ -1,6 +1,6 @@
-import { alertExtension } from "./alert.js";
-import { defListExtension } from "./deflist.js";
-import { emojiExtension } from "./emoji.js";
+import { alertExtension } from "../markdown/alert.js";
+import { defListExtension } from "../markdown/deflist.js";
+import { emojiExtension } from "../markdown/emoji.js";
 import {
   collapseDataUris,
   collapseDataUrisPreservingSelection,
@@ -8,9 +8,9 @@ import {
   expandEmbeds,
   findCollapsedEmbeds,
   formatEmbedMarkdown,
-} from "./embeds.js";
-import { frontmatterExtension } from "./frontmatter.js";
-import { tablePipesExtension } from "./tablePipes.js";
+} from "../markdown/embeds.js";
+import { frontmatterExtension } from "../markdown/frontmatter.js";
+import { tablePipesExtension } from "../markdown/tablePipes.js";
 import {
   clearStoredDirectory,
   createFile,
@@ -31,8 +31,28 @@ import {
   storeCurrentFileHandle,
   suggestedUntitledName,
   writeTextFile,
-} from "./fs.js";
-import { applyPatch, contentHash, makeRevisionBody } from "./history-diff.js";
+} from "../lib/fs.js";
+import { loadGoogleDriveConfig } from "../drive/google-drive-config.js";
+import {
+  DRIVE_DEFAULT_FOLDER_NAME,
+  clearDriveAccessToken,
+  createDriveFileWithToken,
+  createDriveFolderWithToken,
+  ensureDriveAccessToken,
+  ensureDriveAppFolder,
+  getDriveAccessToken,
+  googleDriveEnabled,
+  hasSealedDriveSession,
+  isDriveSessionMemoryOnly,
+  listDriveFolderChildren,
+  readDriveFileText,
+  renameDriveItemWithToken,
+  saveExistingDriveFile,
+  trashDriveItemWithToken,
+  tryRestoreDriveAccessToken,
+} from "../drive/google-drive.js";
+import { purgeLegacyCleartextToken, readVaultMeta } from "../drive/drive-token-vault.js";
+import { applyPatch, contentHash, makeRevisionBody } from "../lib/history-diff.js";
 import {
   clearHistoryBodies,
   commitHistoryBodies,
@@ -47,7 +67,7 @@ import {
   setHistoryIndex,
   setTip,
   storageBudgetOk,
-} from "./history-store.js";
+} from "../lib/history-store.js";
 import {
   HLJS_LANG_ALIASES,
   SPLIT_MAX,
@@ -63,18 +83,18 @@ import {
   parseDraftMirror,
   titleFromMarkdown,
   wrapHighlightedLines,
-} from "./markdown-utils.js";
+} from "../markdown/markdown-utils.js";
 import {
   compressUtf8ToBase64Url,
   readShareParams as readShareParamsFromUrl,
-} from "./share.js";
+} from "../lib/share.js";
 import {
   chunkSpeechText,
   listVoices as listVoicesFromList,
   voiceKey,
   voiceQualityScore,
   wordEndOffset,
-} from "./speech-text.js";
+} from "../lib/speech-text.js";
 import { marked, Renderer } from "marked";
 import DOMPurify from "dompurify";
 import hljs from "highlight.js";
@@ -96,21 +116,21 @@ const CDN_INTEGRITY_URLS = cdnIntegrityUrlSet();
 /** Lazy-loaded export helpers — not needed until the user exports/prints. */
 let exportModulePromise;
 function loadExportModule() {
-  exportModulePromise ??= import("./export.js");
+  exportModulePromise ??= import("../lib/export.js");
   return exportModulePromise;
 }
 
 /** Lazy-loaded Chrome Writing Assistance helpers — only when APIs exist. */
 let chromeAiModulePromise;
 function loadChromeAiModule() {
-  chromeAiModulePromise ??= import("./chrome-ai.js");
+  chromeAiModulePromise ??= import("../lib/chrome-ai.js");
   return chromeAiModulePromise;
 }
 
 /** Lazy-loaded WebGL water backdrop for the secret Zen theme. */
 let zenModulePromise;
 function loadZenModule() {
-  zenModulePromise ??= import("./theme-zen.js");
+  zenModulePromise ??= import("../lib/theme-zen.js");
   return zenModulePromise;
 }
 
@@ -125,7 +145,7 @@ function loadZenCss() {
     const href =
       typeof __ZEN_CSS_URL__ !== "undefined"
         ? /** @type {string} */ (__ZEN_CSS_URL__)
-        : new URL("./zen.css", import.meta.url).href;
+        : new URL("../styles/zen.css", import.meta.url).href;
     const link = document.createElement("link");
     link.id = "zen-theme-css";
     link.rel = "stylesheet";
@@ -180,7 +200,7 @@ function ensureHljsLanguage(name) {
 
   if (canonical === "mermaid") {
     // Not on the highlight.js CDN — local grammar, code-split from the app entry.
-    pending = import("./hljs-mermaid.js")
+    pending = import("../markdown/hljs-mermaid.js")
       .then((mod) => {
         const grammar = mod.default;
         if (typeof grammar !== "function") return false;
@@ -216,19 +236,20 @@ async function ensureHljsLanguagesForSource(source) {
 }
 
 const STORAGE_KEYS = {
-  draft: "md-preview:draft",
-  theme: "md-preview:theme",
-  editorCollapsed: "md-preview:editor-collapsed",
-  previewCollapsed: "md-preview:preview-collapsed",
-  history: "md-preview:history",
-  split: "md-preview:split",
-  width: "md-preview:width",
-  voice: "md-preview:voice",
-  syncScroll: "md-preview:sync-scroll",
-  filesDrawer: "md-preview:filesDrawer",
-  currentFile: "md-preview:currentFile",
-  currentFilePath: "md-preview:currentFilePath",
-  savedSnapshot: "md-preview:savedSnapshot",
+  draft: "md-editor:draft",
+  theme: "md-editor:theme",
+  editorCollapsed: "md-editor:editor-collapsed",
+  previewCollapsed: "md-editor:preview-collapsed",
+  history: "md-editor:history",
+  split: "md-editor:split",
+  width: "md-editor:width",
+  voice: "md-editor:voice",
+  syncScroll: "md-editor:sync-scroll",
+  filesDrawer: "md-editor:filesDrawer",
+  filesSource: "md-editor:filesSource",
+  currentFile: "md-editor:currentFile",
+  currentFilePath: "md-editor:currentFilePath",
+  savedSnapshot: "md-editor:savedSnapshot",
 };
 
 /** Soft max for how many per-doc saved snapshots to keep in localStorage. */
@@ -243,7 +264,7 @@ const HISTORY_TIP_MAX = 5 * 1024 * 1024;
 const EMERGENCY_LS_MAX = 100_000;
 const HISTORY_INDEX_VERSION = 3;
 const PATCH_MAX_CHARS = 100_000;
-const STORAGE_CHANNEL = "md-preview-storage";
+const STORAGE_CHANNEL = "md-editor-storage";
 const RENDER_DEBOUNCE_MS = 80;
 /** Delay before the preview loading spinner becomes visible. */
 const RENDER_LOADING_DELAY_MS = 700;
@@ -352,11 +373,19 @@ const filesDrawer = document.getElementById("files-drawer");
 const filesBackdrop = document.getElementById("files-backdrop");
 const filesDrawerTitle = document.getElementById("files-drawer-title");
 const filesOpenFolderBtn = document.getElementById("files-open-folder-btn");
+const filesSourceToggle = document.getElementById("files-source-toggle");
+const filesSourceLocalBtn = document.getElementById("files-source-local-btn");
+const filesSourceDriveBtn = document.getElementById("files-source-drive-btn");
+const filesConnectDriveBtn = document.getElementById("files-connect-drive-btn");
+const filesDriveOfflineHint = document.getElementById("files-drive-offline-hint");
+const filesEmptyConnectBtn = document.getElementById("files-empty-connect-btn");
+const filesEmptyCopy = document.getElementById("files-empty-copy");
 const filesNewFileBtn = document.getElementById("files-new-file-btn");
 const filesNewFolderBtn = document.getElementById("files-new-folder-btn");
 const filesRefreshBtn = document.getElementById("files-refresh-btn");
 const filesEmpty = document.getElementById("files-empty");
 const filesEmptyOpenBtn = document.getElementById("files-empty-open-btn");
+const filesLoading = document.getElementById("files-loading");
 const filesPermission = document.getElementById("files-permission");
 const filesRegrantBtn = document.getElementById("files-regrant-btn");
 const filesReopenBtn = document.getElementById("files-reopen-btn");
@@ -377,10 +406,34 @@ let selectedDirHandle = null;
 let selectedPath = "";
 /** @type {FileSystemFileHandle|null} */
 let currentFileHandle = null;
+/** @type {{ id: string, name: string, mimeType?: string } | null} */
+let currentDriveFile = null;
 /** @type {string} */
 let currentFileName = "";
 /** @type {string} Relative path under the open folder, when known. */
 let currentFilePath = "";
+/** Set after loadGoogleDriveConfig() during boot. */
+let driveConfigured = false;
+/** @type {"local"|"drive"} */
+let filesSource = "local";
+/** @type {Map<string, { kind: "file"|"directory", id: string, name: string, mimeType?: string }>} */
+const driveEntries = new Map();
+/** UI label for the Drive app root (leading slash marks it as a directory). */
+const DRIVE_ROOT_UI_NAME = `/${DRIVE_DEFAULT_FOLDER_NAME}`;
+/** @type {{ id: string, name: string }[]} navigation stack; [0] is markdown-editor root */
+let driveNavStack = [];
+let driveConnected = false;
+/** True while the Drive files tree is fetching from Google. */
+let driveFilesLoading = false;
+
+function driveCurrentFolderId() {
+  return driveNavStack.length ? driveNavStack[driveNavStack.length - 1].id : "";
+}
+
+function drivePathLabel() {
+  if (!driveNavStack.length) return DRIVE_ROOT_UI_NAME;
+  return driveNavStack.map((p) => p.name).join("/");
+}
 /** @type {string} Last disk- or URL-baseline content for dirty checks. */
 let savedSnapshot = "";
 /** True while the trust modal holds markdown that arrived via `#md` / `#mdz`. */
@@ -391,7 +444,7 @@ let guideSession = false;
 const fsEntries = new Map();
 /** @type {Set<string>} */
 const expandedPaths = new Set();
-/** @type {{ path: string, kind: "file"|"directory" }|null} */
+/** @type {{ id: string, kind: "file"|"directory" }|null} */
 let contextTarget = null;
 let filesDrawerOpen = false;
 let awaitingFsPermission = false;
@@ -1790,6 +1843,7 @@ function clearShareMarkdownFromUrl() {
  * @returns {string}
  */
 function currentDocKey() {
+  if (currentDriveFile?.id) return `drive:${currentDriveFile.id}`;
   if (currentFilePath) return `path:${currentFilePath}`;
   if (currentFileName) return `name:${currentFileName}`;
   return "untitled";
@@ -3819,6 +3873,7 @@ function persistCurrentFileBinding() {
 
 function clearCurrentFileBinding() {
   currentFileHandle = null;
+  currentDriveFile = null;
   currentFileName = "";
   currentFilePath = "";
   updateDocumentTitle();
@@ -3833,15 +3888,27 @@ function clearCurrentFileBinding() {
  * @param {string} [path]
  */
 function bindCurrentFile(fileHandle, name, path = "") {
-  const prevKey = currentDocKey();
+  currentDriveFile = null;
   currentFileHandle = fileHandle;
   currentFileName = name || fileHandle?.name || "";
   currentFilePath = path || pathForHandle(fileHandle) || "";
-  const nextKey = currentDocKey();
-  if (prevKey !== nextKey) {
-    const snap = readSavedSnapshot(nextKey);
-    if (snap != null) savedSnapshot = snap;
-  }
+  // Do not reload savedSnapshot here — open/create paths set the editor first and
+  // markClean afterward. Restoring a stale snap made rapid switches (and disconnect)
+  // look dirty via the same confirmDiscardIfDirty() check.
+  updateDocumentTitle();
+  updateSaveButton();
+  highlightActiveFileInTree();
+  persistCurrentFileBinding();
+}
+
+/**
+ * @param {{ id: string, name: string, mimeType?: string }} file
+ */
+function bindCurrentDriveFile(file) {
+  currentFileHandle = null;
+  currentFilePath = "";
+  currentDriveFile = { id: file.id, name: file.name, mimeType: file.mimeType };
+  currentFileName = file.name || "";
   updateDocumentTitle();
   updateSaveButton();
   highlightActiveFileInTree();
@@ -3978,11 +4045,15 @@ function updateUnsavedFavicon(dirty = isDirty()) {
   img.src = sourceHref;
 }
 
+function canSaveDocument() {
+  return fsAccessSupported || Boolean(currentDriveFile) || driveConfigured;
+}
+
 function updateSaveButton() {
   const dirty = isDirty();
   updateUnsavedAppBadge(dirty);
   updateUnsavedFavicon(dirty);
-  if (!saveBtn || !fsAccessSupported) return;
+  if (!saveBtn || !canSaveDocument()) return;
   saveBtn.classList.toggle("is-dirty", dirty);
   saveBtn.title = dirty
     ? `Save unsaved changes (Ctrl/Cmd+S)`
@@ -4107,18 +4178,25 @@ function closeFilesContextMenu() {
   contextTarget = null;
 }
 
-function openFilesContextMenu(x, y, path, kind) {
+/**
+ * @param {number} x
+ * @param {number} y
+ * @param {{ id?: string, kind: "file"|"directory" }} target
+ */
+function openFilesContextMenu(x, y, target) {
   if (!filesContextMenu) return;
-  contextTarget = { path, kind };
+  const id = target.id || "";
+  contextTarget = { id, kind: target.kind };
   const newFileItem = filesContextMenu.querySelector('[data-fs-action="new-file"]');
   const newFolderItem = filesContextMenu.querySelector('[data-fs-action="new-folder"]');
   const renameItem = filesContextMenu.querySelector('[data-fs-action="rename"]');
   const deleteItem = filesContextMenu.querySelector('[data-fs-action="delete"]');
-  const showCreate = kind === "directory";
+  const showCreate = target.kind === "directory";
+  const canMutate = Boolean(id);
   if (newFileItem?.parentElement) newFileItem.parentElement.hidden = !showCreate;
   if (newFolderItem?.parentElement) newFolderItem.parentElement.hidden = !showCreate;
-  if (renameItem?.parentElement) renameItem.parentElement.hidden = path === "";
-  if (deleteItem?.parentElement) deleteItem.parentElement.hidden = path === "";
+  if (renameItem?.parentElement) renameItem.parentElement.hidden = !canMutate;
+  if (deleteItem?.parentElement) deleteItem.parentElement.hidden = !canMutate;
 
   filesContextMenu.hidden = false;
   const rect = filesContextMenu.getBoundingClientRect();
@@ -4128,17 +4206,196 @@ function openFilesContextMenu(x, y, path, kind) {
   filesContextMenu.style.top = `${Math.max(8, top)}px`;
 }
 
-function updateFilesChrome() {
-  const hasRoot = Boolean(rootDirHandle) && !awaitingFsPermission;
-  if (filesDrawerTitle) {
-    filesDrawerTitle.textContent = rootDirHandle?.name || "Files";
+function isDriveFilesSource() {
+  return driveConfigured && filesSource === "drive";
+}
+
+/** @returns {Promise<void>} */
+async function refreshActiveFilesTree() {
+  if (isDriveFilesSource()) await refreshDriveTree();
+  else await refreshFilesTree();
+}
+
+/**
+ * @param {Element} row
+ * @returns {string}
+ */
+function filesEntryIdFromRow(row) {
+  return row.getAttribute("data-drive-id") || row.getAttribute("data-path") || "";
+}
+
+/**
+ * @param {string} id
+ * @returns {{ id: string, name: string, kind: "file"|"directory" } | null}
+ */
+function getActiveTreeEntry(id) {
+  if (!id && !isDriveFilesSource()) {
+    return rootDirHandle ? { id: "", name: rootDirHandle.name, kind: "directory" } : null;
   }
-  if (filesEmpty) filesEmpty.hidden = hasRoot || awaitingFsPermission;
-  if (filesPermission) filesPermission.hidden = !awaitingFsPermission;
-  if (filesTree) filesTree.hidden = !hasRoot;
+  if (isDriveFilesSource()) {
+    const entry = driveEntries.get(id);
+    return entry ? { id: entry.id, name: entry.name, kind: entry.kind } : null;
+  }
+  const entry = fsEntries.get(id);
+  return entry ? { id, name: entry.handle.name, kind: entry.kind } : null;
+}
+
+/**
+ * Shared tree row DOM for Local and Drive listings.
+ * @param {{
+ *   id: string,
+ *   kind: "file"|"directory",
+ *   name: string,
+ *   idAttr?: "path"|"driveId",
+ *   twistieText?: string,
+ *   twistieSpacer?: boolean,
+ *   rowClass?: string,
+ *   action?: string,
+ * }} opts
+ */
+function createFilesTreeItem(opts) {
+  const idAttr = opts.idAttr || (isDriveFilesSource() ? "driveId" : "path");
+  const li = document.createElement("li");
+  li.className = "files-tree-item";
+  li.setAttribute("role", "treeitem");
+  li.dataset.kind = opts.kind;
+  if (idAttr === "driveId") li.dataset.driveId = opts.id;
+  else li.dataset.path = opts.id;
+
+  const row = document.createElement("button");
+  row.type = "button";
+  row.className = `files-tree-row${opts.rowClass ? ` ${opts.rowClass}` : ""}`;
+  row.dataset.kind = opts.kind;
+  if (idAttr === "driveId") row.dataset.driveId = opts.id;
+  else row.dataset.path = opts.id;
+  if (opts.action) row.dataset.driveAction = opts.action;
+
+  const twistie = document.createElement("span");
+  twistie.className = "files-tree-twistie";
+  if (opts.twistieSpacer) {
+    twistie.classList.add("is-spacer");
+    twistie.textContent = opts.twistieText || "•";
+  } else {
+    twistie.textContent = opts.twistieText || (opts.kind === "directory" ? "▶" : "");
+  }
+
+  const label = document.createElement("span");
+  label.className = "files-tree-label";
+  label.textContent = opts.name;
+
+  row.append(twistie, label);
+  li.append(row);
+  return { li, row, twistie };
+}
+
+/**
+ * @param {string} rawName
+ * @param {"file"|"directory"} kind
+ * @returns {string | null} final name, or null if invalid/cancelled upstream
+ */
+function normalizeEntryName(rawName, kind) {
+  const newName = String(rawName).trim();
+  if (!newName) return null;
+  if (kind === "file") {
+    if (!isEditableFileName(ensureEditableExtension(newName))) return null;
+    return ensureEditableExtension(newName);
+  }
+  return newName;
+}
+
+function isBrowserOnline() {
+  return typeof navigator === "undefined" || navigator.onLine !== false;
+}
+
+function updateFilesChrome() {
+  const driveMode = isDriveFilesSource();
+  const hasLocalRoot = Boolean(rootDirHandle) && !awaitingFsPermission;
+  const hasDriveRoot = driveConnected;
+  const hasRoot = driveMode ? hasDriveRoot : hasLocalRoot;
+  const online = isBrowserOnline();
+  const needsOnlineToConnect = driveConfigured && driveMode && !hasDriveRoot && !online;
+
+  document.body.classList.toggle("files-source-drive", driveMode);
+  document.body.classList.toggle("files-source-local", !driveMode);
+
+  if (filesSourceLocalBtn) {
+    filesSourceLocalBtn.classList.toggle("is-active", !driveMode);
+    filesSourceLocalBtn.setAttribute("aria-pressed", !driveMode ? "true" : "false");
+  }
+  if (filesSourceDriveBtn) {
+    filesSourceDriveBtn.classList.toggle("is-active", driveMode);
+    filesSourceDriveBtn.setAttribute("aria-pressed", driveMode ? "true" : "false");
+  }
+
+  if (filesDrawerTitle) {
+    if (driveMode) {
+      filesDrawerTitle.textContent = driveConnected ? drivePathLabel() : "Google Drive";
+      filesDrawerTitle.title = driveConnected ? drivePathLabel() : "Google Drive";
+    } else {
+      filesDrawerTitle.textContent = rootDirHandle ? `/${rootDirHandle.name}` : "Files";
+      if (rootDirHandle) filesDrawerTitle.title = `/${rootDirHandle.name}`;
+      else filesDrawerTitle.removeAttribute("title");
+    }
+  }
+
+  if (filesEmptyCopy) {
+    if (!driveMode) {
+      filesEmptyCopy.textContent = "Open a folder to browse Markdown, text, and HTML files.";
+    } else if (needsOnlineToConnect) {
+      filesEmptyCopy.textContent = "You need to be online to connect Google Drive.";
+    } else {
+      filesEmptyCopy.textContent = `Connect Google Drive to browse the ${DRIVE_ROOT_UI_NAME} folder.`;
+    }
+  }
+
+  if (filesLoading) {
+    filesLoading.hidden = !driveMode || !driveFilesLoading;
+  }
+  if (filesEmpty) {
+    filesEmpty.hidden = driveFilesLoading || (driveMode
+      ? hasDriveRoot
+      : hasLocalRoot || awaitingFsPermission);
+  }
+  if (filesPermission) {
+    filesPermission.hidden = driveMode || !awaitingFsPermission;
+  }
+  if (filesTree) filesTree.hidden = driveFilesLoading || !hasRoot;
   if (filesNewFileBtn) filesNewFileBtn.disabled = false;
-  if (filesNewFolderBtn) filesNewFolderBtn.disabled = !hasRoot;
-  if (filesRefreshBtn) filesRefreshBtn.disabled = !hasRoot;
+  if (filesNewFolderBtn) {
+    filesNewFolderBtn.disabled = driveMode ? !hasDriveRoot : !hasLocalRoot;
+  }
+  if (filesRefreshBtn) {
+    filesRefreshBtn.disabled = driveMode ? !hasDriveRoot : !hasLocalRoot;
+  }
+  if (filesConnectDriveBtn) {
+    filesConnectDriveBtn.hidden = !driveConfigured || !driveMode || needsOnlineToConnect;
+    if (hasDriveRoot) {
+      filesConnectDriveBtn.textContent = "Disconnect";
+      filesConnectDriveBtn.title = "Disconnect Google Drive and clear the sealed session";
+    } else if (hasSealedDriveSession()) {
+      filesConnectDriveBtn.textContent = "Unlock Drive";
+      const prf = readVaultMeta()?.kind !== "idb";
+      filesConnectDriveBtn.title = prf
+        ? "Unlock the sealed Google Drive session with your passkey"
+        : "Restore the sealed Google Drive session for this browser";
+    } else {
+      filesConnectDriveBtn.textContent = "Connect Drive";
+      filesConnectDriveBtn.title = "Connect Google Drive";
+    }
+  }
+  if (filesDriveOfflineHint) {
+    filesDriveOfflineHint.hidden = !needsOnlineToConnect;
+  }
+  if (filesEmptyConnectBtn) {
+    filesEmptyConnectBtn.hidden =
+      !driveConfigured || !driveMode || hasDriveRoot || needsOnlineToConnect;
+  }
+  if (filesEmptyOpenBtn) {
+    filesEmptyOpenBtn.hidden = driveMode;
+  }
+  if (filesOpenFolderBtn) {
+    filesOpenFolderBtn.hidden = driveMode || !fsAccessSupported;
+  }
 }
 
 function getTargetDirForCreate(preferredPath = selectedPath) {
@@ -4176,6 +4433,13 @@ function highlightActiveFileInTree() {
   filesTree?.querySelectorAll(".files-tree-row.is-active-file").forEach((el) => {
     el.classList.remove("is-active-file");
   });
+  if (isDriveFilesSource() && currentDriveFile?.id) {
+    const row = filesTree?.querySelector(
+      `.files-tree-row[data-drive-id="${cssEscape(currentDriveFile.id)}"]`,
+    );
+    row?.classList.add("is-active-file");
+    return;
+  }
   if (!currentFileName) return;
   if (currentFilePath) {
     const row = filesTree?.querySelector(`.files-tree-row[data-path="${cssEscape(currentFilePath)}"]`);
@@ -4190,6 +4454,304 @@ function highlightActiveFileInTree() {
       return;
     }
   }
+}
+
+async function ensureDriveNavRoot(token) {
+  const rootId = await ensureDriveAppFolder(token);
+  if (!driveNavStack.length || driveNavStack[0].id !== rootId) {
+    driveNavStack = [{ id: rootId, name: DRIVE_ROOT_UI_NAME }];
+  } else {
+    driveNavStack[0] = { id: rootId, name: DRIVE_ROOT_UI_NAME };
+  }
+  return rootId;
+}
+
+async function renderDriveTree() {
+  if (!filesTree) return;
+  driveEntries.clear();
+
+  const token = getDriveAccessToken();
+  if (!token) return;
+
+  await ensureDriveNavRoot(token);
+  const folderId = driveCurrentFolderId();
+  const { entries } = await listDriveFolderChildren(token, folderId);
+
+  // Re-check after awaits: local restore must not leave a half-painted shared tree.
+  if (!isDriveFilesSource() || !driveConnected) return;
+  filesTree.replaceChildren();
+
+  if (driveNavStack.length > 1) {
+    const { li } = createFilesTreeItem({
+      id: "",
+      kind: "directory",
+      name: `.. (${driveNavStack[driveNavStack.length - 2].name})`,
+      idAttr: "driveId",
+      twistieText: "◀",
+      rowClass: "files-tree-up",
+      action: "up",
+    });
+    filesTree.append(li);
+  }
+
+  for (const entry of entries) {
+    driveEntries.set(entry.id, entry);
+    const { li } = createFilesTreeItem({
+      id: entry.id,
+      kind: entry.kind,
+      name: entry.name,
+      idAttr: "driveId",
+      twistieText: entry.kind === "directory" ? "▶" : "",
+    });
+    filesTree.append(li);
+  }
+
+  if (filesDrawerTitle && isDriveFilesSource() && driveConnected) {
+    filesDrawerTitle.textContent = drivePathLabel();
+    filesDrawerTitle.title = drivePathLabel();
+  }
+  highlightActiveFileInTree();
+}
+
+async function enterDriveFolder(folderId) {
+  const entry = driveEntries.get(folderId);
+  if (!entry || entry.kind !== "directory") return;
+  driveNavStack.push({ id: entry.id, name: entry.name });
+  await refreshDriveTree();
+}
+
+async function leaveDriveFolder() {
+  if (driveNavStack.length <= 1) return;
+  driveNavStack.pop();
+  await refreshDriveTree();
+}
+
+/**
+ * @param {{ id?: string, kind?: string } | null} [target]
+ * @returns {Promise<string>}
+ */
+async function resolveDriveCreateParentId(target = null) {
+  if (target?.kind === "directory" && target.id) {
+    if (target.id !== driveCurrentFolderId()) {
+      const entry = driveEntries.get(target.id);
+      if (entry?.kind === "directory") {
+        driveNavStack.push({ id: entry.id, name: entry.name });
+      }
+    }
+    return target.id;
+  }
+  return driveCurrentFolderId() || (await ensureDriveAppFolder(await ensureDriveAccessToken()));
+}
+
+function beginDriveFilesLoading() {
+  driveFilesLoading = true;
+  if (filesTree) {
+    filesTree.replaceChildren();
+    filesTree.hidden = true;
+  }
+  updateFilesChrome();
+}
+
+function endDriveFilesLoading() {
+  driveFilesLoading = false;
+  updateFilesChrome();
+}
+
+async function refreshDriveTree() {
+  if (!isDriveFilesSource() || !driveConnected) return;
+  beginDriveFilesLoading();
+  try {
+    await renderDriveTree();
+  } catch (err) {
+    console.error(err);
+    if (err?.status === 401 || /401|auth|token/i.test(String(err?.message || ""))) {
+      clearDriveAccessToken();
+      driveConnected = false;
+      driveNavStack = [];
+      driveEntries.clear();
+      showToast("Google Drive session expired — connect again");
+      return;
+    }
+    showToast(err?.message || "Could not refresh Drive");
+  } finally {
+    endDriveFilesLoading();
+  }
+}
+
+async function connectGoogleDrive() {
+  if (!driveConfigured) return;
+  if (!isBrowserOnline()) {
+    updateFilesChrome();
+    showToast("You need to be online to connect Google Drive");
+    return;
+  }
+  try {
+    await ensureDriveAccessToken();
+    driveConnected = true;
+    filesSource = "drive";
+    try {
+      localStorage.setItem(STORAGE_KEYS.filesSource, "drive");
+    } catch {
+      /* ignore */
+    }
+    beginDriveFilesLoading();
+    try {
+      await renderDriveTree();
+    } finally {
+      endDriveFilesLoading();
+    }
+    if (isDriveSessionMemoryOnly()) {
+      showToast(`Connected — ${DRIVE_ROOT_UI_NAME} (session not persisted across refresh)`);
+    } else {
+      showToast(`Connected — ${DRIVE_ROOT_UI_NAME}`);
+    }
+  } catch (err) {
+    if (err?.name === "AbortError" || err?.name === "NotAllowedError") return;
+    console.error(err);
+    driveConnected = false;
+    endDriveFilesLoading();
+    const offlineish =
+      !isBrowserOnline() ||
+      err?.name === "TypeError" ||
+      /Failed to fetch|NetworkError|ERR_INTERNET/i.test(String(err?.message || ""));
+    showToast(
+      offlineish
+        ? "You need to be online to connect Google Drive"
+        : err?.message || "Could not connect Google Drive",
+    );
+    updateFilesChrome();
+  }
+}
+
+async function disconnectGoogleDrive() {
+  if (!driveConfigured) return;
+  // Closing a Drive-backed doc must happen before the token is cleared so Cancel
+  // leaves the session intact, and so Save cannot reconnect to an orphaned binding.
+  if (currentDriveFile) {
+    if (!confirmDiscardIfDirty()) return;
+    openDocumentSeq += 1;
+    await persistDraft(getMarkdownSource());
+    setEditorValue("");
+    clearCurrentFileBinding();
+    await persistDraft("");
+    renderMarkdown("");
+    markDirtyBaseline();
+    setContentExternal(false);
+  }
+  clearDriveAccessToken();
+  driveConnected = false;
+  driveFilesLoading = false;
+  driveNavStack = [];
+  driveEntries.clear();
+  if (filesTree) {
+    filesTree.replaceChildren();
+    filesTree.hidden = true;
+  }
+  updateFilesChrome();
+  showToast("Disconnected from Google Drive");
+}
+
+function setFilesSource(next) {
+  const source = next === "drive" ? "drive" : "local";
+  if (!driveConfigured && source === "drive") return;
+  filesSource = source;
+  try {
+    localStorage.setItem(STORAGE_KEYS.filesSource, filesSource);
+  } catch {
+    /* ignore */
+  }
+  if (filesSource === "drive") {
+    if (driveConnected) {
+      // Drop local rows immediately so they are not visible under the spinner.
+      beginDriveFilesLoading();
+      void refreshActiveFilesTree();
+    } else {
+      driveFilesLoading = false;
+      if (filesTree) {
+        filesTree.replaceChildren();
+        filesTree.hidden = true;
+      }
+      updateFilesChrome();
+    }
+  } else {
+    driveFilesLoading = false;
+    updateFilesChrome();
+    if (rootDirHandle && !awaitingFsPermission) {
+      void refreshActiveFilesTree();
+    }
+  }
+}
+
+/**
+ * Bumped when starting a file open so a slow fetch cannot finish after a newer
+ * click (which incorrectly looked like unsaved edits).
+ * @type {number}
+ */
+let openDocumentSeq = 0;
+
+/**
+ * Shared post-load path after content is in the editor and the file is bound.
+ * @param {string} name
+ * @param {number} [seq]
+ */
+async function finishOpenDocument(name, seq = openDocumentSeq) {
+  if (seq !== openDocumentSeq) return;
+  await persistDraft(getMarkdownSource());
+  if (seq !== openDocumentSeq) return;
+  renderMarkdown(getMarkdownSource());
+  await pushHistory(getMarkdownSource());
+  if (seq !== openDocumentSeq) return;
+  markCleanFromEditor();
+  setContentExternal(false);
+  highlightActiveFileInTree();
+  showToast(`Loaded ${name}`);
+}
+
+async function openDriveTreeFile(fileId) {
+  const entry = driveEntries.get(fileId);
+  if (!entry || entry.kind !== "file") return;
+  if (currentDriveFile?.id === fileId && !isDirty()) {
+    highlightActiveFileInTree();
+    return;
+  }
+  if (!confirmDiscardIfDirty()) return;
+  const seq = ++openDocumentSeq;
+  try {
+    await persistDraft(getMarkdownSource());
+    if (seq !== openDocumentSeq) return;
+    const token = await ensureDriveAccessToken();
+    if (seq !== openDocumentSeq) return;
+    const content = await readDriveFileText(token, fileId);
+    if (seq !== openDocumentSeq) return;
+    setEditorValue(content);
+    const fromKey = currentDocKey();
+    bindCurrentDriveFile({ id: entry.id, name: entry.name, mimeType: entry.mimeType });
+    const toKey = currentDocKey();
+    if (fromKey !== toKey) {
+      void moveDraft(fromKey, toKey);
+      moveSavedSnapshot(fromKey, toKey);
+    }
+    // Mark clean under the new doc key before any further awaits so the same
+    // confirmDiscardIfDirty() used by switch/disconnect is not a false positive.
+    markCleanFromEditor();
+    await finishOpenDocument(entry.name, seq);
+  } catch (err) {
+    if (err?.name === "AbortError") return;
+    if (seq !== openDocumentSeq) return;
+    console.error(err);
+    showToast(err?.message || "Could not open Drive file");
+  }
+}
+
+/** Activate a tree row (open file or enter/toggle directory). */
+async function activateFilesTreeEntry(id, kind) {
+  if (isDriveFilesSource()) {
+    if (kind === "directory") await enterDriveFolder(id);
+    else await openDriveTreeFile(id);
+    return;
+  }
+  if (kind === "directory") await toggleFsDirectory(id);
+  else await openFsFile(id);
 }
 
 function cssEscape(value) {
@@ -4214,36 +4776,18 @@ async function renderDirectoryChildren(dirHandle, path, listEl) {
       path: childPath,
     });
 
-    const li = document.createElement("li");
-    li.className = "files-tree-item";
-    li.dataset.path = childPath;
-    li.dataset.kind = entry.kind;
-    li.setAttribute("role", "treeitem");
-    if (entry.kind === "directory") li.setAttribute("aria-expanded", "false");
+    const isDir = entry.kind === "directory";
+    const { li } = createFilesTreeItem({
+      id: childPath,
+      kind: entry.kind,
+      name: entry.name,
+      idAttr: "path",
+      twistieText: isDir ? (expandedPaths.has(childPath) ? "▼" : "▶") : "•",
+      twistieSpacer: !isDir,
+    });
+    if (isDir) li.setAttribute("aria-expanded", "false");
 
-    const row = document.createElement("button");
-    row.type = "button";
-    row.className = "files-tree-row";
-    row.dataset.path = childPath;
-    row.dataset.kind = entry.kind;
-
-    const twistie = document.createElement("span");
-    twistie.className = "files-tree-twistie";
-    if (entry.kind === "directory") {
-      twistie.textContent = expandedPaths.has(childPath) ? "▼" : "▶";
-    } else {
-      twistie.classList.add("is-spacer");
-      twistie.textContent = "•";
-    }
-
-    const label = document.createElement("span");
-    label.className = "files-tree-label";
-    label.textContent = entry.name;
-
-    row.append(twistie, label);
-    li.append(row);
-
-    if (entry.kind === "directory") {
+    if (isDir) {
       const childList = document.createElement("ul");
       childList.setAttribute("role", "group");
       childList.hidden = !expandedPaths.has(childPath);
@@ -4278,6 +4822,8 @@ async function renderFilesTree() {
 
 async function refreshFilesTree() {
   if (!rootDirHandle) return;
+  // Drive mode owns the same #files-tree; do not paint local entries into it.
+  if (isDriveFilesSource()) return;
   try {
     await renderFilesTree();
   } catch (err) {
@@ -4294,7 +4840,7 @@ async function setRootDirectory(handle, { permissionOk = true } = {}) {
   updateFilesChrome();
   if (permissionOk && handle) {
     await refreshFilesTree();
-  } else if (filesTree) {
+  } else if (filesTree && !isDriveFilesSource()) {
     filesTree.replaceChildren();
     fsEntries.clear();
   }
@@ -4350,20 +4896,20 @@ async function openFsFile(path) {
     return;
   }
   if (!confirmDiscardIfDirty()) return;
+  const seq = ++openDocumentSeq;
   try {
     // Persist the outgoing document under its own key before switching.
     await persistDraft(getMarkdownSource());
+    if (seq !== openDocumentSeq) return;
     const text = await readTextFile(/** @type {FileSystemFileHandle} */ (entry.handle));
+    if (seq !== openDocumentSeq) return;
     setEditorValue(text);
     bindCurrentFile(/** @type {FileSystemFileHandle} */ (entry.handle), entry.handle.name, path);
-    await persistDraft(getMarkdownSource());
-    renderMarkdown(getMarkdownSource());
-    await pushHistory(getMarkdownSource());
-    markCleanFromEditor();
-    setContentExternal(false);
     selectFsPath(path);
-    showToast(`Loaded ${entry.handle.name}`);
+    markCleanFromEditor();
+    await finishOpenDocument(entry.handle.name, seq);
   } catch (err) {
+    if (seq !== openDocumentSeq) return;
     console.error(err);
     showToast("Could not open file");
   }
@@ -4419,81 +4965,168 @@ async function createUntitledDocument() {
   showToast("New untitled document");
 }
 
-async function promptCreateFile(dirPath = selectedPath) {
-  const dir = getTargetDirForCreate(dirPath);
-  if (!dir) {
-    showToast("Open a folder first");
-    return;
+/**
+ * @param {{ id?: string, kind?: string } | string | null} [target]
+ * @returns {{ id: string, kind: "file"|"directory" } | null}
+ */
+function normalizeFilesTarget(target = null) {
+  if (target == null) {
+    if (isDriveFilesSource()) return { id: "", kind: "directory" };
+    return { id: selectedPath || "", kind: "directory" };
   }
+  if (typeof target === "string") return { id: target, kind: "directory" };
+  return {
+    id: target.id || "",
+    kind: target.kind === "file" ? "file" : "directory",
+  };
+}
+
+/**
+ * After creating an empty document, bind it and clear the editor.
+ * @param {() => void} bind
+ */
+async function openCreatedEmptyDocument(bind) {
+  await persistDraft(getMarkdownSource());
+  setEditorValue("");
+  bind();
+  await persistDraft("");
+  renderMarkdown("");
+  markCleanFromEditor();
+  setContentExternal(false);
+}
+
+/**
+ * @param {{ id?: string, kind?: string } | string | null} [target]
+ */
+async function promptCreateFile(target = null) {
+  const dest = normalizeFilesTarget(target);
   const raw = window.prompt("New file name", "untitled.md");
   if (raw == null) return;
-  const name = ensureEditableExtension(raw);
+  const name = normalizeEntryName(raw, "file");
+  if (!name) {
+    showToast("Use a .md, .txt, or .html name");
+    return;
+  }
+
   try {
+    if (isDriveFilesSource()) {
+      if (!driveConnected) return;
+      if (!confirmDiscardIfDirty()) return;
+      const parentId = await resolveDriveCreateParentId(dest);
+      const file = await createDriveFileWithToken({ name, content: "", parentId });
+      await openCreatedEmptyDocument(() => bindCurrentDriveFile(file));
+      await refreshActiveFilesTree();
+      showToast(`Created ${name}`);
+      return;
+    }
+
+    const dir = getTargetDirForCreate(dest?.id ?? selectedPath);
+    if (!dir) {
+      showToast("Open a folder first");
+      return;
+    }
     const handle = await createFile(dir, name, "");
     const basePath =
       dir === rootDirHandle ? "" : ([...fsEntries.entries()].find(([, e]) => e.handle === dir)?.[0] ?? "");
     if (basePath) expandedPaths.add(basePath);
-    await refreshFilesTree();
+    await refreshActiveFilesTree();
     const createdPath = joinFsPath(basePath, name);
-    await persistDraft(getMarkdownSource());
-    setEditorValue("");
-    bindCurrentFile(handle, name, createdPath);
-    await persistDraft("");
-    renderMarkdown("");
-    markCleanFromEditor();
-    setContentExternal(false);
+    await openCreatedEmptyDocument(() => bindCurrentFile(handle, name, createdPath));
     selectFsPath(createdPath);
     showToast(`Created ${name}`);
   } catch (err) {
+    if (err?.name === "AbortError") return;
     console.error(err);
-    showToast("Could not create file");
+    showToast(err?.message || "Could not create file");
   }
 }
 
-async function promptCreateFolder(dirPath = selectedPath) {
-  const dir = getTargetDirForCreate(dirPath);
-  if (!dir) {
-    showToast("Open a folder first");
+/**
+ * @param {{ id?: string, kind?: string } | string | null} [target]
+ */
+async function promptCreateFolder(target = null) {
+  const dest = normalizeFilesTarget(target);
+  const raw = window.prompt("New folder name", isDriveFilesSource() ? "untitled" : "");
+  if (raw == null) return;
+  const name = normalizeEntryName(raw, "directory");
+  if (!name) {
+    showToast("Folder name required");
     return;
   }
-  const raw = window.prompt("New folder name");
-  if (raw == null) return;
-  const name = String(raw).trim();
-  if (!name) return;
+
   try {
+    if (isDriveFilesSource()) {
+      if (!driveConnected) return;
+      const parentId = await resolveDriveCreateParentId(dest);
+      await createDriveFolderWithToken(name, parentId);
+      await refreshActiveFilesTree();
+      showToast(`Created folder ${name}`);
+      return;
+    }
+
+    const dir = getTargetDirForCreate(dest?.id ?? selectedPath);
+    if (!dir) {
+      showToast("Open a folder first");
+      return;
+    }
     await createFolder(dir, name);
-    const basePath = dir === rootDirHandle ? "" : ([...fsEntries.entries()].find(([, e]) => e.handle === dir)?.[0] ?? "");
+    const basePath =
+      dir === rootDirHandle ? "" : ([...fsEntries.entries()].find(([, e]) => e.handle === dir)?.[0] ?? "");
     if (basePath) expandedPaths.add(basePath);
-    await refreshFilesTree();
+    await refreshActiveFilesTree();
     showToast(`Created folder ${name}`);
   } catch (err) {
+    if (err?.name === "AbortError") return;
     console.error(err);
-    showToast("Could not create folder");
+    showToast(err?.message || "Could not create folder");
   }
 }
 
-async function promptRenameEntry(path) {
-  const entry = fsEntries.get(path);
-  if (!entry || !entry.parent) return;
-  const next = window.prompt("Rename to", entry.handle.name);
+/** @param {string} id */
+async function promptRenameEntry(id) {
+  const entry = getActiveTreeEntry(id);
+  if (!entry) return;
+  const next = window.prompt("Rename to", entry.name);
   if (next == null) return;
-  const newName = String(next).trim();
-  if (!newName || newName === entry.handle.name) return;
-  if (entry.kind === "file" && !isEditableFileName(ensureEditableExtension(newName))) {
-    showToast("Use a .md, .txt, or .html name");
+  const finalName = normalizeEntryName(next, entry.kind);
+  if (!finalName) {
+    if (entry.kind === "file") showToast("Use a .md, .txt, or .html name");
     return;
   }
-  const finalName = entry.kind === "file" ? ensureEditableExtension(newName) : newName;
+  if (finalName === entry.name) return;
+
   try {
-    const wasCurrent = currentFileHandle === entry.handle;
-    const renamed = await renameEntry(entry.parent, entry.handle, finalName);
-    if (path && expandedPaths.has(path)) {
-      expandedPaths.delete(path);
-      expandedPaths.add(joinFsPath(parentPathOf(path), finalName));
+    if (isDriveFilesSource()) {
+      const renamed = await renameDriveItemWithToken(id, finalName);
+      if (currentDriveFile?.id === id) {
+        const fromKey = currentDocKey();
+        bindCurrentDriveFile({
+          id: renamed.id,
+          name: renamed.name || finalName,
+          mimeType: renamed.mimeType,
+        });
+        const toKey = currentDocKey();
+        if (fromKey !== toKey) {
+          void moveDraft(fromKey, toKey);
+          moveSavedSnapshot(fromKey, toKey);
+        }
+      }
+      await refreshActiveFilesTree();
+      showToast(`Renamed to ${finalName}`);
+      return;
     }
-    await refreshFilesTree();
+
+    const fsEntry = fsEntries.get(id);
+    if (!fsEntry || !fsEntry.parent) return;
+    const wasCurrent = currentFileHandle === fsEntry.handle;
+    const renamed = await renameEntry(fsEntry.parent, fsEntry.handle, finalName);
+    if (id && expandedPaths.has(id)) {
+      expandedPaths.delete(id);
+      expandedPaths.add(joinFsPath(parentPathOf(id), finalName));
+    }
+    await refreshActiveFilesTree();
     if (wasCurrent) {
-      const renamedPath = joinFsPath(parentPathOf(path), finalName);
+      const renamedPath = joinFsPath(parentPathOf(id), finalName);
       const fromKey = currentDocKey();
       bindCurrentFile(/** @type {FileSystemFileHandle} */ (renamed), finalName, renamedPath);
       const toKey = currentDocKey();
@@ -4504,45 +5137,120 @@ async function promptRenameEntry(path) {
     }
     showToast(`Renamed to ${finalName}`);
   } catch (err) {
+    if (err?.name === "AbortError") return;
     console.error(err);
-    showToast("Could not rename");
+    showToast(err?.message || "Could not rename");
   }
 }
 
-async function promptDeleteEntry(path) {
-  const entry = fsEntries.get(path);
-  if (!entry || !entry.parent) return;
-  const label = entry.kind === "directory" ? `folder "${entry.handle.name}"` : `"${entry.handle.name}"`;
-  if (!window.confirm(`Delete ${label}? This cannot be undone.`)) return;
+/** @param {string} id */
+async function promptDeleteEntry(id) {
+  const entry = getActiveTreeEntry(id);
+  if (!entry) return;
+  const label = entry.kind === "directory" ? `folder "${entry.name}"` : `"${entry.name}"`;
+  const detail = isDriveFilesSource()
+    ? "It will move to Google Drive trash."
+    : "This cannot be undone.";
+  if (!window.confirm(`Delete ${label}? ${detail}`)) return;
+
   try {
+    if (isDriveFilesSource()) {
+      await trashDriveItemWithToken(id);
+      if (currentDriveFile?.id === id) clearCurrentFileBinding();
+      await refreshActiveFilesTree();
+      showToast("Deleted");
+      return;
+    }
+
+    const fsEntry = fsEntries.get(id);
+    if (!fsEntry || !fsEntry.parent) return;
     const currentPath =
       currentFilePath || [...fsEntries.entries()].find(([, e]) => e.handle === currentFileHandle)?.[0];
     const affectsCurrent =
-      Boolean(currentPath) && (currentPath === path || currentPath.startsWith(`${path}/`));
-    await removeEntry(entry.parent, entry.handle.name, true);
-    expandedPaths.delete(path);
+      Boolean(currentPath) && (currentPath === id || currentPath.startsWith(`${id}/`));
+    await removeEntry(fsEntry.parent, fsEntry.handle.name, true);
+    expandedPaths.delete(id);
     for (const p of [...expandedPaths]) {
-      if (p.startsWith(`${path}/`)) expandedPaths.delete(p);
+      if (p.startsWith(`${id}/`)) expandedPaths.delete(p);
     }
-    await refreshFilesTree();
-    if (affectsCurrent) {
-      clearCurrentFileBinding();
-    }
-    if (selectedPath === path || selectedPath.startsWith(`${path}/`)) {
-      selectFsPath("");
-    }
+    await refreshActiveFilesTree();
+    if (affectsCurrent) clearCurrentFileBinding();
+    if (selectedPath === id || selectedPath.startsWith(`${id}/`)) selectFsPath("");
     showToast("Deleted");
   } catch (err) {
+    if (err?.name === "AbortError") return;
     console.error(err);
-    showToast("Could not delete");
+    showToast(err?.message || "Could not delete");
+  }
+}
+
+async function saveCurrentDocumentToDrive() {
+  if (!driveConfigured) return;
+  const text = getMarkdownSource();
+  try {
+    if (currentDriveFile?.id) {
+      await saveExistingDriveFile(currentDriveFile.id, {
+        name: currentDriveFile.name || currentFileName || suggestedUntitledName(text),
+        content: text,
+      });
+      markCleanFromEditor();
+      showToast(`Saved ${currentDriveFile.name || currentFileName}`);
+      void refreshDriveTree();
+      return;
+    }
+
+    if (!driveConnected) {
+      await connectGoogleDrive();
+      if (!driveConnected) return;
+    }
+
+    const suggestedName = suggestedUntitledName(text);
+    const raw = window.prompt("Save to Google Drive as", suggestedName);
+    if (raw == null) return;
+    const name = ensureEditableExtension(raw, text);
+    const parentId =
+      driveCurrentFolderId() || (await ensureDriveAppFolder(await ensureDriveAccessToken()));
+    const file = await createDriveFileWithToken({ name, content: text, parentId });
+    const fromKey = currentDocKey();
+    bindCurrentDriveFile(file);
+    const toKey = currentDocKey();
+    if (fromKey !== toKey) {
+      void moveDraft(fromKey, toKey);
+      moveSavedSnapshot(fromKey, toKey);
+    }
+    markCleanFromEditor();
+    filesSource = "drive";
+    try {
+      localStorage.setItem(STORAGE_KEYS.filesSource, "drive");
+    } catch {
+      /* ignore */
+    }
+    await refreshDriveTree();
+    updateFilesChrome();
+    showToast(`Saved ${file.name}`);
+  } catch (err) {
+    if (err?.name === "AbortError") return;
+    console.error(err);
+    showToast(err?.message || "Could not save to Google Drive");
   }
 }
 
 async function saveCurrentDocument() {
-  if (!fsAccessSupported) return;
   const text = getMarkdownSource();
   const suggestedName = suggestedUntitledName(text);
   try {
+    if (currentDriveFile?.id || isDriveFilesSource()) {
+      await saveCurrentDocumentToDrive();
+      return;
+    }
+
+    if (!fsAccessSupported) {
+      if (driveConfigured) {
+        await saveCurrentDocumentToDrive();
+      }
+      return;
+    }
+
     if (currentFileHandle) {
       await writeTextFile(currentFileHandle, text);
       markCleanFromEditor();
@@ -5095,12 +5803,16 @@ function setupFilesDrawer() {
   if (filesDrawer) {
     filesDrawer.hidden = false;
     filesDrawer.classList.toggle("has-fs", fsAccessSupported);
-    filesDrawer.setAttribute("aria-label", fsAccessSupported ? "Files" : "Outline");
+    filesDrawer.classList.toggle("has-drive", driveConfigured);
+    filesDrawer.setAttribute(
+      "aria-label",
+      fsAccessSupported || driveConfigured ? "Files" : "Outline",
+    );
   }
   if (filesBackdrop) filesBackdrop.hidden = false;
   if (filesToggleBtn) {
     filesToggleBtn.hidden = false;
-    const label = fsAccessSupported ? "Files" : "Outline";
+    const label = fsAccessSupported || driveConfigured ? "Files" : "Outline";
     filesToggleBtn.title = label;
     filesToggleBtn.setAttribute("aria-label", label);
   }
@@ -5114,46 +5826,75 @@ function setupFilesDrawer() {
   panes.addEventListener("pointerup", onDrawerCloseDragPointerUp, { passive: true });
   panes.addEventListener("pointercancel", onDrawerCloseDragPointerCancel, { passive: true });
 
-  if (fsAccessSupported) {
-    document.querySelectorAll(".fs-only").forEach((el) => {
+  if (driveConfigured) {
+    document.querySelectorAll(".drive-only").forEach((el) => {
       el.hidden = false;
     });
-    filesOpenFolderBtn?.addEventListener("click", () => void pickOpenFolder());
-    filesEmptyOpenBtn?.addEventListener("click", () => void pickOpenFolder());
-    filesReopenBtn?.addEventListener("click", () => void pickOpenFolder());
-    filesRegrantBtn?.addEventListener("click", () => void regrantFolderPermission());
-    filesRefreshBtn?.addEventListener("click", () => void refreshFilesTree());
+    const savedSource = localStorage.getItem(STORAGE_KEYS.filesSource);
+    if (savedSource === "drive" || savedSource === "local") filesSource = savedSource;
+    // Clear legacy plaintext; silent IDB unlock runs later in boot (PRF still needs Unlock).
+    purgeLegacyCleartextToken();
+    driveConnected = false;
+    filesSourceLocalBtn?.addEventListener("click", () => setFilesSource("local"));
+    filesSourceDriveBtn?.addEventListener("click", () => setFilesSource("drive"));
+    filesConnectDriveBtn?.addEventListener("click", () => {
+      if (driveConnected) void disconnectGoogleDrive();
+      else void connectGoogleDrive();
+    });
+    filesEmptyConnectBtn?.addEventListener("click", () => void connectGoogleDrive());
+    window.addEventListener("online", () => updateFilesChrome());
+    window.addEventListener("offline", () => updateFilesChrome());
+  }
+
+  if (fsAccessSupported || driveConfigured) {
+    if (saveBtn) {
+      saveBtn.hidden = false;
+      saveBtn.addEventListener("click", () => void saveCurrentDocument());
+    }
     filesNewFileBtn?.addEventListener("click", () => void createUntitledDocument());
     filesNewFolderBtn?.addEventListener("click", () => void promptCreateFolder());
-    saveBtn?.addEventListener("click", () => void saveCurrentDocument());
+    filesRefreshBtn?.addEventListener("click", () => void refreshActiveFilesTree());
 
     filesTree?.addEventListener("click", (e) => {
       const row = e.target.closest(".files-tree-row");
       if (!row) return;
-      const path = row.getAttribute("data-path") || "";
-      const kind = row.getAttribute("data-kind");
-      if (kind === "directory") void toggleFsDirectory(path);
-      else void openFsFile(path);
+      if (row.getAttribute("data-drive-action") === "up") {
+        void leaveDriveFolder();
+        return;
+      }
+      if (isDriveFilesSource() ? !driveConnected : !fsAccessSupported) return;
+      const id = filesEntryIdFromRow(row);
+      const kind = /** @type {"file"|"directory"} */ (row.getAttribute("data-kind") || "file");
+      if (!id && kind !== "directory") return;
+      if (!isDriveFilesSource() && kind === "directory") selectFsPath(id);
+      void activateFilesTreeEntry(id, kind);
     });
 
     filesTree?.addEventListener("contextmenu", (e) => {
       const row = e.target.closest(".files-tree-row");
       if (!row || !filesTree.contains(row)) return;
+      if (row.getAttribute("data-drive-action") === "up") return;
+      if (isDriveFilesSource() ? !driveConnected : !fsAccessSupported) return;
+      const id = filesEntryIdFromRow(row);
+      if (isDriveFilesSource() && !id) return;
       e.preventDefault();
-      const path = row.getAttribute("data-path") || "";
       const kind = /** @type {"file"|"directory"} */ (row.getAttribute("data-kind") || "file");
-      selectFsPath(path);
-      openFilesContextMenu(e.clientX, e.clientY, path, kind);
+      if (!isDriveFilesSource()) selectFsPath(id);
+      openFilesContextMenu(e.clientX, e.clientY, { id, kind });
     });
 
     filesDrawer?.addEventListener("contextmenu", (e) => {
       if (e.target.closest(".files-tree-row")) return;
       // Empty-area "new file/folder" menu is only for the files panel, not the outline.
       if (!e.target.closest(".files-section")) return;
-      if (!rootDirHandle || awaitingFsPermission) return;
+      if (isDriveFilesSource()) {
+        if (!driveConnected) return;
+      } else if (!fsAccessSupported || !rootDirHandle || awaitingFsPermission) {
+        return;
+      }
       e.preventDefault();
-      selectFsPath("");
-      openFilesContextMenu(e.clientX, e.clientY, "", "directory");
+      if (!isDriveFilesSource()) selectFsPath("");
+      openFilesContextMenu(e.clientX, e.clientY, { id: "", kind: "directory" });
     });
 
     filesContextMenu?.addEventListener("click", (e) => {
@@ -5163,11 +5904,21 @@ function setupFilesDrawer() {
       const target = contextTarget;
       closeFilesContextMenu();
       if (!target) return;
-      if (action === "new-file") void promptCreateFile(target.path);
-      else if (action === "new-folder") void promptCreateFolder(target.path);
-      else if (action === "rename") void promptRenameEntry(target.path);
-      else if (action === "delete") void promptDeleteEntry(target.path);
+      if (action === "new-file") void promptCreateFile(target);
+      else if (action === "new-folder") void promptCreateFolder(target);
+      else if (action === "rename" && target.id) void promptRenameEntry(target.id);
+      else if (action === "delete" && target.id) void promptDeleteEntry(target.id);
     });
+  }
+
+  if (fsAccessSupported) {
+    document.querySelectorAll(".fs-only").forEach((el) => {
+      el.hidden = false;
+    });
+    filesOpenFolderBtn?.addEventListener("click", () => void pickOpenFolder());
+    filesEmptyOpenBtn?.addEventListener("click", () => void pickOpenFolder());
+    filesReopenBtn?.addEventListener("click", () => void pickOpenFolder());
+    filesRegrantBtn?.addEventListener("click", () => void regrantFolderPermission());
   }
 
   // Start collapsed per plan; ignore stale open preference for first paint safety —
@@ -5209,7 +5960,13 @@ async function restoreCurrentFileBindingOnLoad() {
     /* ignore */
   }
 
-  if (fsAccessSupported && rootDirHandle && !awaitingFsPermission && savedPath) {
+  if (
+    !isDriveFilesSource() &&
+    fsAccessSupported &&
+    rootDirHandle &&
+    !awaitingFsPermission &&
+    savedPath
+  ) {
     for (let p = parentPathOf(savedPath); p; p = parentPathOf(p)) {
       expandedPaths.add(p);
     }
@@ -7691,6 +8448,8 @@ async function init() {
   setupSplitter();
   setupDragAndDrop();
   setupPwa();
+  await loadGoogleDriveConfig();
+  driveConfigured = googleDriveEnabled();
   setupFilesDrawer();
   setupDocOutline();
   setupMermaidZoom();
@@ -7701,12 +8460,21 @@ async function init() {
     await hydrateHistoryIndexFromIdb();
   }
   // Sequential: file binding restore reads rootDirHandle set by directory restore.
+  // Drive tree refresh waits until after local restore so both cannot race into #files-tree.
   await restoreFilesDirectoryOnLoad();
   if (guideSession) {
     // Help-preview tabs must not adopt the other tab's open file.
     clearCurrentFileBinding();
   } else {
     await restoreCurrentFileBindingOnLoad();
+  }
+  if (driveConfigured) {
+    // IndexedDB-sealed sessions restore without a gesture; PRF vaults stay on Unlock.
+    driveConnected = await tryRestoreDriveAccessToken();
+    updateFilesChrome();
+  }
+  if (driveConfigured && driveConnected && isDriveFilesSource()) {
+    await refreshDriveTree();
   }
 
   const savedSyncScroll = localStorage.getItem(STORAGE_KEYS.syncScroll) === "1";
@@ -8072,7 +8840,7 @@ async function init() {
     }
 
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") {
-      if (fsAccessSupported && isAuthoringView()) {
+      if (canSaveDocument() && isAuthoringView()) {
         e.preventDefault();
         void saveCurrentDocument();
       }

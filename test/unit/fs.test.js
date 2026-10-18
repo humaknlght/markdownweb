@@ -5,7 +5,7 @@ import {
   ensureEditableExtension,
   isEditableFileName,
   suggestedUntitledName,
-} from "../../src/fs.js";
+} from "../../src/lib/fs.js";
 
 describe("fs helpers", () => {
   it("recognizes editable file names", () => {

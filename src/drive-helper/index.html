@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Google Drive — Markdown Editor</title>
+  <meta name="robots" content="noindex" />
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #0d1117;
+      --fg: #e6edf3;
+      --muted: #8b949e;
+      --btn: #21262d;
+      --btn-border: #30363d;
+    }
+    @media (prefers-color-scheme: light) {
+      :root {
+        --bg: #ffffff;
+        --fg: #1f2328;
+        --muted: #656d76;
+        --btn: #f6f8fa;
+        --btn-border: #d0d7de;
+      }
+    }
+    html, body {
+      margin: 0;
+      min-height: 100%;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--fg);
+    }
+    main {
+      box-sizing: border-box;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 1rem;
+      padding: 1.5rem;
+      text-align: center;
+    }
+    h1 {
+      margin: 0;
+      font-size: 1.125rem;
+      font-weight: 600;
+    }
+    #status {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.9375rem;
+      max-width: 28rem;
+    }
+    button {
+      appearance: none;
+      border: 1px solid var(--btn-border);
+      background: var(--btn);
+      color: var(--fg);
+      border-radius: 6px;
+      padding: 0.4rem 0.85rem;
+      font: inherit;
+      cursor: pointer;
+    }
+    button:hover {
+      filter: brightness(1.05);
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Google Drive</h1>
+    <p id="status">Starting…</p>
+    <button type="button" id="cancel-btn">Cancel</button>
+  </main>
+  <!-- OAuth uses top-level redirect + PKCE (no accounts.google.com script). -->
+  <script type="module" src="../drive/drive-helper.js"></script>
+</body>
+</html>

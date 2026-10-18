@@ -16,18 +16,22 @@ export const CDN_PRECACHE = [
 ];
 
 export const ICON_FILES = [
-  "icon-192.png",
-  "icon-512.png",
+  "assets/icon-192.png",
+  "assets/icon-512.png",
 ];
 
 /** Precache list for `npm run dev` (unhashed src/ paths + CDN modules). */
 export const DEV_PRECACHE = [
   "./",
   "./index.html",
-  "./styles.css",
-  "./print.css",
-  "./app.js",
-  "./fancy.avif",
+  // drive-helper/ is intentionally omitted — auth popup must hit the network
+  // for COEP-free / Google CSP headers (see buildServiceWorker fetch bypass).
+  "./privacy.html",
+  "./styles/styles.css",
+  "./styles/print.css",
+  "./app/app.js",
+  "./drive/drive-helper.js",
+  "./assets/fancy.avif",
   "./GUIDE.md",
   "./manifest.webmanifest",
   ...ICON_FILES.map((name) => `./${name}`),
@@ -50,8 +54,8 @@ export function buildDevServiceWorker() {
 }
 
 export function buildManifest(iconNames) {
-  const icon192 = iconNames?.icon192 ?? "./icon-192.png";
-  const icon512 = iconNames?.icon512 ?? "./icon-512.png";
+  const icon192 = iconNames?.icon192 ?? "./assets/icon-192.png";
+  const icon512 = iconNames?.icon512 ?? "./assets/icon-512.png";
   return `${JSON.stringify(
     {
       name: "Markdown Editor",
@@ -102,17 +106,28 @@ export function buildManifest(iconNames) {
   )}\n`;
 }
 
+/** True when the URL is under the COEP-free Google Drive auth helper directory. */
+export function isDriveHelperPath(pathname) {
+  const parts = pathname.split("/").filter(Boolean);
+  const i = parts.indexOf("drive-helper");
+  if (i < 0) return false;
+  // /…/drive-helper, /…/drive-helper/, /…/drive-helper/index.html
+  return parts.length === i + 1 || parts[i + 1] === "index.html";
+}
+
 /**
  * Same-origin URLs that must revalidate (no content hash in the filename).
  * Hashed assets use cache-first and the browser HTTP cache instead.
  * @param {string} pathname
  */
 export function isMutableShellPath(pathname) {
+  if (isDriveHelperPath(pathname)) return false;
   const file = pathname.endsWith("/")
     ? "index.html"
     : pathname.split("/").pop() || "";
   return (
     file === "index.html" ||
+    file === "google-drive-config.json" ||
     file === "manifest.webmanifest" ||
     file === "sw.js" ||
     file === "GUIDE.md"
@@ -123,7 +138,7 @@ export function buildServiceWorker({ precacheUrls, version }) {
   const urls = JSON.stringify(precacheUrls, null, 2);
   return `/* Markdown Editor service worker — generated at build time */
 /* eslint-disable no-restricted-globals */
-const CACHE = ${JSON.stringify(`md-preview-${version}`)};
+const CACHE = ${JSON.stringify(`md-editor-${version}`)};
 const PRECACHE = ${urls};
 
 function isMutableShell(pathname) {
@@ -132,10 +147,18 @@ function isMutableShell(pathname) {
     : pathname.split("/").pop() || "";
   return (
     file === "index.html" ||
+    file === "google-drive-config.json" ||
     file === "manifest.webmanifest" ||
     file === "sw.js" ||
     file === "GUIDE.md"
   );
+}
+
+function isDriveHelperPath(pathname) {
+  const parts = pathname.split("/").filter(Boolean);
+  const i = parts.indexOf("drive-helper");
+  if (i < 0) return false;
+  return parts.length === i + 1 || parts[i + 1] === "index.html";
 }
 
 self.addEventListener("install", (event) => {
@@ -182,16 +205,26 @@ self.addEventListener("fetch", (event) => {
   const sameOrigin = url.origin === self.location.origin;
   const isCdn = url.hostname === "cdn.jsdelivr.net";
 
+  // Never intercept the Drive auth helper. A cached navigation response for
+  // index.html (main CSP + COEP) was being served at this URL and blocked GIS.
+  if (isDriveHelperPath(url.pathname)) return;
+
   if (request.mode === "navigate") {
     event.respondWith(
       (async () => {
+        const file = url.pathname.endsWith("/")
+          ? "index.html"
+          : url.pathname.split("/").pop() || "index.html";
+        const shell =
+          file === "privacy.html" ? "./privacy.html" : "./index.html";
         try {
           const fresh = await fetch(request);
           const cache = await caches.open(CACHE);
-          await cache.put("./index.html", fresh.clone());
+          await cache.put(shell, fresh.clone());
           return fresh;
         } catch {
           return (
+            (await caches.match(shell)) ||
             (await caches.match("./index.html")) ||
             (await caches.match("./")) ||
             Response.error()

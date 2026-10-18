@@ -1,0 +1,30 @@
+# Google Drive auth popup — isolated from the app root .htaccess.
+# Deployed as dist/drive-helper/.htaccess. Own directory so parent
+# FilesMatch "\.html" COEP/CSP cannot win via mod_headers merge order.
+
+DirectoryIndex index.html
+DirectorySlash On
+
+<IfModule mod_headers.c>
+  Header set Cross-Origin-Resource-Policy "same-origin"
+  Header append Vary "Accept-Encoding"
+
+  Header unset Cross-Origin-Embedder-Policy
+  Header always unset Cross-Origin-Embedder-Policy
+  Header always set Cross-Origin-Embedder-Policy "unsafe-none"
+
+  Header unset Link
+  Header always unset Link
+  Header unset Speculation-Rules
+  Header always unset Speculation-Rules
+
+  Header unset Content-Security-Policy
+  Header always unset Content-Security-Policy
+  Header always set Content-Security-Policy "__DRIVE_HELPER_CSP__"
+
+  Header set Cache-Control "no-store"
+  Header set X-Frame-Options "DENY"
+  Header set X-Content-Type-Options "nosniff"
+  Header always set Referrer-Policy "strict-origin-when-cross-origin"
+  Header set Strict-Transport-Security "max-age=31536000"
+</IfModule>

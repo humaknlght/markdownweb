@@ -1,11 +1,11 @@
 import { marked } from "marked";
 import { JSDOM } from "jsdom";
 import createDOMPurify from "dompurify";
-import { alertExtension } from "../../src/alert.js";
-import { defListExtension } from "../../src/deflist.js";
-import { emojiExtension } from "../../src/emoji.js";
-import { frontmatterExtension } from "../../src/frontmatter.js";
-import { tablePipesExtension } from "../../src/tablePipes.js";
+import { alertExtension } from "../../src/markdown/alert.js";
+import { defListExtension } from "../../src/markdown/deflist.js";
+import { emojiExtension } from "../../src/markdown/emoji.js";
+import { frontmatterExtension } from "../../src/markdown/frontmatter.js";
+import { tablePipesExtension } from "../../src/markdown/tablePipes.js";
 
 const { window } = new JSDOM("<!DOCTYPE html><html><body></body></html>");
 const DOMPurify = createDOMPurify(window);

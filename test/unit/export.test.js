@@ -9,7 +9,7 @@ import {
   buildDocxBlob,
   cleanPreviewHtml,
   exportBasename,
-} from "../../src/export.js";
+} from "../../src/lib/export.js";
 
 describe("exportBasename", () => {
   it("slugifies titles and falls back to markdown", () => {
