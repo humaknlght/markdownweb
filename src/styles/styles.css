@@ -2359,7 +2359,9 @@ mark.speech-word {
 .preview h6 {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
+  /* Top-align so a multi-line title does not vertically center the twistie
+     across every line; the toggle height below centers it on line 1. */
+  align-items: flex-start;
   gap: 0.4rem;
   margin: 1.4em 0 0.55em;
   line-height: 1.25;
@@ -2368,7 +2370,9 @@ mark.speech-word {
 }
 
 .preview .md-section-label {
-  flex: 1 1 auto;
+  /* Basis 0% so long titles wrap inside the label instead of forcing the
+     twistie onto its own flex line. */
+  flex: 1 1 0%;
   min-width: 0;
 }
 
@@ -2377,6 +2381,9 @@ mark.speech-word {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  box-sizing: border-box;
+  /* Match one heading line box (line-height 1.25 / font-size 0.55). */
+  height: calc(1.25em / 0.55);
   margin: 0;
   padding: 0.15em 0.2em;
   border: none;
