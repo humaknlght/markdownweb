@@ -100,6 +100,7 @@ import DOMPurify from "dompurify";
 import hljs from "highlight.js";
 import hljsMarkdown from "https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.12.0/es/languages/markdown.min.js";
 import hljsXml from "https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.12.0/es/languages/xml.min.js";
+import { withMarkdownEscapes } from "../markdown/hljs-markdown.js";
 
 /** SRI allowlist from the page import map (injected at serve/build). */
 function cdnIntegrityUrlSet() {
@@ -174,9 +175,10 @@ const HLJS_LANG_CDN =
 const hljsLangLoads = new Map();
 
 // Markdown grammar uses xml as a subLanguage for embedded HTML.
+// withMarkdownEscapes aligns emphasis with CommonMark escapes + underscore flanks.
 hljs.registerLanguage("xml", hljsXml);
 hljs.registerLanguage("html", hljsXml);
-hljs.registerLanguage("markdown", hljsMarkdown);
+hljs.registerLanguage("markdown", withMarkdownEscapes(hljsMarkdown));
 
 function registerHljsAliases(canonical, grammar) {
   hljs.registerLanguage(canonical, grammar);
