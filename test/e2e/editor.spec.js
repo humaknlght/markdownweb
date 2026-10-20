@@ -18,13 +18,14 @@ test.describe("editor + render", () => {
     await expect(page.locator("#preview li")).toHaveCount(2);
   });
 
-  test("upload button is keyboard-focusable", async ({ page }) => {
+  test("open file button is keyboard-focusable", async ({ page }) => {
     await openFreshApp(page);
 
-    const upload = page.locator("#upload-btn");
-    await expect(upload).toBeVisible();
-    await upload.focus();
-    await expect(upload).toBeFocused();
+    await page.locator("#files-toggle-btn").click();
+    const openFile = page.locator("#files-open-file-btn");
+    await expect(openFile).toBeVisible();
+    await openFile.focus();
+    await expect(openFile).toBeFocused();
   });
 
   test("first visit loads the GUIDE into the editor", async ({ page }) => {

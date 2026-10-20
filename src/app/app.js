@@ -303,7 +303,7 @@ const splitter = document.getElementById("splitter");
 const themeSelect = document.getElementById("theme-select");
 const widthSelect = document.getElementById("width-select");
 const fileInput = document.getElementById("file-input");
-const uploadBtn = document.getElementById("upload-btn");
+const filesOpenFileBtn = document.getElementById("files-open-file-btn");
 const shareDropdown = document.getElementById("share-dropdown");
 const shareBtn = document.getElementById("share-btn");
 const shareMenu = document.getElementById("share-menu");
@@ -4064,6 +4064,17 @@ function updateSaveButton() {
       : "Save (Ctrl/Cmd+S)";
 }
 
+function filesDrawerToggleNoun() {
+  return fsAccessSupported || driveConfigured ? "Files" : "Outline";
+}
+
+function syncFilesToggleLabel() {
+  if (!filesToggleBtn) return;
+  const label = `${filesDrawerOpen ? "Hide" : "Show"} ${filesDrawerToggleNoun()}`;
+  filesToggleBtn.title = label;
+  filesToggleBtn.setAttribute("aria-label", label);
+}
+
 function setFilesDrawerOpen(open, { persist = true, preserveDragWidth = false } = {}) {
   filesDrawerOpen = Boolean(open);
   document.body.classList.toggle("files-drawer-open", filesDrawerOpen);
@@ -4076,6 +4087,7 @@ function setFilesDrawerOpen(open, { persist = true, preserveDragWidth = false } 
     filesBackdrop.setAttribute("aria-hidden", filesDrawerOpen ? "false" : "true");
   }
   filesToggleBtn?.setAttribute("aria-pressed", filesDrawerOpen ? "true" : "false");
+  syncFilesToggleLabel();
   if (!filesDrawerOpen) {
     drawerCloseDrag = null;
     document.body.classList.remove("files-drawer-dragging");
@@ -4309,6 +4321,12 @@ function isBrowserOnline() {
   return typeof navigator === "undefined" || navigator.onLine !== false;
 }
 
+/** Log-out (door + arrow) icon for the Drive disconnect control. */
+const DRIVE_DISCONNECT_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" x2="9" y1="12" y2="12" /></svg>`;
+
+/** Cloud + inbound arrow icon for the Drive connect control. */
+const DRIVE_CONNECT_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5.609 8A6.65 8.05 0 0 1 17.025 10.95h1.7a4.275 5.175 0 1 1 0 10.35H10.65A6.65 8.05 0 0 1 7.759 20.5" /><path d="M2 15h10" /><path d="m9 18 3-3-3-3" /></svg>`;
+
 function updateFilesChrome() {
   const driveMode = isDriveFilesSource();
   const hasLocalRoot = Boolean(rootDirHandle) && !awaitingFsPermission;
@@ -4372,17 +4390,23 @@ function updateFilesChrome() {
   if (filesConnectDriveBtn) {
     filesConnectDriveBtn.hidden = !driveConfigured || !driveMode || needsOnlineToConnect;
     if (hasDriveRoot) {
-      filesConnectDriveBtn.textContent = "Disconnect";
-      filesConnectDriveBtn.title = "Disconnect Google Drive and clear the sealed session";
+      filesConnectDriveBtn.classList.add("svg-btn");
+      filesConnectDriveBtn.innerHTML = DRIVE_DISCONNECT_ICON;
+      filesConnectDriveBtn.title = "Disconnect Google Drive and\nclear your saved sign-in";
+      filesConnectDriveBtn.setAttribute("aria-label", "Disconnect");
     } else if (hasSealedDriveSession()) {
+      filesConnectDriveBtn.classList.remove("svg-btn");
       filesConnectDriveBtn.textContent = "Unlock Drive";
       const prf = readVaultMeta()?.kind !== "idb";
       filesConnectDriveBtn.title = prf
-        ? "Unlock the sealed Google Drive session with your passkey"
-        : "Restore the sealed Google Drive session for this browser";
+        ? "Use your passkey to restore\nyour saved Google Drive sign-in"
+        : "Restore your saved Google Drive sign-in";
+      filesConnectDriveBtn.setAttribute("aria-label", "Unlock Drive");
     } else {
-      filesConnectDriveBtn.textContent = "Connect Drive";
+      filesConnectDriveBtn.classList.add("svg-btn");
+      filesConnectDriveBtn.innerHTML = DRIVE_CONNECT_ICON;
       filesConnectDriveBtn.title = "Connect Google Drive";
+      filesConnectDriveBtn.setAttribute("aria-label", "Connect Drive");
     }
   }
   if (filesDriveOfflineHint) {
@@ -5806,17 +5830,12 @@ function setupFilesDrawer() {
     filesDrawer.hidden = false;
     filesDrawer.classList.toggle("has-fs", fsAccessSupported);
     filesDrawer.classList.toggle("has-drive", driveConfigured);
-    filesDrawer.setAttribute(
-      "aria-label",
-      fsAccessSupported || driveConfigured ? "Files" : "Outline",
-    );
+    filesDrawer.setAttribute("aria-label", "Files");
   }
   if (filesBackdrop) filesBackdrop.hidden = false;
   if (filesToggleBtn) {
     filesToggleBtn.hidden = false;
-    const label = fsAccessSupported || driveConfigured ? "Files" : "Outline";
-    filesToggleBtn.title = label;
-    filesToggleBtn.setAttribute("aria-label", label);
+    syncFilesToggleLabel();
   }
 
   filesToggleBtn?.addEventListener("click", () => toggleFilesDrawer());
@@ -8646,14 +8665,13 @@ async function init() {
     closeOverflowMenu();
   });
 
-  uploadBtn?.addEventListener("click", () => {
-    fileInput.click();
+  filesOpenFileBtn?.addEventListener("click", () => {
+    fileInput?.click();
   });
-  fileInput.addEventListener("change", () => {
+  fileInput?.addEventListener("change", () => {
     const file = fileInput.files?.[0];
     handleFile(file);
     fileInput.value = "";
-    closeOverflowMenu();
   });
 
   shareBtn.addEventListener("click", (e) => {

@@ -878,91 +878,29 @@ body {
   flex-shrink: 0;
 }
 
-/* Hamburger → X (close3 from https://codepen.io/carlosriera/pen/qNgrEo) */
-.hamburger {
-  --hb-w: 1rem;
-  --hb-h: 0.67rem;
-  --hb-line: 2px;
-  --hb-shift: calc((var(--hb-h) - var(--hb-line)) / 2);
-  position: relative;
-  display: block;
-  width: var(--hb-w);
-  height: var(--hb-h);
-  overflow: visible;
+/* Sidebar panel + chevron (empty rail › → filled rail ‹) */
+.drawer-toggle-rail-fill {
+  opacity: 0;
+  transition: opacity 0.2s ease;
 }
 
-.hamburger-line {
-  position: absolute;
-  left: 0;
-  width: 100%;
-  height: var(--hb-line);
-  border-radius: var(--hb-line);
-  background: currentColor;
-  pointer-events: none;
-}
-
-.hamburger-line--1 {
-  top: 0;
-  transition:
-    transform 0.2s ease-in-out 0.15s,
-    top 0.2s ease-in-out 0.2s;
-}
-
-.hamburger-line--1::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: var(--hb-line);
-  background: currentColor;
-  border-radius: var(--hb-line);
+.drawer-toggle-chevron {
+  transform-box: fill-box;
   transform-origin: center;
-  transition: transform 0.15s ease-in-out;
+  transition: transform 0.2s ease;
 }
 
-.hamburger-line--2 {
-  top: 0;
-  bottom: 0;
-  margin: auto;
-  transition: opacity 0s ease-in-out 0.35s;
+#files-toggle-btn[aria-pressed="true"] .drawer-toggle-rail-fill {
+  opacity: 1;
 }
 
-.hamburger-line--3 {
-  bottom: 0;
-  transition: opacity 0s ease-in-out 0.25s;
-}
-
-#files-toggle-btn[aria-pressed="true"] .hamburger-line--1 {
-  top: calc(var(--hb-shift) * 2);
-  transform: translate3d(0, calc(var(--hb-shift) * -1), 0) rotate(-45deg);
-  transition:
-    top 0.2s ease-in-out,
-    transform 0.15s ease-in-out 0.2s;
-}
-
-#files-toggle-btn[aria-pressed="true"] .hamburger-line--1::before {
-  transform: rotate(-90deg);
-  transition: transform 0.15s ease-in-out 0.3s;
-}
-
-#files-toggle-btn[aria-pressed="true"] .hamburger-line--2 {
-  opacity: 0;
-  transition: opacity 0s ease-in-out 0.1s;
-}
-
-#files-toggle-btn[aria-pressed="true"] .hamburger-line--3 {
-  opacity: 0;
-  transition: opacity 0s ease-in-out 0.2s;
+#files-toggle-btn[aria-pressed="true"] .drawer-toggle-chevron {
+  transform: scaleX(-1);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .hamburger-line,
-  .hamburger-line--1::before,
-  #files-toggle-btn[aria-pressed="true"] .hamburger-line--1,
-  #files-toggle-btn[aria-pressed="true"] .hamburger-line--1::before,
-  #files-toggle-btn[aria-pressed="true"] .hamburger-line--2,
-  #files-toggle-btn[aria-pressed="true"] .hamburger-line--3 {
+  .drawer-toggle-rail-fill,
+  .drawer-toggle-chevron {
     transition: none;
   }
 }
@@ -1298,11 +1236,6 @@ a.btn {
 
 .collapse-btn[aria-pressed="true"] .side-collapse {
   display: none;
-}
-
-.file-btn {
-  display: inline-flex;
-  align-items: center;
 }
 
 .select-label {
@@ -1753,14 +1686,10 @@ body.files-drawer-open .files-drawer {
   flex: 1 1 0;
 }
 
-/* Without File System Access, only the outline panel is shown. */
-.files-drawer:not(.has-fs) .files-section {
-  display: none;
-}
-
-.files-drawer:not(.has-fs) .outline-section {
-  flex: 1 1 auto;
-  border-bottom: 0;
+/* Without File System Access or Drive, folder browsing is unavailable — keep the
+   files section for Open file / New, but give outline more room when neither source exists. */
+.files-drawer:not(.has-fs):not(.has-drive) .outline-section {
+  flex: 1.6 1 0;
 }
 
 .files-backdrop {
@@ -3342,6 +3271,7 @@ html[data-theme="fancy"] .photo-credit:not([hidden]) {
     padding-inline: 0.55rem;
   }
 
+  .toolbar-menu,
   .toolbar-actions,
   .toolbar-cluster {
     gap: 0.3rem;
@@ -3416,14 +3346,12 @@ html[data-theme="fancy"] .photo-credit:not([hidden]) {
 
   .toolbar-actions .btn,
   .toolbar-actions .select-label,
-  .toolbar-actions .file-btn,
   .toolbar-actions .dropdown {
     width: 100%;
   }
 
   /* Menu rows: icon, then title, left aligned. No button chrome. */
   .toolbar-actions .btn,
-  .toolbar-actions .file-btn,
   .toolbar-actions .select-label,
   html[data-theme="fancy"] .toolbar-actions .btn,
   html[data-theme="fancy"] .toolbar-actions .select-label,
@@ -3449,7 +3377,6 @@ html[data-theme="fancy"] .photo-credit:not([hidden]) {
   }
 
   .toolbar-actions .btn:hover,
-  .toolbar-actions .file-btn:hover,
   .toolbar-actions .select-label:hover,
   html[data-theme="fancy"] .toolbar-actions .btn:hover,
   html[data-theme="fancy"] .toolbar-actions .select-label:hover,
@@ -3485,11 +3412,6 @@ html[data-theme="fancy"] .photo-credit:not([hidden]) {
     background: var(--chrome-focus);
     color: var(--chrome-on-focus);
     filter: brightness(1.08);
-  }
-
-  .toolbar-actions #save-btn.is-dirty {
-    color: var(--chrome-focus);
-    box-shadow: none;
   }
 
   .toolbar-actions .svg-btn::after,
