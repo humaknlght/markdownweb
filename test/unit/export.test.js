@@ -25,7 +25,7 @@ describe("buildMarkdownFile", () => {
     const out = buildMarkdownFile("# Hello", "My Doc");
     assert.match(out, /^---\n/);
     assert.match(out, /title: My Doc/);
-    assert.match(out, new RegExp(`generator: ${GENERATOR_URL}`));
+    assert.ok(out.includes(`generator: ${GENERATOR_URL}`));
     assert.match(out, /# Hello/);
   });
 
@@ -41,7 +41,7 @@ describe("buildHtmlDocument", () => {
     assert.match(doc, /<!DOCTYPE html>/);
     assert.match(doc, /<title>Test<\/title>/);
     assert.match(doc, /<p>Hi<\/p>/);
-    assert.match(doc, new RegExp(GENERATOR_URL));
+    assert.ok(doc.includes(GENERATOR_URL));
     assert.match(buildHtmlDocument("", "<script>"), /&lt;script&gt;/);
   });
 });
