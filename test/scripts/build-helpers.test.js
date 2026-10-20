@@ -101,7 +101,12 @@ describe("cdn-integrity.mjs", () => {
 describe("pwa.mjs", () => {
   it("pins CDN precache URLs and icon names", () => {
     assert.ok(CDN_PRECACHE.length >= 6);
-    assert.ok(CDN_PRECACHE.every((u) => u.startsWith("https://cdn.jsdelivr.net")));
+    assert.ok(
+      CDN_PRECACHE.every((u) => {
+        const url = new URL(u);
+        return url.protocol === "https:" && url.hostname === "cdn.jsdelivr.net";
+      }),
+    );
     assert.deepEqual(ICON_FILES, ["assets/icon-192.png", "assets/icon-512.png"]);
   });
 
