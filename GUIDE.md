@@ -15,7 +15,7 @@ This guide covers how to use the app and every Markdown feature it supports.
 
 ### Opening files
 
-- **Upload** — Use the upload button to open `.md`, `.markdown`, `.txt`, `.html`, or `.htm` files.
+- **Open file** — In the Files drawer, use **Open file** to load `.md`, `.markdown`, `.txt`, `.html`, or `.htm` files.
 - **Drag and drop** — Drop a file onto the window to load it.
 - **Open with (PWA)** — An installed app can register as a handler for `.md` / `.markdown` files.
 
@@ -44,7 +44,7 @@ Notes:
 
 ### Files drawer
 
-Open it with the hamburger button. The **Outline** works in every browser. Folder browsing (**Open folder**, tree, **Save**) needs Chromium desktop with the File System Access API. **Google Drive** appears when the host has deployed `google-drive-config.json` (see [CONTRIBUTING.md](CONTRIBUTING.md)): use the **Local | Drive** toggle, **Connect Drive**, then browse the **/markdown-editor** folder in the same tree. Click a Drive folder to open it; use **..** to go up. **New folder** works in Drive as well as Local.
+Open it with the sidebar button in the toolbar. The **Outline** works in every browser. Folder browsing (**Open folder**, tree, **Save**) needs Chromium desktop with the File System Access API. **Google Drive** appears when the host has deployed `google-drive-config.json` (see [CONTRIBUTING.md](CONTRIBUTING.md)): use the **Local | Drive** toggle, **Connect Drive**, then browse the **/markdown-editor** folder in the same tree. Click a Drive folder to open it; use **..** to go up. **New folder** works in Drive as well as Local.
 
 Drafts and “unsaved” snapshots are scoped per open file (and a shared **untitled** slot), so two tabs editing different files do not overwrite each other. A document stays **unsaved** until it is written to disk (File System Access), saved to Google Drive, or accepted from a share URL (`md` / `mdz`); IndexedDB auto-save alone does not clear that state.
 

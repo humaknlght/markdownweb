@@ -156,19 +156,35 @@
     <div class="brand-group">
       <button
         type="button"
-        class="btn svg-btn authoring-only hamburger-btn"
+        class="btn svg-btn authoring-only"
         id="files-toggle-btn"
-        title="Files"
-        aria-label="Files"
+        title="Show Files"
+        aria-label="Show Files"
         aria-pressed="false"
         aria-controls="files-drawer"
         hidden
       >
-        <span class="hamburger" aria-hidden="true">
-          <span class="hamburger-line hamburger-line--1"></span>
-          <span class="hamburger-line hamburger-line--2"></span>
-          <span class="hamburger-line hamburger-line--3"></span>
-        </span>
+        <svg
+          class="drawer-toggle-icon"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+          focusable="false"
+        >
+          <path
+            class="drawer-toggle-rail-fill"
+            d="M5 4h4v16H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"
+            fill="currentColor"
+            stroke="none"
+          />
+          <rect class="drawer-toggle-frame" x="3" y="4" width="18" height="16" rx="2" />
+          <path class="drawer-toggle-divider" d="M9 4v16" />
+          <polyline class="drawer-toggle-chevron" points="14 9 18 12 14 15" />
+        </svg>
       </button>
       <h1 class="brand">Markdown Editor</h1>
       <span id="current-file-name" class="current-file-name" hidden></span>
@@ -176,37 +192,23 @@
       <a class="brand-link" href="./privacy.html" target="_blank" rel="noopener">Privacy</a>
     </div>
     <div class="toolbar-menu" id="toolbar-menu">
+      <!-- Outside #toolbar-actions so it stays in the bar when actions collapse into the overflow menu. -->
+      <button
+        type="button"
+        class="btn svg-btn authoring-only fs-only"
+        id="save-btn"
+        title="Save (Ctrl/Cmd+S)"
+        aria-label="Save"
+        hidden
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+          <path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z" />
+          <path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7" />
+          <path d="M7 3v4a1 1 0 0 0 1 1h7" />
+        </svg>
+      </button>
       <div class="toolbar-actions" id="toolbar-actions">
         <div class="toolbar-cluster toolbar-secondary" id="toolbar-secondary">
-          <button type="button" class="btn file-btn svg-btn authoring-only" id="upload-btn" title="Upload" aria-label="Upload">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
-              <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" />
-              <path d="M14 2v4a2 2 0 0 0 2 2h4" />
-              <path d="M12 12v6" />
-              <path d="M9 15l3-3 3 3" />
-            </svg>
-          </button>
-          <input
-            type="file"
-            id="file-input"
-            tabindex="-1"
-            accept=".md,.markdown,.txt,.html,.htm,text/markdown,text/plain,text/html"
-            hidden
-          />
-          <button
-            type="button"
-            class="btn svg-btn authoring-only fs-only"
-            id="save-btn"
-            title="Save (Ctrl/Cmd+S)"
-            aria-label="Save"
-            hidden
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
-              <path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z" />
-              <path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7" />
-              <path d="M7 3v4a1 1 0 0 0 1 1h7" />
-            </svg>
-          </button>
           <div class="dropdown authoring-only" id="history-dropdown">
             <button type="button" class="btn svg-btn" id="history-btn" title="History" aria-label="History" aria-haspopup="listbox" aria-expanded="false">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
@@ -527,11 +529,41 @@
             </div>
           </div>
           <div class="files-drawer-actions" id="files-section-actions">
-            <button type="button" class="btn fs-only local-only" id="files-open-folder-btn" title="Open folder" hidden>Open folder</button>
-            <button type="button" class="btn drive-only" id="files-connect-drive-btn" title="Connect Google Drive" hidden>Connect Drive</button>
-            <span class="files-drive-offline-hint drive-only" id="files-drive-offline-hint" hidden>You need to be online</span>
-            <button type="button" class="btn" id="files-new-file-btn" title="New untitled document">New</button>
-            <button type="button" class="btn" id="files-new-folder-btn" title="New folder" disabled>New folder</button>
+            <button type="button" class="btn svg-btn" id="files-open-file-btn" title="Open file" aria-label="Open file">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                <path d="M4 22h14a2 2 0 0 0 2-2V7l-5-5H6a2 2 0 0 0-2 2v4" />
+                <path d="M14 2v4a2 2 0 0 0 2 2h4" />
+                <path d="M2 15h10" />
+                <path d="m9 18 3-3-3-3" />
+              </svg>
+            </button>
+            <input
+              type="file"
+              id="file-input"
+              tabindex="-1"
+              accept=".md,.markdown,.txt,.html,.htm,text/markdown,text/plain,text/html"
+              hidden
+            />
+            <button type="button" class="btn svg-btn fs-only local-only" id="files-open-folder-btn" title="Open folder" aria-label="Open folder" hidden>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                <path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.55 6a2 2 0 0 1-1.94 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2" />
+              </svg>
+            </button>
+            <button type="button" class="btn svg-btn" id="files-new-file-btn" title="New untitled document" aria-label="New file">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" />
+                <path d="M14 2v4a2 2 0 0 0 2 2h4" />
+                <path d="M12 18v-6" />
+                <path d="M9 15h6" />
+              </svg>
+            </button>
+            <button type="button" class="btn svg-btn" id="files-new-folder-btn" title="New folder" aria-label="New folder" disabled>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                <path d="M12 10v6" />
+                <path d="M9 13h6" />
+                <path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9l-.81-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z" />
+              </svg>
+            </button>
             <button type="button" class="btn svg-btn" id="files-refresh-btn" title="Refresh" aria-label="Refresh" disabled>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
                 <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
@@ -540,6 +572,14 @@
                 <path d="M8 16H3v5" />
               </svg>
             </button>
+            <button type="button" class="btn svg-btn drive-only" id="files-connect-drive-btn" title="Connect Google Drive" aria-label="Connect Drive" hidden>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                <path d="M5.609 8A6.65 8.05 0 0 1 17.025 10.95h1.7a4.275 5.175 0 1 1 0 10.35H10.65A6.65 8.05 0 0 1 7.759 20.5" />
+                <path d="M2 15h10" />
+                <path d="m9 18 3-3-3-3" />
+              </svg>
+            </button>
+            <span class="files-drive-offline-hint drive-only" id="files-drive-offline-hint" hidden>You need to be online</span>
           </div>
         </div>
         <div class="files-drawer-body" id="files-section-body">
