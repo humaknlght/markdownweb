@@ -511,7 +511,12 @@ function updateEditorHighlight() {
     }
   }
   // Trailing newline keeps the highlight layer height aligned with the textarea.
-  editorHighlightCode.innerHTML = `${decorateEmbedTokens(html)}\n`;
+  // Sanitize before innerHTML so textarea value cannot be reinterpreted as markup
+  // (CodeQL js/xss-through-dom). Highlight output is span/class only.
+  editorHighlightCode.innerHTML = DOMPurify.sanitize(
+    `${decorateEmbedTokens(html)}\n`,
+    { ALLOWED_TAGS: ["span"], ALLOWED_ATTR: ["class"] },
+  );
   syncEditorHighlightScroll();
 }
 
