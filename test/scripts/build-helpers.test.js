@@ -24,6 +24,7 @@ import { applyCdnIntegrity } from "../../scripts/cdn-integrity.mjs";
 import { copyGuideTo, guideSourcePath } from "../../scripts/sync-guide.mjs";
 import {
   headersFor,
+  isInsideRoot,
   isNotModified,
   resolveWithCompression,
   safeResolve,
@@ -202,7 +203,11 @@ describe("serve-utils", () => {
     assert.equal(safeResolve("/", root), path.join(root, "index.html"));
     assert.equal(safeResolve("/styles.css", root), path.join(root, "styles.css"));
     assert.equal(safeResolve("/../secret", root), null);
+    assert.equal(safeResolve("/foo/../../etc/passwd", root), null);
+    assert.equal(safeResolve("/%2e%2e/secret", root), null);
     assert.equal(safeResolve("/foo?bar=1", root), path.join(root, "foo"));
+    assert.equal(isInsideRoot(path.join(root, "a.css"), root), true);
+    assert.equal(isInsideRoot(path.join(root, "..", "secret"), root), false);
   });
 
   it("sets cache and CORP headers by asset type", () => {

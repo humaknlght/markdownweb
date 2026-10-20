@@ -144,15 +144,6 @@ function safeResolve(urlPath) {
   return resolveSafePath(urlPath, rootDir);
 }
 
-/** When serving src/, GUIDE.md lives at the repo root — fall back to it. */
-async function resolveGuide(logicalPath) {
-  if (path.basename(logicalPath) !== "GUIDE.md") return logicalPath;
-  if (await exists(logicalPath)) return logicalPath;
-  const rootGuide = guideSourcePath();
-  if (await exists(rootGuide)) return rootGuide;
-  return logicalPath;
-}
-
 async function exists(filePath) {
   try {
     await fs.access(filePath);
@@ -160,6 +151,17 @@ async function exists(filePath) {
   } catch {
     return false;
   }
+}
+
+/** Serve repo-root GUIDE.md when the request mapped to GUIDE.md under rootDir. */
+async function tryServeGuide(logicalPath, res) {
+  if (path.basename(logicalPath) !== "GUIDE.md") return false;
+  const guidePath = guideSourcePath();
+  if (!(await exists(guidePath))) return false;
+  const data = await fs.readFile(guidePath);
+  res.writeHead(200, headersFor(logicalPath, null));
+  res.end(data);
+  return true;
 }
 
 /**
@@ -284,6 +286,16 @@ async function handleRequest(req, res) {
       return;
     }
 
+    // Inline containment check at each fs sink (CodeQL js/path-injection).
+    {
+      const rel = path.relative(rootDir, logicalPath);
+      if (rel.startsWith("..") || path.isAbsolute(rel)) {
+        res.writeHead(403, { "Cross-Origin-Resource-Policy": CORP });
+        res.end("Forbidden");
+        return;
+      }
+    }
+
     try {
       const st = await fs.stat(logicalPath);
       if (st.isDirectory()) {
@@ -291,23 +303,16 @@ async function handleRequest(req, res) {
       }
     } catch (err) {
       if (err.code === "ENOENT") {
-        logicalPath = await resolveGuide(logicalPath);
-        if (!(await exists(logicalPath))) {
-          res.writeHead(404, {
-            "Content-Type": "text/plain; charset=utf-8",
-            "Cross-Origin-Resource-Policy": CORP,
-          });
-          res.end("Not Found");
-          return;
-        }
-      } else {
-        throw err;
+        // When serving src/, GUIDE.md may only exist at the repo root.
+        if (await tryServeGuide(logicalPath, res)) return;
+        res.writeHead(404, {
+          "Content-Type": "text/plain; charset=utf-8",
+          "Cross-Origin-Resource-Policy": CORP,
+        });
+        res.end("Not Found");
+        return;
       }
-    }
-
-    // Prefer repo-root GUIDE.md when src/ has no copy yet.
-    if (path.basename(logicalPath) === "GUIDE.md") {
-      logicalPath = await resolveGuide(logicalPath);
+      throw err;
     }
 
     // Dev (src/): inject full CDN import-map integrity before serving.
@@ -323,12 +328,22 @@ async function handleRequest(req, res) {
       req.headers["accept-encoding"],
       exists,
     );
-    const data = await fs.readFile(chosen.path);
+    const readPath = path.resolve(chosen.path);
+    // Re-check after compression suffix (.br / .gz) and directory → index.html.
+    {
+      const rel = path.relative(rootDir, readPath);
+      if (rel.startsWith("..") || path.isAbsolute(rel)) {
+        res.writeHead(403, { "Cross-Origin-Resource-Policy": CORP });
+        res.end("Forbidden");
+        return;
+      }
+    }
+    const data = await fs.readFile(readPath);
     const headers = headersFor(logicalPath, chosen.encoding);
 
     // Stable sw.js: no-cache revalidation with ETag + Last-Modified (304).
     if (path.basename(logicalPath) === "sw.js") {
-      const st = await fs.stat(chosen.path);
+      const st = await fs.stat(readPath);
       const etag = strongEtag(data, chosen.encoding);
       const lastModifiedMs = st.mtimeMs;
       headers.ETag = etag;

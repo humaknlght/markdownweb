@@ -85,16 +85,31 @@ export function headersFor(logicalPath, encoding, opts = {}) {
 }
 
 /**
+ * True when `candidate` is `rootDir` or a path inside it (after resolve).
+ * Uses the path.relative pattern CodeQL recognizes for js/path-injection.
+ * @param {string} candidate
+ * @param {string} rootDir
+ * @returns {boolean}
+ */
+export function isInsideRoot(candidate, rootDir) {
+  const root = path.resolve(rootDir);
+  const full = path.resolve(candidate);
+  const rel = path.relative(root, full);
+  return rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel));
+}
+
+/**
  * @param {string} urlPath
  * @param {string} rootDir
  * @returns {string | null}
  */
 export function safeResolve(urlPath, rootDir) {
+  const root = path.resolve(rootDir);
   const decoded = decodeURIComponent((urlPath || "/").split("?")[0]);
   let rel = decoded === "/" ? "index.html" : decoded.replace(/^\/+/, "");
   if (rel.endsWith("/")) rel += "index.html";
-  const full = path.resolve(rootDir, rel);
-  if (!full.startsWith(rootDir + path.sep) && full !== rootDir) {
+  const full = path.resolve(root, rel);
+  if (!isInsideRoot(full, root)) {
     return null;
   }
   return full;
