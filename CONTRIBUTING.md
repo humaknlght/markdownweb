@@ -30,13 +30,19 @@ npm run test:all         # everything CI runs
 
 Prefer a failing test (unit or Playwright) when fixing a bug.
 
+## Commit messages
+
+Use [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/). A `commit-msg` hook (via Husky + commitlint) rejects non-conforming local commits; CI also checks the PR commit range.
+
+Examples: `feat: add export`, `fix(drive): handle token refresh`, `docs: update CONTRIBUTING`.
+
 ## Pull requests
 
 1. Branch from `main`.
 2. Keep the diff scoped to one concern.
 3. Ensure `npm run test:all` passes.
 4. If you bump a CDN dependency (marked, DOMPurify, highlight.js, gemoji, yaml, Mermaid), run `npm run update:cdn-sri` and commit the updated `src/cdn-integrity.json`.
-5. Open a PR against `main`. The **test** status check must pass before merge.
+5. Open a PR against `main`. The **commitlint** and **test** status checks must pass before merge.
 
 ## Code notes
 
