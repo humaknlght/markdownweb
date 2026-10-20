@@ -25,6 +25,13 @@ describe("fs helpers", () => {
     assert.equal(detectEditableExtension("**bold** and [link](url)"), "md");
   });
 
+  it("ignores leading HTML comments when detecting html documents", () => {
+    assert.equal(detectEditableExtension("<!-- note -->\n<!DOCTYPE html>"), "html");
+    assert.equal(detectEditableExtension("<!-- a --><!-- b -->\n<html>"), "html");
+    // Unclosed leading comment: do not sniff the body as the document root.
+    assert.equal(detectEditableExtension("<!--\n<!DOCTYPE html>"), "md");
+  });
+
   it("ensures an editable extension", () => {
     assert.equal(ensureEditableExtension(""), "untitled.md");
     assert.equal(ensureEditableExtension("doc"), "doc.md");
