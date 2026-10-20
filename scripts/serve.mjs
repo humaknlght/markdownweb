@@ -153,6 +153,14 @@ async function exists(filePath) {
   }
 }
 
+/** Like exists, but only for paths inside rootDir (CodeQL js/path-injection). */
+async function existsInRoot(filePath) {
+  const resolved = path.resolve(filePath);
+  const rel = path.relative(rootDir, resolved);
+  if (rel.startsWith("..") || path.isAbsolute(rel)) return false;
+  return exists(resolved);
+}
+
 /** Serve repo-root GUIDE.md when the request mapped to GUIDE.md under rootDir. */
 async function tryServeGuide(logicalPath, res) {
   if (path.basename(logicalPath) !== "GUIDE.md") return false;
@@ -326,7 +334,7 @@ async function handleRequest(req, res) {
     const chosen = await resolveWithCompression(
       logicalPath,
       req.headers["accept-encoding"],
-      exists,
+      existsInRoot,
     );
     const readPath = path.resolve(chosen.path);
     // Re-check after compression suffix (.br / .gz) and directory → index.html.
