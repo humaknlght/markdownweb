@@ -24,6 +24,24 @@ export function isEditableFileName(name) {
 }
 
 /**
+ * Skip leading HTML comments so document-type sniffing sees the real root.
+ * Uses indexOf/slice (not a single multi-character regex replace) so nested or
+ * overlapping comment markers cannot reintroduce a leading `<!--`.
+ *
+ * @param {string} text
+ * @returns {string}
+ */
+function skipLeadingHtmlComments(text) {
+  let result = text.trimStart();
+  while (result.startsWith("<!--")) {
+    const end = result.indexOf("-->", 4);
+    if (end === -1) return "";
+    result = result.slice(end + 3).trimStart();
+  }
+  return result;
+}
+
+/**
  * Infer the best editable extension from document contents.
  * Prefers strong HTML-document signals; otherwise markdown (this app's default).
  * Plain prose with no markup hints becomes `.txt`.
@@ -36,7 +54,7 @@ export function detectEditableExtension(text) {
   if (!sample.trim()) return "md";
 
   const head = sample.slice(0, 4000);
-  const withoutComments = head.replace(/<!--[\s\S]*?-->/g, "").trimStart();
+  const withoutComments = skipLeadingHtmlComments(head);
 
   if (/^<!DOCTYPE\s+html\b/i.test(withoutComments) || /^<html[\s>]/i.test(withoutComments)) {
     return "html";
