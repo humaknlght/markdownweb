@@ -180,7 +180,8 @@ export default function hljsMermaid(hljs) {
       { begin: /<\|\.\./ },
       { begin: /\.\.\|>/ },
       { begin: /<--/ },
-      { begin: /-->/ },
+      // `-->` plus HTML comment-end quirk `--!>` (CodeQL js/bad-tag-filter).
+      { begin: /--!?>/ },
       { begin: /<\.\./ },
       { begin: /\.\.>/ },
       { begin: /--\*/ },
