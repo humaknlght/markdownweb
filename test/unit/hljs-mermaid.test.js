@@ -71,11 +71,16 @@ describe("hljs-mermaid grammar", () => {
     +String name
     +eat()
   }
-  Animal <|-- Duck`));
+  Animal <|-- Duck
+  Animal --> Cat
+  Animal --!> Dog`));
     assert.match(out, /‹hljs-keyword›class‹\/›/);
     assert.match(out, /‹hljs-title class_›Animal‹\/›/);
     assert.match(out, /‹hljs-type›String‹\/›/);
     assert.match(out, /‹hljs-built_in›<\|--‹\/›/);
+    assert.match(out, /‹hljs-built_in›-->‹\/›/);
+    // HTML comment-end quirk `--!>` (CodeQL js/bad-tag-filter companion).
+    assert.match(out, /‹hljs-built_in›--!>‹\/›/);
     assert.doesNotMatch(out, /‹hljs-string›\{[^‹]*String name/);
   });
 
