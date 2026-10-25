@@ -78,6 +78,28 @@ cp src/google-drive-config.example.json src/google-drive-config.json
 
 If the file is missing or `clientId` is empty, Drive buttons stay hidden. Do not commit `google-drive-config.json`.
 
-Sign-in runs in `drive-helper/` via an **OAuth token redirect** (Google returns a short-lived access token in the URL fragment; no `gsi/client` script and no client secret). After Connect, the access token is **sealed** with AES-GCM before anything is written to `localStorage` (ciphertext only — never clear text). The AES key is a non-extractable **IndexedDB** key so a reload can restore the session automatically. Legacy WebAuthn-PRF vaults still unlock via **Connect** / **Unlock Drive**. **Disconnect** clears the sealed session. Own `.htaccess` / SW bypass keep headers sane; `Permissions-Policy` allows `publickey-credentials-create|get` for `self`. The files drawer lists, opens, and saves under the **/markdown-editor** folder (including subfolders) via Drive REST on the main page. Scope: `drive.file`. The Drive folder name on Google’s side remains `markdown-editor`.
+Sign-in runs in `drive-helper/` via an **OAuth 2.0 implicit grant** (`response_type=token`: Google returns a short-lived access token in the URL fragment; no `gsi/client` script, no client secret, and **no host-side token-exchange proxy** so the static server never sees the token). After Connect, the access token is kept **in memory only** (not written to `sessionStorage`, so XSS cannot scrape a stored copy). When WebAuthn **PRF** is available, the token is also **sealed** with AES-GCM into `localStorage` (ciphertext only); refresh / cold start / new tab uses **Unlock Drive** + passkey. Without PRF, refresh or closing the tab requires **Connect** again. Legacy IndexedDB silent vaults and any leftover plaintext session key are purged. **Disconnect** clears memory + sealed storage. Own `.htaccess` / SW bypass keep headers sane; `Permissions-Policy` allows `publickey-credentials-create|get` for `self`. The files drawer lists, opens, and saves under the **/markdown-editor** folder (including subfolders) via Drive REST on the main page. Scope: `drive.file`. The Drive folder name on Google’s side remains `markdown-editor`.
 
 For OAuth branding / verification, the hosted privacy policy is `privacy.html` (for example `https://dev.ericperret.org/markdown/privacy.html`).
+
+## GitHub Gist (optional)
+
+Gist is **off** until the host enables it. End users paste their own fine-grained personal access token (the host never sees it). Browser OAuth is not used: GitHub’s token endpoint does not support CORS for static hosts without a server-side exchange.
+
+1. Copy the example (this file is gitignored):
+
+```bash
+cp src/github-gist-config.example.json src/github-gist-config.json
+# ensure "enabled": true
+```
+
+2. Dev: `npm run dev` serves `src/`, so the JSON is picked up immediately.  
+   Production: `npm run build` copies `src/github-gist-config.json` into `dist/` when present. You can also place `github-gist-config.json` next to `index.html` on the server after deploy.
+
+| Key | Meaning |
+| --- | --- |
+| `enabled` | When `true`, shows the Gist files-source and Connect UI |
+
+If the file is missing or `enabled` is not true, Gist buttons stay hidden. Do not commit `github-gist-config.json`.
+
+Users create a [fine-grained PAT](https://github.com/settings/personal-access-tokens) with **Gists** access, then **Connect Gist** and paste the token. The token is kept **in memory only**; when WebAuthn **PRF** is available it is also sealed like Drive. API calls use Octokit (bundled same-origin) to `https://api.github.com` only — not added to `img-src` / `script-src` / `frame-src`. Preview Markdown still cannot load remote images (`img-src` is `'self' data: blob:` only).

@@ -56,7 +56,10 @@ describe("csp.mjs", () => {
     assert.match(csp, /default-src 'self'/);
     assert.match(csp, /object-src 'none'/);
     assert.match(csp, /media-src 'self' data: blob:/);
+    assert.match(csp, /img-src 'self' data: blob:/);
+    assert.doesNotMatch(csp, /img-src[^;]*https:/);
     assert.match(csp, /connect-src[^;]*www\.googleapis\.com/);
+    assert.match(csp, /connect-src[^;]*api\.github\.com/);
     assert.doesNotMatch(csp, /apis\.google\.com/);
   });
 
@@ -69,6 +72,7 @@ describe("csp.mjs", () => {
     assert.doesNotMatch(csp, /oauth2\.googleapis\.com/);
     assert.doesNotMatch(csp, /docs\.google\.com/);
   });
+
 });
 
 describe("cdn-integrity.mjs", () => {
@@ -136,6 +140,7 @@ describe("pwa.mjs", () => {
     assert.equal(isMutableShellPath("/drive-helper/"), false);
     assert.equal(isMutableShellPath("/drive-helper/index.html"), false);
     assert.equal(isMutableShellPath("/google-drive-config.json"), true);
+    assert.equal(isMutableShellPath("/github-gist-config.json"), true);
     assert.equal(isMutableShellPath("/"), true);
     assert.equal(isMutableShellPath("/manifest.webmanifest"), true);
     assert.equal(isMutableShellPath("/sw.js"), true);
@@ -211,6 +216,10 @@ describe("serve-utils", () => {
     assert.equal(safeResolve("/foo/../../etc/passwd", root), null);
     assert.equal(safeResolve("/%2e%2e/secret", root), null);
     assert.equal(safeResolve("/foo?bar=1", root), path.join(root, "foo"));
+    assert.equal(safeResolve("/index.html%00.md", root), null);
+    assert.equal(safeResolve("/%00", root), null);
+    assert.equal(safeResolve("/app.js%00.html", root), null);
+    assert.equal(safeResolve("/%zz", root), null);
     assert.equal(isInsideRoot(path.join(root, "a.css"), root), true);
     assert.equal(isInsideRoot(path.join(root, "..", "secret"), root), false);
   });

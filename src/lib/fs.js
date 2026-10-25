@@ -253,12 +253,23 @@ export async function loadStoredCurrentFileHandle() {
  * @param {string} path
  * @returns {Promise<FileSystemFileHandle|null>}
  */
+/**
+ * @param {string} segment
+ * @returns {boolean}
+ */
+function isSafePathSegment(segment) {
+  if (!segment || segment === "." || segment === "..") return false;
+  if (segment.includes("/") || segment.includes("\\")) return false;
+  return true;
+}
+
 export async function resolveFilePath(rootDir, path) {
   const parts = String(path || "")
     .split("/")
     .map((p) => p.trim())
     .filter(Boolean);
   if (!rootDir || !parts.length) return null;
+  if (!parts.every(isSafePathSegment)) return null;
   try {
     let dir = rootDir;
     for (let i = 0; i < parts.length - 1; i++) {

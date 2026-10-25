@@ -32,6 +32,7 @@ import {
   suggestedUntitledName,
   writeTextFile,
 } from "../lib/fs.js";
+import { stripRemoteMediaAttributes } from "../lib/safe-media-uri.js";
 import { loadGoogleDriveConfig } from "../drive/google-drive-config.js";
 import {
   DRIVE_DEFAULT_FOLDER_NAME,
@@ -51,7 +52,27 @@ import {
   trashDriveItemWithToken,
   tryRestoreDriveAccessToken,
 } from "../drive/google-drive.js";
-import { purgeLegacyCleartextToken, readVaultMeta } from "../drive/drive-token-vault.js";
+import { purgeLegacyCleartextToken } from "../drive/drive-token-vault.js";
+import { loadGithubGistConfig } from "../gist/github-gist-config.js";
+import {
+  clearGistAccessToken,
+  createPrivateGist,
+  deleteGist,
+  editableGistFiles,
+  ensureGistAccessToken,
+  githubGistEnabled,
+  hasSealedGistSession,
+  isGistSessionMemoryOnly,
+  listGists,
+  prepareGistTokenVault,
+  readGistFileText,
+  setGistPersonalAccessToken,
+  tryRestoreGistAccessToken,
+  unlockGistAccessToken,
+  updateGistFile,
+  verifyGistToken,
+} from "../gist/github-gist.js";
+import { purgeLegacyCleartextToken as purgeLegacyGistCleartextToken } from "../gist/gist-token-vault.js";
 import { applyPatch, contentHash, makeRevisionBody } from "../lib/history-diff.js";
 import {
   clearHistoryBodies,
@@ -378,9 +399,12 @@ const filesOpenFolderBtn = document.getElementById("files-open-folder-btn");
 const filesSourceToggle = document.getElementById("files-source-toggle");
 const filesSourceLocalBtn = document.getElementById("files-source-local-btn");
 const filesSourceDriveBtn = document.getElementById("files-source-drive-btn");
+const filesSourceGistBtn = document.getElementById("files-source-gist-btn");
 const filesConnectDriveBtn = document.getElementById("files-connect-drive-btn");
+const filesConnectGistBtn = document.getElementById("files-connect-gist-btn");
 const filesDriveOfflineHint = document.getElementById("files-drive-offline-hint");
 const filesEmptyConnectBtn = document.getElementById("files-empty-connect-btn");
+const filesEmptyConnectGistBtn = document.getElementById("files-empty-connect-gist-btn");
 const filesEmptyCopy = document.getElementById("files-empty-copy");
 const filesNewFileBtn = document.getElementById("files-new-file-btn");
 const filesNewFolderBtn = document.getElementById("files-new-folder-btn");
@@ -388,11 +412,14 @@ const filesRefreshBtn = document.getElementById("files-refresh-btn");
 const filesEmpty = document.getElementById("files-empty");
 const filesEmptyOpenBtn = document.getElementById("files-empty-open-btn");
 const filesLoading = document.getElementById("files-loading");
+const filesLoadingCopy = document.getElementById("files-loading-copy");
 const filesPermission = document.getElementById("files-permission");
 const filesRegrantBtn = document.getElementById("files-regrant-btn");
 const filesReopenBtn = document.getElementById("files-reopen-btn");
 const filesTree = document.getElementById("files-tree");
 const filesContextMenu = document.getElementById("files-context-menu");
+const gistPatModal = document.getElementById("gist-pat-modal");
+const gistPatInput = document.getElementById("gist-pat-input");
 const currentFileNameEl = document.getElementById("current-file-name");
 const outlineEmpty = document.getElementById("outline-empty");
 const outlineList = document.getElementById("outline-list");
@@ -410,23 +437,32 @@ let selectedPath = "";
 let currentFileHandle = null;
 /** @type {{ id: string, name: string, mimeType?: string } | null} */
 let currentDriveFile = null;
+/** @type {{ gistId: string, filename: string } | null} */
+let currentGistFile = null;
 /** @type {string} */
 let currentFileName = "";
 /** @type {string} Relative path under the open folder, when known. */
 let currentFilePath = "";
 /** Set after loadGoogleDriveConfig() during boot. */
 let driveConfigured = false;
-/** @type {"local"|"drive"} */
+/** Set after loadGithubGistConfig() during boot. */
+let gistConfigured = false;
+/** @type {"local"|"drive"|"gist"} */
 let filesSource = "local";
 /** @type {Map<string, { kind: "file"|"directory", id: string, name: string, mimeType?: string }>} */
 const driveEntries = new Map();
+/** @type {Map<string, { kind: "file", id: string, gistId: string, filename: string, name: string, description: string, isPublic: boolean }>} */
+const gistEntries = new Map();
 /** UI label for the Drive app root (leading slash marks it as a directory). */
 const DRIVE_ROOT_UI_NAME = `/${DRIVE_DEFAULT_FOLDER_NAME}`;
 /** @type {{ id: string, name: string }[]} navigation stack; [0] is markdown-editor root */
 let driveNavStack = [];
 let driveConnected = false;
+let gistConnected = false;
 /** True while the Drive files tree is fetching from Google. */
 let driveFilesLoading = false;
+/** True while the Gist files tree is fetching from GitHub. */
+let gistFilesLoading = false;
 
 function driveCurrentFolderId() {
   return driveNavStack.length ? driveNavStack[driveNavStack.length - 1].id : "";
@@ -486,11 +522,13 @@ marked.use(alertExtension());
 marked.use(defListExtension());
 
 // Open all markdown links in a new tab; noopener/noreferrer blocks window.opener abuse.
+// Strip remote media URLs so Accepted Markdown cannot phone home (CSP img-src is the backstop).
 DOMPurify.addHook("afterSanitizeAttributes", (node) => {
   if ("target" in node) {
     node.setAttribute("target", "_blank");
     node.setAttribute("rel", "noopener noreferrer");
   }
+  stripRemoteMediaAttributes(/** @type {Element} */ (node));
 });
 
 let editorHighlightRaf = 0;
@@ -1850,10 +1888,18 @@ function clearShareMarkdownFromUrl() {
  * @returns {string}
  */
 function currentDocKey() {
+  if (currentGistFile?.gistId && currentGistFile?.filename) {
+    return `gist:${currentGistFile.gistId}:${currentGistFile.filename}`;
+  }
   if (currentDriveFile?.id) return `drive:${currentDriveFile.id}`;
   if (currentFilePath) return `path:${currentFilePath}`;
   if (currentFileName) return `name:${currentFileName}`;
   return "untitled";
+}
+
+/** @param {string} gistId @param {string} filename */
+function gistEntryId(gistId, filename) {
+  return `${gistId}\0${filename}`;
 }
 
 function readDraftMirror() {
@@ -2348,6 +2394,18 @@ function paintMarkdown(source, gen = paintGen) {
   const clean = DOMPurify.sanitize(raw, {
     USE_PROFILES: { html: true, svg: true },
     ADD_ATTR: ["data-source-line", "data-source-line-end"],
+    // Block phishing chrome (fake login forms) in the preview.
+    FORBID_TAGS: [
+      "form",
+      "input",
+      "button",
+      "select",
+      "textarea",
+      "option",
+      "optgroup",
+      "fieldset",
+      "legend",
+    ],
   });
 
   if (gen !== paintGen) return;
@@ -3881,6 +3939,7 @@ function persistCurrentFileBinding() {
 function clearCurrentFileBinding() {
   currentFileHandle = null;
   currentDriveFile = null;
+  currentGistFile = null;
   currentFileName = "";
   currentFilePath = "";
   updateDocumentTitle();
@@ -3896,6 +3955,7 @@ function clearCurrentFileBinding() {
  */
 function bindCurrentFile(fileHandle, name, path = "") {
   currentDriveFile = null;
+  currentGistFile = null;
   currentFileHandle = fileHandle;
   currentFileName = name || fileHandle?.name || "";
   currentFilePath = path || pathForHandle(fileHandle) || "";
@@ -3914,8 +3974,24 @@ function bindCurrentFile(fileHandle, name, path = "") {
 function bindCurrentDriveFile(file) {
   currentFileHandle = null;
   currentFilePath = "";
+  currentGistFile = null;
   currentDriveFile = { id: file.id, name: file.name, mimeType: file.mimeType };
   currentFileName = file.name || "";
+  updateDocumentTitle();
+  updateSaveButton();
+  highlightActiveFileInTree();
+  persistCurrentFileBinding();
+}
+
+/**
+ * @param {{ gistId: string, filename: string }} file
+ */
+function bindCurrentGistFile(file) {
+  currentFileHandle = null;
+  currentFilePath = "";
+  currentDriveFile = null;
+  currentGistFile = { gistId: file.gistId, filename: file.filename };
+  currentFileName = file.filename || "";
   updateDocumentTitle();
   updateSaveButton();
   highlightActiveFileInTree();
@@ -4053,7 +4129,13 @@ function updateUnsavedFavicon(dirty = isDirty()) {
 }
 
 function canSaveDocument() {
-  return fsAccessSupported || Boolean(currentDriveFile) || driveConfigured;
+  return (
+    fsAccessSupported ||
+    Boolean(currentDriveFile) ||
+    Boolean(currentGistFile) ||
+    driveConfigured ||
+    gistConfigured
+  );
 }
 
 function updateSaveButton() {
@@ -4070,7 +4152,7 @@ function updateSaveButton() {
 }
 
 function filesDrawerToggleNoun() {
-  return fsAccessSupported || driveConfigured ? "Files" : "Outline";
+  return fsAccessSupported || driveConfigured || gistConfigured ? "Files" : "Outline";
 }
 
 function syncFilesToggleLabel() {
@@ -4210,11 +4292,15 @@ function openFilesContextMenu(x, y, target) {
   const newFolderItem = filesContextMenu.querySelector('[data-fs-action="new-folder"]');
   const renameItem = filesContextMenu.querySelector('[data-fs-action="rename"]');
   const deleteItem = filesContextMenu.querySelector('[data-fs-action="delete"]');
-  const showCreate = target.kind === "directory";
+  const gistMode = isGistFilesSource();
+  // Gists are flat: empty-area creates a new private gist; no folders/rename.
+  const showCreate = gistMode ? !id : target.kind === "directory";
+  const showNewFolder = showCreate && !gistMode;
   const canMutate = Boolean(id);
+  const canRename = canMutate && !gistMode;
   if (newFileItem?.parentElement) newFileItem.parentElement.hidden = !showCreate;
-  if (newFolderItem?.parentElement) newFolderItem.parentElement.hidden = !showCreate;
-  if (renameItem?.parentElement) renameItem.parentElement.hidden = !canMutate;
+  if (newFolderItem?.parentElement) newFolderItem.parentElement.hidden = !showNewFolder;
+  if (renameItem?.parentElement) renameItem.parentElement.hidden = !canRename;
   if (deleteItem?.parentElement) deleteItem.parentElement.hidden = !canMutate;
 
   filesContextMenu.hidden = false;
@@ -4229,9 +4315,18 @@ function isDriveFilesSource() {
   return driveConfigured && filesSource === "drive";
 }
 
+function isGistFilesSource() {
+  return gistConfigured && filesSource === "gist";
+}
+
+function isCloudFilesSource() {
+  return isDriveFilesSource() || isGistFilesSource();
+}
+
 /** @returns {Promise<void>} */
 async function refreshActiveFilesTree() {
   if (isDriveFilesSource()) await refreshDriveTree();
+  else if (isGistFilesSource()) await refreshGistTree();
   else await refreshFilesTree();
 }
 
@@ -4240,7 +4335,12 @@ async function refreshActiveFilesTree() {
  * @returns {string}
  */
 function filesEntryIdFromRow(row) {
-  return row.getAttribute("data-drive-id") || row.getAttribute("data-path") || "";
+  return (
+    row.getAttribute("data-gist-id") ||
+    row.getAttribute("data-drive-id") ||
+    row.getAttribute("data-path") ||
+    ""
+  );
 }
 
 /**
@@ -4248,8 +4348,15 @@ function filesEntryIdFromRow(row) {
  * @returns {{ id: string, name: string, kind: "file"|"directory" } | null}
  */
 function getActiveTreeEntry(id) {
+  if (!id && isGistFilesSource()) {
+    return { id: "", name: "Gists", kind: "directory" };
+  }
   if (!id && !isDriveFilesSource()) {
     return rootDirHandle ? { id: "", name: rootDirHandle.name, kind: "directory" } : null;
+  }
+  if (isGistFilesSource()) {
+    const entry = gistEntries.get(id);
+    return entry ? { id: entry.id, name: entry.name, kind: "file" } : null;
   }
   if (isDriveFilesSource()) {
     const entry = driveEntries.get(id);
@@ -4260,12 +4367,12 @@ function getActiveTreeEntry(id) {
 }
 
 /**
- * Shared tree row DOM for Local and Drive listings.
+ * Shared tree row DOM for Local, Drive, and Gist listings.
  * @param {{
  *   id: string,
  *   kind: "file"|"directory",
  *   name: string,
- *   idAttr?: "path"|"driveId",
+ *   idAttr?: "path"|"driveId"|"gistId",
  *   twistieText?: string,
  *   twistieSpacer?: boolean,
  *   rowClass?: string,
@@ -4273,12 +4380,15 @@ function getActiveTreeEntry(id) {
  * }} opts
  */
 function createFilesTreeItem(opts) {
-  const idAttr = opts.idAttr || (isDriveFilesSource() ? "driveId" : "path");
+  const idAttr =
+    opts.idAttr ||
+    (isGistFilesSource() ? "gistId" : isDriveFilesSource() ? "driveId" : "path");
   const li = document.createElement("li");
   li.className = "files-tree-item";
   li.setAttribute("role", "treeitem");
   li.dataset.kind = opts.kind;
   if (idAttr === "driveId") li.dataset.driveId = opts.id;
+  else if (idAttr === "gistId") li.dataset.gistId = opts.id;
   else li.dataset.path = opts.id;
 
   const row = document.createElement("button");
@@ -4286,6 +4396,7 @@ function createFilesTreeItem(opts) {
   row.className = `files-tree-row${opts.rowClass ? ` ${opts.rowClass}` : ""}`;
   row.dataset.kind = opts.kind;
   if (idAttr === "driveId") row.dataset.driveId = opts.id;
+  else if (idAttr === "gistId") row.dataset.gistId = opts.id;
   else row.dataset.path = opts.id;
   if (opts.action) row.dataset.driveAction = opts.action;
 
@@ -4334,26 +4445,40 @@ const DRIVE_CONNECT_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="current
 
 function updateFilesChrome() {
   const driveMode = isDriveFilesSource();
+  const gistMode = isGistFilesSource();
+  const cloudMode = driveMode || gistMode;
   const hasLocalRoot = Boolean(rootDirHandle) && !awaitingFsPermission;
   const hasDriveRoot = driveConnected;
-  const hasRoot = driveMode ? hasDriveRoot : hasLocalRoot;
+  const hasGistRoot = gistConnected;
+  const hasRoot = driveMode ? hasDriveRoot : gistMode ? hasGistRoot : hasLocalRoot;
   const online = isBrowserOnline();
-  const needsOnlineToConnect = driveConfigured && driveMode && !hasDriveRoot && !online;
+  const needsOnlineToConnect =
+    (driveConfigured && driveMode && !hasDriveRoot && !online) ||
+    (gistConfigured && gistMode && !hasGistRoot && !online);
+  const cloudLoading = (driveMode && driveFilesLoading) || (gistMode && gistFilesLoading);
 
   document.body.classList.toggle("files-source-drive", driveMode);
-  document.body.classList.toggle("files-source-local", !driveMode);
+  document.body.classList.toggle("files-source-gist", gistMode);
+  document.body.classList.toggle("files-source-local", !cloudMode);
 
   if (filesSourceLocalBtn) {
-    filesSourceLocalBtn.classList.toggle("is-active", !driveMode);
-    filesSourceLocalBtn.setAttribute("aria-pressed", !driveMode ? "true" : "false");
+    filesSourceLocalBtn.classList.toggle("is-active", !cloudMode);
+    filesSourceLocalBtn.setAttribute("aria-pressed", !cloudMode ? "true" : "false");
   }
   if (filesSourceDriveBtn) {
     filesSourceDriveBtn.classList.toggle("is-active", driveMode);
     filesSourceDriveBtn.setAttribute("aria-pressed", driveMode ? "true" : "false");
   }
+  if (filesSourceGistBtn) {
+    filesSourceGistBtn.classList.toggle("is-active", gistMode);
+    filesSourceGistBtn.setAttribute("aria-pressed", gistMode ? "true" : "false");
+  }
 
   if (filesDrawerTitle) {
-    if (driveMode) {
+    if (gistMode) {
+      filesDrawerTitle.textContent = gistConnected ? "Gists" : "GitHub Gist";
+      filesDrawerTitle.title = filesDrawerTitle.textContent;
+    } else if (driveMode) {
       filesDrawerTitle.textContent = driveConnected ? drivePathLabel() : "Google Drive";
       filesDrawerTitle.title = driveConnected ? drivePathLabel() : "Google Drive";
     } else {
@@ -4364,8 +4489,14 @@ function updateFilesChrome() {
   }
 
   if (filesEmptyCopy) {
-    if (!driveMode) {
-      filesEmptyCopy.textContent = "Open a folder to browse Markdown, text, and HTML files.";
+    if (!cloudMode) {
+      filesEmptyCopy.textContent = gistConfigured
+        ? "Open a folder, or switch to Gist above to connect GitHub."
+        : "Open a folder to browse Markdown, text, and HTML files.";
+    } else if (gistMode) {
+      filesEmptyCopy.textContent = needsOnlineToConnect
+        ? "You need to be online to connect GitHub Gist."
+        : "Connect with a GitHub personal access token to browse your gists.";
     } else if (needsOnlineToConnect) {
       filesEmptyCopy.textContent = "You need to be online to connect Google Drive.";
     } else {
@@ -4373,27 +4504,43 @@ function updateFilesChrome() {
     }
   }
 
+  if (filesLoadingCopy) {
+    filesLoadingCopy.textContent = gistMode ? "Loading Gists…" : "Loading Google Drive…";
+  }
   if (filesLoading) {
-    filesLoading.hidden = !driveMode || !driveFilesLoading;
+    filesLoading.hidden = !cloudLoading;
   }
   if (filesEmpty) {
-    filesEmpty.hidden = driveFilesLoading || (driveMode
-      ? hasDriveRoot
-      : hasLocalRoot || awaitingFsPermission);
+    filesEmpty.hidden =
+      cloudLoading ||
+      (driveMode
+        ? hasDriveRoot
+        : gistMode
+          ? hasGistRoot
+          : hasLocalRoot || awaitingFsPermission);
   }
   if (filesPermission) {
-    filesPermission.hidden = driveMode || !awaitingFsPermission;
+    filesPermission.hidden = cloudMode || !awaitingFsPermission;
   }
-  if (filesTree) filesTree.hidden = driveFilesLoading || !hasRoot;
+  if (filesTree) filesTree.hidden = cloudLoading || !hasRoot;
   if (filesNewFileBtn) filesNewFileBtn.disabled = false;
   if (filesNewFolderBtn) {
-    filesNewFolderBtn.disabled = driveMode ? !hasDriveRoot : !hasLocalRoot;
+    filesNewFolderBtn.disabled = gistMode
+      ? true
+      : driveMode
+        ? !hasDriveRoot
+        : !hasLocalRoot;
   }
   if (filesRefreshBtn) {
-    filesRefreshBtn.disabled = driveMode ? !hasDriveRoot : !hasLocalRoot;
+    filesRefreshBtn.disabled = driveMode
+      ? !hasDriveRoot
+      : gistMode
+        ? !hasGistRoot
+        : !hasLocalRoot;
   }
   if (filesConnectDriveBtn) {
-    filesConnectDriveBtn.hidden = !driveConfigured || !driveMode || needsOnlineToConnect;
+    filesConnectDriveBtn.hidden =
+      !driveConfigured || !driveMode || (needsOnlineToConnect && driveMode && !hasDriveRoot);
     if (hasDriveRoot) {
       filesConnectDriveBtn.classList.add("svg-btn");
       filesConnectDriveBtn.innerHTML = DRIVE_DISCONNECT_ICON;
@@ -4402,16 +4549,34 @@ function updateFilesChrome() {
     } else if (hasSealedDriveSession()) {
       filesConnectDriveBtn.classList.remove("svg-btn");
       filesConnectDriveBtn.textContent = "Unlock Drive";
-      const prf = readVaultMeta()?.kind !== "idb";
-      filesConnectDriveBtn.title = prf
-        ? "Use your passkey to restore\nyour saved Google Drive sign-in"
-        : "Restore your saved Google Drive sign-in";
+      filesConnectDriveBtn.title =
+        "Use your passkey to restore\nyour saved Google Drive sign-in";
       filesConnectDriveBtn.setAttribute("aria-label", "Unlock Drive");
     } else {
       filesConnectDriveBtn.classList.add("svg-btn");
       filesConnectDriveBtn.innerHTML = DRIVE_CONNECT_ICON;
       filesConnectDriveBtn.title = "Connect Google Drive";
       filesConnectDriveBtn.setAttribute("aria-label", "Connect Drive");
+    }
+  }
+  if (filesConnectGistBtn) {
+    const gistOfflineBlock = gistMode && !hasGistRoot && !online;
+    filesConnectGistBtn.hidden = !gistConfigured || !gistMode || gistOfflineBlock;
+    if (hasGistRoot) {
+      filesConnectGistBtn.classList.add("svg-btn");
+      filesConnectGistBtn.innerHTML = DRIVE_DISCONNECT_ICON;
+      filesConnectGistBtn.title = "Disconnect GitHub Gist and\nclear your saved token";
+      filesConnectGistBtn.setAttribute("aria-label", "Disconnect Gist");
+    } else if (hasSealedGistSession()) {
+      filesConnectGistBtn.classList.remove("svg-btn");
+      filesConnectGistBtn.textContent = "Unlock Gist";
+      filesConnectGistBtn.title = "Use your passkey to restore\nyour saved GitHub Gist token";
+      filesConnectGistBtn.setAttribute("aria-label", "Unlock Gist");
+    } else {
+      filesConnectGistBtn.classList.add("svg-btn");
+      filesConnectGistBtn.innerHTML = DRIVE_CONNECT_ICON;
+      filesConnectGistBtn.title = "Connect GitHub Gist";
+      filesConnectGistBtn.setAttribute("aria-label", "Connect Gist");
     }
   }
   if (filesDriveOfflineHint) {
@@ -4421,11 +4586,15 @@ function updateFilesChrome() {
     filesEmptyConnectBtn.hidden =
       !driveConfigured || !driveMode || hasDriveRoot || needsOnlineToConnect;
   }
+  if (filesEmptyConnectGistBtn) {
+    filesEmptyConnectGistBtn.hidden =
+      !gistConfigured || !gistMode || hasGistRoot || needsOnlineToConnect;
+  }
   if (filesEmptyOpenBtn) {
-    filesEmptyOpenBtn.hidden = driveMode;
+    filesEmptyOpenBtn.hidden = cloudMode;
   }
   if (filesOpenFolderBtn) {
-    filesOpenFolderBtn.hidden = driveMode || !fsAccessSupported;
+    filesOpenFolderBtn.hidden = cloudMode || !fsAccessSupported;
   }
 }
 
@@ -4464,6 +4633,14 @@ function highlightActiveFileInTree() {
   filesTree?.querySelectorAll(".files-tree-row.is-active-file").forEach((el) => {
     el.classList.remove("is-active-file");
   });
+  if (isGistFilesSource() && currentGistFile?.gistId) {
+    const id = gistEntryId(currentGistFile.gistId, currentGistFile.filename);
+    const row = filesTree?.querySelector(
+      `.files-tree-row[data-gist-id="${cssEscape(id)}"]`,
+    );
+    row?.classList.add("is-active-file");
+    return;
+  }
   if (isDriveFilesSource() && currentDriveFile?.id) {
     const row = filesTree?.querySelector(
       `.files-tree-row[data-drive-id="${cssEscape(currentDriveFile.id)}"]`,
@@ -4632,7 +4809,9 @@ async function connectGoogleDrive() {
       endDriveFilesLoading();
     }
     if (isDriveSessionMemoryOnly()) {
-      showToast(`Connected — ${DRIVE_ROOT_UI_NAME} (session not persisted across refresh)`);
+      showToast(
+        `Connected — ${DRIVE_ROOT_UI_NAME} (session won’t survive refresh or closing this tab)`,
+      );
     } else {
       showToast(`Connected — ${DRIVE_ROOT_UI_NAME}`);
     }
@@ -4682,9 +4861,210 @@ async function disconnectGoogleDrive() {
   showToast("Disconnected from Google Drive");
 }
 
+function beginGistFilesLoading() {
+  gistFilesLoading = true;
+  if (filesTree) {
+    filesTree.replaceChildren();
+    filesTree.hidden = true;
+  }
+  updateFilesChrome();
+}
+
+function endGistFilesLoading() {
+  gistFilesLoading = false;
+  updateFilesChrome();
+}
+
+async function renderGistTree() {
+  if (!isGistFilesSource() || !gistConnected) return;
+  const token = await ensureGistAccessToken();
+  const gists = await listGists(token);
+  gistEntries.clear();
+  const frag = document.createDocumentFragment();
+  for (const gist of gists) {
+    const files = editableGistFiles(gist);
+    for (const file of files) {
+      const id = gistEntryId(gist.id, file.filename);
+      const label = gist.description
+        ? `${file.filename} — ${gist.description}`
+        : file.filename;
+      gistEntries.set(id, {
+        kind: "file",
+        id,
+        gistId: gist.id,
+        filename: file.filename,
+        name: label,
+        description: gist.description || "",
+        isPublic: gist.public,
+      });
+      const { li } = createFilesTreeItem({
+        id,
+        kind: "file",
+        name: label,
+        idAttr: "gistId",
+        twistieSpacer: true,
+      });
+      frag.append(li);
+    }
+  }
+  if (filesTree) {
+    filesTree.replaceChildren(frag);
+    filesTree.hidden = false;
+  }
+  highlightActiveFileInTree();
+  updateFilesChrome();
+}
+
+async function refreshGistTree() {
+  if (!isGistFilesSource() || !gistConnected) return;
+  beginGistFilesLoading();
+  try {
+    await renderGistTree();
+  } catch (err) {
+    console.error(err);
+    if (err?.status === 401 || /401|auth|Bad credentials|token/i.test(String(err?.message || ""))) {
+      clearGistAccessToken();
+      gistConnected = false;
+      gistEntries.clear();
+      showToast("GitHub Gist session expired — connect again");
+      return;
+    }
+    showToast(err?.message || "Could not refresh Gists");
+  } finally {
+    endGistFilesLoading();
+  }
+}
+
+/**
+ * @returns {Promise<string | null>} PAT or null if cancelled
+ */
+function promptGistPersonalAccessToken() {
+  return new Promise((resolve) => {
+    if (!gistPatModal || typeof gistPatModal.showModal !== "function") {
+      const raw = window.prompt("GitHub personal access token (gist scope)");
+      resolve(raw == null ? null : String(raw).trim() || null);
+      return;
+    }
+    if (gistPatInput) gistPatInput.value = "";
+    const onClose = () => {
+      gistPatModal.removeEventListener("close", onClose);
+      const value = gistPatModal.returnValue;
+      if (value !== "connect") {
+        resolve(null);
+        return;
+      }
+      const token = String(gistPatInput?.value || "").trim();
+      resolve(token || null);
+    };
+    gistPatModal.addEventListener("close", onClose);
+    gistPatModal.showModal();
+    gistPatInput?.focus();
+  });
+}
+
+async function unlockGistAccessTokenSafe() {
+  try {
+    const token = await unlockGistAccessToken();
+    return Boolean(token);
+  } catch (err) {
+    if (err?.name === "AbortError" || err?.name === "NotAllowedError") return false;
+    throw err;
+  }
+}
+
+async function connectGithubGist() {
+  if (!gistConfigured) return;
+  if (!isBrowserOnline()) {
+    updateFilesChrome();
+    showToast("You need to be online to connect GitHub Gist");
+    return;
+  }
+  try {
+    if (!(await tryRestoreGistAccessToken())) {
+      if (hasSealedGistSession()) {
+        const unlocked = await unlockGistAccessTokenSafe();
+        if (!unlocked) {
+          showToast("Unlock cancelled — connect again to paste a new token");
+          return;
+        }
+      } else {
+        try {
+          await prepareGistTokenVault();
+        } catch (err) {
+          if (err?.name === "AbortError" || err?.name === "NotAllowedError") throw err;
+        }
+        const pat = await promptGistPersonalAccessToken();
+        if (!pat) return;
+        await verifyGistToken(pat);
+        await setGistPersonalAccessToken(pat);
+      }
+    }
+    await ensureGistAccessToken();
+    gistConnected = true;
+    filesSource = "gist";
+    try {
+      localStorage.setItem(STORAGE_KEYS.filesSource, "gist");
+    } catch {
+      /* ignore */
+    }
+    beginGistFilesLoading();
+    try {
+      await renderGistTree();
+    } finally {
+      endGistFilesLoading();
+    }
+    if (isGistSessionMemoryOnly()) {
+      showToast("Connected — Gists (session won’t survive refresh or closing this tab)");
+    } else {
+      showToast("Connected — Gists");
+    }
+  } catch (err) {
+    if (err?.name === "AbortError" || err?.name === "NotAllowedError") return;
+    console.error(err);
+    gistConnected = false;
+    endGistFilesLoading();
+    const offlineish =
+      !isBrowserOnline() ||
+      err?.name === "TypeError" ||
+      /Failed to fetch|NetworkError|ERR_INTERNET/i.test(String(err?.message || ""));
+    showToast(
+      offlineish
+        ? "You need to be online to connect GitHub Gist"
+        : err?.message || "Could not connect GitHub Gist",
+    );
+    updateFilesChrome();
+  }
+}
+
+async function disconnectGithubGist() {
+  if (!gistConfigured) return;
+  if (currentGistFile) {
+    if (!confirmDiscardIfDirty()) return;
+    openDocumentSeq += 1;
+    await persistDraft(getMarkdownSource());
+    setEditorValue("");
+    clearCurrentFileBinding();
+    await persistDraft("");
+    renderMarkdown("");
+    markDirtyBaseline();
+    setContentExternal(false);
+  }
+  clearGistAccessToken();
+  gistConnected = false;
+  gistFilesLoading = false;
+  gistEntries.clear();
+  if (filesTree) {
+    filesTree.replaceChildren();
+    filesTree.hidden = true;
+  }
+  updateFilesChrome();
+  showToast("Disconnected from GitHub Gist");
+}
+
 function setFilesSource(next) {
-  const source = next === "drive" ? "drive" : "local";
-  if (!driveConfigured && source === "drive") return;
+  let source = "local";
+  if (next === "drive" && driveConfigured) source = "drive";
+  else if (next === "gist" && gistConfigured) source = "gist";
   filesSource = source;
   try {
     localStorage.setItem(STORAGE_KEYS.filesSource, filesSource);
@@ -4692,8 +5072,8 @@ function setFilesSource(next) {
     /* ignore */
   }
   if (filesSource === "drive") {
+    gistFilesLoading = false;
     if (driveConnected) {
-      // Drop local rows immediately so they are not visible under the spinner.
       beginDriveFilesLoading();
       void refreshActiveFilesTree();
     } else {
@@ -4704,8 +5084,22 @@ function setFilesSource(next) {
       }
       updateFilesChrome();
     }
+  } else if (filesSource === "gist") {
+    driveFilesLoading = false;
+    if (gistConnected) {
+      beginGistFilesLoading();
+      void refreshActiveFilesTree();
+    } else {
+      gistFilesLoading = false;
+      if (filesTree) {
+        filesTree.replaceChildren();
+        filesTree.hidden = true;
+      }
+      updateFilesChrome();
+    }
   } else {
     driveFilesLoading = false;
+    gistFilesLoading = false;
     updateFilesChrome();
     if (rootDirHandle && !awaitingFsPermission) {
       void refreshActiveFilesTree();
@@ -4774,8 +5168,50 @@ async function openDriveTreeFile(fileId) {
   }
 }
 
+async function openGistTreeFile(entryId) {
+  const entry = gistEntries.get(entryId);
+  if (!entry || entry.kind !== "file") return;
+  if (
+    currentGistFile?.gistId === entry.gistId &&
+    currentGistFile?.filename === entry.filename &&
+    !isDirty()
+  ) {
+    highlightActiveFileInTree();
+    return;
+  }
+  if (!confirmDiscardIfDirty()) return;
+  const seq = ++openDocumentSeq;
+  try {
+    await persistDraft(getMarkdownSource());
+    if (seq !== openDocumentSeq) return;
+    const token = await ensureGistAccessToken();
+    if (seq !== openDocumentSeq) return;
+    const content = await readGistFileText(token, entry.gistId, entry.filename);
+    if (seq !== openDocumentSeq) return;
+    setEditorValue(content);
+    const fromKey = currentDocKey();
+    bindCurrentGistFile({ gistId: entry.gistId, filename: entry.filename });
+    const toKey = currentDocKey();
+    if (fromKey !== toKey) {
+      void moveDraft(fromKey, toKey);
+      moveSavedSnapshot(fromKey, toKey);
+    }
+    markCleanFromEditor();
+    await finishOpenDocument(entry.filename, seq);
+  } catch (err) {
+    if (err?.name === "AbortError") return;
+    if (seq !== openDocumentSeq) return;
+    console.error(err);
+    showToast(err?.message || "Could not open Gist file");
+  }
+}
+
 /** Activate a tree row (open file or enter/toggle directory). */
 async function activateFilesTreeEntry(id, kind) {
+  if (isGistFilesSource()) {
+    if (kind === "file") await openGistTreeFile(id);
+    return;
+  }
   if (isDriveFilesSource()) {
     if (kind === "directory") await enterDriveFolder(id);
     else await openDriveTreeFile(id);
@@ -4853,8 +5289,8 @@ async function renderFilesTree() {
 
 async function refreshFilesTree() {
   if (!rootDirHandle) return;
-  // Drive mode owns the same #files-tree; do not paint local entries into it.
-  if (isDriveFilesSource()) return;
+  // Cloud modes own the same #files-tree; do not paint local entries into it.
+  if (isCloudFilesSource()) return;
   try {
     await renderFilesTree();
   } catch (err) {
@@ -4871,7 +5307,7 @@ async function setRootDirectory(handle, { permissionOk = true } = {}) {
   updateFilesChrome();
   if (permissionOk && handle) {
     await refreshFilesTree();
-  } else if (filesTree && !isDriveFilesSource()) {
+  } else if (filesTree && !isCloudFilesSource()) {
     filesTree.replaceChildren();
     fsEntries.clear();
   }
@@ -5002,7 +5438,7 @@ async function createUntitledDocument() {
  */
 function normalizeFilesTarget(target = null) {
   if (target == null) {
-    if (isDriveFilesSource()) return { id: "", kind: "directory" };
+    if (isCloudFilesSource()) return { id: "", kind: "directory" };
     return { id: selectedPath || "", kind: "directory" };
   }
   if (typeof target === "string") return { id: target, kind: "directory" };
@@ -5040,6 +5476,18 @@ async function promptCreateFile(target = null) {
   }
 
   try {
+    if (isGistFilesSource()) {
+      if (!gistConnected) return;
+      if (!confirmDiscardIfDirty()) return;
+      const token = await ensureGistAccessToken();
+      const created = await createPrivateGist(token, { filename: name, content: "" });
+      await openCreatedEmptyDocument(() =>
+        bindCurrentGistFile({ gistId: created.id, filename: created.filename }),
+      );
+      await refreshActiveFilesTree();
+      showToast(`Created ${name}`);
+      return;
+    }
     if (isDriveFilesSource()) {
       if (!driveConnected) return;
       if (!confirmDiscardIfDirty()) return;
@@ -5076,6 +5524,10 @@ async function promptCreateFile(target = null) {
  * @param {{ id?: string, kind?: string } | string | null} [target]
  */
 async function promptCreateFolder(target = null) {
+  if (isGistFilesSource()) {
+    showToast("Gists do not support folders");
+    return;
+  }
   const dest = normalizeFilesTarget(target);
   const raw = window.prompt("New folder name", isDriveFilesSource() ? "untitled" : "");
   if (raw == null) return;
@@ -5179,12 +5631,24 @@ async function promptDeleteEntry(id) {
   const entry = getActiveTreeEntry(id);
   if (!entry) return;
   const label = entry.kind === "directory" ? `folder "${entry.name}"` : `"${entry.name}"`;
-  const detail = isDriveFilesSource()
-    ? "It will move to Google Drive trash."
-    : "This cannot be undone.";
+  const detail = isGistFilesSource()
+    ? "The entire gist will be deleted on GitHub."
+    : isDriveFilesSource()
+      ? "It will move to Google Drive trash."
+      : "This cannot be undone.";
   if (!window.confirm(`Delete ${label}? ${detail}`)) return;
 
   try {
+    if (isGistFilesSource()) {
+      const entry = gistEntries.get(id);
+      if (!entry) return;
+      const token = await ensureGistAccessToken();
+      await deleteGist(token, entry.gistId);
+      if (currentGistFile?.gistId === entry.gistId) clearCurrentFileBinding();
+      await refreshActiveFilesTree();
+      showToast("Deleted");
+      return;
+    }
     if (isDriveFilesSource()) {
       await trashDriveItemWithToken(id);
       if (currentDriveFile?.id === id) clearCurrentFileBinding();
@@ -5266,17 +5730,71 @@ async function saveCurrentDocumentToDrive() {
   }
 }
 
+async function saveCurrentDocumentToGist() {
+  if (!gistConfigured) return;
+  const text = getMarkdownSource();
+  try {
+    if (currentGistFile?.gistId && currentGistFile?.filename) {
+      const token = await ensureGistAccessToken();
+      await updateGistFile(token, currentGistFile.gistId, currentGistFile.filename, text);
+      markCleanFromEditor();
+      showToast(`Saved ${currentGistFile.filename}`);
+      void refreshGistTree();
+      return;
+    }
+
+    if (!gistConnected) {
+      await connectGithubGist();
+      if (!gistConnected) return;
+    }
+
+    const suggestedName = suggestedUntitledName(text);
+    const raw = window.prompt("Save as private gist filename", suggestedName);
+    if (raw == null) return;
+    const filename = ensureEditableExtension(raw, text);
+    const token = await ensureGistAccessToken();
+    const created = await createPrivateGist(token, { filename, content: text });
+    const fromKey = currentDocKey();
+    bindCurrentGistFile({ gistId: created.id, filename: created.filename });
+    const toKey = currentDocKey();
+    if (fromKey !== toKey) {
+      void moveDraft(fromKey, toKey);
+      moveSavedSnapshot(fromKey, toKey);
+    }
+    markCleanFromEditor();
+    filesSource = "gist";
+    try {
+      localStorage.setItem(STORAGE_KEYS.filesSource, "gist");
+    } catch {
+      /* ignore */
+    }
+    await refreshGistTree();
+    updateFilesChrome();
+    showToast(`Saved ${created.filename}`);
+  } catch (err) {
+    if (err?.name === "AbortError") return;
+    console.error(err);
+    showToast(err?.message || "Could not save to GitHub Gist");
+  }
+}
+
 async function saveCurrentDocument() {
   const text = getMarkdownSource();
   const suggestedName = suggestedUntitledName(text);
   try {
+    if (currentGistFile?.gistId || isGistFilesSource()) {
+      await saveCurrentDocumentToGist();
+      return;
+    }
     if (currentDriveFile?.id || isDriveFilesSource()) {
       await saveCurrentDocumentToDrive();
       return;
     }
 
     if (!fsAccessSupported) {
-      if (driveConfigured) {
+      if (gistConfigured) {
+        await saveCurrentDocumentToGist();
+      } else if (driveConfigured) {
         await saveCurrentDocumentToDrive();
       }
       return;
@@ -5835,6 +6353,7 @@ function setupFilesDrawer() {
     filesDrawer.hidden = false;
     filesDrawer.classList.toggle("has-fs", fsAccessSupported);
     filesDrawer.classList.toggle("has-drive", driveConfigured);
+    filesDrawer.classList.toggle("has-gist", gistConfigured);
     filesDrawer.setAttribute("aria-label", "Files");
   }
   if (filesBackdrop) filesBackdrop.hidden = false;
@@ -5852,27 +6371,51 @@ function setupFilesDrawer() {
   panes.addEventListener("pointerup", onDrawerCloseDragPointerUp, { passive: true });
   panes.addEventListener("pointercancel", onDrawerCloseDragPointerCancel, { passive: true });
 
-  if (driveConfigured) {
-    document.querySelectorAll(".drive-only").forEach((el) => {
+  if (driveConfigured || gistConfigured) {
+    if (driveConfigured) {
+      document.querySelectorAll(".drive-only").forEach((el) => {
+        el.hidden = false;
+      });
+    }
+    if (gistConfigured) {
+      document.querySelectorAll(".gist-only").forEach((el) => {
+        el.hidden = false;
+      });
+    }
+    document.querySelectorAll(".cloud-only").forEach((el) => {
       el.hidden = false;
     });
     const savedSource = localStorage.getItem(STORAGE_KEYS.filesSource);
-    if (savedSource === "drive" || savedSource === "local") filesSource = savedSource;
-    // Clear legacy plaintext; silent IDB unlock runs later in boot (PRF still needs Unlock).
-    purgeLegacyCleartextToken();
-    driveConnected = false;
+    if (savedSource === "drive" && driveConfigured) filesSource = "drive";
+    else if (savedSource === "gist" && gistConfigured) filesSource = "gist";
+    else if (savedSource === "local") filesSource = "local";
+    // Clear legacy plaintext; boot restore is memory-only (PRF Unlock after refresh).
+    if (driveConfigured) {
+      purgeLegacyCleartextToken();
+      driveConnected = false;
+    }
+    if (gistConfigured) {
+      purgeLegacyGistCleartextToken();
+      gistConnected = false;
+    }
     filesSourceLocalBtn?.addEventListener("click", () => setFilesSource("local"));
     filesSourceDriveBtn?.addEventListener("click", () => setFilesSource("drive"));
+    filesSourceGistBtn?.addEventListener("click", () => setFilesSource("gist"));
     filesConnectDriveBtn?.addEventListener("click", () => {
       if (driveConnected) void disconnectGoogleDrive();
       else void connectGoogleDrive();
     });
+    filesConnectGistBtn?.addEventListener("click", () => {
+      if (gistConnected) void disconnectGithubGist();
+      else void connectGithubGist();
+    });
     filesEmptyConnectBtn?.addEventListener("click", () => void connectGoogleDrive());
+    filesEmptyConnectGistBtn?.addEventListener("click", () => void connectGithubGist());
     window.addEventListener("online", () => updateFilesChrome());
     window.addEventListener("offline", () => updateFilesChrome());
   }
 
-  if (fsAccessSupported || driveConfigured) {
+  if (fsAccessSupported || driveConfigured || gistConfigured) {
     if (saveBtn) {
       saveBtn.hidden = false;
       saveBtn.addEventListener("click", () => void saveCurrentDocument());
@@ -5888,11 +6431,17 @@ function setupFilesDrawer() {
         void leaveDriveFolder();
         return;
       }
-      if (isDriveFilesSource() ? !driveConnected : !fsAccessSupported) return;
+      if (isGistFilesSource()) {
+        if (!gistConnected) return;
+      } else if (isDriveFilesSource()) {
+        if (!driveConnected) return;
+      } else if (!fsAccessSupported) {
+        return;
+      }
       const id = filesEntryIdFromRow(row);
       const kind = /** @type {"file"|"directory"} */ (row.getAttribute("data-kind") || "file");
       if (!id && kind !== "directory") return;
-      if (!isDriveFilesSource() && kind === "directory") selectFsPath(id);
+      if (!isCloudFilesSource() && kind === "directory") selectFsPath(id);
       void activateFilesTreeEntry(id, kind);
     });
 
@@ -5900,12 +6449,18 @@ function setupFilesDrawer() {
       const row = e.target.closest(".files-tree-row");
       if (!row || !filesTree.contains(row)) return;
       if (row.getAttribute("data-drive-action") === "up") return;
-      if (isDriveFilesSource() ? !driveConnected : !fsAccessSupported) return;
+      if (isGistFilesSource()) {
+        if (!gistConnected) return;
+      } else if (isDriveFilesSource()) {
+        if (!driveConnected) return;
+      } else if (!fsAccessSupported) {
+        return;
+      }
       const id = filesEntryIdFromRow(row);
-      if (isDriveFilesSource() && !id) return;
+      if (isCloudFilesSource() && !id) return;
       e.preventDefault();
       const kind = /** @type {"file"|"directory"} */ (row.getAttribute("data-kind") || "file");
-      if (!isDriveFilesSource()) selectFsPath(id);
+      if (!isCloudFilesSource()) selectFsPath(id);
       openFilesContextMenu(e.clientX, e.clientY, { id, kind });
     });
 
@@ -5913,13 +6468,15 @@ function setupFilesDrawer() {
       if (e.target.closest(".files-tree-row")) return;
       // Empty-area "new file/folder" menu is only for the files panel, not the outline.
       if (!e.target.closest(".files-section")) return;
-      if (isDriveFilesSource()) {
+      if (isGistFilesSource()) {
+        if (!gistConnected) return;
+      } else if (isDriveFilesSource()) {
         if (!driveConnected) return;
       } else if (!fsAccessSupported || !rootDirHandle || awaitingFsPermission) {
         return;
       }
       e.preventDefault();
-      if (!isDriveFilesSource()) selectFsPath("");
+      if (!isCloudFilesSource()) selectFsPath("");
       openFilesContextMenu(e.clientX, e.clientY, { id: "", kind: "directory" });
     });
 
@@ -8476,6 +9033,8 @@ async function init() {
   setupPwa();
   await loadGoogleDriveConfig();
   driveConfigured = googleDriveEnabled();
+  await loadGithubGistConfig();
+  gistConfigured = githubGistEnabled();
   setupFilesDrawer();
   setupDocOutline();
   setupMermaidZoom();
@@ -8495,12 +9054,19 @@ async function init() {
     await restoreCurrentFileBindingOnLoad();
   }
   if (driveConfigured) {
-    // IndexedDB-sealed sessions restore without a gesture; PRF vaults stay on Unlock.
+    // Token is memory-only; refresh always needs Unlock (PRF) or Connect.
     driveConnected = await tryRestoreDriveAccessToken();
+    updateFilesChrome();
+  }
+  if (gistConfigured) {
+    gistConnected = await tryRestoreGistAccessToken();
     updateFilesChrome();
   }
   if (driveConfigured && driveConnected && isDriveFilesSource()) {
     await refreshDriveTree();
+  }
+  if (gistConfigured && gistConnected && isGistFilesSource()) {
+    await refreshGistTree();
   }
 
   const savedSyncScroll = localStorage.getItem(STORAGE_KEYS.syncScroll) === "1";

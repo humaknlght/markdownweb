@@ -105,7 +105,16 @@ export function isInsideRoot(candidate, rootDir) {
  */
 export function safeResolve(urlPath, rootDir) {
   const root = path.resolve(rootDir);
-  const decoded = decodeURIComponent((urlPath || "/").split("?")[0]);
+  let decoded;
+  try {
+    decoded = decodeURIComponent((urlPath || "/").split("?")[0]);
+  } catch {
+    return null;
+  }
+  // Null bytes / other C0 controls make fs.stat throw EINVAL → 500; reject as forbidden.
+  if (/[\u0000-\u001f\u007f]/.test(decoded)) {
+    return null;
+  }
   let rel = decoded === "/" ? "index.html" : decoded.replace(/^\/+/, "");
   if (rel.endsWith("/")) rel += "index.html";
   const full = path.resolve(root, rel);

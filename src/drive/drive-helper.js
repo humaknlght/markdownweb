@@ -1,5 +1,7 @@
 /**
- * COEP-free helper window: OAuth 2.0 token redirect (no GIS script, no client secret).
+ * COEP-free helper window: OAuth 2.0 implicit grant (response_type=token).
+ * Intentional: tokens stay in the browser fragment and never pass through a
+ * host-side token-exchange proxy (no client secret on the static server).
  * Google returns the access token in the URL fragment of ./drive-helper/.
  * Results go to the editor over a BroadcastChannel tagged with the request id,
  * so the flow does not depend on window.opener surviving Google's COOP.
@@ -218,6 +220,12 @@ async function tryHandleOAuthCallback() {
 
   // Drop the token from the URL / history before doing anything else.
   history.replaceState(null, "", window.location.pathname + window.location.search);
+  if (window.location.hash) {
+    // replaceState failed to clear the fragment — refuse to proceed with a live hash.
+    clearHandoffKey();
+    setStatus("Could not clear OAuth fragment — try Connect Drive again.");
+    return true;
+  }
 
   req = finishOAuthState(params.get("state"));
 

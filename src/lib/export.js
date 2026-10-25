@@ -1,7 +1,40 @@
+import createDOMPurify from "dompurify";
 import { extractFrontmatter } from "../markdown/frontmatter.js";
+import { installSafeMediaHooks } from "./safe-media-uri.js";
 
 /** Generator / provenance stamped into every export. */
 export const GENERATOR_URL = "https://dev.ericperret.org/markdown/";
+
+/** @type {WeakSet<object>} */
+const purifyMediaHooksInstalled = new WeakSet();
+
+/**
+ * Re-sanitize preview HTML before embedding in standalone exports.
+ * @param {string} html
+ * @returns {string}
+ */
+function sanitizeExportHtml(html) {
+  const root = typeof window !== "undefined" ? window : globalThis;
+  const purify = createDOMPurify(/** @type {Window} */ (root));
+  if (!purifyMediaHooksInstalled.has(purify)) {
+    installSafeMediaHooks(purify);
+    purifyMediaHooksInstalled.add(purify);
+  }
+  return purify.sanitize(html, {
+    USE_PROFILES: { html: true, svg: true },
+    FORBID_TAGS: [
+      "form",
+      "input",
+      "button",
+      "select",
+      "textarea",
+      "option",
+      "optgroup",
+      "fieldset",
+      "legend",
+    ],
+  });
+}
 
 /**
  * @param {string} title
@@ -39,7 +72,7 @@ export function downloadBlob(data, filename, mime) {
  * @returns {string}
  */
 export function cleanPreviewHtml(previewEl) {
-  return preparePreviewClone(previewEl).innerHTML;
+  return sanitizeExportHtml(preparePreviewClone(previewEl).innerHTML);
 }
 
 /**
@@ -56,7 +89,7 @@ export function cleanPreviewHtmlForPrint(previewEl) {
   for (let i = 0; i < count; i++) {
     inlineSvgComputedStyles(liveSvgs[i], cloneSvgs[i]);
   }
-  return clone.innerHTML;
+  return sanitizeExportHtml(clone.innerHTML);
 }
 
 /**
@@ -345,7 +378,7 @@ function printHtmlDocument(html) {
  * @returns {Blob}
  */
 export function buildDocxBlob(previewEl, title) {
-  const body = htmlToDocxBody(preparePreviewClone(previewEl));
+  const body = htmlToDocxBody(sanitizedPreviewRoot(previewEl));
   const now = new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
   const files = {
     "[Content_Types].xml": `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -410,12 +443,24 @@ ${body}
 }
 
 /**
+ * Clone + sanitize into a walkable DOM fragment for text exporters.
+ * @param {HTMLElement} previewEl
+ * @returns {HTMLElement}
+ */
+function sanitizedPreviewRoot(previewEl) {
+  const html = sanitizeExportHtml(preparePreviewClone(previewEl).innerHTML);
+  const wrap = previewEl.ownerDocument.createElement("div");
+  wrap.innerHTML = html;
+  return wrap;
+}
+
+/**
  * @param {HTMLElement} previewEl
  * @param {string} title
  * @returns {string}
  */
 export function buildRtfDocument(previewEl, title) {
-  const body = htmlToRtf(preparePreviewClone(previewEl));
+  const body = htmlToRtf(sanitizedPreviewRoot(previewEl));
   return (
     `{\\rtf1\\ansi\\deff0\\uc1\n` +
     `{\\fonttbl{\\f0\\froman\\fcharset0 Times New Roman;}{\\f1\\fmodern\\fcharset0 Courier New;}}\n` +
@@ -559,11 +604,11 @@ function htmlToDocxBody(root) {
     const tag = el.tagName;
     if (tag === "SCRIPT" || tag === "STYLE") return;
     if (/^H[1-6]$/.test(tag)) {
-      para(el.innerText || "", { bold: true, heading: Number(tag[1]) });
+      para(el.innerText || el.textContent || "", { bold: true, heading: Number(tag[1]) });
       return;
     }
     if (tag === "P" || tag === "LI" || tag === "BLOCKQUOTE") {
-      para(el.innerText || "");
+      para(el.innerText || el.textContent || "");
       return;
     }
     if (tag === "PRE") {
@@ -633,11 +678,11 @@ function htmlToRtf(root) {
     if (tag === "SCRIPT" || tag === "STYLE") return;
     if (/^H[1-6]$/.test(tag)) {
       const level = Number(tag[1]);
-      emit(el.innerText || "", { bold: true, size: Math.max(24, 36 - level * 2) });
+      emit(el.innerText || el.textContent || "", { bold: true, size: Math.max(24, 36 - level * 2) });
       return;
     }
     if (tag === "P" || tag === "LI" || tag === "BLOCKQUOTE") {
-      emit(el.innerText || "");
+      emit(el.innerText || el.textContent || "");
       return;
     }
     if (tag === "PRE") {

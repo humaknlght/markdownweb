@@ -128,6 +128,7 @@ export function isMutableShellPath(pathname) {
   return (
     file === "index.html" ||
     file === "google-drive-config.json" ||
+    file === "github-gist-config.json" ||
     file === "manifest.webmanifest" ||
     file === "sw.js" ||
     file === "GUIDE.md"
@@ -148,6 +149,7 @@ function isMutableShell(pathname) {
   return (
     file === "index.html" ||
     file === "google-drive-config.json" ||
+    file === "github-gist-config.json" ||
     file === "manifest.webmanifest" ||
     file === "sw.js" ||
     file === "GUIDE.md"

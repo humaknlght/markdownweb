@@ -176,5 +176,8 @@ describe("static source invariants", () => {
     assert.match(ht, /FilesMatch "\^sw\\.js/);
     assert.match(ht, /Cross-Origin-Embedder-Policy "require-corp"/);
     assert.match(ht, /www\.googleapis\.com/);
+    assert.match(ht, /api\.github\.com/);
+    assert.match(ht, /img-src 'self' data: blob:/);
+    assert.doesNotMatch(ht, /img-src 'self' data: blob: https:/);
   });
 });

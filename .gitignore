@@ -11,3 +11,7 @@ src/sw.js
 # Host-specific Google Drive credentials (copy from google-drive-config.example.json).
 src/google-drive-config.json
 google-drive-config.json
+
+# Host-specific GitHub Gist feature flag (copy from github-gist-config.example.json).
+src/github-gist-config.json
+github-gist-config.json

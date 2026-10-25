@@ -49,6 +49,17 @@ export function renderMarkdownHtml(source) {
   return DOMPurify.sanitize(parseMarkdown(source), {
     USE_PROFILES: { html: true, svg: true },
     ADD_ATTR: ["data-source-line", "data-source-line-end"],
+    FORBID_TAGS: [
+      "form",
+      "input",
+      "button",
+      "select",
+      "textarea",
+      "option",
+      "optgroup",
+      "fieldset",
+      "legend",
+    ],
   });
 }
 
