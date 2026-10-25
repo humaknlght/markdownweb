@@ -911,7 +911,7 @@ let lineMirror = null;
 let caretRevealRaf = 0;
 const SPEECH_HIGHLIGHT = "speech-word";
 const MERMAID_CDN =
-  "https://cdn.jsdelivr.net/npm/mermaid@12.0.0/dist/mermaid.esm.min.mjs";
+  "https://cdn.jsdelivr.net/npm/mermaid@12.2.0/dist/mermaid.esm.min.mjs";
 
 /**
  * Mermaid gantt keeps alignment spaces in "Task name    :meta" as part of the

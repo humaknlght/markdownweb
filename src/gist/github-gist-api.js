@@ -1,15 +1,27 @@
 /**
- * GitHub Gist REST via Octokit (bundled same-origin; calls api.github.com only).
+ * GitHub Gist REST via Octokit (bundled same-origin in dist; dynamic import for src/dev).
+ * Calls api.github.com only.
  */
 
-import { Octokit } from "@octokit/rest";
 import { isEditableFileName } from "../lib/fs.js";
+
+/** @type {typeof import("@octokit/rest").Octokit | null} */
+let OctokitCtor = null;
+
+async function loadOctokit() {
+  if (!OctokitCtor) {
+    const mod = await import("@octokit/rest");
+    OctokitCtor = mod.Octokit;
+  }
+  return OctokitCtor;
+}
 
 /**
  * @param {string} token
- * @returns {Octokit}
+ * @returns {Promise<import("@octokit/rest").Octokit>}
  */
-export function createGistOctokit(token) {
+export async function createGistOctokit(token) {
+  const Octokit = await loadOctokit();
   return new Octokit({
     auth: token,
     userAgent: "markdown-editor",
@@ -26,7 +38,7 @@ export function createGistOctokit(token) {
  * @returns {Promise<GistListItem[]>}
  */
 export async function listGists(token) {
-  const octokit = createGistOctokit(token);
+  const octokit = await createGistOctokit(token);
   /** @type {GistListItem[]} */
   const out = [];
   const iterator = octokit.paginate.iterator(octokit.gists.list, { per_page: 100 });
@@ -67,7 +79,7 @@ export function editableGistFiles(gist) {
  * @returns {Promise<{ id: string, description: string, public: boolean, files: Record<string, { filename: string, content: string, language?: string | null }> }>}
  */
 export async function getGist(token, gistId) {
-  const octokit = createGistOctokit(token);
+  const octokit = await createGistOctokit(token);
   const { data } = await octokit.gists.get({ gist_id: gistId });
   /** @type {Record<string, { filename: string, content: string, language?: string | null }>} */
   const files = {};
@@ -109,7 +121,7 @@ export async function readGistFileText(token, gistId, filename) {
  */
 export async function createPrivateGist(token, opts) {
   const filename = opts.filename || "untitled.md";
-  const octokit = createGistOctokit(token);
+  const octokit = await createGistOctokit(token);
   const { data } = await octokit.gists.create({
     description: opts.description || "",
     public: false,
@@ -129,7 +141,7 @@ export async function createPrivateGist(token, opts) {
  * @returns {Promise<{ id: string, filename: string }>}
  */
 export async function updateGistFile(token, gistId, filename, content) {
-  const octokit = createGistOctokit(token);
+  const octokit = await createGistOctokit(token);
   const { data } = await octokit.gists.update({
     gist_id: gistId,
     files: {
@@ -145,6 +157,6 @@ export async function updateGistFile(token, gistId, filename, content) {
  * @param {string} gistId
  */
 export async function deleteGist(token, gistId) {
-  const octokit = createGistOctokit(token);
+  const octokit = await createGistOctokit(token);
   await octokit.gists.delete({ gist_id: gistId });
 }

@@ -54,7 +54,7 @@ describe("production build invariants", { timeout: 180_000 }, () => {
       assert.match(html, /type="importmap"/);
       assert.match(
         html,
-        /mermaid@12\.0\.0\/dist\/mermaid\.esm\.min\.mjs":\s*"sha384-/,
+        /mermaid@12\.2\.0\/dist\/mermaid\.esm\.min\.mjs":\s*"sha384-/,
       );
       assert.match(
         html,

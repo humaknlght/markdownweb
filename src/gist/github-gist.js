@@ -229,7 +229,7 @@ export async function ensureGistAccessToken() {
  * @param {string} token
  */
 export async function verifyGistToken(token) {
-  const octokit = createGistOctokit(token);
+  const octokit = await createGistOctokit(token);
   await octokit.gists.list({ per_page: 1 });
   return { ok: true };
 }
