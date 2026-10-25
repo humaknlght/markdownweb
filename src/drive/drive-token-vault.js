@@ -1,7 +1,8 @@
 /**
  * Seals the Google Drive access token at rest (never clear text in localStorage).
- * Prefer WebAuthn PRF → AES-GCM; fall back to a non-extractable AES key in IndexedDB
- * when the authenticator/browser has no PRF support.
+ * At-rest sealing uses WebAuthn PRF → AES-GCM (Unlock + passkey after refresh / cold start).
+ * The live access token stays in memory only (see google-drive.js) — never sessionStorage.
+ * When PRF is unavailable, the session is memory-only and is lost on refresh.
  */
 
 export const DRIVE_TOKEN_STORAGE_KEY = "md-editor:driveAccessToken";
@@ -120,11 +121,59 @@ function writeVaultMeta(meta) {
   localStorage.setItem(
     DRIVE_VAULT_META_KEY,
     JSON.stringify({
-      kind: meta.kind === VAULT_KIND_IDB ? VAULT_KIND_IDB : VAULT_KIND_PRF,
+      kind: VAULT_KIND_PRF,
       credId: meta.credId,
       salt: meta.salt,
     }),
   );
+}
+
+async function deleteIdbVaultKey() {
+  try {
+    const db = await openIdb();
+    try {
+      await new Promise((resolve, reject) => {
+        const tx = db.transaction(IDB_STORE, "readwrite");
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error || new Error("IndexedDB delete failed"));
+        tx.objectStore(IDB_STORE).delete(IDB_KEY_NAME);
+      });
+    } finally {
+      db.close();
+    }
+  } catch {
+    /* ignore */
+  }
+  try {
+    indexedDB.deleteDatabase(IDB_NAME);
+  } catch {
+    /* ignore */
+  }
+}
+
+/**
+ * Drop legacy IndexedDB-backed vaults (silent decrypt without a gesture).
+ * @returns {boolean} true if something was cleared
+ */
+export function migrateAwayFromIdbVault() {
+  let cleared = false;
+  try {
+    const meta = readVaultMeta();
+    if (meta?.kind === VAULT_KIND_IDB) cleared = true;
+  } catch {
+    /* ignore */
+  }
+  try {
+    const raw = localStorage.getItem(DRIVE_TOKEN_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed?.kind === VAULT_KIND_IDB) cleared = true;
+    }
+  } catch {
+    /* ignore */
+  }
+  if (cleared) clearVaultStorage();
+  return cleared;
 }
 
 export function clearVaultStorage() {
@@ -139,18 +188,22 @@ export function clearVaultStorage() {
 }
 
 /**
- * @returns {boolean} true if a sealed (non-plaintext) session blob exists and is unexpired
+ * @returns {boolean} true if a PRF-sealed (non-plaintext) session blob exists and is unexpired
  */
 export function hasSealedDriveSession() {
   try {
+    migrateAwayFromIdbVault();
     const raw = localStorage.getItem(DRIVE_TOKEN_STORAGE_KEY);
     if (!raw) return false;
     const parsed = JSON.parse(raw);
     if (parsed?.v !== 1 || typeof parsed?.ct !== "string" || typeof parsed?.iv !== "string") {
       return false;
     }
+    if (parsed.kind === VAULT_KIND_IDB) return false;
     const expiresAt = Number(parsed.expiresAt);
     if (!Number.isFinite(expiresAt) || Date.now() >= expiresAt) return false;
+    const meta = readVaultMeta();
+    if (!meta || meta.kind !== VAULT_KIND_PRF) return false;
     return true;
   } catch {
     return false;
@@ -161,6 +214,7 @@ export function hasSealedDriveSession() {
  * Remove legacy clear-text token blobs (and expired/invalid sealed ones).
  */
 export function purgeLegacyCleartextToken() {
+  migrateAwayFromIdbVault();
   try {
     const raw = localStorage.getItem(DRIVE_TOKEN_STORAGE_KEY);
     if (!raw) return;
@@ -227,71 +281,79 @@ function openIdb() {
 }
 
 /**
- * @returns {Promise<CryptoKey | null>}
- */
-async function readIdbVaultKey() {
-  const db = await openIdb();
-  try {
-    return await new Promise((resolve, reject) => {
-      const tx = db.transaction(IDB_STORE, "readonly");
-      const req = tx.objectStore(IDB_STORE).get(IDB_KEY_NAME);
-      req.onerror = () => reject(req.error || new Error("IndexedDB read failed"));
-      req.onsuccess = () => resolve(req.result || null);
-    });
-  } finally {
-    db.close();
-  }
-}
-
-/**
- * @param {CryptoKey} key
- */
-async function writeIdbVaultKey(key) {
-  const db = await openIdb();
-  try {
-    await new Promise((resolve, reject) => {
-      const tx = db.transaction(IDB_STORE, "readwrite");
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error || new Error("IndexedDB write failed"));
-      tx.objectStore(IDB_STORE).put(key, IDB_KEY_NAME);
-    });
-  } finally {
-    db.close();
-  }
-}
-
-async function deleteIdbVaultKey() {
-  try {
-    const db = await openIdb();
-    try {
-      await new Promise((resolve, reject) => {
-        const tx = db.transaction(IDB_STORE, "readwrite");
-        tx.oncomplete = () => resolve();
-        tx.onerror = () => reject(tx.error || new Error("IndexedDB delete failed"));
-        tx.objectStore(IDB_STORE).delete(IDB_KEY_NAME);
-      });
-    } finally {
-      db.close();
-    }
-  } catch {
-    /* ignore */
-  }
-}
-
-/**
- * Non-extractable AES key in IndexedDB (no user prompt; used when PRF is unavailable).
+ * Register a new WebAuthn credential with PRF and derive the vault AES key.
+ * Requires a user gesture.
  * @returns {Promise<{ key: CryptoKey, meta: { kind: string, credId: string, salt: string } }>}
  */
-export async function ensureIdbVaultKey() {
-  let key = await readIdbVaultKey();
-  if (!key) {
-    key = await crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, false, [
-      "encrypt",
-      "decrypt",
-    ]);
-    await writeIdbVaultKey(key);
+export async function createPrfVaultKey() {
+  if (!isWebAuthnAvailable()) {
+    throw Object.assign(new Error("WebAuthn is not available"), { name: "NotSupportedError" });
   }
-  const meta = { kind: VAULT_KIND_IDB, credId: "idb", salt: "idb" };
+
+  const capability = await getPrfCapability();
+  if (capability === false) {
+    throw Object.assign(new Error("This authenticator does not support PRF"), {
+      name: "NotSupportedError",
+    });
+  }
+
+  const challenge = crypto.getRandomValues(new Uint8Array(32));
+  const userId = crypto.getRandomValues(new Uint8Array(32));
+  const salt = crypto.getRandomValues(new Uint8Array(32));
+
+  const credential = /** @type {PublicKeyCredential | null} */ (
+    await navigator.credentials.create({
+      publicKey: {
+        challenge,
+        rp: {
+          id: location.hostname,
+          name: "Markdown Editor",
+        },
+        user: {
+          id: userId,
+          name: "drive-token-vault",
+          displayName: "Google Drive vault",
+        },
+        pubKeyCredParams: [
+          { type: "public-key", alg: -7 },
+          { type: "public-key", alg: -257 },
+        ],
+        authenticatorSelection: {
+          residentKey: "preferred",
+          requireResidentKey: false,
+          userVerification: "required",
+        },
+        timeout: 120_000,
+        extensions: {
+          prf: {
+            eval: {
+              first: salt,
+            },
+          },
+        },
+      },
+    })
+  );
+
+  if (!credential) {
+    throw Object.assign(new Error("Passkey registration was cancelled"), { name: "AbortError" });
+  }
+
+  let prfBytes = prfResultFromCredential(credential);
+  const credIdB64 = b64(credential.rawId);
+  const saltB64 = b64(salt);
+
+  // Some authenticators enable PRF on create but only return bytes on get.
+  if (!prfBytes) {
+    const key = await deriveVaultKey(credIdB64, saltB64);
+    const meta = { kind: VAULT_KIND_PRF, credId: credIdB64, salt: saltB64 };
+    writeVaultMeta(meta);
+    vaultKey = key;
+    return { key, meta };
+  }
+
+  const key = await aesKeyFromPrf(prfBytes);
+  const meta = { kind: VAULT_KIND_PRF, credId: credIdB64, salt: saltB64 };
   writeVaultMeta(meta);
   vaultKey = key;
   return { key, meta };
@@ -299,41 +361,33 @@ export async function ensureIdbVaultKey() {
 
 /**
  * Resolve the vault AES key for sealing / unlocking.
- * New sessions use IndexedDB so a refresh can restore without a gesture.
- * Existing WebAuthn-PRF vaults still unlock via passkey when the user Connects.
- * @returns {Promise<{ key: CryptoKey, persisted: boolean, kind: string }>}
+ * Only PRF-backed keys are created. Requires a user gesture for create/get.
+ * @returns {Promise<{ key: CryptoKey, persisted: boolean, kind: string, meta: { kind: string, credId: string, salt: string } }>}
  */
 export async function ensureVaultKey() {
+  migrateAwayFromIdbVault();
+
   if (vaultKey) {
     const meta = readVaultMeta();
-    return { key: vaultKey, persisted: true, kind: meta?.kind || VAULT_KIND_IDB };
-  }
-
-  const existing = readVaultMeta();
-  if (existing?.kind === VAULT_KIND_IDB) {
-    const { key } = await ensureIdbVaultKey();
-    return { key, persisted: true, kind: VAULT_KIND_IDB };
-  }
-
-  if (existing?.kind === VAULT_KIND_PRF) {
-    try {
-      const key = await deriveVaultKey(existing.credId, existing.salt);
-      vaultKey = key;
-      return { key, persisted: true, kind: VAULT_KIND_PRF };
-    } catch (err) {
-      if (err?.name === "AbortError" || err?.name === "NotAllowedError") throw err;
-      try {
-        localStorage.removeItem(DRIVE_VAULT_META_KEY);
-      } catch {
-        /* ignore */
-      }
-      // Stale PRF meta — fall through to IndexedDB for a fresh seal after re-auth.
+    if (meta?.kind === VAULT_KIND_PRF) {
+      return { key: vaultKey, persisted: true, kind: VAULT_KIND_PRF, meta };
     }
   }
 
-  // Default: non-extractable AES in IndexedDB (ciphertext in localStorage, silent restore).
-  const idb = await ensureIdbVaultKey();
-  return { key: idb.key, persisted: true, kind: VAULT_KIND_IDB };
+  const existing = readVaultMeta();
+  if (existing?.kind === VAULT_KIND_PRF) {
+    const key = await deriveVaultKey(existing.credId, existing.salt);
+    vaultKey = key;
+    return { key, persisted: true, kind: VAULT_KIND_PRF, meta: existing };
+  }
+
+  const created = await createPrfVaultKey();
+  return {
+    key: created.key,
+    persisted: true,
+    kind: VAULT_KIND_PRF,
+    meta: created.meta,
+  };
 }
 
 /**
@@ -387,12 +441,15 @@ export async function deriveVaultKey(credIdB64, saltB64) {
  * @param {{ kind?: string, credId: string, salt: string }} meta
  */
 export async function sealToken(token, expiresAt, key, meta) {
+  if (meta.kind === VAULT_KIND_IDB) {
+    throw new Error("IndexedDB vault sealing is no longer supported");
+  }
   const iv = crypto.getRandomValues(new Uint8Array(IV_BYTES));
   const plaintext = new TextEncoder().encode(JSON.stringify({ token, expiresAt }));
   const ct = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, plaintext);
   const blob = {
     v: 1,
-    kind: meta.kind === VAULT_KIND_IDB ? VAULT_KIND_IDB : VAULT_KIND_PRF,
+    kind: VAULT_KIND_PRF,
     credId: meta.credId,
     salt: meta.salt,
     iv: b64(iv),
@@ -413,6 +470,10 @@ export async function unsealToken(key) {
   if (!raw) return null;
   const parsed = JSON.parse(raw);
   if (parsed?.v !== 1 || typeof parsed.ct !== "string" || typeof parsed.iv !== "string") {
+    return null;
+  }
+  if (parsed.kind === VAULT_KIND_IDB) {
+    clearVaultStorage();
     return null;
   }
   const expiresAt = Number(parsed.expiresAt);

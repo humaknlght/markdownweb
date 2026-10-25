@@ -9,20 +9,22 @@
   <script type="importmap">
   {
     "imports": {
-      "marked": "https://cdn.jsdelivr.net/npm/marked@18.0.13/lib/marked.esm.js",
-      "dompurify": "https://cdn.jsdelivr.net/npm/dompurify@3.4.15/dist/purify.es.mjs",
+      "marked": "https://cdn.jsdelivr.net/npm/marked@18.1.1/lib/marked.esm.js",
+      "dompurify": "https://cdn.jsdelivr.net/npm/dompurify@3.4.17/dist/purify.es.mjs",
       "highlight.js": "https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.12.0/es/core.min.js",
       "gemoji": "https://cdn.jsdelivr.net/npm/gemoji@8.1.0/+esm",
-      "yaml": "https://cdn.jsdelivr.net/npm/yaml@2.9.1/+esm"
+      "yaml": "https://cdn.jsdelivr.net/npm/yaml@2.9.1/+esm",
+      "@octokit/rest": "https://cdn.jsdelivr.net/npm/@octokit/rest@22.0.1/+esm"
     },
     "integrity": {
-      "https://cdn.jsdelivr.net/npm/marked@18.0.13/lib/marked.esm.js": "sha384-e72zKBnxCunMabU3bdcEoYpC/kmXSAxZBNzDIClVBHNG0Bywm2jm+BTgSQsLtv40",
-      "https://cdn.jsdelivr.net/npm/dompurify@3.4.15/dist/purify.es.mjs": "sha384-7qp4WRTNsGGxR8HfIhcAZoSk58Z/fsUx40ul1tuY0myp6r0jHAqEnFiaNOobIc9v",
+      "https://cdn.jsdelivr.net/npm/marked@18.1.1/lib/marked.esm.js": "sha384-3zyzJHbICZVHR8JCCUAEEJ0IfpypHKS28C4Dscg3prb8nDVH5OR0JL/jHj9zBD39",
+      "https://cdn.jsdelivr.net/npm/dompurify@3.4.17/dist/purify.es.mjs": "sha384-BL58nOFQzaquDpMkbuU2wPuzK53BYxRB4AUTPJekFOA6woO0vIOBxW6Qe4kwM1HH",
       "https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.12.0/es/core.min.js": "sha384-2f7fURQL4kJaQ73YY8MVgq6LBaed5Dz6Pv9SdsbeAKurWj/0OLDSfrDCdIB18Dsm",
       "https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.12.0/es/languages/markdown.min.js": "sha384-atzUeXgldTnp0Vvir5hFSZ4MRX0FWOpxp7UdXca7uje0uL5S6swwfRhq5SB5Ag0m",
       "https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.12.0/es/languages/xml.min.js": "sha384-7lgbaoMNJXxrndTFyw0ll0hq1MZzDLFkFmLhYLibSJNXgcW6xOSU9e+OS2QaAKDP",
       "https://cdn.jsdelivr.net/npm/gemoji@8.1.0/+esm": "sha384-BxixXuX+Sw/FKnMEyJ+uFfpzgLCYpImf3Wks5yu6wYrASvTTUe4lmI+mXE9kKdAL",
-      "https://cdn.jsdelivr.net/npm/yaml@2.9.1/+esm": "sha384-MVwSuH88MctNNg+3dwLImVhp3/5G1k0NtNYzmuuplV7D/xSlRSidadLxUMGnsGnE"
+      "https://cdn.jsdelivr.net/npm/yaml@2.9.1/+esm": "sha384-MVwSuH88MctNNg+3dwLImVhp3/5G1k0NtNYzmuuplV7D/xSlRSidadLxUMGnsGnE",
+      "https://cdn.jsdelivr.net/npm/@octokit/rest@22.0.1/+esm": "sha384-xy+WGPVmKjQCqZPfN9AMaLsWCqXQR62lZ/0jNEtqUIt7GcsbSR4gtGbcNDDd4PBy"
     }
   }
   </script>
@@ -110,14 +112,14 @@
   <link rel="stylesheet" href="styles/print.css" media="print" />
   <link
     rel="modulepreload"
-    href="https://cdn.jsdelivr.net/npm/marked@18.0.13/lib/marked.esm.js"
-    integrity="sha384-e72zKBnxCunMabU3bdcEoYpC/kmXSAxZBNzDIClVBHNG0Bywm2jm+BTgSQsLtv40"
+    href="https://cdn.jsdelivr.net/npm/marked@18.1.1/lib/marked.esm.js"
+    integrity="sha384-3zyzJHbICZVHR8JCCUAEEJ0IfpypHKS28C4Dscg3prb8nDVH5OR0JL/jHj9zBD39"
     crossorigin="anonymous"
   />
   <link
     rel="modulepreload"
-    href="https://cdn.jsdelivr.net/npm/dompurify@3.4.15/dist/purify.es.mjs"
-    integrity="sha384-7qp4WRTNsGGxR8HfIhcAZoSk58Z/fsUx40ul1tuY0myp6r0jHAqEnFiaNOobIc9v"
+    href="https://cdn.jsdelivr.net/npm/dompurify@3.4.17/dist/purify.es.mjs"
+    integrity="sha384-BL58nOFQzaquDpMkbuU2wPuzK53BYxRB4AUTPJekFOA6woO0vIOBxW6Qe4kwM1HH"
     crossorigin="anonymous"
   />
   <link
@@ -523,9 +525,10 @@
         <div class="files-drawer-header">
           <div class="files-drawer-title-row">
             <strong class="files-drawer-title" id="files-drawer-title">Files</strong>
-            <div class="files-source-toggle drive-only" id="files-source-toggle" role="group" aria-label="Files source" hidden>
+            <div class="files-source-toggle cloud-only" id="files-source-toggle" role="group" aria-label="Files source" hidden>
               <button type="button" class="btn files-source-btn is-active" id="files-source-local-btn" aria-pressed="true">Local</button>
-              <button type="button" class="btn files-source-btn" id="files-source-drive-btn" aria-pressed="false">Drive</button>
+              <button type="button" class="btn files-source-btn drive-only" id="files-source-drive-btn" aria-pressed="false" hidden>Drive</button>
+              <button type="button" class="btn files-source-btn gist-only" id="files-source-gist-btn" aria-pressed="false" hidden>Gist</button>
             </div>
           </div>
           <div class="files-drawer-actions" id="files-section-actions">
@@ -579,7 +582,13 @@
                 <path d="m9 18 3-3-3-3" />
               </svg>
             </button>
-            <span class="files-drive-offline-hint drive-only" id="files-drive-offline-hint" hidden>You need to be online</span>
+            <button type="button" class="btn svg-btn gist-only" id="files-connect-gist-btn" title="Connect GitHub Gist" aria-label="Connect Gist" hidden>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                <path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.4 5.4 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4" />
+                <path d="M9 18c-4.51 2-5-2-7-2" />
+              </svg>
+            </button>
+            <span class="files-drive-offline-hint cloud-only" id="files-drive-offline-hint" hidden>You need to be online</span>
           </div>
         </div>
         <div class="files-drawer-body" id="files-section-body">
@@ -587,10 +596,11 @@
             <p id="files-empty-copy">Open a folder to browse Markdown, text, and HTML files.</p>
             <button type="button" class="btn local-only" id="files-empty-open-btn">Open folder</button>
             <button type="button" class="btn drive-only" id="files-empty-connect-btn" hidden>Connect Drive</button>
+            <button type="button" class="btn gist-only" id="files-empty-connect-gist-btn" hidden>Connect Gist</button>
           </div>
           <div class="files-loading" id="files-loading" hidden aria-live="polite" aria-busy="true">
             <span class="files-loading-spinner" aria-hidden="true"></span>
-            <p>Loading Google Drive…</p>
+            <p id="files-loading-copy">Loading…</p>
           </div>
           <div class="files-permission" id="files-permission" hidden>
             <p>Permission needed to access the saved folder.</p>
@@ -685,6 +695,36 @@
       <button type="submit" class="btn external-modal-accept" value="accept">
         Accept
       </button>
+    </form>
+  </dialog>
+
+  <dialog
+    class="external-modal"
+    id="gist-pat-modal"
+    aria-labelledby="gist-pat-title"
+    aria-describedby="gist-pat-desc"
+  >
+    <h2 class="external-modal-title" id="gist-pat-title">Connect GitHub Gist</h2>
+    <p class="external-modal-desc" id="gist-pat-desc">
+      Paste a fine-grained personal access token with <strong>Gists</strong> access.
+      The token stays in this browser (memory, optionally sealed with a passkey) and is only sent to
+      <code>api.github.com</code>.
+    </p>
+    <form method="dialog" id="gist-pat-form" class="gist-pat-form">
+      <label class="gist-pat-label" for="gist-pat-input">Personal access token</label>
+      <input
+        type="password"
+        id="gist-pat-input"
+        class="gist-pat-input"
+        name="token"
+        autocomplete="off"
+        spellcheck="false"
+        required
+      />
+      <div class="external-modal-actions">
+        <button type="submit" class="btn external-modal-reject" value="cancel">Cancel</button>
+        <button type="submit" class="btn external-modal-accept" value="connect">Connect</button>
+      </div>
     </form>
   </dialog>
 

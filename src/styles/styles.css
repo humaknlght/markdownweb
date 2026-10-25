@@ -1688,7 +1688,7 @@ body.files-drawer-open .files-drawer {
 
 /* Without File System Access or Drive, folder browsing is unavailable — keep the
    files section for Open file / New, but give outline more room when neither source exists. */
-.files-drawer:not(.has-fs):not(.has-drive) .outline-section {
+.files-drawer:not(.has-fs):not(.has-drive):not(.has-gist) .outline-section {
   flex: 1.6 1 0;
 }
 
@@ -1763,8 +1763,42 @@ html.is-booting .files-backdrop {
   color: var(--chrome-text);
 }
 
-body.files-source-drive .local-only {
+body.files-source-drive .local-only,
+body.files-source-gist .local-only {
   display: none !important;
+}
+
+/* Hide Drive/Gist *panel* chrome for the inactive cloud source — not the
+   source toggle buttons (those keep drive-only/gist-only for feature gating). */
+body.files-source-gist .drive-only:not(.cloud-only):not(.files-source-btn) {
+  display: none !important;
+}
+
+body.files-source-drive .gist-only:not(.cloud-only):not(.files-source-btn) {
+  display: none !important;
+}
+
+.gist-pat-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  margin-top: 0.5rem;
+}
+
+.gist-pat-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.gist-pat-input {
+  width: 100%;
+  padding: 0.45rem 0.55rem;
+  border: 1px solid var(--border, #444);
+  border-radius: 6px;
+  background: var(--panel, #111);
+  color: inherit;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.85rem;
 }
 
 .files-drawer-actions {
@@ -3048,6 +3082,24 @@ html[data-theme] .preview .markdown-frontmatter-error pre {
 .preview img {
   max-width: 100%;
   height: auto;
+}
+
+/* Remote http(s) images stripped by DOMPurify (no phone-home). */
+.preview img.md-remote-media-blocked {
+  display: inline-block;
+  min-width: 8rem;
+  min-height: 2.5rem;
+  padding: 0.4rem 0.6rem;
+  border: 1px dashed var(--border, #888);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--panel, #f5f5f5) 80%, transparent);
+  color: var(--muted, #666);
+  font-size: 0.85rem;
+  vertical-align: middle;
+}
+
+.preview img.md-remote-media-blocked::after {
+  content: " Remote image blocked";
 }
 
 .preview ul,

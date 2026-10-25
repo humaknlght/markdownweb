@@ -40,6 +40,7 @@ src/              Source (edit here)
   markdown/       Markdown extensions and highlight helpers
   lib/            Editor features (fs, history, share, export, …)
   drive/          Optional Google Drive bridge
+  gist/           Optional GitHub Gist bridge (Octokit)
   styles/         CSS
   assets/         Images, icons, audio
 public/           Apache .htaccess copied into the build

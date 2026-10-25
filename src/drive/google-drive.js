@@ -1,7 +1,12 @@
 /**
  * Main-app Google Drive bridge: auth via COEP-free helper popup, then Drive REST
  * on the main page (drawer listing + open/save). Scoped to the markdown-editor folder.
- * Access tokens are sealed at rest with WebAuthn PRF (see drive-token-vault.js).
+ *
+ * Token lifetime:
+ * - In-memory only while the tab stays alive (never written to sessionStorage)
+ * - WebAuthn PRF seal in localStorage → Unlock + passkey after refresh / new tab / cold start
+ * - Without PRF, refresh or closing the tab requires Connect again
+ * - No IndexedDB silent vault (legacy IDB seals are purged)
  */
 
 import {
@@ -22,10 +27,10 @@ import {
 import { isGoogleDriveConfigured } from "./google-drive-config.js";
 import {
   clearVaultStorage,
-  ensureIdbVaultKey,
   ensureVaultKey,
   getCachedVaultKey,
   hasSealedDriveSession,
+  migrateAwayFromIdbVault,
   purgeLegacyCleartextToken,
   readVaultMeta,
   sealToken,
@@ -49,11 +54,26 @@ export { hasSealedDriveSession } from "./drive-token-vault.js";
 const TOKEN_EXPIRY_SKEW_MS = 60_000;
 const DEFAULT_TOKEN_TTL_SEC = 3600;
 
+/**
+ * Legacy key that once held a plaintext access token for same-tab refresh.
+ * Kept only so boot/disconnect can purge leftover values; never written again.
+ */
+export const DRIVE_TOKEN_SESSION_KEY = "md-editor:driveAccessTokenSession";
+
 /** @type {string | null} */
 let accessToken = null;
 
-/** True when the last connect could not seal (PRF unavailable) — memory-only. */
+/** True when the last connect could not PRF-seal — memory only (lost on refresh). */
 let memoryOnlySession = false;
+
+/** Remove any leftover plaintext token from older builds. */
+function purgeLegacySessionToken() {
+  try {
+    sessionStorage.removeItem(DRIVE_TOKEN_SESSION_KEY);
+  } catch {
+    /* ignore */
+  }
+}
 
 /**
  * @returns {boolean}
@@ -63,7 +83,7 @@ export function googleDriveEnabled() {
 }
 
 /**
- * In-memory token only (no silent localStorage restore — that requires WebAuthn).
+ * In-memory access token for this tab only (not persisted to sessionStorage).
  * @returns {string | null}
  */
 export function getDriveAccessToken() {
@@ -86,6 +106,7 @@ export function clearDriveAccessToken() {
   accessToken = null;
   memoryOnlySession = false;
   setCachedVaultKey(null);
+  purgeLegacySessionToken();
   clearVaultStorage();
 }
 
@@ -106,12 +127,13 @@ export function restoreDriveAccessToken() {
  */
 async function persistDriveSession(token, expiresInSec) {
   accessToken = token;
+  purgeLegacySessionToken();
   const ttlSec = Math.max(60, Number(expiresInSec) || DEFAULT_TOKEN_TTL_SEC);
   const expiresAt = Date.now() + ttlSec * 1000 - TOKEN_EXPIRY_SKEW_MS;
 
   const key = getCachedVaultKey();
   const meta = readVaultMeta();
-  if (!key || !meta) {
+  if (!key || !meta || meta.kind !== "prf") {
     memoryOnlySession = true;
     return { sealed: false };
   }
@@ -127,44 +149,31 @@ async function persistDriveSession(token, expiresInSec) {
 }
 
 /**
- * Silent restore for IndexedDB-sealed sessions (no user gesture).
- * PRF-backed vaults need Connect/Unlock and are skipped here.
+ * Boot restore: memory only. Never reads a plaintext token from sessionStorage.
+ * PRF-sealed localStorage blobs need Unlock Drive after refresh / cold start.
  * @returns {Promise<boolean>}
  */
 export async function tryRestoreDriveAccessToken() {
   if (accessToken) return true;
   purgeLegacyCleartextToken();
-  if (!hasSealedDriveSession()) return false;
-  const meta = readVaultMeta();
-  if (!meta || meta.kind !== "idb") return false;
-  try {
-    const { key } = await ensureIdbVaultKey();
-    const opened = await unsealToken(key);
-    if (!opened?.token) {
-      clearVaultStorage();
-      return false;
-    }
-    accessToken = opened.token;
-    memoryOnlySession = false;
-    setCachedVaultKey(key);
-    return true;
-  } catch (err) {
-    console.warn("[google-drive] silent sealed restore failed", err);
-    return false;
-  }
+  purgeLegacySessionToken();
+  migrateAwayFromIdbVault();
+  return false;
 }
 
 /**
- * Unlock a sealed session (IDB or WebAuthn PRF). PRF requires a user gesture.
+ * Unlock a PRF-sealed session. Requires a user gesture (passkey).
  * @returns {Promise<string | null>} access token or null if none / cancelled / failed
  */
 export async function unlockDriveAccessToken() {
   if (accessToken) return accessToken;
   purgeLegacyCleartextToken();
+  purgeLegacySessionToken();
+  migrateAwayFromIdbVault();
   if (!hasSealedDriveSession()) return null;
 
   const meta = readVaultMeta();
-  if (!meta) {
+  if (!meta || meta.kind !== "prf") {
     clearVaultStorage();
     return null;
   }
@@ -178,6 +187,7 @@ export async function unlockDriveAccessToken() {
     }
     accessToken = opened.token;
     memoryOnlySession = false;
+    setCachedVaultKey(key);
     return accessToken;
   } catch (err) {
     if (err?.name === "AbortError" || err?.name === "NotAllowedError") throw err;
@@ -281,6 +291,10 @@ async function openDriveAuthHelper() {
         void (async () => {
           try {
             // Reject cleartext tokens — only the ephemeral-key ciphertext is trusted.
+            if (typeof msg.accessToken === "string" || !msg.iv || !msg.ct) {
+              finish(reject, new Error("Rejected cleartext or incomplete Drive auth handoff"));
+              return;
+            }
             const opened = await decryptDriveAuthHandoff(handoffKey, {
               iv: msg.iv,
               ct: msg.ct,
@@ -320,29 +334,33 @@ async function openDriveAuthHelper() {
 }
 
 /**
- * Prepare WebAuthn vault key under the current user gesture (before OAuth popup).
+ * Prepare WebAuthn PRF vault key under the current user gesture (before OAuth popup).
  * Soft-fails to memory-only when PRF is unavailable.
  * @returns {Promise<{ ready: boolean, reason?: string }>}
  */
 export async function prepareDriveTokenVault() {
   purgeLegacyCleartextToken();
+  purgeLegacySessionToken();
+  migrateAwayFromIdbVault();
   try {
     await ensureVaultKey();
     return { ready: true };
   } catch (err) {
-    // ensureVaultKey already falls back to IndexedDB; failure here means storage is blocked.
+    if (err?.name === "AbortError" || err?.name === "NotAllowedError") throw err;
     console.warn("[google-drive] vault prepare failed", err);
     setCachedVaultKey(null);
     memoryOnlySession = true;
     return {
       ready: false,
-      reason: err?.message || "Could not seal Drive session — it will not persist across refresh",
+      reason:
+        err?.message ||
+        "Could not seal Drive session with a passkey — sign-in will not survive refresh or closing this tab",
     };
   }
 }
 
 /**
- * Ensure we have a usable access token (unlock sealed session or open helper auth).
+ * Ensure we have a usable access token (memory, unlock sealed session, or OAuth).
  * Call from a user-gesture handler (Connect) so WebAuthn can run.
  * @returns {Promise<string>}
  */
@@ -350,6 +368,7 @@ export async function ensureDriveAccessToken() {
   if (accessToken) return accessToken;
 
   purgeLegacyCleartextToken();
+  purgeLegacySessionToken();
 
   if (hasSealedDriveSession()) {
     const unlocked = await unlockDriveAccessToken();

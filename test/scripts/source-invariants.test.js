@@ -10,8 +10,151 @@ import {
 } from "../../scripts/cdn-integrity.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+const srcDir = path.join(root, "src");
+
+/** Strip line and block comments without touching string literals. */
+function stripJsComments(source) {
+  let out = "";
+  let i = 0;
+  while (i < source.length) {
+    const c = source[i];
+    const n = source[i + 1];
+    if (c === '"' || c === "'" || c === "`") {
+      const quote = c;
+      out += c;
+      i += 1;
+      while (i < source.length) {
+        const ch = source[i];
+        out += ch;
+        if (ch === "\\" && quote !== "`") {
+          i += 1;
+          if (i < source.length) out += source[i];
+        } else if (ch === quote) {
+          i += 1;
+          break;
+        } else if (quote === "`" && ch === "$" && source[i + 1] === "{") {
+          out += "{";
+          i += 2;
+          let depth = 1;
+          while (i < source.length && depth > 0) {
+            const t = source[i];
+            out += t;
+            if (t === "{") depth += 1;
+            else if (t === "}") depth -= 1;
+            i += 1;
+          }
+          continue;
+        }
+        i += 1;
+      }
+      continue;
+    }
+    if (c === "/" && n === "/") {
+      i += 2;
+      while (i < source.length && source[i] !== "\n") i += 1;
+      continue;
+    }
+    if (c === "/" && n === "*") {
+      i += 2;
+      while (i < source.length && !(source[i] === "*" && source[i + 1] === "/")) {
+        i += 1;
+      }
+      i += 2;
+      continue;
+    }
+    out += c;
+    i += 1;
+  }
+  return out;
+}
+
+function isBareModuleSpecifier(spec) {
+  if (!spec) return false;
+  if (spec.startsWith("./") || spec.startsWith("../")) return false;
+  if (spec.startsWith("/") || spec.startsWith("http:") || spec.startsWith("https:")) {
+    return false;
+  }
+  return true;
+}
+
+/** Runtime bare imports in a JS source string (JSDoc type imports excluded via comment strip). */
+function collectBareImports(source) {
+  const code = stripJsComments(source);
+  const found = new Set();
+  for (const match of code.matchAll(
+    /\bfrom\s*["']([^"']+)["']|\bimport\s*\(\s*["']([^"']+)["']\s*\)/g,
+  )) {
+    const spec = match[1] || match[2];
+    if (isBareModuleSpecifier(spec)) found.add(spec);
+  }
+  return found;
+}
+
+async function walkJsFiles(dir) {
+  /** @type {string[]} */
+  const files = [];
+  for (const ent of await fs.readdir(dir, { withFileTypes: true })) {
+    const full = path.join(dir, ent.name);
+    if (ent.isDirectory()) {
+      if (ent.name === "node_modules") continue;
+      files.push(...(await walkJsFiles(full)));
+    } else if (ent.isFile() && ent.name.endsWith(".js")) {
+      files.push(full);
+    }
+  }
+  return files;
+}
+
+function parseImportMap(html) {
+  const body = html.match(
+    /<script\b[^>]*\btype=["']importmap["'][^>]*>([\s\S]*?)<\/script>/i,
+  )?.[1];
+  assert.ok(body, "import map missing");
+  return JSON.parse(body);
+}
 
 describe("static source invariants", () => {
+  it("maps every src bare import and precaches import-map CDN URLs", async () => {
+    const html = await fs.readFile(path.join(srcDir, "index.html"), "utf8");
+    const map = parseImportMap(html);
+    const mapped = new Set(Object.keys(map.imports || {}));
+    assert.ok(mapped.size > 0, "import map has no imports");
+
+    const bare = new Set();
+    for (const file of await walkJsFiles(srcDir)) {
+      const source = await fs.readFile(file, "utf8");
+      for (const spec of collectBareImports(source)) bare.add(spec);
+    }
+    assert.ok(bare.size > 0, "expected at least one bare import under src/");
+
+    const missingMap = [...bare].filter((spec) => !mapped.has(spec)).sort();
+    assert.deepEqual(
+      missingMap,
+      [],
+      `bare imports missing from import map (breaks npm run dev / e2e src serve):\n  ${missingMap.join("\n  ")}`,
+    );
+
+    const integrity = await loadCdnIntegrity();
+    const precache = new Set(CDN_PRECACHE);
+    for (const [bareName, url] of Object.entries(map.imports)) {
+      assert.match(
+        url,
+        /^https:\/\/cdn\.jsdelivr\.net\//,
+        `import map "${bareName}" should point at jsDelivr`,
+      );
+      assert.ok(
+        precache.has(url),
+        `import map "${bareName}" URL missing from CDN_PRECACHE: ${url}`,
+      );
+      assert.equal(
+        typeof integrity[url],
+        "string",
+        `import map "${bareName}" URL missing SRI: ${url}`,
+      );
+      assert.match(integrity[url], /^sha384-/);
+    }
+  });
+
   it("keeps import map, CDN_PRECACHE, and THEMES in sync", async () => {
     const html = await fs.readFile(path.join(root, "src/index.html"), "utf8");
     assert.match(html, /type="importmap"/);
@@ -30,27 +173,11 @@ describe("static source invariants", () => {
       "import map must precede modulepreload links",
     );
     assert.match(html, /window\.__MD_SW__="__SW_URL__"/);
-    assert.match(html, /marked@18\.0\.13/);
-    assert.match(html, /dompurify@3\.4\.15/);
+    assert.match(html, /marked@18\.1\.1/);
+    assert.match(html, /dompurify@3\.4\.17/);
     assert.match(html, /gemoji@8\.1\.0/);
     assert.match(html, /yaml@2\.9\.1/);
-
-    for (const url of CDN_PRECACHE) {
-      if (url.includes("mermaid")) continue; // dynamically imported, not in import map
-      if (url.includes("languages/")) continue;
-      const bare = url.includes("marked")
-        ? "marked"
-        : url.includes("dompurify")
-          ? "dompurify"
-          : url.includes("highlight")
-            ? "highlight.js"
-            : url.includes("gemoji")
-              ? "gemoji"
-              : url.includes("yaml")
-                ? "yaml"
-                : null;
-      if (bare) assert.match(html, new RegExp(bare));
-    }
+    assert.match(html, /@octokit\/rest@22\.0\.1/);
 
     const app = await fs.readFile(path.join(root, "src/app/app.js"), "utf8");
     assert.match(
@@ -134,10 +261,10 @@ describe("static source invariants", () => {
     assert.equal(Object.keys(map.integrity).length, Object.keys(integrity).length);
     assert.equal(
       map.integrity[
-        "https://cdn.jsdelivr.net/npm/mermaid@12.0.0/dist/mermaid.esm.min.mjs"
+        "https://cdn.jsdelivr.net/npm/mermaid@12.2.0/dist/mermaid.esm.min.mjs"
       ],
       integrity[
-        "https://cdn.jsdelivr.net/npm/mermaid@12.0.0/dist/mermaid.esm.min.mjs"
+        "https://cdn.jsdelivr.net/npm/mermaid@12.2.0/dist/mermaid.esm.min.mjs"
       ],
     );
     assert.match(injected, /languages\/javascript\.min\.js":\s*"sha384-/);
@@ -176,5 +303,8 @@ describe("static source invariants", () => {
     assert.match(ht, /FilesMatch "\^sw\\.js/);
     assert.match(ht, /Cross-Origin-Embedder-Policy "require-corp"/);
     assert.match(ht, /www\.googleapis\.com/);
+    assert.match(ht, /api\.github\.com/);
+    assert.match(ht, /img-src 'self' data: blob:/);
+    assert.doesNotMatch(ht, /img-src 'self' data: blob: https:/);
   });
 });

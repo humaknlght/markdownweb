@@ -4,6 +4,7 @@ import {
   detectEditableExtension,
   ensureEditableExtension,
   isEditableFileName,
+  resolveFilePath,
   suggestedUntitledName,
 } from "../../src/lib/fs.js";
 
@@ -42,5 +43,36 @@ describe("fs helpers", () => {
   it("suggests untitled names", () => {
     assert.equal(suggestedUntitledName("# Hello"), "untitled.md");
     assert.equal(suggestedUntitledName(""), "untitled.md");
+  });
+
+  it("resolveFilePath rejects traversal and dot segments", async () => {
+    const root = {
+      getDirectoryHandle: async () => {
+        throw new Error("should not traverse");
+      },
+      getFileHandle: async () => {
+        throw new Error("should not open");
+      },
+    };
+    assert.equal(await resolveFilePath(/** @type {any} */ (root), "../secret.md"), null);
+    assert.equal(await resolveFilePath(/** @type {any} */ (root), "a/../b.md"), null);
+    assert.equal(await resolveFilePath(/** @type {any} */ (root), "a/./b.md"), null);
+    assert.equal(await resolveFilePath(/** @type {any} */ (root), ".."), null);
+    assert.equal(await resolveFilePath(/** @type {any} */ (root), ""), null);
+  });
+
+  it("resolveFilePath walks safe segments", async () => {
+    /** @type {string[]} */
+    const dirs = [];
+    const root = {
+      getDirectoryHandle: async (name) => {
+        dirs.push(name);
+        return root;
+      },
+      getFileHandle: async (name) => ({ kind: "file", name }),
+    };
+    const file = await resolveFilePath(/** @type {any} */ (root), "docs/notes.md");
+    assert.deepEqual(dirs, ["docs"]);
+    assert.equal(file?.name, "notes.md");
   });
 });

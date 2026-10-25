@@ -6,7 +6,7 @@
   <title>Privacy Policy — Markdown Editor</title>
   <meta
     name="description"
-    content="Privacy policy for Markdown Editor: how local drafts, optional Google Drive, and analytics-free browsing work."
+    content="Privacy policy for Markdown Editor: how local drafts, optional Google Drive and GitHub Gist, and analytics-free browsing work."
   />
   <link rel="canonical" href="https://dev.ericperret.org/markdown/privacy.html" />
   <style>
@@ -58,7 +58,7 @@
   <main>
     <p class="meta"><a href="./">← Markdown Editor</a></p>
     <h1>Privacy Policy</h1>
-    <p class="meta">Last updated: 16 October 2026</p>
+    <p class="meta">Last updated: 21 October 2026</p>
 
     <p>
       Markdown Editor (<a href="https://dev.ericperret.org/markdown/">https://dev.ericperret.org/markdown/</a>)
@@ -103,7 +103,7 @@
       (under the app’s <code>markdown-editor</code> folder), not your entire Drive.
     </p>
     <ul>
-      <li>Access tokens stay in the browser for Drive API calls. They are encrypted before any at-rest storage (non-extractable key in IndexedDB; ciphertext in localStorage) and restore on reload; they are not sent to the Markdown Editor operator’s server.</li>
+      <li>Access tokens stay in the browser for Drive API calls, held in memory for the current tab only (not written to sessionStorage). Across refresh or a new tab they are sealed with a WebAuthn passkey (PRF) as ciphertext in localStorage and require Unlock; without a passkey seal, refresh requires Connect again. Tokens are not sent to the Markdown Editor operator’s server.</li>
       <li>File names and contents you open or save go between your browser and Google’s Drive API.</li>
       <li>Google’s use of account data is governed by
         <a href="https://policies.google.com/privacy" rel="noopener">Google’s Privacy Policy</a>.</li>
@@ -111,13 +111,31 @@
         and by clearing this site’s data.</li>
     </ul>
 
+    <h2>Optional GitHub Gist</h2>
+    <p>
+      If the host enables GitHub Gist and you choose <strong>Connect Gist</strong>, you paste a fine-grained personal access token with Gists permission.
+      The token stays in the browser (memory, optionally sealed with a WebAuthn passkey) and is sent only to
+      <code>https://api.github.com</code> for listing, opening, and saving gist files. It is not sent to the Markdown Editor operator’s server.
+    </p>
+    <ul>
+      <li>Gist file names and contents you open or save go between your browser and GitHub’s API.</li>
+      <li>GitHub’s use of account data is governed by
+        <a href="https://docs.github.com/en/site-policy/privacy-policies/github-privacy-statement" rel="noopener">GitHub’s Privacy Statement</a>.</li>
+      <li>Disconnect clears the in-memory token and any sealed copy. You can also revoke the token under your GitHub settings.</li>
+    </ul>
+
     <h2>Network requests</h2>
     <p>Besides loading the app itself, the browser may request:</p>
     <ul>
       <li>Libraries and assets from this site (and, when needed, from CDNs configured by the build, such as jsDelivr for Mermaid).</li>
       <li>Google Identity / Drive endpoints when you use Connect Drive.</li>
+      <li><code>api.github.com</code> when you use Connect Gist.</li>
     </ul>
-    <p>Those third parties may receive standard technical data (for example IP address and User-Agent) as part of HTTPS requests.</p>
+    <p>
+      Preview Markdown does <strong>not</strong> load remote <code>https://</code> images or media (so hostile documents cannot phone home after Accept).
+      Prefer paste-as-data-URI embeds. Clicking a normal link still navigates as you choose.
+    </p>
+    <p>Third parties may receive standard technical data (for example IP address and User-Agent) as part of HTTPS requests you initiate (Drive, Gist, or clicked links).</p>
 
     <h2>Cookies and analytics</h2>
     <p>
@@ -146,7 +164,7 @@
 
     <hr />
     <p class="muted">
-      Forks and self-hosted copies are separate deployments. Their operators should publish their own privacy policy and OAuth branding if they enable Google Drive.
+      Forks and self-hosted copies are separate deployments. Their operators should publish their own privacy policy and OAuth branding if they enable Google Drive or GitHub Gist.
     </p>
   </main>
 </body>

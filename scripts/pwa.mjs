@@ -5,14 +5,15 @@ import { createHash } from "node:crypto";
  * highlight.js language grammars (beyond markdown/xml) load on demand and are
  * cached by the SW after first use. */
 export const CDN_PRECACHE = [
-  "https://cdn.jsdelivr.net/npm/marked@18.0.13/lib/marked.esm.js",
-  "https://cdn.jsdelivr.net/npm/dompurify@3.4.15/dist/purify.es.mjs",
+  "https://cdn.jsdelivr.net/npm/marked@18.1.1/lib/marked.esm.js",
+  "https://cdn.jsdelivr.net/npm/dompurify@3.4.17/dist/purify.es.mjs",
   "https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.12.0/es/core.min.js",
   "https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.12.0/es/languages/markdown.min.js",
   "https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.12.0/es/languages/xml.min.js",
   "https://cdn.jsdelivr.net/npm/gemoji@8.1.0/+esm",
   "https://cdn.jsdelivr.net/npm/yaml@2.9.1/+esm",
-  "https://cdn.jsdelivr.net/npm/mermaid@12.0.0/dist/mermaid.esm.min.mjs",
+  "https://cdn.jsdelivr.net/npm/@octokit/rest@22.0.1/+esm",
+  "https://cdn.jsdelivr.net/npm/mermaid@12.2.0/dist/mermaid.esm.min.mjs",
 ];
 
 export const ICON_FILES = [
@@ -128,6 +129,7 @@ export function isMutableShellPath(pathname) {
   return (
     file === "index.html" ||
     file === "google-drive-config.json" ||
+    file === "github-gist-config.json" ||
     file === "manifest.webmanifest" ||
     file === "sw.js" ||
     file === "GUIDE.md"
@@ -148,6 +150,7 @@ function isMutableShell(pathname) {
   return (
     file === "index.html" ||
     file === "google-drive-config.json" ||
+    file === "github-gist-config.json" ||
     file === "manifest.webmanifest" ||
     file === "sw.js" ||
     file === "GUIDE.md"

@@ -544,6 +544,14 @@ async function main() {
   } catch (err) {
     if (err?.code !== "ENOENT") throw err;
   }
+  try {
+    await copyFile(
+      path.join(srcDir, "github-gist-config.json"),
+      path.join(distDir, "github-gist-config.json"),
+    );
+  } catch (err) {
+    if (err?.code !== "ENOENT") throw err;
+  }
   const compressed = await precompressAssets();
 
   console.log("Assets (content-hashed for cache busting)");

@@ -40,32 +40,33 @@ Notes:
 - Max size is **2 MB**. Larger pastes are rejected with a toast.
 - If you have text selected when you paste, that selection becomes the image alt text.
 - In the editor, long `data:` URIs collapse to a short chip so the source stays readable; the full URI is used for preview and export.
-- You can still write normal URL images: `![Alt text](https://example.com/photo.png)`.
+- Remote `https://…` image URLs are **not** loaded in the preview (they cannot phone home). Prefer paste-as-data-URI embeds, or same-origin / `blob:` images.
 
 ### Files drawer
 
-Open it with the sidebar button in the toolbar. The **Outline** works in every browser. Folder browsing (**Open folder**, tree, **Save**) needs Chromium desktop with the File System Access API. **Google Drive** appears when the host has deployed `google-drive-config.json` (see [CONTRIBUTING.md](CONTRIBUTING.md)): use the **Local | Drive** toggle, **Connect Drive**, then browse the **/markdown-editor** folder in the same tree. Click a Drive folder to open it; use **..** to go up. **New folder** works in Drive as well as Local.
+Open it with the sidebar button in the toolbar. The **Outline** works in every browser. Folder browsing (**Open folder**, tree, **Save**) needs Chromium desktop with the File System Access API. **Google Drive** and **GitHub Gist** appear when the host has deployed the matching config (see [CONTRIBUTING.md](CONTRIBUTING.md)): use the **Local | Drive | Gist** toggle. For Drive, **Connect Drive**, then browse the **/markdown-editor** folder. For Gist, **Connect Gist** with a fine-grained personal access token (Gists permission), then open markdown files from your gists (including private). Click a Drive folder to open it; use **..** to go up. **New folder** works in Drive and Local (not Gist).
 
-Drafts and “unsaved” snapshots are scoped per open file (and a shared **untitled** slot), so two tabs editing different files do not overwrite each other. A document stays **unsaved** until it is written to disk (File System Access), saved to Google Drive, or accepted from a share URL (`md` / `mdz`); IndexedDB auto-save alone does not clear that state.
+Drafts and “unsaved” snapshots are scoped per open file (and a shared **untitled** slot), so two tabs editing different files do not overwrite each other. A document stays **unsaved** until it is written to disk (File System Access), saved to Google Drive or a Gist, or accepted from a share URL (`md` / `mdz`); IndexedDB auto-save alone does not clear that state.
 
 | Action | What it does |
 |--------|----------------|
-| **Local / Drive** | Switch the drawer between a local folder and the Google Drive `/markdown-editor` folder (when Drive is configured) |
+| **Local / Drive / Gist** | Switch the drawer between a local folder, Google Drive `/markdown-editor`, or your GitHub gists (when configured) |
 | **Open folder** | Pick a local folder to browse (handle remembered for next visits; Chromium) |
 | **Connect Drive** | Sign in with Google (popup), then list the `/markdown-editor` folder (and its subfolders) |
+| **Connect Gist** | Paste a GitHub PAT with Gists access, then list editable files in your gists |
 | **New** | Create a new untitled document |
 | **New folder** | Create a subfolder in the current Local folder or the current Drive folder |
 | **Refresh** | Reload the current source’s tree |
-| **Save** / `Ctrl`/`Cmd`+`S` | Write the current local or Drive file (new Drive files save into the folder you’re browsing) |
+| **Save** / `Ctrl`/`Cmd`+`S` | Write the current local, Drive, or Gist file |
 | **Outline** | Heading list for the open document; click to jump in editor and preview |
 
-Right-click (or long-press) a file or folder for a context menu: **New file**, **New folder**, **Rename**, **Delete** (Local and Drive). Drive deletes move items to Google Drive trash.
+Right-click (or long-press) a file or folder for a context menu: **New file**, **New folder**, **Rename**, **Delete** (Local and Drive). Gist supports **New file** and **Delete** (deletes the whole gist). Drive deletes move items to Google Drive trash.
 
 If permission to the saved folder was revoked, the drawer shows **Allow access** or **Choose folder** so you can re-grant it.
 
 Allow popups for this site when using Drive — the browser may block the helper window until you permit it.
 
-Privacy details (local drafts, optional Google Drive, and what is not collected) are in [privacy.html](./privacy.html).
+Privacy details (local drafts, optional Google Drive / Gist, and what is not collected) are in [privacy.html](./privacy.html).
 
 ### Editor and preview layout
 
@@ -226,11 +227,11 @@ Line two
 [Link text](https://example.com)
 [Link with title](https://example.com "Title")
 
-![Alt text](https://example.com/image.png)
-![Alt](https://example.com/image.png "Title")
+![Alt text](data:image/png;base64,…)
+![Alt](./same-origin.png "Title")
 ```
 
-To embed from the clipboard, see [Paste an image](#paste-an-image).
+Remote `https://` image URLs are stripped in the preview (no phone-home). To embed from the clipboard, see [Paste an image](#paste-an-image).
 
 Reference-style links:
 

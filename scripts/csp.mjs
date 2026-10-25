@@ -49,11 +49,12 @@ export function buildContentSecurityPolicy(scriptSrc) {
     "form-action 'self'",
     `script-src ${scriptSrc}`,
     "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: blob: https:",
+    // No https: — Markdown preview must not phone home via remote images.
+    "img-src 'self' data: blob:",
     "media-src 'self' data: blob:",
     "font-src 'self' https://cdn.jsdelivr.net",
-    // Drive REST uploads/downloads from the main app (token from helper popup).
-    "connect-src 'self' https://cdn.jsdelivr.net https://www.googleapis.com",
+    // Drive REST + GitHub Gist API from the main app (tokens never in Markdown).
+    "connect-src 'self' https://cdn.jsdelivr.net https://www.googleapis.com https://api.github.com",
     "worker-src 'self' blob:",
     "upgrade-insecure-requests",
   ].join("; ");
@@ -72,7 +73,7 @@ export function buildDriveHelperContentSecurityPolicy(scriptSrc) {
     "form-action 'self'",
     `script-src ${scriptSrc}`,
     "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: https:",
+    "img-src 'self' data:",
     "font-src 'self'",
     "connect-src 'self' https://www.googleapis.com",
     "frame-src https://accounts.google.com",
