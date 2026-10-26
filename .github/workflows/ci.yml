@@ -19,7 +19,8 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: "24"
-          cache: npm
+          # No cache here: parallel with `test` races on the same npm cache key
+          # ("Unable to reserve cache… another job may be creating this cache").
 
       - name: Install dependencies
         run: npm ci
