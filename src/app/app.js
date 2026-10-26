@@ -4946,8 +4946,13 @@ function promptGistPersonalAccessToken() {
       return;
     }
     if (gistPatInput) gistPatInput.value = "";
+    const cancelBtn = gistPatModal.querySelector('button[value="cancel"]');
+    const onCancel = () => {
+      gistPatModal.close("cancel");
+    };
     const onClose = () => {
       gistPatModal.removeEventListener("close", onClose);
+      cancelBtn?.removeEventListener("click", onCancel);
       const value = gistPatModal.returnValue;
       if (value !== "connect") {
         resolve(null);
@@ -4956,6 +4961,7 @@ function promptGistPersonalAccessToken() {
       const token = String(gistPatInput?.value || "").trim();
       resolve(token || null);
     };
+    cancelBtn?.addEventListener("click", onCancel);
     gistPatModal.addEventListener("close", onClose);
     gistPatModal.showModal();
     gistPatInput?.focus();
