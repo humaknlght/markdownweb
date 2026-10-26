@@ -40,6 +40,9 @@ describe("csp.mjs", () => {
     assert.deepEqual(extractInlineScripts('<script>alert(1)</script>'), ["alert(1)"]);
     assert.deepEqual(extractInlineScripts('<script src="a.js"></script>'), []);
     assert.deepEqual(extractInlineScripts('<script type="module">x</script>'), ["x"]);
+    // HTML5-tolerated end tags (whitespace / junk before `>`).
+    assert.deepEqual(extractInlineScripts("<script>y</script >"), ["y"]);
+    assert.deepEqual(extractInlineScripts('<script>z</script foo="bar">'), ["z"]);
   });
 
   it("hashes SHA-256 in base64", () => {

@@ -1,5 +1,6 @@
 import { describe, it, beforeEach } from "node:test";
 import assert from "node:assert/strict";
+import { JSDOM } from "jsdom";
 import {
   SPEECH_CHUNK_MAX,
   chunkSpeechText,
@@ -37,6 +38,13 @@ import {
   formatEmbedMarkdown,
   rememberEmbed,
 } from "../../src/markdown/embeds.js";
+
+/** Recover plaintext from highlight.js HTML for overlay alignment asserts. */
+function plaintextFromHighlight(html) {
+  const { document } = new JSDOM("<!DOCTYPE html><body></body>").window;
+  document.body.innerHTML = html;
+  return document.body.textContent;
+}
 
 describe("speech-text", () => {
   it("chunks long text at sentence boundaries under the max", () => {
@@ -172,14 +180,7 @@ describe("markdown-utils", () => {
     // YAML must not be fed to the markdown grammar (lists / emphasis).
     assert.doesNotMatch(html, /hljs-emphasis/);
     assert.doesNotMatch(html, /lang-markdown">[^<]*name_name/);
-    const text = html
-      .replace(/<[^>]+>/g, "")
-      .replace(/&amp;/g, "&")
-      .replace(/&lt;/g, "<")
-      .replace(/&gt;/g, ">")
-      .replace(/&quot;/g, '"')
-      .replace(/&#39;/g, "'");
-    assert.equal(text, source);
+    assert.equal(plaintextFromHighlight(html), source);
   });
 
   it("highlights mermaid fences with a registered grammar", () => {
@@ -199,14 +200,7 @@ describe("markdown-utils", () => {
     assert.match(html, /flowchart LR/);
     assert.match(html, /class="hljs-code"/);
     // Overlay text must stay aligned with the textarea source.
-    const text = html
-      .replace(/<[^>]+>/g, "")
-      .replace(/&amp;/g, "&")
-      .replace(/&lt;/g, "<")
-      .replace(/&gt;/g, ">")
-      .replace(/&quot;/g, '"')
-      .replace(/&#39;/g, "'");
-    assert.equal(text, source);
+    assert.equal(plaintextFromHighlight(html), source);
   });
 
   it("falls back to plain code spans for unknown fence languages", () => {
