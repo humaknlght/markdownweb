@@ -8,7 +8,8 @@ const CDN_SCRIPT_ORIGINS = ["https://cdn.jsdelivr.net"];
  */
 export function extractInlineScripts(html) {
   const scripts = [];
-  const re = /<script(\s[^>]*)?>([\s\S]*?)<\/script>/gi;
+  // Closing `\b[^>]*` matches browser-tolerated forms like `</script >` / `</script foo>`.
+  const re = /<script\b([^>]*)>([\s\S]*?)<\/script\b[^>]*>/gi;
   let match;
   while ((match = re.exec(html)) !== null) {
     const attrs = match[1] || "";
