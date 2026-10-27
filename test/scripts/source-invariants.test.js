@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { CDN_PRECACHE } from "../../scripts/pwa.mjs";
+import { CDN_LAZY, CDN_PRECACHE } from "../../scripts/pwa.mjs";
 import {
   applyCdnIntegrity,
   loadCdnIntegrity,
@@ -224,6 +224,16 @@ describe("static source invariants", () => {
       assert.equal(typeof integrity[url], "string", `missing SRI for ${url}`);
       assert.match(integrity[url], /^sha384-/);
     }
+
+    assert.ok(CDN_LAZY.length >= 1, "expected at least one CDN_LAZY module");
+    for (const url of CDN_LAZY) {
+      assert.equal(typeof integrity[url], "string", `missing SRI for ${url}`);
+      assert.match(integrity[url], /^sha384-/);
+    }
+    assert.ok(
+      urls.some((u) => u.includes("/npm/roughjs@")),
+      "expected svg2roughjs dependency roughjs in the SRI graph",
+    );
 
     const mermaidEntry = CDN_PRECACHE.find((u) => u.includes("/mermaid@"));
     assert.ok(mermaidEntry);

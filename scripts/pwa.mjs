@@ -16,6 +16,15 @@ export const CDN_PRECACHE = [
   "https://cdn.jsdelivr.net/npm/mermaid@12.2.0/dist/mermaid.esm.min.mjs",
 ];
 
+/**
+ * CDN modules loaded on demand (not SW-precached). Their full module graphs are
+ * still hashed into `cdn-integrity.json` so dynamic `import()` is SRI-gated.
+ */
+export const CDN_LAZY = [
+  // RoughJS SVG sketch for Mermaid Hand-drawn look (all diagram types).
+  "https://cdn.jsdelivr.net/npm/svg2roughjs@3.2.3/+esm",
+];
+
 export const ICON_FILES = [
   "assets/icon-192.png",
   "assets/icon-512.png",

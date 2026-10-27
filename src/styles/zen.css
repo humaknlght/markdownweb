@@ -134,13 +134,24 @@ html[data-theme="zen"] .select-label select {
   -webkit-backdrop-filter: blur(10px);
 }
 
-html[data-theme="zen"] .dropdown-menu {
-  background: rgba(8, 28, 36, 0.82);
+html[data-theme="zen"] .dropdown-menu,
+html[data-theme="zen"] .toolbar-actions {
+  /* Denser than --chrome-surface so menus stay readable over the canvas. */
+  background: rgba(8, 28, 36, 0.88);
   border-color: rgba(140, 200, 210, 0.42);
   color: var(--chrome-text);
   backdrop-filter: blur(22px) saturate(1.3);
   -webkit-backdrop-filter: blur(22px) saturate(1.3);
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  html[data-theme="zen"] .dropdown-menu,
+  html[data-theme="zen"] .toolbar-actions {
+    background: #0b1c24;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
 }
 
 html[data-theme="zen"] .btn:hover,
@@ -306,12 +317,5 @@ html[data-theme="zen"] .outline-row.is-active {
   html[data-theme="zen"] .splitter {
     margin-block: 0;
     margin-inline: 0.35rem;
-  }
-
-  html[data-theme="zen"] .toolbar-actions {
-    background: rgba(8, 28, 36, 0.78);
-    backdrop-filter: blur(18px) saturate(1.25);
-    -webkit-backdrop-filter: blur(18px) saturate(1.25);
-    border-color: var(--zen-glass-border);
   }
 }
