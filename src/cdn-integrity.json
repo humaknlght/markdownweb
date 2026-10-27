@@ -196,6 +196,7 @@
   "https://cdn.jsdelivr.net/npm/@octokit/rest@22.0.1/+esm": "sha384-xy+WGPVmKjQCqZPfN9AMaLsWCqXQR62lZ/0jNEtqUIt7GcsbSR4gtGbcNDDd4PBy",
   "https://cdn.jsdelivr.net/npm/dompurify@3.4.17/dist/purify.es.mjs": "sha384-BL58nOFQzaquDpMkbuU2wPuzK53BYxRB4AUTPJekFOA6woO0vIOBxW6Qe4kwM1HH",
   "https://cdn.jsdelivr.net/npm/gemoji@8.1.0/+esm": "sha384-BxixXuX+Sw/FKnMEyJ+uFfpzgLCYpImf3Wks5yu6wYrASvTTUe4lmI+mXE9kKdAL",
+  "https://cdn.jsdelivr.net/npm/hachure-fill@0.5.2/+esm": "sha384-kzAi1a3EKRJJCkNnihh4lgwQa9ktGDXaT82G3+bkqByAwpWIiaPyo3/lWaN0Tw8b",
   "https://cdn.jsdelivr.net/npm/marked@18.1.1/lib/marked.esm.js": "sha384-3zyzJHbICZVHR8JCCUAEEJ0IfpypHKS28C4Dscg3prb8nDVH5OR0JL/jHj9zBD39",
   "https://cdn.jsdelivr.net/npm/mermaid@12.2.0/dist/chunks/mermaid.esm.min/abnfDiagram-HYZUXDRY.mjs": "sha384-JA2jeooxJxlgy6VIU6QE4aCSar/6YaDfl46iotCyiykizGAsbaYB3p3AHQyx8VDP",
   "https://cdn.jsdelivr.net/npm/mermaid@12.2.0/dist/chunks/mermaid.esm.min/architecture-WOLXFQ4H-GHTOFUQ5.mjs": "sha384-P82IiX2l3OCfoq2SqSoGAdxKuFS42tAeQdyr0l+MKGueMhkGsGUYM2P8mvlU9gjA",
@@ -302,5 +303,14 @@
   "https://cdn.jsdelivr.net/npm/mermaid@12.2.0/dist/chunks/mermaid.esm.min/wardleyDiagram-3VXUCKTG.mjs": "sha384-zkIv+Ygf7tr0/xVj5eu3QVkUFfFJ8ZVF5guBDMfknLi4lXBGcBE/IE/znFYFWExW",
   "https://cdn.jsdelivr.net/npm/mermaid@12.2.0/dist/chunks/mermaid.esm.min/xychartDiagram-BH4T3JT5.mjs": "sha384-jZ0GAW4unVzPFaLQH8FWdMV32PiOlVsBnctgNHEBooUOyAWKrWQ9h/NjOPkf/c6k",
   "https://cdn.jsdelivr.net/npm/mermaid@12.2.0/dist/mermaid.esm.min.mjs": "sha384-1zE8eD4a3qmTtl4mMJrmjzEupBhNg25KA88b0P9vQee9I6JEDc8yxcUY4s4pDjuN",
+  "https://cdn.jsdelivr.net/npm/path-data-parser@0.1.0/+esm": "sha384-+zFhK3IOMzQDMSKeLsWKnJTgb6aC7NsO50SqfaOyGS63jyu46+jiefitGb7y5UVQ",
+  "https://cdn.jsdelivr.net/npm/points-on-curve@0.2.0/+esm": "sha384-cNZ9izZDDPaL7oNFIBxZWU2XuW1sJQ9uSXKLKHQeA5jDPx2VmEnRDXlhvhaKpd/F",
+  "https://cdn.jsdelivr.net/npm/points-on-curve@0.2.0/lib/curve-to-bezier.js/+esm": "sha384-V9IYOmr+U+nibejyeDMd9ob9HNX7szMLNqUldndz8yy11gf2aczSTqzXTihtAhgw",
+  "https://cdn.jsdelivr.net/npm/points-on-path@0.2.1/+esm": "sha384-za9NKcKwdHGKaPnNOcHuHZdriivD9UCM0VZOaNVKtaSIgGAnNyxex7zUROLTIYSM",
+  "https://cdn.jsdelivr.net/npm/roughjs@4.6.6/bin/math/+esm": "sha384-/aLYbgBVQBIF/dMd3FUf9RnNww7tiDoSWwPaXKUHr+e+pcMpXinHqZbaLJU/93sh",
+  "https://cdn.jsdelivr.net/npm/roughjs@4.6.6/bin/rough/+esm": "sha384-pb16lLImHwP4XLeJI8WOmrceAUcfsViCJBbplJRO+Tok0jBgJSXheP18LzsNPORV",
+  "https://cdn.jsdelivr.net/npm/svg-pathdata@8.0.0/+esm": "sha384-b6I0WNJLzQ1fouwEX5KZ8oh8bbdPybFfHtORCmEZ1ITdlBQgYtedziNM5nyH6ioE",
+  "https://cdn.jsdelivr.net/npm/svg2roughjs@3.2.3/+esm": "sha384-jAKblR0ArwgAAQ6idnhvTiubWVD1Sn+iIqMvginH/OxKVX4Qmmxc6rG2fQas1AZF",
+  "https://cdn.jsdelivr.net/npm/tinycolor2@1.6.0/+esm": "sha384-gwE8SP4at0fc2DTfh81omuQb7Xasm7+31h+vRaJp6+eVINZBQMyLjPoCnyOeYFtY",
   "https://cdn.jsdelivr.net/npm/yaml@2.9.1/+esm": "sha384-MVwSuH88MctNNg+3dwLImVhp3/5G1k0NtNYzmuuplV7D/xSlRSidadLxUMGnsGnE"
 }

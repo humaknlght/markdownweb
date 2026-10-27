@@ -197,6 +197,28 @@ describe("Mermaid theme contrast (WCAG 2.2 AA)", () => {
     assert.match(app, /background-color:\s*var\(--mermaid-label-bg\)/);
   });
 
+  it("binds Excalidraw/handDrawn paints to theme tokens for WCAG contrast", async () => {
+    const app = await fs.readFile(path.join(root, "src/app/app.js"), "utf8");
+    const css = await fs.readFile(path.join(root, "src/styles/styles.css"), "utf8");
+    assert.match(app, /function mermaidThemeVariablesFromCss/);
+    assert.match(app, /function normalizeMermaidHandDrawnColors/);
+    assert.match(app, /function mermaidTextInkVarForFill/);
+    assert.match(app, /function fitMermaidSvgViewBox/);
+    assert.match(app, /fitMermaidSvgViewBox\(sketched,\s*\{\s*tighten:\s*true\s*\}\)/);
+    assert.match(app, /themeVariables:\s*mermaidThemeVariablesFromCss\(\)/);
+    assert.match(app, /fillStyle:\s*["']solid["']/);
+    assert.match(app, /look:\s*["']classic["']/);
+    assert.match(app, /MERMAID_HAND_FONT/);
+    assert.match(app, /Excalifont/);
+    assert.match(app, /surfaceToInk/);
+    assert.match(app, /var\(--mermaid-node-border\)/);
+    assert.match(app, /path\.edge-thickness-normal/);
+    assert.match(app, /setProperty\(attr,\s*value,\s*["']important["']\)/);
+    assert.match(css, /font-family:\s*"Excalifont"/);
+    assert.match(css, /excalifont@1\.0\.0/);
+    assert.match(css, /data-mermaid-look="handDrawn"/);
+  });
+
   it("meets text (≥4.5:1) and UI (≥3:1) contrast for every theme", async () => {
     const css = await readThemeCss();
 

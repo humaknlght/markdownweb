@@ -1,3 +1,17 @@
+/* Excalidraw’s hand-drawn face — used when Diagrams → Hand-drawn is selected.
+   Font files stay on jsDelivr (font-src); CSS is local (style-src 'self'). */
+@font-face {
+  font-family: "Excalifont";
+  src:
+    url("https://cdn.jsdelivr.net/npm/excalifont@1.0.0/fonts/Excalifont-Regular.woff2")
+      format("woff2"),
+    url("https://cdn.jsdelivr.net/npm/excalifont@1.0.0/fonts/Excalifont-Regular.woff")
+      format("woff");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
 *,
 *::before,
 *::after {
@@ -64,6 +78,7 @@ html[data-theme="github-light"] {
   --syntax-addition: #207f37;
   --mermaid-bg: #ffffff;
   --mermaid-fg: #333333;
+  --mermaid-font: var(--font-ui);
   --mermaid-node-bg: #ececff;
   --mermaid-node-border: #9370db;
   --mermaid-cluster-bg: #ffffde;
@@ -820,11 +835,21 @@ html[data-theme="fancy"] .outline-row.is-active {
     margin-inline: 0.35rem;
   }
 
+}
+
+/* Overflow panel needs denser glass than panes — light labels over the photo. */
+html[data-theme="fancy"] .toolbar-actions {
+  background: rgba(6, 24, 36, 0.94);
+  backdrop-filter: blur(20px) saturate(1.3);
+  -webkit-backdrop-filter: blur(20px) saturate(1.3);
+  border-color: var(--fancy-glass-border);
+}
+
+@media (prefers-reduced-transparency: reduce) {
   html[data-theme="fancy"] .toolbar-actions {
-    background: rgba(8, 28, 42, 0.72);
-    backdrop-filter: blur(18px) saturate(1.3);
-    -webkit-backdrop-filter: blur(18px) saturate(1.3);
-    border-color: var(--fancy-glass-border);
+    background: #062436;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
   }
 }
 
@@ -952,7 +977,8 @@ body {
   position: relative;
 }
 
-.toolbar-actions {
+/* Primary controls: inline on desktop; relocated into #toolbar-actions on narrow. */
+.toolbar-bar {
   display: flex;
   align-items: center;
   gap: 0.4rem;
@@ -968,15 +994,134 @@ body {
   flex-wrap: nowrap;
 }
 
-/* Keeping the row on one line means the selects shrink instead of wrapping. */
-.toolbar-actions .select-label,
-.toolbar-actions .select-label select {
-  min-width: 0;
+/*
+ * Single overflow panel at every width. Desktop: Theme/Width/Diagrams/Print/Help/Bug.
+ * Narrow: JS moves #toolbar-bar in first, so the same panel holds everything.
+ */
+.toolbar-actions {
+  display: none;
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 1000;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 0.15rem;
+  min-width: 17rem;
+  max-width: min(22rem, calc(100vw - 1.5rem));
+  max-height: min(24rem, calc(100vh - var(--toolbar-h) - 16px));
+  max-height: min(24rem, calc(100dvh - var(--toolbar-h) - 16px - env(safe-area-inset-bottom, 0px)));
+  padding: 0.4rem;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  background: var(--chrome-surface);
+  background: color-mix(in srgb, var(--chrome-surface) 88%, transparent);
+  border: 1px solid var(--chrome-border);
+  border-radius: 8px;
+  box-shadow: var(--chrome-shadow, 0 8px 24px rgba(26, 29, 35, 0.12));
+  backdrop-filter: blur(18px) saturate(1.25);
+  -webkit-backdrop-filter: blur(18px) saturate(1.25);
 }
 
-/* Beat the later .btn { display: inline-flex } so this stays hidden on wide viewports. */
+.toolbar-menu.is-open .toolbar-actions {
+  display: flex;
+}
+
+/* When the bar is relocated into the panel (narrow), separate it from Theme+. */
+.toolbar-actions > .toolbar-bar {
+  flex-direction: column;
+  align-items: stretch;
+  width: 100%;
+  gap: 0.1rem;
+  margin-bottom: 0.2rem;
+  padding-bottom: 0.3rem;
+  border-bottom: 1px solid var(--chrome-border);
+}
+
+.toolbar-actions .select-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  min-height: 2.25rem;
+  padding: 0.35rem 0.5rem;
+  border-radius: 4px;
+  color: var(--chrome-text);
+  box-sizing: border-box;
+}
+
+.toolbar-actions .select-label:hover {
+  background: var(--chrome-hover);
+}
+
+.toolbar-actions .select-caption {
+  position: static;
+  width: auto;
+  height: auto;
+  margin: 0;
+  padding: 0;
+  overflow: visible;
+  clip: unset;
+  clip-path: none;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.toolbar-actions .select-label select {
+  flex: 1;
+  min-width: 0;
+  margin-left: auto;
+  max-width: 62%;
+  text-align: right;
+  text-align-last: right;
+}
+
+.toolbar-actions .menu-icon {
+  display: block;
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+}
+
+.toolbar-more-sep {
+  height: 1px;
+  margin: 0.25rem 0.35rem;
+  background: var(--chrome-border);
+  flex-shrink: 0;
+}
+
+.toolbar-actions > .btn {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.5rem;
+  width: 100%;
+  min-height: 2.25rem;
+  padding: 0.35rem 0.5rem;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  box-shadow: none;
+  color: var(--chrome-text);
+  text-align: left;
+}
+
+.toolbar-actions > .btn:hover,
+.toolbar-actions > .btn:focus-visible {
+  background: var(--chrome-hover);
+  border-color: transparent;
+}
+
+.toolbar-actions > .btn .btn-text {
+  font-size: 0.8125rem;
+  font-weight: 450;
+}
+
 .btn.overflow-btn {
-  display: none;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   min-width: 2.25rem;
@@ -2537,11 +2682,16 @@ body[data-view="slides"] .preview .md-section-toggle {
   white-space: pre;
 }
 
+html[data-mermaid-look="handDrawn"] {
+  --mermaid-font: "Excalifont", "Segoe UI", "Helvetica Neue", sans-serif;
+}
+
 .preview .mermaid {
   position: relative;
   overflow: auto;
   margin: 1rem 0;
   background: var(--mermaid-bg);
+  font-family: var(--mermaid-font);
 }
 
 .preview .mermaid svg {
@@ -2550,6 +2700,30 @@ body[data-view="slides"] .preview .md-section-toggle {
   display: block;
   margin: 0 auto;
   background: var(--mermaid-bg);
+  font-family: var(--mermaid-font);
+}
+
+.preview .mermaid text,
+.preview .mermaid tspan,
+.preview .mermaid .nodeLabel,
+.preview .mermaid .edgeLabel,
+.preview .mermaid .label,
+.preview .mermaid foreignObject,
+.preview .mermaid foreignObject div,
+.preview .mermaid foreignObject span,
+.preview .mermaid foreignObject p {
+  font-family: var(--mermaid-font) !important;
+}
+
+.mermaid-zoom-stage,
+.mermaid-zoom-stage svg,
+.mermaid-zoom-stage text,
+.mermaid-zoom-stage tspan,
+.mermaid-zoom-stage foreignObject,
+.mermaid-zoom-stage foreignObject div,
+.mermaid-zoom-stage foreignObject span,
+.mermaid-zoom-stage foreignObject p {
+  font-family: var(--mermaid-font) !important;
 }
 
 .preview .mermaid-zoom-btn {
@@ -2687,12 +2861,31 @@ body[data-view="slides"] .preview .md-section-toggle {
   -webkit-overflow-scrolling: touch;
 }
 
+.mermaid-zoom-scaler {
+  margin: 0 auto;
+  overflow: hidden;
+}
+
+.mermaid-zoom-scaler-inner {
+  transform-origin: top left;
+  will-change: transform;
+}
+
 .mermaid-zoom-stage svg {
   display: block;
-  margin: 0 auto;
   max-width: none;
-  height: auto;
   background: var(--mermaid-bg);
+}
+
+/* Mermaid node labels use <p> inside foreignObject. Outside .preview the UA
+   margin-top:1em clips text (svg2roughjs also drops Mermaid's p{margin:0} style). */
+.mermaid-zoom-stage foreignObject p,
+.mermaid-zoom-stage foreignObject div {
+  margin: 0;
+}
+
+.preview .mermaid foreignObject p {
+  margin: 0;
 }
 
 html[data-theme="fancy"] .mermaid-zoom-dialog {
@@ -3324,7 +3517,7 @@ html[data-theme="fancy"] .photo-credit:not([hidden]) {
   }
 
   .toolbar-menu,
-  .toolbar-actions,
+  .toolbar-bar,
   .toolbar-cluster {
     gap: 0.3rem;
   }
@@ -3342,45 +3535,26 @@ html[data-theme="fancy"] .photo-credit:not([hidden]) {
     flex-wrap: nowrap;
   }
 
-  .btn.overflow-btn {
-    display: inline-flex;
-  }
-
+  /* Same panel as desktop; taller on phones so the relocated bar fits. */
   .toolbar-actions {
-    display: none;
-    position: absolute;
-    top: calc(100% + 6px);
-    right: 0;
-    z-index: 1000;
     min-width: min(18rem, calc(100vw - 1.5rem));
-    /* Cap to the remaining viewport so long menus scroll instead of clipping. */
+    max-width: min(22rem, calc(100vw - 1.5rem));
     max-height: calc(100vh - var(--toolbar-h) - 12px);
     max-height: calc(100dvh - var(--toolbar-h) - 12px - env(safe-area-inset-bottom, 0px));
-    overflow-x: hidden;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-    overscroll-behavior: contain;
-    flex-direction: column;
-    align-items: stretch;
-    /* Desktop uses flex-end for the horizontal toolbar; that packs a column
-       menu to the bottom and clips the top items. */
-    justify-content: flex-start;
-    flex-wrap: nowrap;
     gap: 0.1rem;
     padding: 0.35rem;
-    background: var(--chrome-surface);
-    border: 1px solid var(--chrome-border);
-    border-radius: 8px;
-    box-shadow: var(--chrome-shadow, 0 8px 24px rgba(26, 29, 35, 0.12));
-  }
-
-  .toolbar-menu.is-open .toolbar-actions {
-    display: flex;
   }
 
   .toolbar-actions > *,
   .toolbar-cluster {
     flex-shrink: 0;
+  }
+
+  .toolbar-actions .toolbar-bar {
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+    gap: 0.1rem;
   }
 
   .toolbar-cluster {
@@ -3394,6 +3568,15 @@ html[data-theme="fancy"] .photo-credit:not([hidden]) {
     margin-top: 0.2rem;
     padding-top: 0.3rem;
     border-top: 1px solid var(--chrome-border);
+  }
+
+  .toolbar-actions .toolbar-bar + .toolbar-more-sep,
+  .toolbar-more-sep {
+    margin: 0.25rem 0.7rem;
+  }
+
+  .toolbar-actions .btn-text {
+    display: none;
   }
 
   .toolbar-actions .btn,

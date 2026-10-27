@@ -57,6 +57,24 @@ graph TB
 ```
 
 ```mermaid
+graph TD
+    %% Define Nodes
+    User([User Request]) --> Planner[📅 Planner Agent]
+    
+    subgraph Multi-Agent System
+        Planner -->|Creates Outline| Researcher[🔍 Researcher Agent]
+        Researcher -->|Gathers Data| Writer[✍️ Writer Agent]
+        Writer -->|Drafts Content| Critic[🧐 Critic Agent]
+        
+        %% Feedback Loop
+        Critic -->|Feedback / Rejections| Writer
+    end
+    
+    %% Final Output
+    Critic -->|Approved Content| Output[/Final Deliverable/]
+```
+
+```mermaid
 sequenceDiagram
     loop Daily query
         Alice->>Bob: Hello Bob, how are you?

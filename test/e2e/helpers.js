@@ -182,3 +182,38 @@ export async function headingText(locator) {
     return (clone.textContent || "").trim();
   });
 }
+
+/**
+ * Open the toolbar kebab so Theme/Width/Diagrams/Print/Help (and more) are actionable.
+ * @param {import('playwright/test').Page} page
+ */
+export async function openSettings(page) {
+  const overflowBtn = page.locator("#overflow-btn");
+  const open = await page.locator("#toolbar-menu").evaluate((el) =>
+    el.classList.contains("is-open"),
+  );
+  if (!open) await overflowBtn.click();
+  await page.locator("#theme-select").waitFor({ state: "visible" });
+}
+
+/**
+ * Close the toolbar overflow panel if it is open (avoids selects intercepting clicks).
+ * @param {import('playwright/test').Page} page
+ */
+export async function closeSettings(page) {
+  const open = await page.locator("#toolbar-menu").evaluate((el) =>
+    el.classList.contains("is-open"),
+  );
+  if (!open) return;
+  await page.locator("#overflow-btn").click();
+  await page.locator("#theme-select").waitFor({ state: "hidden" });
+}
+
+/**
+ * Open overflow and click Help (loads GUIDE in-place on unmodified left-click).
+ * @param {import('playwright/test').Page} page
+ */
+export async function clickHelp(page) {
+  await openSettings(page);
+  await page.locator("#help-btn").click();
+}

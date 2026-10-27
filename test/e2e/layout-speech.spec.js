@@ -1,5 +1,5 @@
 import { test, expect } from "playwright/test";
-import { openFreshApp, headingText } from "./helpers.js";
+import { openFreshApp, headingText, openSettings } from "./helpers.js";
 
 test.describe("layout / speech / print", () => {
   test("collapsing the editor leaves the preview visible", async ({ page }) => {
@@ -18,8 +18,8 @@ test.describe("layout / speech / print", () => {
     await page.setViewportSize({ width: 801, height: 720 });
     await openFreshApp(page);
 
-    const actions = page.locator("#toolbar-actions");
-    const box = await actions.boundingBox();
+    const bar = page.locator("#toolbar-bar");
+    const box = await bar.boundingBox();
     expect(box?.height || 999).toBeLessThan(80);
   });
 
@@ -66,10 +66,26 @@ test.describe("layout / speech / print", () => {
 
   test("print media does not change data-theme", async ({ page }) => {
     await openFreshApp(page);
+    await openSettings(page);
     await page.locator("#theme-select").selectOption("github-dark");
     await expect(page.locator("html")).toHaveAttribute("data-theme", "github-dark");
 
     await page.emulateMedia({ media: "print" });
     await expect(page.locator("html")).toHaveAttribute("data-theme", "github-dark");
+  });
+
+  test("desktop kebab opens theme and print controls", async ({ page }) => {
+    await page.setViewportSize({ width: 1100, height: 720 });
+    await openFreshApp(page);
+
+    await expect(page.locator("#overflow-btn")).toBeVisible();
+    await expect(page.locator("#toolbar-actions")).toBeHidden();
+    await expect(page.locator("#print-btn")).toBeHidden();
+    await expect(page.locator("#toolbar-bar")).toBeVisible();
+    await page.locator("#overflow-btn").click();
+    await expect(page.locator("#toolbar-actions")).toBeVisible();
+    await expect(page.locator("#print-btn")).toBeVisible();
+    await page.locator("#theme-select").selectOption("sepia");
+    await expect(page.locator("html")).toHaveAttribute("data-theme", "sepia");
   });
 });
