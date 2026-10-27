@@ -2,7 +2,13 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { test, expect } from "playwright/test";
-import { openFreshApp, headingText, openSettings } from "./helpers.js";
+import {
+  openFreshApp,
+  headingText,
+  openSettings,
+  closeSettings,
+  clickHelp,
+} from "./helpers.js";
 
 const mermaidFixture = readFileSync(
   join(dirname(fileURLToPath(import.meta.url)), "../mermaid_file.md"),
@@ -58,7 +64,7 @@ test.describe("editor + render", () => {
     await page.locator("#editor").fill("# Draft\n\nNot the guide.");
     await expect.poll(async () => headingText(page.locator("#preview h1"))).toBe("Draft");
 
-    await page.locator("#help-btn").click();
+    await clickHelp(page);
     await expect
       .poll(async () => page.locator("#editor").inputValue(), { timeout: 10_000 })
       .toMatch(/How to use Markdown Editor/);
@@ -92,7 +98,7 @@ test.describe("editor + render", () => {
     page.on("dialog", (dialog) => dialog.accept());
 
     // Establish a clean baseline (empty untitled can be dirty vs a prior GUIDE snapshot).
-    await page.locator("#help-btn").click();
+    await clickHelp(page);
     await expect
       .poll(async () => page.locator("#editor").inputValue(), { timeout: 10_000 })
       .toMatch(/How to use Markdown Editor/);
@@ -107,7 +113,7 @@ test.describe("editor + render", () => {
       })
       .toMatch(/^data:image\/png/);
 
-    await page.locator("#help-btn").click();
+    await clickHelp(page);
     await expect
       .poll(async () => page.locator("#editor").inputValue(), { timeout: 10_000 })
       .toMatch(/How to use Markdown Editor/);
@@ -167,7 +173,7 @@ test.describe("editor + render", () => {
     await openFreshApp(page);
     page.on("dialog", (dialog) => dialog.accept());
 
-    await page.locator("#help-btn").click();
+    await clickHelp(page);
     await expect
       .poll(async () => page.locator("#editor").inputValue(), { timeout: 10_000 })
       .toMatch(/How to use Markdown Editor/);
@@ -180,7 +186,7 @@ test.describe("editor + render", () => {
       .poll(async () => page.evaluate(() => window.__permissionRequests))
       .toBeGreaterThan(0);
 
-    await page.locator("#help-btn").click();
+    await clickHelp(page);
     await expect
       .poll(async () => page.locator("#editor").inputValue(), { timeout: 10_000 })
       .toMatch(/How to use Markdown Editor/);
@@ -499,6 +505,8 @@ test.describe("editor + render", () => {
     await expect(diagram.locator("> svg")).toHaveAttribute("data-mermaid-sketched", "1", {
       timeout: 20_000,
     });
+    // Overflow panel sits over the preview; close it so zoom is clickable.
+    await closeSettings(page);
 
     await diagram.locator(".mermaid-zoom-btn").click();
     const zoomDialog = page.locator("#mermaid-zoom-dialog");
