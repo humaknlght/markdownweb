@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { test, expect } from "playwright/test";
-import { openFreshApp, headingText } from "./helpers.js";
+import { openFreshApp, headingText, openSettings } from "./helpers.js";
 
 const mermaidFixture = readFileSync(
   join(dirname(fileURLToPath(import.meta.url)), "../mermaid_file.md"),
@@ -227,6 +227,227 @@ test.describe("editor + render", () => {
     await expect(page.locator("#preview .mermaid > svg")).toBeVisible({ timeout: 20_000 });
   });
 
+  test("mermaid diagram style switches between classic and Excalidraw", async ({ page }) => {
+    await openFreshApp(page);
+
+    await page.locator("#editor").fill("```mermaid\nflowchart LR\n  A-->B\n```");
+    const svg = page.locator("#preview .mermaid > svg");
+    await expect(svg).toBeVisible({ timeout: 20_000 });
+    const classicPathCount = await svg.locator("path").count();
+
+    await openSettings(page);
+    await page.locator("#mermaid-look-select").selectOption("handDrawn");
+    // Excalidraw look always goes through svg2roughjs (solid fills) for WCAG.
+    await expect(svg).toHaveAttribute("data-mermaid-sketched", "1", { timeout: 20_000 });
+    await expect(page.locator("#mermaid-look-select")).toHaveValue("handDrawn");
+    await expect
+      .poll(() => page.evaluate(() => localStorage.getItem("md-editor:mermaidLook")))
+      .toBe("handDrawn");
+
+    await page.locator("#mermaid-look-select").selectOption("classic");
+    await expect(page.locator("#mermaid-look-select")).toHaveValue("classic");
+    await expect(svg).not.toHaveAttribute("data-mermaid-sketched", "1", {
+      timeout: 20_000,
+    });
+  });
+
+  test("mermaid Excalidraw look sketches sequence diagrams via svg2roughjs", async ({ page }) => {
+    await openFreshApp(page);
+
+    const sequence = [
+      "```mermaid",
+      "sequenceDiagram",
+      "    Alice->>Bob: Hello",
+      "    Bob-->>Alice: Hi",
+      "```",
+    ].join("\n");
+    await page.locator("#editor").fill(sequence);
+    const svg = page.locator("#preview .mermaid > svg");
+    await expect(svg).toBeVisible({ timeout: 20_000 });
+    const classicPathCount = await svg.locator("path").count();
+
+    await openSettings(page);
+    await page.locator("#mermaid-look-select").selectOption("handDrawn");
+    await expect
+      .poll(async () => svg.locator("path").count(), { timeout: 20_000 })
+      .toBeGreaterThan(classicPathCount);
+    await expect(svg).toHaveAttribute("data-mermaid-sketched", "1");
+  });
+
+  test("mermaid Excalidraw preserves classDef fills with readable label contrast", async ({
+    page,
+  }) => {
+    await openFreshApp(page);
+    await openSettings(page);
+    await page.locator("#theme-select").selectOption("github-light");
+    await page.locator("#editor").fill(
+      [
+        "```mermaid",
+        "graph TB",
+        "    sq[Square shape] --> ci((Circle shape))",
+        "    subgraph A",
+        "        od>Odd shape] --> ro(Rounded square shape)",
+        "        di{Diamond} ==> ro2(Rounded square shape)",
+        "    end",
+        "    e((Inner circle)) --> f(ok)",
+        "    classDef green fill:#9f6,stroke:#333,stroke-width:2px;",
+        "    classDef orange fill:#f96,stroke:#333,stroke-width:4px;",
+        "    class sq,e green",
+        "    class di orange",
+        "```",
+      ].join("\n"),
+    );
+    const svg = page.locator("#preview .mermaid > svg");
+    await expect(svg).toBeVisible({ timeout: 20_000 });
+    await openSettings(page);
+    await page.locator("#mermaid-look-select").selectOption("handDrawn");
+    await expect(svg).toHaveAttribute("data-mermaid-sketched", "1", { timeout: 20_000 });
+
+    const report = await page.evaluate(() => {
+      const parse = (s) => {
+        const m = String(s)
+          .trim()
+          .match(/^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)/);
+        if (m) return { r: +m[1], g: +m[2], b: +m[3] };
+        if (String(s).startsWith("#")) {
+          let h = String(s).slice(1);
+          if (h.length === 3) h = [...h].map((c) => c + c).join("");
+          if (h.length !== 6) return null;
+          return {
+            r: parseInt(h.slice(0, 2), 16),
+            g: parseInt(h.slice(2, 4), 16),
+            b: parseInt(h.slice(4, 6), 16),
+          };
+        }
+        return null;
+      };
+      const lum = (c) => {
+        const f = (v) => {
+          v /= 255;
+          return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+        };
+        return 0.2126 * f(c.r) + 0.7152 * f(c.g) + 0.0722 * f(c.b);
+      };
+      const contrast = (a, b) => {
+        if (!a || !b) return 0;
+        const x = lum(a);
+        const y = lum(b);
+        return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
+      };
+      const near = (a, b, tol = 45) =>
+        a && b && Math.abs(a.r - b.r) < tol && Math.abs(a.g - b.g) < tol && Math.abs(a.b - b.b) < tol;
+
+      const green = { r: 153, g: 255, b: 102 }; // #9f6
+      const orange = { r: 255, g: 153, b: 102 }; // #f96
+      let sawGreen = false;
+      let sawOrange = false;
+      let textFails = 0;
+      const svgEl = document.querySelector("#preview .mermaid svg");
+      for (const el of svgEl.querySelectorAll("path, rect, polygon, circle, ellipse")) {
+        const fill = parse(getComputedStyle(el).fill);
+        if (near(fill, green)) sawGreen = true;
+        if (near(fill, orange)) sawOrange = true;
+      }
+      for (const g of svgEl.querySelectorAll("g.node")) {
+        let fillRgb = null;
+        for (const shape of g.querySelectorAll("path, rect, polygon, circle, ellipse")) {
+          const f = parse(getComputedStyle(shape).fill);
+          if (f && getComputedStyle(shape).fill !== "none") {
+            fillRgb = f;
+            break;
+          }
+        }
+        if (!fillRgb) continue;
+        for (const t of g.querySelectorAll("text, tspan")) {
+          const ink = parse(getComputedStyle(t).fill);
+          if (ink && contrast(ink, fillRgb) < 4.5) textFails += 1;
+        }
+        for (const t of g.querySelectorAll(".nodeLabel, foreignObject div, foreignObject span")) {
+          const ink = parse(getComputedStyle(t).color);
+          if (ink && contrast(ink, fillRgb) < 4.5) textFails += 1;
+        }
+      }
+      return { sawGreen, sawOrange, textFails };
+    });
+    expect(report.sawGreen, "classDef green fill should remain").toBe(true);
+    expect(report.sawOrange, "classDef orange fill should remain").toBe(true);
+    expect(report.textFails, "node labels must meet 4.5:1 vs fill").toBe(0);
+  });
+
+  test("mermaid Excalidraw paints use theme CSS variables for WCAG contrast", async ({ page }) => {
+    await openFreshApp(page);
+
+    await page.locator("#editor").fill(
+      [
+        "```mermaid",
+        "sequenceDiagram",
+        "    Alice->>Bob: Hello",
+        "    Note right of Bob: hi",
+        "```",
+        "",
+        "```mermaid",
+        "graph TD",
+        "    A[Start] --> B{OK?}",
+        "```",
+      ].join("\n"),
+    );
+    await expect(page.locator("#preview .mermaid > svg").first()).toBeVisible({
+      timeout: 20_000,
+    });
+    await openSettings(page);
+    await page.locator("#mermaid-look-select").selectOption("handDrawn");
+    await expect(page.locator("#preview .mermaid > svg").first()).toBeVisible({
+      timeout: 20_000,
+    });
+    await expect
+      .poll(
+        async () =>
+          page.locator('#preview .mermaid svg [stroke^="var(--mermaid-"]').count(),
+        { timeout: 20_000 },
+      )
+      .toBeGreaterThan(0);
+
+    await openSettings(page);
+    for (const theme of ["github-light", "github-dark", "sepia", "terminal"]) {
+      await page.locator("#theme-select").selectOption(theme);
+      const report = await page.evaluate(() => {
+        const parse = (s) => {
+          const m = String(s).match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+          return m ? { r: +m[1], g: +m[2], b: +m[3] } : null;
+        };
+        const lum = (c) => {
+          const f = (v) => {
+            v /= 255;
+            return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+          };
+          return 0.2126 * f(c.r) + 0.7152 * f(c.g) + 0.0722 * f(c.b);
+        };
+        const contrast = (a, b) => {
+          if (!a || !b) return null;
+          const x = lum(a);
+          const y = lum(b);
+          return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
+        };
+        const root = getComputedStyle(document.documentElement);
+        const bg = parse(root.getPropertyValue("--mermaid-bg"));
+        const nodeBg = parse(root.getPropertyValue("--mermaid-node-bg"));
+        let bad = 0;
+        for (const el of document.querySelectorAll(
+          "#preview .mermaid svg path, #preview .mermaid svg line",
+        )) {
+          const st = getComputedStyle(el);
+          const stroke = parse(st.stroke);
+          if (!stroke || st.stroke === "none") continue;
+          const vsBg = contrast(stroke, bg);
+          const vsNode = contrast(stroke, nodeBg);
+          if ((vsBg ?? 99) < 3 && (vsNode ?? 99) < 3) bad += 1;
+        }
+        return bad;
+      });
+      expect(report, `low-contrast strokes in ${theme}`).toBe(0);
+    }
+  });
+
   test("mermaid zoom enlarges only the diagram", async ({ page }) => {
     await openFreshApp(page);
 
@@ -259,6 +480,53 @@ test.describe("editor + render", () => {
     await expect(zoomDialog).toBeHidden();
   });
 
+  test("mermaid Excalidraw zoom keeps foreignObject labels unclipped", async ({ page }) => {
+    await openFreshApp(page);
+    await page.locator("#editor").fill(
+      [
+        "```mermaid",
+        "graph TB",
+        "    sq[Square shape] --> ci((Circle shape))",
+        "    classDef green fill:#9f6,stroke:#333,stroke-width:2px;",
+        "    class sq green",
+        "```",
+      ].join("\n"),
+    );
+    const diagram = page.locator("#preview .mermaid").first();
+    await expect(diagram.locator("> svg")).toBeVisible({ timeout: 20_000 });
+    await openSettings(page);
+    await page.locator("#mermaid-look-select").selectOption("handDrawn");
+    await expect(diagram.locator("> svg")).toHaveAttribute("data-mermaid-sketched", "1", {
+      timeout: 20_000,
+    });
+
+    await diagram.locator(".mermaid-zoom-btn").click();
+    const zoomDialog = page.locator("#mermaid-zoom-dialog");
+    await expect(zoomDialog).toBeVisible();
+
+    const report = await page.evaluate(() => {
+      const span = [...document.querySelectorAll("#mermaid-zoom-stage span")].find((s) =>
+        s.textContent?.includes("Square shape"),
+      );
+      const fo = span?.closest("foreignObject");
+      if (!span || !fo) return { ok: false, reason: "missing label" };
+      const sr = span.getBoundingClientRect();
+      const fr = fo.getBoundingClientRect();
+      const p = span.querySelector("p") || span;
+      const marginTop = getComputedStyle(p).marginTop;
+      return {
+        ok: Math.abs(sr.y - fr.y) < 2 && sr.bottom <= fr.bottom + 2,
+        dy: sr.y - fr.y,
+        marginTop,
+        label: span.textContent?.trim(),
+      };
+    });
+    expect(report.ok, `label clipped (dy=${report.dy}, marginTop=${report.marginTop})`).toBe(
+      true,
+    );
+    await zoomDialog.locator("#mermaid-zoom-close").click();
+  });
+
   test("gantt chart relayouts at full preview width without CSS zoom", async ({ page }) => {
     await openFreshApp(page);
     await page.setViewportSize({ width: 1400, height: 900 });
@@ -276,6 +544,7 @@ test.describe("editor + render", () => {
       "```",
     ].join("\n");
 
+    await openSettings(page);
     await page.locator("#width-select").selectOption("readable");
     await page.locator("#editor").fill(gantt);
     const diagram = page.locator("#preview .mermaid").first();
@@ -302,6 +571,7 @@ test.describe("editor + render", () => {
     expect(readable.host).toBeGreaterThan(100);
     expect(readable.viewBoxW).toBeGreaterThan(100);
 
+    await openSettings(page);
     await page.locator("#width-select").selectOption("full");
     await expect(page.locator("#preview")).toHaveAttribute("data-width", "full");
 
@@ -328,6 +598,7 @@ test.describe("editor + render", () => {
   test("fancy theme Mermaid edge labels meet WCAG AA contrast", async ({ page }) => {
     await openFreshApp(page);
 
+    await openSettings(page);
     await page.locator("#theme-select").selectOption("fancy");
     await expect(page.locator("html")).toHaveAttribute("data-theme", "fancy");
 

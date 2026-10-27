@@ -182,3 +182,16 @@ export async function headingText(locator) {
     return (clone.textContent || "").trim();
   });
 }
+
+/**
+ * Open the toolbar kebab so Theme/Width/Diagrams/Print (and more) are actionable.
+ * @param {import('playwright/test').Page} page
+ */
+export async function openSettings(page) {
+  const overflowBtn = page.locator("#overflow-btn");
+  const open = await page.locator("#toolbar-menu").evaluate((el) =>
+    el.classList.contains("is-open"),
+  );
+  if (!open) await overflowBtn.click();
+  await page.locator("#theme-select").waitFor({ state: "visible" });
+}

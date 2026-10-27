@@ -11,7 +11,7 @@ import { createHash } from "node:crypto";
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { CDN_PRECACHE } from "./pwa.mjs";
+import { CDN_LAZY, CDN_PRECACHE } from "./pwa.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, "..");
@@ -27,11 +27,19 @@ function sha384Integrity(buffer) {
   return `sha384-${createHash("sha384").update(buffer).digest("base64")}`;
 }
 
+function isJsdelivrModuleUrl(url) {
+  if (!url.startsWith("https://cdn.jsdelivr.net/")) return false;
+  // Classic .mjs/.js files, or jsDelivr's `/+esm` rewritten module URLs.
+  return /\.(?:mjs|js)(?:\?.*)?$/.test(url) || /\/\+esm(?:\?|$)/.test(url);
+}
+
 /** Only keep path-like ESM specifiers (avoids false matches in minified code). */
 function isModuleSpecifier(spec) {
   if (!spec || /[,\s()<>{}]/.test(spec)) return false;
+  // jsDelivr +esm rewrites deps to root-absolute `/npm/.../+esm` paths.
+  if (spec.startsWith("/npm/") && /\/\+esm(?:\?|$)/.test(spec)) return true;
   if (!/^\.{1,2}\/|^https:\/\/cdn\.jsdelivr\.net\//.test(spec)) return false;
-  return /\.(?:mjs|js)(?:\?.*)?$/.test(spec);
+  return /\.(?:mjs|js)(?:\?.*)?$/.test(spec) || /\/\+esm(?:\?|$)/.test(spec);
 }
 
 function collectModuleSpecifiers(source) {
@@ -72,11 +80,7 @@ async function walkModuleGraph(entryUrl) {
       } catch {
         continue;
       }
-      if (
-        abs.startsWith("https://cdn.jsdelivr.net/") &&
-        /\.(?:mjs|js)(?:\?.*)?$/.test(abs) &&
-        !seen.has(abs)
-      ) {
+      if (isJsdelivrModuleUrl(abs) && !seen.has(abs)) {
         queue.push(abs);
       }
     }
@@ -130,9 +134,15 @@ export async function computeCdnIntegrity() {
     throw new Error("CDN_PRECACHE is missing the Mermaid entry URL");
   }
 
-  const graphFiles = await walkModuleGraph(mermaidEntry);
-  for (const [url, buffer] of graphFiles) {
-    integrity[url] = sha384Integrity(buffer);
+  const graphEntries = [
+    mermaidEntry,
+    ...CDN_LAZY.filter((u) => u !== mermaidEntry),
+  ];
+  for (const entry of graphEntries) {
+    const graphFiles = await walkModuleGraph(entry);
+    for (const [url, buffer] of graphFiles) {
+      integrity[url] = sha384Integrity(buffer);
+    }
   }
 
   const seeds = CDN_PRECACHE.filter((u) => u !== mermaidEntry);

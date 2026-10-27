@@ -266,6 +266,7 @@ const STORAGE_KEYS = {
   history: "md-editor:history",
   split: "md-editor:split",
   width: "md-editor:width",
+  mermaidLook: "md-editor:mermaidLook",
   voice: "md-editor:voice",
   syncScroll: "md-editor:sync-scroll",
   filesDrawer: "md-editor:filesDrawer",
@@ -313,6 +314,10 @@ const THEMES = [
   "zen",
 ];
 const WIDTHS = ["readable", "full"];
+/** Mermaid `look` values — handDrawn is the RoughJS / Excalidraw-style sketch. */
+const MERMAID_LOOKS = ["classic", "handDrawn"];
+/** Hand-drawn diagram face (cdn.jsdelivr.net/npm/excalifont@1.0.0). */
+const MERMAID_HAND_FONT = '"Excalifont", "Segoe UI", "Helvetica Neue", sans-serif';
 const VIEWS = ["edit", "reader", "present", "slides"];
 
 const editor = document.getElementById("editor");
@@ -323,6 +328,7 @@ const panes = document.getElementById("panes");
 const splitter = document.getElementById("splitter");
 const themeSelect = document.getElementById("theme-select");
 const widthSelect = document.getElementById("width-select");
+const mermaidLookSelect = document.getElementById("mermaid-look-select");
 const fileInput = document.getElementById("file-input");
 const filesOpenFileBtn = document.getElementById("files-open-file-btn");
 const shareDropdown = document.getElementById("share-dropdown");
@@ -360,6 +366,7 @@ const historyBtn = document.getElementById("history-btn");
 const historyMenu = document.getElementById("history-menu");
 const historyDropdown = document.getElementById("history-dropdown");
 const toolbarMenu = document.getElementById("toolbar-menu");
+const toolbarBar = document.getElementById("toolbar-bar");
 const toolbarActions = document.getElementById("toolbar-actions");
 const overflowBtn = document.getElementById("overflow-btn");
 const toastEl = document.getElementById("toast");
@@ -912,6 +919,12 @@ let caretRevealRaf = 0;
 const SPEECH_HIGHLIGHT = "speech-word";
 const MERMAID_CDN =
   "https://cdn.jsdelivr.net/npm/mermaid@12.2.0/dist/mermaid.esm.min.mjs";
+/**
+ * RoughJS SVG sketcher for the Excalidraw (handDrawn) look.
+ * Mermaid's native handDrawn uses dense hachure fills that fail WCAG (fill color
+ * becomes stroke ink). We always render classic Mermaid, then sketch with solid fills.
+ */
+const SVG2ROUGH_CDN = "https://cdn.jsdelivr.net/npm/svg2roughjs@3.2.3/+esm";
 
 /**
  * Mermaid gantt keeps alignment spaces in "Task name    :meta" as part of the
@@ -968,6 +981,14 @@ const MERMAID_THEME_CSS = `
   .edgeLabel foreignObject p,.edgeLabel foreignObject span {
     color: var(--mermaid-fg) !important;
     fill: var(--mermaid-fg) !important;
+  }
+  text,tspan,.nodeLabel,.edgeLabel,.label,.cluster-label,
+  foreignObject,foreignObject div,foreignObject span,foreignObject p {
+    font-family: var(--mermaid-font, inherit) !important;
+  }
+  /* Zero UA <p> margins — otherwise labels clip inside foreignObject (esp. zoom). */
+  foreignObject div,foreignObject span,foreignObject p {
+    margin: 0 !important;
   }
   /* Mermaid bakes fill:#333 on the SVG root; glyphs live in <tspan>, so force them. */
   .nodeLabel tspan,.edgeLabel tspan,.label tspan,.cluster-label tspan,
@@ -1045,6 +1066,11 @@ const MERMAID_THEME_CSS = `
     stroke: var(--mermaid-node-border) !important;
   }
   .er.relationshipLine { stroke: var(--mermaid-line) !important; }
+  /* Requirement diagrams paint edges via CSS #333 (no stroke attr). */
+  path.edge-thickness-normal,path.edge-pattern-solid,path.edge-pattern-dashed,
+  path.edge-pattern-dotted,g.edgePath path,line:not([class]) {
+    stroke: var(--mermaid-line) !important;
+  }
 
   /*
    * Mermaid bakes #id { fill:#333 } and per-diagram class fills (pie, gantt,
@@ -1227,7 +1253,508 @@ const MERMAID_THEME_CSS = `
 `;
 
 let mermaidModule;
+let svg2roughModule;
 let mermaidGen = 0;
+/** @type {"classic" | "handDrawn"} */
+let mermaidLook = "classic";
+
+/**
+ * Parse `#rgb` / `#rrggbb` / `rgb()` / `rgba()` into sRGB channels.
+ * @param {string} raw
+ * @returns {{ r: number, g: number, b: number } | null}
+ */
+function parseCssColorRgb(raw) {
+  if (!raw) return null;
+  const s = String(raw).trim().toLowerCase();
+  if (s === "none" || s === "transparent") return null;
+  const rgb = s.match(/^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)/);
+  if (rgb) return { r: +rgb[1], g: +rgb[2], b: +rgb[3] };
+  const hsl = s.match(/^hsla?\(\s*([\d.]+)\s*,\s*([\d.]+)%\s*,\s*([\d.]+)%/);
+  if (hsl) {
+    // Rough/Mermaid sometimes emit hsl(); convert for matching.
+    const h = ((+hsl[1] % 360) + 360) % 360;
+    const sat = +hsl[2] / 100;
+    const lit = +hsl[3] / 100;
+    const a = sat * Math.min(lit, 1 - lit);
+    const f = (n) => {
+      const k = (n + h / 30) % 12;
+      return lit - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
+    };
+    return {
+      r: Math.round(f(0) * 255),
+      g: Math.round(f(8) * 255),
+      b: Math.round(f(4) * 255),
+    };
+  }
+  if (!s.startsWith("#")) return null;
+  let h = s.slice(1);
+  if (h.length === 3 || h.length === 4) h = [...h].map((c) => c + c).join("");
+  if (h.length === 8) h = h.slice(0, 6);
+  if (h.length !== 6) return null;
+  return {
+    r: parseInt(h.slice(0, 2), 16),
+    g: parseInt(h.slice(2, 4), 16),
+    b: parseInt(h.slice(4, 6), 16),
+  };
+}
+
+/** @param {{ r: number, g: number, b: number }} c */
+function cssColorKey(c) {
+  return `${c.r | 0},${c.g | 0},${c.b | 0}`;
+}
+
+/** @param {{ r: number, g: number, b: number }} c */
+function relativeLuminanceRgb(c) {
+  const f = (v) => {
+    v /= 255;
+    return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+  };
+  return 0.2126 * f(c.r) + 0.7152 * f(c.g) + 0.0722 * f(c.b);
+}
+
+/**
+ * WCAG 2 contrast ratio between two sRGB colors.
+ * @param {{ r: number, g: number, b: number }} a
+ * @param {{ r: number, g: number, b: number }} b
+ */
+function contrastRatioRgb(a, b) {
+  const L1 = relativeLuminanceRgb(a);
+  const L2 = relativeLuminanceRgb(b);
+  const hi = Math.max(L1, L2);
+  const lo = Math.min(L1, L2);
+  return (hi + 0.05) / (lo + 0.05);
+}
+
+/** Read live `--mermaid-*` tokens (theme-aware). */
+function readMermaidThemeTokens() {
+  const cs = getComputedStyle(document.documentElement);
+  const get = (name, fallback) => {
+    const v = cs.getPropertyValue(name).trim();
+    return v || fallback;
+  };
+  return {
+    bg: get("--mermaid-bg", "#ffffff"),
+    fg: get("--mermaid-fg", "#333333"),
+    nodeBg: get("--mermaid-node-bg", "#ececff"),
+    nodeBorder: get("--mermaid-node-border", "#9370db"),
+    clusterBg: get("--mermaid-cluster-bg", "#ffffde"),
+    clusterBorder: get("--mermaid-cluster-border", "#6b6b22"),
+    line: get("--mermaid-line", "#333333"),
+    labelBg: get("--mermaid-label-bg", "#e8e8e8"),
+    noteBg: get("--mermaid-note-bg", "#fff5ad"),
+    noteFg: get("--mermaid-note-fg", "#333333"),
+  };
+}
+
+/**
+ * Mermaid RoughJS paints from themeVariables at render time. Keep them in sync
+ * with the page theme so handDrawn output starts from WCAG-safe tokens.
+ */
+function mermaidThemeVariablesFromCss() {
+  const t = readMermaidThemeTokens();
+  const bg = parseCssColorRgb(t.bg);
+  const darkMode = bg ? relativeLuminanceRgb(bg) < 0.4 : false;
+  /** @type {Record<string, string | boolean>} */
+  const vars = {
+    darkMode,
+    background: t.bg,
+    primaryColor: t.nodeBg,
+    primaryTextColor: t.fg,
+    primaryBorderColor: t.nodeBorder,
+    lineColor: t.line,
+    secondaryColor: t.clusterBg,
+    tertiaryColor: t.labelBg,
+    noteBkgColor: t.noteBg,
+    noteTextColor: t.noteFg,
+  };
+  if (mermaidLook === "handDrawn") {
+    vars.fontFamily = MERMAID_HAND_FONT;
+  }
+  return vars;
+}
+
+/** Load Excalifont before measuring/sketching hand-drawn diagrams. */
+function ensureExcalifontLoaded() {
+  if (typeof document === "undefined" || !document.fonts?.load) {
+    return Promise.resolve();
+  }
+  // Warm the face; failures (offline) fall back to the sans stack in MERMAID_HAND_FONT.
+  return document.fonts.load(`16px ${MERMAID_HAND_FONT}`).then(
+    () => undefined,
+    () => undefined,
+  );
+}
+
+/**
+ * Apply a theme paint, beating Mermaid's baked stylesheet rules when needed.
+ * @param {Element} el
+ * @param {"stroke" | "fill"} attr
+ * @param {string} cssVarName
+ */
+function setMermaidPaintVar(el, attr, cssVarName) {
+  const value = `var(${cssVarName})`;
+  el.setAttribute(attr, value);
+  // Requirement / edge paths often get stroke from SVG <style>, which wins over
+  // presentation attributes — force the theme token.
+  if (el instanceof SVGElement) {
+    el.style.setProperty(attr, value, "important");
+  }
+}
+
+/**
+ * Pick a WCAG AA text ink CSS variable for a given background fill.
+ * Prefers theme fg/bg (works across light and dark); falls back by luminance.
+ * @param {{ r: number, g: number, b: number }} fillRgb
+ * @param {ReturnType<typeof readMermaidThemeTokens>} tokens
+ * @param {Record<string, string>} varByRole
+ */
+function mermaidTextInkVarForFill(fillRgb, tokens, varByRole) {
+  const candidates = [
+    ["fg", parseCssColorRgb(tokens.fg)],
+    ["bg", parseCssColorRgb(tokens.bg)],
+  ];
+  let bestRole = "fg";
+  let bestRatio = 0;
+  for (const [role, rgb] of candidates) {
+    if (!rgb) continue;
+    const ratio = contrastRatioRgb(rgb, fillRgb);
+    if (ratio > bestRatio) {
+      bestRatio = ratio;
+      bestRole = role;
+    }
+  }
+  if (bestRatio >= 4.5) return varByRole[bestRole];
+  // Mid-tone custom fills (classDef) may beat neither token at 4.5 — use ink by luminance.
+  return relativeLuminanceRgb(fillRgb) > 0.179 ? varByRole.fg : varByRole.bg;
+}
+
+/**
+ * Resolve the painted fill behind a label (node / cluster / note / label chip).
+ * @param {Element} el
+ * @returns {{ r: number, g: number, b: number } | null}
+ */
+function mermaidLabelBackgroundRgb(el) {
+  const host =
+    el.closest?.(
+      "g.node, g.cluster, g.note, .edgeLabel, .label, foreignObject",
+    ) || el.parentElement;
+  if (!host) return null;
+  for (const shape of host.querySelectorAll(
+    ":scope > path, :scope > rect, :scope > circle, :scope > polygon, :scope > ellipse, path, rect, circle, polygon, ellipse",
+  )) {
+    if (shape === el || shape.contains?.(el)) continue;
+    const tag = shape.tagName.toLowerCase();
+    if (tag === "text" || tag === "tspan") continue;
+    // Computed fill resolves var(--mermaid-*) after theme remaps.
+    const raw = getComputedStyle(shape).fill;
+    if (!raw || raw === "none" || raw.startsWith("url(")) continue;
+    const rgb = parseCssColorRgb(raw);
+    if (rgb) return rgb;
+  }
+  return null;
+}
+
+/**
+ * Rewrite baked RoughJS / svg2roughjs paints to CSS variables so:
+ * - strokes that used surface fills (pastel hachure) become ink (border/line)
+ * - colors follow the active theme (WCAG pairs from --mermaid-* tokens)
+ * - label ink contrasts against the actual node/cluster/classDef fill
+ * @param {SVGElement} svg
+ */
+function normalizeMermaidHandDrawnColors(svg) {
+  const tokens = readMermaidThemeTokens();
+  /** @type {Record<string, string>} */
+  const varByRole = {
+    bg: "--mermaid-bg",
+    fg: "--mermaid-fg",
+    nodeBg: "--mermaid-node-bg",
+    nodeBorder: "--mermaid-node-border",
+    clusterBg: "--mermaid-cluster-bg",
+    clusterBorder: "--mermaid-cluster-border",
+    line: "--mermaid-line",
+    labelBg: "--mermaid-label-bg",
+    noteBg: "--mermaid-note-bg",
+    noteFg: "--mermaid-note-fg",
+  };
+  /** Surface fills sketched as strokes must become ink for ≥3:1 UI contrast. */
+  const surfaceToInk = {
+    bg: "line",
+    nodeBg: "nodeBorder",
+    clusterBg: "clusterBorder",
+    labelBg: "line",
+    noteBg: "noteFg",
+  };
+
+  /** @type {Map<string, string>} */
+  const roleByColor = new Map();
+  for (const [role, value] of Object.entries(tokens)) {
+    const rgb = parseCssColorRgb(value);
+    if (rgb) roleByColor.set(cssColorKey(rgb), role);
+  }
+  // Classic Mermaid "base" defaults that Rough often bakes before CSS overrides.
+  // #333 is Mermaid's default edge stroke — treat as line ink, not text fill.
+  for (const [hex, role] of [
+    ["#ececff", "nodeBg"],
+    ["#9370db", "nodeBorder"],
+    ["#ffffde", "clusterBg"],
+    ["#f4f4f4", "labelBg"],
+    ["#e8e8e8", "labelBg"],
+    ["#ffffff", "bg"],
+    ["#333333", "line"],
+    ["#333", "line"],
+    ["#000000", "line"],
+    ["#000", "line"],
+    ["#fff5ad", "noteBg"],
+    ["#6b6b22", "clusterBorder"],
+  ]) {
+    const rgb = parseCssColorRgb(hex);
+    if (rgb) roleByColor.set(cssColorKey(rgb), role);
+  }
+
+  const bgRgb = parseCssColorRgb(tokens.bg);
+  const nodeBgRgb = parseCssColorRgb(tokens.nodeBg);
+
+  // Pass 1: remap shape paints (keep author classDef fills that are not theme tokens).
+  for (const el of svg.querySelectorAll(
+    "path, rect, line, circle, polygon, polyline",
+  )) {
+    const computed = getComputedStyle(el);
+
+    for (const attr of /** @type {const} */ (["stroke", "fill"])) {
+      let raw = el.getAttribute(attr);
+      if (raw?.startsWith("url(") || raw?.startsWith("var(")) continue;
+
+      // Mermaid edges often omit stroke attrs and paint via SVG CSS (#333).
+      if (!raw || raw === "none") {
+        const painted = computed[attr];
+        if (!painted || painted === "none") continue;
+        if (attr === "fill") {
+          const hadAttr = el.hasAttribute("fill") && el.getAttribute("fill") !== "none";
+          if (!hadAttr || raw === "none") continue;
+          raw = painted;
+        } else {
+          raw = painted;
+        }
+      }
+
+      const rgb = parseCssColorRgb(raw);
+      if (!rgb) continue;
+
+      let role = roleByColor.get(cssColorKey(rgb));
+      // Unknown low-contrast strokes against the canvas → theme ink. Do NOT remap
+      // unknown fills: classDef pastels (#9f6, #f96) are intentionally light and
+      // would otherwise be replaced with node-bg (contrast vs canvas is often <3).
+      if (!role && attr === "stroke" && bgRgb && contrastRatioRgb(rgb, bgRgb) < 3) {
+        role = "line";
+      }
+      if (!role) continue;
+
+      if (attr === "stroke" && surfaceToInk[role]) {
+        // Stroke-only sketch of a filled surface: restore the fill so ink sits
+        // on the intended background (e.g. note-fg on note-bg, not page bg).
+        const curFill = el.getAttribute("fill");
+        if (!curFill || curFill === "none") {
+          setMermaidPaintVar(el, "fill", varByRole[role]);
+        }
+        role = surfaceToInk[role];
+      }
+      // Note borders are inked with note-fg; without a fill they sit on the page
+      // canvas and fail contrast on dark themes (dark ink on dark bg).
+      if (
+        attr === "stroke" &&
+        role === "noteFg" &&
+        (!el.getAttribute("fill") || el.getAttribute("fill") === "none")
+      ) {
+        setMermaidPaintVar(el, "fill", varByRole.noteBg);
+      }
+      // Text-ish fills on shapes (arrowheads) that matched fg/line → line ink.
+      if (attr === "fill" && (role === "fg" || role === "line")) {
+        role = "line";
+      }
+
+      const cssVar = varByRole[role];
+      if (cssVar) setMermaidPaintVar(el, attr, cssVar);
+    }
+  }
+
+  // Pass 2: label ink against the (now final) shape fills — including classDef colors.
+  for (const el of svg.querySelectorAll("text, tspan")) {
+    const note =
+      el.classList.contains("noteText") ||
+      Boolean(el.closest?.(".noteText, .note"));
+    if (note) {
+      setMermaidPaintVar(el, "fill", varByRole.noteFg);
+      continue;
+    }
+    const behind = mermaidLabelBackgroundRgb(el) || nodeBgRgb || bgRgb;
+    const inkVar = behind
+      ? mermaidTextInkVarForFill(behind, tokens, varByRole)
+      : varByRole.fg;
+    setMermaidPaintVar(el, "fill", inkVar);
+  }
+
+  for (const label of svg.querySelectorAll(
+    ".nodeLabel, .edgeLabel, .label, .cluster-label, foreignObject div, foreignObject span, foreignObject p",
+  )) {
+    if (!(label instanceof HTMLElement) && !(label instanceof SVGElement)) continue;
+    const note = Boolean(label.closest?.(".noteText, .note"));
+    if (note) {
+      label.style.setProperty("color", `var(${varByRole.noteFg})`, "important");
+      continue;
+    }
+    const behind = mermaidLabelBackgroundRgb(label) || nodeBgRgb || bgRgb;
+    const inkVar = behind
+      ? mermaidTextInkVarForFill(behind, tokens, varByRole)
+      : varByRole.fg;
+    label.style.setProperty("color", `var(${inkVar})`, "important");
+  }
+}
+
+/**
+ * Fit viewBox around sketched content (RoughJS strokes bow outside Mermaid's
+ * box). Uses the root SVG bbox — per-element boxes from svg2roughjs can report
+ * huge empty extents (pie labels) that inflate the canvas and cause scrollbars.
+ *
+ * @param {SVGSVGElement | SVGElement} svg
+ * @param {{ pad?: number, tighten?: boolean }} [opts]
+ *   tighten: crop to content with uniform pad (hand-drawn). Mermaid/svg2roughjs
+ *   often leave asymmetric empty viewBox gutters, so the SVG box is centered
+ *   but the drawing looks shifted left/right in the preview.
+ */
+function fitMermaidSvgViewBox(svg, { pad = 8, tighten = false } = {}) {
+  if (!(svg instanceof SVGSVGElement)) return;
+  const rawVb = (svg.getAttribute("viewBox") || "").trim().split(/[\s,]+/).map(Number);
+  const hasVb = rawVb.length === 4 && rawVb.every((n) => Number.isFinite(n));
+  const vx = hasVb ? rawVb[0] : 0;
+  const vy = hasVb ? rawVb[1] : 0;
+  const vw = hasVb ? rawVb[2] : 0;
+  const vh = hasVb ? rawVb[3] : 0;
+
+  let bb;
+  try {
+    bb = svg.getBBox();
+  } catch {
+    bb = null;
+  }
+
+  // Absurd bbox (gantt "today" marker years off-canvas): only pad the original.
+  const absurd =
+    hasVb &&
+    bb &&
+    bb.width > 0 &&
+    bb.height > 0 &&
+    (bb.width > Math.max(vw * 2.5, 1) || bb.height > Math.max(vh * 2.5, 1));
+
+  if (!bb || !(bb.width > 0 && bb.height > 0) || absurd) {
+    if (!hasVb || !(vw > 0 && vh > 0)) return;
+    svg.setAttribute(
+      "viewBox",
+      `${vx - pad} ${vy - pad} ${vw + pad * 2} ${vh + pad * 2}`,
+    );
+    return;
+  }
+
+  if (tighten) {
+    // Crop to ink with equal pad so content sits in the middle of the SVG.
+    const nextW = bb.width + pad * 2;
+    const nextH = bb.height + pad * 2;
+    if (!(nextW > 0 && nextH > 0)) return;
+    svg.setAttribute(
+      "viewBox",
+      `${bb.x - pad} ${bb.y - pad} ${nextW} ${nextH}`,
+    );
+    return;
+  }
+
+  // Prefer content bbox, but never shrink below the original viewBox (avoids
+  // clipping Mermaid chrome) and only expand modestly for rough overflow.
+  let minX = bb.x - pad;
+  let minY = bb.y - pad;
+  let maxX = bb.x + bb.width + pad;
+  let maxY = bb.y + bb.height + pad;
+  if (hasVb && vw > 0 && vh > 0) {
+    minX = Math.min(minX, vx - pad);
+    minY = Math.min(minY, vy - pad);
+    maxX = Math.max(maxX, vx + vw + pad);
+    maxY = Math.max(maxY, vy + vh + pad);
+    // Cap expansion so a few wild glyphs can't create empty scrollable gutters.
+    const maxW = vw * 1.35;
+    const maxH = vh * 1.35;
+    if (maxX - minX > maxW) {
+      const cx = (minX + maxX) / 2;
+      minX = cx - maxW / 2;
+      maxX = cx + maxW / 2;
+    }
+    if (maxY - minY > maxH) {
+      const cy = (minY + maxY) / 2;
+      minY = cy - maxH / 2;
+      maxY = cy + maxH / 2;
+    }
+  }
+
+  const nextW = maxX - minX;
+  const nextH = maxY - minY;
+  if (!(nextW > 0 && nextH > 0)) return;
+  svg.setAttribute("viewBox", `${minX} ${minY} ${nextW} ${nextH}`);
+}
+
+/**
+ * Match classic Mermaid content scale after sketching.
+ * fitMermaidSvgViewBox pads the viewBox for RoughJS stroke overflow. Keeping the
+ * classic CSS width with a wider viewBox shrinks nodes/text (gitGraph looked
+ * smaller in hand-drawn). Scale CSS width by newVb/oldVb so content stays the
+ * same size; syncMermaidSvgSizes still caps with max-width when the host is narrow.
+ * @param {SVGElement} sketched
+ * @param {{ cssWidth: number, cssHeight: number, viewBoxWidth: number, hostWidth: number }} sourceSize
+ */
+function sizeSketchedMermaidSvg(sketched, sourceSize) {
+  if (!(sketched instanceof SVGElement)) return;
+
+  const vb = (sketched.getAttribute("viewBox") || "")
+    .trim()
+    .split(/[\s,]+/)
+    .map(Number);
+  const vbW = vb.length === 4 && vb[2] > 0 ? vb[2] : NaN;
+  const srcVbW = sourceSize?.viewBoxWidth;
+
+  // Do not set style.maxWidth = "100%": syncMermaidSvgSizes parseFloat → 100px lock.
+  sketched.style.removeProperty("max-width");
+  sketched.style.height = "auto";
+  delete sketched.dataset.mermaidNatural;
+  delete sketched.dataset.mermaidFluid;
+
+  let w = sourceSize?.cssWidth;
+  // Preserve classic content scale when viewBox grows (rough pad) or shrinks
+  // (tighten crops asymmetric gutters so drawings look centered).
+  if (w > 0 && srcVbW > 0 && Number.isFinite(vbW) && vbW !== srcVbW) {
+    w *= vbW / srcVbW;
+  }
+  if (!(w > 0) && Number.isFinite(vbW)) w = vbW;
+
+  const hostW = sourceSize?.hostWidth ?? 0;
+  // Use rendered size, not width="100%" — gitGraph sets 100% but stays content-sized
+  // via max-width ≈ viewBox; treating % as fluid stretched it to the full panel.
+  const filledHost =
+    sourceSize?.cssWidth > 0 &&
+    hostW > 0 &&
+    Math.abs(sourceSize.cssWidth - hostW) < 8;
+
+  if (filledHost) {
+    // Fluid diagrams stay at 100% — slight shrink from viewBox pad is preferable
+    // to overflowing the preview (the old width=100% vertical-scroll bug).
+    sketched.setAttribute("width", "100%");
+    sketched.dataset.mermaidFluid = "1";
+  } else if (w > 0) {
+    const pxW = Math.round(w);
+    sketched.setAttribute("width", String(pxW));
+    sketched.dataset.mermaidNatural = String(pxW);
+    sketched.dataset.mermaidFluid = "0";
+  } else {
+    sketched.removeAttribute("width");
+  }
+  // height:auto + viewBox preserves aspect (needed for foreignObject label layout).
+  sketched.removeAttribute("height");
+}
 
 function mermaidConfig() {
   return {
@@ -1235,17 +1762,13 @@ function mermaidConfig() {
     securityLevel: "strict",
     // Mermaid 12 defaults to ELK; keep dagre so existing diagrams look the same.
     layout: "dagre",
+    // Always classic — Excalidraw look is svg2roughjs with solid fills (native
+    // Mermaid handDrawn hachure fails WCAG: pastel fills become dense ink strokes).
+    look: "classic",
+    // Stable sketch so re-renders / reuse do not reshuffle strokes every paint.
+    handDrawnSeed: 1,
     theme: "base",
-    themeVariables: {
-      darkMode: false,
-      background: "#ffffff",
-      primaryColor: "#ECECFF",
-      primaryTextColor: "#333333",
-      primaryBorderColor: "#9370DB",
-      lineColor: "#333333",
-      secondaryColor: "#ffffde",
-      tertiaryColor: "#f4f4f4",
-    },
+    themeVariables: mermaidThemeVariablesFromCss(),
     themeCSS: MERMAID_THEME_CSS,
   };
 }
@@ -1272,6 +1795,96 @@ function loadMermaid() {
   return mermaidModule;
 }
 
+function loadSvg2Rough() {
+  if (!CDN_INTEGRITY_URLS.has(SVG2ROUGH_CDN)) {
+    return Promise.reject(new Error("svg2roughjs CDN URL missing SRI allowlist entry"));
+  }
+  svg2roughModule ??= import(SVG2ROUGH_CDN).then((mod) => {
+    const Svg2Roughjs = mod.Svg2Roughjs;
+    if (typeof Svg2Roughjs !== "function") {
+      throw new Error("svg2roughjs failed to load");
+    }
+    return Svg2Roughjs;
+  });
+  return svg2roughModule;
+}
+
+/** True when Excalidraw look is on — every diagram is sketched via svg2roughjs. */
+function mermaidNeedsSketch() {
+  return mermaidLook === "handDrawn";
+}
+
+/**
+ * Convert a rendered Mermaid SVG into a RoughJS sketch (Excalidraw-like).
+ * SVG must stay in the document so computed theme styles resolve.
+ * @param {SVGElement} svg
+ * @returns {Promise<SVGElement | null>}
+ */
+async function sketchMermaidSvg(svg) {
+  const Svg2Roughjs = await loadSvg2Rough();
+  const scratch = document.createElement("div");
+  scratch.hidden = true;
+  scratch.setAttribute("aria-hidden", "true");
+  // Keep in-DOM for layout/style resolution of the source SVG next to it.
+  svg.parentElement?.appendChild(scratch);
+  try {
+    const converter = new Svg2Roughjs(scratch);
+    // Match Mermaid hand-drawn labels (Excalifont). Default Comic Sans is a joke.
+    converter.fontFamily = MERMAID_HAND_FONT;
+    converter.randomize = false;
+    converter.seed = 1;
+    converter.roughConfig = {
+      roughness: 1.2,
+      bowing: 1,
+      seed: 1,
+      // Solid fills keep node/note backgrounds — hachure reuses fill pastels as
+      // strokes, which fail WCAG against the diagram canvas on many themes.
+      fillStyle: "solid",
+    };
+    converter.svg = /** @type {SVGSVGElement} */ (svg);
+    await converter.sketch();
+    const sketched = scratch.querySelector(":scope > svg");
+    if (!(sketched instanceof SVGElement)) return null;
+    sketched.dataset.mermaidSketched = "1";
+    // Keep class for theming. Size from the classic SVG's rendered CSS box —
+    // copying width="100%" would upscale tall viewBoxes and cause vertical scroll.
+    const srcClass = svg.getAttribute("class");
+    const preBox = svg.getBoundingClientRect();
+    const srcVb = (svg.getAttribute("viewBox") || "")
+      .trim()
+      .split(/[\s,]+/)
+      .map(Number);
+    const sourceSize = {
+      cssWidth: preBox.width,
+      cssHeight: preBox.height,
+      viewBoxWidth: srcVb.length === 4 && srcVb[2] > 0 ? srcVb[2] : 0,
+      hostWidth: svg.parentElement?.clientWidth ?? 0,
+    };
+    if (srcClass && !sketched.getAttribute("class")) {
+      sketched.setAttribute("class", srcClass);
+    }
+    if (!sketched.getAttribute("viewBox") && svg.getAttribute("viewBox")) {
+      sketched.setAttribute("viewBox", svg.getAttribute("viewBox"));
+    }
+    // svg2roughjs drops Mermaid's <style> (themeCSS, p{margin:0}) — copy it back
+    // so labels/theme rules still apply after sketch (and in the zoom dialog).
+    const srcStyle = svg.querySelector("style");
+    if (srcStyle && !sketched.querySelector("style")) {
+      sketched.insertBefore(srcStyle.cloneNode(true), sketched.firstChild);
+    }
+    // Hachure strokes often reuse fill pastels — remap to WCAG theme ink.
+    normalizeMermaidHandDrawnColors(sketched);
+    svg.replaceWith(sketched);
+    // Fit after insert — getBBox() is wrong while the sketch sits in [hidden].
+    // tighten: drop asymmetric Mermaid/svg2roughjs gutters so drawings look centered.
+    fitMermaidSvgViewBox(sketched, { tighten: true });
+    sizeSketchedMermaidSvg(sketched, sourceSize);
+    return sketched;
+  } finally {
+    scratch.remove();
+  }
+}
+
 function mermaidNodeIsVisible(el) {
   return !el.closest("[hidden], .md-section-folded");
 }
@@ -1289,6 +1902,8 @@ const MERMAID_ZOOM_STEP = 0.25;
 let mermaidZoomFactor = 1;
 /** @type {number} */
 let mermaidZoomBaseW = 0;
+/** @type {number} */
+let mermaidZoomBaseH = 0;
 const MERMAID_ZOOM_BTN_SVG =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/><path d="M11 8v6"/><path d="M8 11h6"/></svg>';
 
@@ -1309,6 +1924,10 @@ function rememberMermaidSource(el) {
  * when typing below diagrams).
  * @returns {Map<string, { svg: SVGElement, height: number }[]>}
  */
+function mermaidReuseKey(src) {
+  return `${mermaidLook}\0${src}`;
+}
+
 function takeMermaidRenderReuse() {
   /** @type {Map<string, { svg: SVGElement, height: number }[]>} */
   const bySource = new Map();
@@ -1318,10 +1937,11 @@ function takeMermaidRenderReuse() {
     const src = mermaidSources.get(el);
     if (!svg || !src) continue;
     const height = el.offsetHeight;
-    if (height > 0) mermaidHeightCache.set(src, height);
-    const list = bySource.get(src) || [];
+    if (height > 0) mermaidHeightCache.set(mermaidReuseKey(src), height);
+    const key = mermaidReuseKey(src);
+    const list = bySource.get(key) || [];
     list.push({ svg: /** @type {SVGElement} */ (svg.cloneNode(true)), height });
-    bySource.set(src, list);
+    bySource.set(key, list);
   }
   return bySource;
 }
@@ -1336,7 +1956,8 @@ function restoreMermaidRenders(bySource) {
     // Capture source from the fresh fence text before we swap in an SVG.
     rememberMermaidSource(el);
     const src = mermaidSources.get(el) ?? "";
-    const list = bySource.get(src);
+    const key = mermaidReuseKey(src);
+    const list = bySource.get(key);
     const reuse = list?.shift();
     if (reuse) {
       el.replaceChildren(reuse.svg);
@@ -1345,7 +1966,7 @@ function restoreMermaidRenders(bySource) {
       continue;
     }
     el.setAttribute("data-pending", "");
-    const h = mermaidHeightCache.get(src);
+    const h = mermaidHeightCache.get(key);
     if (h > 0) el.style.minHeight = `${h}px`;
   }
 }
@@ -1378,13 +1999,27 @@ function clampMermaidZoom(factor) {
   return Math.min(MERMAID_ZOOM_MAX, Math.max(MERMAID_ZOOM_MIN, factor));
 }
 
+/**
+ * Scale via CSS transform (not SVG width). Mermaid labels live in foreignObject
+ * HTML — resizing the SVG with style.width leaves font-size at 16px so text
+ * looks like dots inside huge shapes (especially Excalidraw sketches).
+ */
 function applyMermaidZoom() {
-  const svg = mermaidZoomStage?.querySelector("svg");
-  if (!svg || !(mermaidZoomBaseW > 0)) return;
+  const scaler = mermaidZoomStage?.querySelector(".mermaid-zoom-scaler");
+  const inner = scaler?.querySelector(".mermaid-zoom-scaler-inner");
+  if (!(scaler instanceof HTMLElement) || !(inner instanceof HTMLElement)) return;
+  if (!(mermaidZoomBaseW > 0)) return;
   mermaidZoomFactor = clampMermaidZoom(mermaidZoomFactor);
-  svg.style.width = `${mermaidZoomBaseW * mermaidZoomFactor}px`;
-  svg.style.height = "auto";
-  svg.style.maxWidth = "none";
+  const w = mermaidZoomBaseW * mermaidZoomFactor;
+  const h =
+    mermaidZoomBaseH > 0
+      ? mermaidZoomBaseH * mermaidZoomFactor
+      : mermaidZoomBaseW * mermaidZoomFactor;
+  scaler.style.width = `${w}px`;
+  scaler.style.height = `${h}px`;
+  inner.style.width = `${mermaidZoomBaseW}px`;
+  inner.style.height = mermaidZoomBaseH > 0 ? `${mermaidZoomBaseH}px` : "auto";
+  inner.style.transform = `scale(${mermaidZoomFactor})`;
   if (mermaidZoomLevel) {
     mermaidZoomLevel.textContent = `${Math.round(mermaidZoomFactor * 100)}%`;
   }
@@ -1412,30 +2047,38 @@ function openMermaidZoom(host) {
   const srcSvg = host.querySelector(":scope > svg");
   if (!srcSvg) return;
 
-  const clone = /** @type {SVGElement} */ (srcSvg.cloneNode(true));
-  clone.removeAttribute("width");
-  clone.removeAttribute("height");
-  clone.style.maxWidth = "none";
-  clone.style.width = "";
-  clone.style.height = "auto";
-
-  const vb = clone.viewBox?.baseVal;
-  const fromNatural = Number(clone.dataset.mermaidNatural);
-  const fromVb = vb && vb.width > 0 ? vb.width : 0;
-  mermaidZoomBaseW =
-    fromVb ||
-    (Number.isFinite(fromNatural) && fromNatural > 0
-      ? fromNatural
-      : srcSvg.getBoundingClientRect().width) ||
-    400;
+  const pre = srcSvg.getBoundingClientRect();
+  mermaidZoomBaseW = pre.width > 0 ? pre.width : 400;
+  mermaidZoomBaseH = pre.height > 0 ? pre.height : 0;
   mermaidZoomFactor = 1;
-  mermaidZoomStage.replaceChildren(clone);
+
+  const clone = /** @type {SVGElement} */ (srcSvg.cloneNode(true));
+  // Keep viewBox + width; height:auto preserves aspect for foreignObject labels.
+  // Scaling is done on a wrapper via transform (CSS width alone leaves HTML
+  // labels at 16px — tiny "dots" inside enlarged shapes).
+  clone.style.maxWidth = "none";
+  clone.style.width = `${mermaidZoomBaseW}px`;
+  clone.style.height = "auto";
+  clone.setAttribute("width", String(Math.round(mermaidZoomBaseW)));
+  clone.removeAttribute("height");
+
+  const inner = document.createElement("div");
+  inner.className = "mermaid-zoom-scaler-inner";
+  inner.appendChild(clone);
+
+  const scaler = document.createElement("div");
+  scaler.className = "mermaid-zoom-scaler";
+  scaler.appendChild(inner);
+
+  mermaidZoomStage.replaceChildren(scaler);
   applyMermaidZoom();
   mermaidZoomDialog.showModal();
 
-  // After layout, fit to the stage (preview often rendered the diagram narrow).
+  // After layout, remeasure height (height:auto + viewBox) then fit to stage.
   requestAnimationFrame(() => {
     if (!mermaidZoomDialog?.open) return;
+    const laidOut = inner.querySelector("svg")?.getBoundingClientRect().height;
+    if (laidOut > 0) mermaidZoomBaseH = laidOut;
     fitMermaidZoom();
     mermaidZoomStage.focus({ preventScroll: true });
   });
@@ -1449,6 +2092,7 @@ function closeMermaidZoom() {
 function onMermaidZoomDialogClose() {
   mermaidZoomStage?.replaceChildren();
   mermaidZoomBaseW = 0;
+  mermaidZoomBaseH = 0;
   mermaidZoomFactor = 1;
 }
 
@@ -1521,14 +2165,18 @@ function syncMermaidSvgSizes() {
 
     let natural = Number(svg.dataset.mermaidNatural);
     if (!Number.isFinite(natural) || natural <= 0) {
-      const fromStyle = parseFloat(svg.style.maxWidth);
+      const rawMax = String(svg.style.maxWidth || "").trim();
+      // parseFloat("100%") === 100 — never treat percentages as px naturals.
+      const fromStyle = /%$/.test(rawMax) ? NaN : parseFloat(rawMax);
       natural =
         Number.isFinite(fromStyle) && fromStyle > 0
           ? fromStyle
           : svg.getBoundingClientRect().width;
       if (!(natural > 0)) continue;
       svg.dataset.mermaidNatural = String(natural);
-      svg.dataset.mermaidFluid = Math.abs(natural - hostW) < 8 ? "1" : "0";
+      if (svg.dataset.mermaidFluid !== "1") {
+        svg.dataset.mermaidFluid = Math.abs(natural - hostW) < 8 ? "1" : "0";
+      }
     }
 
     if (svg.dataset.mermaidFluid === "1") {
@@ -1691,6 +2339,8 @@ async function renderMermaidDiagrams({ force = false } = {}) {
 
   try {
     if (nodes.length) {
+      if (mermaidLook === "handDrawn") await ensureExcalifontLoaded();
+      if (gen !== mermaidGen) return;
       const mermaid = await loadMermaid();
       if (gen !== mermaidGen) return;
       mermaid.initialize(mermaidConfig());
@@ -1706,19 +2356,57 @@ async function renderMermaidDiagrams({ force = false } = {}) {
   for (const el of nodes) {
     el.removeAttribute("data-pending");
     // Fresh SVG from this run — retag natural/fluid at the current host width.
-    const svg = el.querySelector(":scope > svg");
+    let svg = el.querySelector(":scope > svg");
     if (svg) {
       fixMermaidGanttLabels(svg);
-      delete svg.dataset.mermaidNatural;
-      delete svg.dataset.mermaidFluid;
+      if (mermaidNeedsSketch()) {
+        try {
+          const sketched = await sketchMermaidSvg(svg);
+          if (gen !== mermaidGen) return;
+          if (sketched) svg = sketched;
+        } catch {
+          /* keep the classic Mermaid SVG if the sketcher fails to load */
+        }
+      }
+      // Sketched SVGs already recorded natural size from the classic CSS box —
+      // don't wipe it or syncMermaidSvgSizes will treat width=host as "fluid"
+      // and stretch them again.
+      if (svg.dataset.mermaidSketched !== "1") {
+        delete svg.dataset.mermaidNatural;
+        delete svg.dataset.mermaidFluid;
+      }
     }
     // Release the paint reservation now that the real SVG owns layout.
     el.style.minHeight = "";
     const src = mermaidSources.get(el);
     const h = el.offsetHeight;
-    if (src && h > 0) mermaidHeightCache.set(src, h);
+    if (src && h > 0) mermaidHeightCache.set(mermaidReuseKey(src), h);
   }
   syncMermaidSvgSizes();
+}
+
+/**
+ * Re-run every Mermaid host with the current look (classic / handDrawn).
+ * Used when the Diagrams toolbar preference changes.
+ */
+function rerenderAllMermaidDiagrams() {
+  const hosts = [...preview.querySelectorAll(".mermaid")];
+  if (!hosts.length) return Promise.resolve();
+
+  mermaidGen += 1;
+  for (const el of hosts) {
+    rememberMermaidSource(el);
+    const prevH = el.clientHeight;
+    if (prevH > 0) el.style.minHeight = `${prevH}px`;
+    el.removeAttribute("data-processed");
+    el.textContent = mermaidSources.get(el) ?? "";
+    el.setAttribute("data-pending", "");
+  }
+  return renderMermaidDiagrams().finally(() => {
+    for (const el of hosts) {
+      if (preview.contains(el)) el.style.minHeight = "";
+    }
+  });
 }
 
 function showToast(message) {
@@ -2884,13 +3572,13 @@ function toggleHistory() {
 function openOverflowMenu() {
   toolbarMenu.classList.add("is-open");
   overflowBtn.setAttribute("aria-expanded", "true");
-  overflowBtn.setAttribute("aria-label", "Close menu");
+  overflowBtn.setAttribute("aria-label", "Close more");
 }
 
 function closeOverflowMenu() {
   toolbarMenu.classList.remove("is-open");
   overflowBtn.setAttribute("aria-expanded", "false");
-  overflowBtn.setAttribute("aria-label", "Open menu");
+  overflowBtn.setAttribute("aria-label", "More");
   closeHistory();
   closeVoiceMenu();
   closeShareMenu();
@@ -2902,6 +3590,19 @@ function closeOverflowMenu() {
 function toggleOverflowMenu() {
   if (toolbarMenu.classList.contains("is-open")) closeOverflowMenu();
   else openOverflowMenu();
+}
+
+/** Desktop: #toolbar-bar in the header row. Narrow: first child of the overflow panel. */
+function syncToolbarBarPlacement() {
+  if (!toolbarBar || !toolbarActions || !toolbarMenu) return;
+  const narrow = window.matchMedia(NARROW_MQ).matches;
+  if (narrow) {
+    if (toolbarBar.parentElement !== toolbarActions) {
+      toolbarActions.insertBefore(toolbarBar, toolbarActions.firstChild);
+    }
+  } else if (toolbarBar.parentElement === toolbarActions) {
+    toolbarMenu.insertBefore(toolbarBar, toolbarActions);
+  }
 }
 
 /** Close the topmost open menu/drawer. Returns true if something was dismissed. */
@@ -3064,6 +3765,31 @@ function setPreviewWidth(width, { persist = true } = {}) {
   }
   // Fluid Mermaid diagrams (gantt) need a width sync / possible re-layout.
   if (changed) scheduleMermaidScale();
+}
+
+/**
+ * @param {string} look
+ * @param {{ persist?: boolean, rerender?: boolean }} [opts]
+ */
+function setMermaidLook(look, { persist = true, rerender = true } = {}) {
+  const next = MERMAID_LOOKS.includes(look) ? look : "classic";
+  const changed = mermaidLook !== next;
+  mermaidLook = /** @type {"classic" | "handDrawn"} */ (next);
+  document.documentElement.dataset.mermaidLook = next;
+  if (mermaidLookSelect) mermaidLookSelect.value = next;
+  if (persist) {
+    try {
+      localStorage.setItem(STORAGE_KEYS.mermaidLook, next);
+    } catch {
+      /* storage may be unavailable */
+    }
+  }
+  if (changed && rerender) {
+    void (async () => {
+      if (next === "handDrawn") await ensureExcalifontLoaded();
+      await rerenderAllMermaidDiagrams();
+    })();
+  }
 }
 
 function applyCollapseState() {
@@ -9027,6 +9753,11 @@ async function init() {
 
   const savedWidth = localStorage.getItem(STORAGE_KEYS.width);
   setPreviewWidth(WIDTHS.includes(savedWidth) ? savedWidth : "readable", { persist: false });
+  const savedMermaidLook = localStorage.getItem(STORAGE_KEYS.mermaidLook);
+  setMermaidLook(MERMAID_LOOKS.includes(savedMermaidLook) ? savedMermaidLook : "classic", {
+    persist: false,
+    rerender: false,
+  });
   applyCollapseState();
   setupSplitter();
   setupDragAndDrop();
@@ -9233,7 +9964,17 @@ async function init() {
 
   widthSelect.addEventListener("change", () => {
     setPreviewWidth(widthSelect.value, { persist: true });
-    closeOverflowMenu();
+    // Narrow: dismiss after pick so the preview is visible. Desktop: keep open for multi-tweaks.
+    if (window.matchMedia(NARROW_MQ).matches && toolbarMenu.classList.contains("is-open")) {
+      closeOverflowMenu();
+    }
+  });
+
+  mermaidLookSelect?.addEventListener("change", () => {
+    setMermaidLook(mermaidLookSelect.value, { persist: true });
+    if (window.matchMedia(NARROW_MQ).matches && toolbarMenu.classList.contains("is-open")) {
+      closeOverflowMenu();
+    }
   });
 
   filesOpenFileBtn?.addEventListener("click", () => {
@@ -9280,6 +10021,7 @@ async function init() {
       return;
     }
     e.preventDefault();
+    closeOverflowMenu();
     void loadHelpGuide();
   });
   window.addEventListener("beforeprint", syncPrintPageOrientation);
@@ -9391,7 +10133,7 @@ async function init() {
     toggleOverflowMenu();
   });
 
-  // Dismiss the mobile overflow panel after choosing an action. Nested dropdown
+  // Dismiss the overflow panel after choosing an action. Nested dropdown
   // toggles (share/export/history/voice) call stopPropagation so they stay open.
   toolbarActions?.addEventListener("click", (e) => {
     if (!toolbarMenu.classList.contains("is-open")) return;
@@ -9408,7 +10150,11 @@ async function init() {
       closeWritingToolsMenu();
     }
     if (viewModeDropdown && !viewModeDropdown.contains(e.target)) closeViewModeMenu();
-    if (!toolbarMenu.contains(e.target)) closeOverflowMenu();
+    // Native <select> option picks can click body after the OS menu closes; keep
+    // the kebab open while focus remains on a control inside it.
+    if (!toolbarMenu.contains(e.target) && !toolbarMenu.contains(document.activeElement)) {
+      closeOverflowMenu();
+    }
     if (filesContextMenu && !filesContextMenu.contains(e.target)) closeFilesContextMenu();
   });
 
@@ -9490,7 +10236,9 @@ async function init() {
     e.returnValue = "";
   });
 
+  syncToolbarBarPlacement();
   window.matchMedia(NARROW_MQ).addEventListener("change", (e) => {
+    syncToolbarBarPlacement();
     if (!e.matches) closeOverflowMenu();
   });
 }
