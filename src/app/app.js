@@ -196,7 +196,7 @@ const HLJS_LANG_CDN =
 const hljsLangLoads = new Map();
 
 // Markdown grammar uses xml as a subLanguage for embedded HTML.
-// withMarkdownEscapes aligns emphasis with CommonMark escapes + underscore flanks.
+// withMarkdownEscapes aligns emphasis, lists, and blockquotes with CommonMark / marked.
 hljs.registerLanguage("xml", hljsXml);
 hljs.registerLanguage("html", hljsXml);
 hljs.registerLanguage("markdown", withMarkdownEscapes(hljsMarkdown));

@@ -1,6 +1,6 @@
 /**
  * Patch highlight.js Markdown so editor highlighting matches CommonMark / GFM
- * preview (marked) for emphasis delimiters:
+ * preview (marked):
  *
  * 1. Backslash escapes — upstream does not consume `\*` / `\_` before italic/bold
  *    rules, which leaves false `hljs-emphasis` spans.
@@ -8,12 +8,18 @@
  *    `snake_case`) must not open/close emphasis; asterisks still may.
  * 3. Asterisk flanking + same-line closer — bare `*.zip` / `x*y` must not open
  *    runaway italic when preview leaves them literal.
+ * 4. List markers — upstream `end: \s+` greedily eats the next line's indent after
+ *    an empty item (`-\n  - nested`), so the nested bullet is not highlighted.
+ * 5. Blockquotes — upstream `^>\s+` misses indented markers (`  > …`) and
+ *    `>` without a following space (`>eric`), both valid in CommonMark / marked.
  *
  * @see https://github.com/highlightjs/highlight.js/pull/3888
  * @see https://github.com/highlightjs/highlight.js/pull/4342
  * @see https://github.com/highlightjs/highlight.js/issues/4279
  * @see https://spec.commonmark.org/0.31.2/#backslash-escapes
  * @see https://spec.commonmark.org/0.31.2/#emphasis-and-strong-emphasis
+ * @see https://spec.commonmark.org/0.31.2/#list-items
+ * @see https://spec.commonmark.org/0.31.2/#block-quotes
  *
  * @param {(hljs: import("highlight.js").HLJSApi) => object} factory
  *   CDN / package `markdown` language factory.
@@ -65,6 +71,16 @@ export function withMarkdownEscapes(factory) {
     end: /\*{2}/,
   };
 
+  // Marker + same-line trailing space or EOL (empty item). `match` avoids an
+  // `end: \s+` that would consume the following line's indent.
+  const LIST_MARKER = {
+    className: "bullet",
+    match: /^[ \t]*(?:[*+-]|\d+\.)(?=[ \t]|$)/,
+  };
+
+  // 0–3 spaces, `>`, optional one space/tab (CommonMark block quote marker).
+  const BLOCKQUOTE_BEGIN = /^ {0,3}>[ \t]?/;
+
   return (hljs) => {
     const lang = factory(hljs);
     const seen = new Set();
@@ -112,6 +128,18 @@ export function withMarkdownEscapes(factory) {
     }
 
     patch(lang);
+
+    for (const mode of lang.contains || []) {
+      if (mode.className === "bullet") {
+        delete mode.begin;
+        delete mode.end;
+        delete mode.excludeEnd;
+        mode.match = LIST_MARKER.match;
+      } else if (mode.className === "quote") {
+        mode.begin = BLOCKQUOTE_BEGIN;
+      }
+    }
+
     return lang;
   };
 }

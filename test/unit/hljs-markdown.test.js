@@ -119,4 +119,53 @@ describe("withMarkdownEscapes", () => {
     assert.match(html, /hljs-strong/);
     assert.match(html, /hljs-emphasis/);
   });
+
+  it("highlights nested list after an empty item (no indent swallow)", () => {
+    const src = "-\n  - ninja";
+    const html = highlight(src);
+    assert.equal(stripTags(html), src);
+    assert.equal((html.match(/hljs-bullet/g) || []).length, 2);
+    // Stock grammar's end:\\s+ eats the next line's indent after an empty item.
+    assert.equal((highlightStock(src).match(/hljs-bullet/g) || []).length, 1);
+  });
+
+  it("highlights indented and spaceless blockquotes like marked", () => {
+    for (const src of ["  > eric", ">eric5", "   > three"]) {
+      const html = highlight(src);
+      assert.equal(stripTags(html), src);
+      assert.match(html, /hljs-quote/);
+      assert.doesNotMatch(highlightStock(src), /hljs-quote/);
+    }
+  });
+
+  it("keeps 4-space indented > as code, not a blockquote", () => {
+    const src = "    > four";
+    const html = highlight(src);
+    assert.equal(stripTags(html), src);
+    assert.match(html, /hljs-code/);
+    assert.doesNotMatch(html, /hljs-quote/);
+  });
+
+  it("highlights the user list/blockquote sample consistently", () => {
+    const src = [
+      "- eric",
+      "  - item 1",
+      "  > eric",
+      "",
+      "  - eric 2",
+      "",
+      "  > eric 3",
+      "",
+      "-",
+      "  - ninja",
+      "",
+      "> eric 4",
+      "",
+      ">eric5",
+    ].join("\n");
+    const html = highlight(src);
+    assert.equal(stripTags(html), src);
+    assert.equal((html.match(/hljs-bullet/g) || []).length, 5);
+    assert.equal((html.match(/hljs-quote/g) || []).length, 4);
+  });
 });
