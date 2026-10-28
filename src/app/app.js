@@ -269,6 +269,7 @@ const STORAGE_KEYS = {
   mermaidLook: "md-editor:mermaidLook",
   voice: "md-editor:voice",
   syncScroll: "md-editor:sync-scroll",
+  lineWrap: "md-editor:line-wrap",
   filesDrawer: "md-editor:filesDrawer",
   filesSource: "md-editor:filesSource",
   currentFile: "md-editor:currentFile",
@@ -360,6 +361,7 @@ const voiceMenu = document.getElementById("voice-menu");
 const collapseEditorBtn = document.getElementById("collapse-editor");
 const collapsePreviewBtn = document.getElementById("collapse-preview");
 const syncScrollBtn = document.getElementById("sync-scroll-btn");
+const lineWrapBtn = document.getElementById("line-wrap-btn");
 const previewPane = document.getElementById("preview-pane");
 const renderLoading = document.getElementById("render-loading");
 const historyBtn = document.getElementById("history-btn");
@@ -910,6 +912,8 @@ let pendingExternalContent = null;
 /** Snapshot taken before applying untrusted content — restored on Reject. */
 let preExternalSnapshot = null;
 let syncScrollEnabled = false;
+/** Soft-wrap long lines in the editor and preview code blocks (default on). */
+let lineWrapEnabled = true;
 /** Which pane is driving sync; suppresses echo scroll events. */
 let syncScrollDriver = null;
 let syncScrollUnlockTimer = 0;
@@ -4008,6 +4012,10 @@ function measureEditorLineTops() {
   for (const prop of copyProps) {
     mirror.style[prop] = cs[prop];
   }
+  // Match editor wrap so sync-scroll anchors stay aligned when wrapping is off.
+  mirror.style.whiteSpace = cs.whiteSpace;
+  mirror.style.overflowWrap = cs.overflowWrap;
+  mirror.style.wordWrap = cs.wordWrap;
   mirror.style.width = `${editor.clientWidth}px`;
 
   const lines = editor.value.split("\n");
@@ -4121,6 +4129,29 @@ function setSyncScroll(enabled, { persist = true } = {}) {
   }
   if (syncScrollEnabled) {
     invalidateScrollAnchors();
+    syncPreviewFromEditor();
+    revealPreviewForEditorCaret();
+  }
+}
+
+function setLineWrap(enabled, { persist = true } = {}) {
+  lineWrapEnabled = Boolean(enabled);
+  document.documentElement.dataset.lineWrap = lineWrapEnabled ? "on" : "off";
+  if (lineWrapBtn) {
+    lineWrapBtn.setAttribute("aria-pressed", String(lineWrapEnabled));
+    const wrapLabel = lineWrapEnabled ? "Unwrap lines" : "Wrap lines";
+    lineWrapBtn.title = wrapLabel;
+    lineWrapBtn.setAttribute("aria-label", wrapLabel);
+  }
+  if (persist) {
+    try {
+      localStorage.setItem(STORAGE_KEYS.lineWrap, lineWrapEnabled ? "1" : "0");
+    } catch {
+      /* storage may be unavailable */
+    }
+  }
+  invalidateScrollAnchors();
+  if (syncScrollEnabled) {
     syncPreviewFromEditor();
     revealPreviewForEditorCaret();
   }
@@ -4431,6 +4462,10 @@ function scheduleOutlineHighlight() {
 
 function toggleSyncScroll() {
   setSyncScroll(!syncScrollEnabled);
+}
+
+function toggleLineWrap() {
+  setLineWrap(!lineWrapEnabled);
 }
 
 function onEditorInput() {
@@ -9808,6 +9843,8 @@ async function init() {
 
   const savedSyncScroll = localStorage.getItem(STORAGE_KEYS.syncScroll) === "1";
   setSyncScroll(savedSyncScroll, { persist: false });
+  const savedLineWrap = localStorage.getItem(STORAGE_KEYS.lineWrap);
+  setLineWrap(savedLineWrap == null ? true : savedLineWrap === "1", { persist: false });
 
   // URL markdown that matches our own draft/tip is local residue (e.g. an old
   // view-sync that wrote mdz), not untrusted external content.
@@ -10051,6 +10088,7 @@ async function init() {
   collapseEditorBtn.addEventListener("click", toggleEditorCollapse);
   collapsePreviewBtn.addEventListener("click", togglePreviewCollapse);
   syncScrollBtn.addEventListener("click", toggleSyncScroll);
+  lineWrapBtn?.addEventListener("click", toggleLineWrap);
   editor.addEventListener(
     "scroll",
     () => {
