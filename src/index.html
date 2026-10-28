@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="github-light" class="is-booting">
+<html lang="en" data-theme="github-light" data-line-wrap="on" class="is-booting">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -103,8 +103,14 @@
                 ? "github-dark"
                 : "github-light";
         document.documentElement.setAttribute("data-theme", theme);
+        var wrap = localStorage.getItem("md-editor:line-wrap");
+        document.documentElement.setAttribute(
+          "data-line-wrap",
+          wrap === "0" ? "off" : "on",
+        );
       } catch (e) {
         document.documentElement.setAttribute("data-theme", "github-light");
+        document.documentElement.setAttribute("data-line-wrap", "on");
       }
     })();
   </script>
@@ -412,6 +418,14 @@
               <path d="M18 8v8" />
               <path d="M16.5 9.5 18 8l1.5 1.5" />
               <path d="M16.5 14.5 18 16l1.5-1.5" />
+            </svg>
+          </button>
+          <button type="button" class="btn svg-btn authoring-only" id="line-wrap-btn" title="Wrap lines" aria-label="Wrap lines" aria-pressed="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+              <path d="M3 6h18" />
+              <path d="M3 12h15a3 3 0 1 1 0 6h-4" />
+              <path d="m16 16-2 2 2 2" />
+              <path d="M3 18h7" />
             </svg>
           </button>
           <button type="button" class="btn collapse-btn authoring-only" id="collapse-editor" title="Collapse editor" aria-label="Collapse editor" aria-pressed="false"><span class="arrow side-collapse">◀</span><span class="arrow side-expand">▶</span><span class="arrow stacked-collapse">▲</span><span class="arrow stacked-expand">▼</span><span class="btn-label"> Editor</span></button>

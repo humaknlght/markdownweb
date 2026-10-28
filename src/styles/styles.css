@@ -1235,8 +1235,9 @@ a.btn {
   border-color: var(--chrome-pressed-border);
 }
 
-/* Sync scroll: solid “on” chip — tinted icon alone is too weak in several themes. */
-#sync-scroll-btn[aria-pressed="true"] {
+/* Sync scroll / line wrap: solid “on” chip — tinted icon alone is too weak in several themes. */
+#sync-scroll-btn[aria-pressed="true"],
+#line-wrap-btn[aria-pressed="true"] {
   background: var(--chrome-focus);
   border-color: var(--chrome-focus);
   color: var(--chrome-on-focus);
@@ -1244,7 +1245,8 @@ a.btn {
   -webkit-backdrop-filter: none;
 }
 
-#sync-scroll-btn[aria-pressed="true"]:hover {
+#sync-scroll-btn[aria-pressed="true"]:hover,
+#line-wrap-btn[aria-pressed="true"]:hover {
   filter: brightness(1.08);
 }
 
@@ -2329,6 +2331,14 @@ html.is-booting .panes {
   word-wrap: break-word;
 }
 
+html[data-line-wrap="off"] .editor-highlight,
+html[data-line-wrap="off"] #editor,
+html[data-line-wrap="off"] #ai-proof-editor {
+  white-space: pre;
+  overflow-wrap: normal;
+  word-wrap: normal;
+}
+
 .editor-highlight {
   /* Not a scroll container: browser Find must not scroll this layer independently
      of the textarea (that caused a jump-to-top on the next manual scroll). */
@@ -2653,8 +2663,12 @@ body[data-view="slides"] .preview .md-section-toggle {
   line-height: 1.5;
   color: inherit;
   display: grid;
-  grid-template-columns: max-content minmax(min-content, 1fr);
+  grid-template-columns: max-content minmax(0, 1fr);
   min-width: 100%;
+}
+
+html[data-line-wrap="off"] .preview pre code {
+  grid-template-columns: max-content minmax(min-content, 1fr);
 }
 
 .preview .code-line {
@@ -2676,10 +2690,19 @@ body[data-view="slides"] .preview .md-section-toggle {
 }
 
 .preview .line-src {
-  min-width: min-content;
+  min-width: 0;
   min-height: 1.5em;
   padding: 0 1rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+html[data-line-wrap="off"] .preview .line-src {
+  min-width: min-content;
   white-space: pre;
+  overflow-wrap: normal;
+  word-break: normal;
 }
 
 html[data-mermaid-look="handDrawn"] {
@@ -3635,15 +3658,21 @@ html[data-theme="fancy"] .photo-credit:not([hidden]) {
   }
 
   .toolbar-actions #sync-scroll-btn[aria-pressed="true"],
+  .toolbar-actions #line-wrap-btn[aria-pressed="true"],
   html[data-theme="fancy"] .toolbar-actions #sync-scroll-btn[aria-pressed="true"],
-  html[data-theme="salesforce"] .toolbar-actions #sync-scroll-btn[aria-pressed="true"] {
+  html[data-theme="fancy"] .toolbar-actions #line-wrap-btn[aria-pressed="true"],
+  html[data-theme="salesforce"] .toolbar-actions #sync-scroll-btn[aria-pressed="true"],
+  html[data-theme="salesforce"] .toolbar-actions #line-wrap-btn[aria-pressed="true"] {
     background: var(--chrome-focus);
     color: var(--chrome-on-focus);
   }
 
   .toolbar-actions #sync-scroll-btn[aria-pressed="true"]:hover,
+  .toolbar-actions #line-wrap-btn[aria-pressed="true"]:hover,
   html[data-theme="fancy"] .toolbar-actions #sync-scroll-btn[aria-pressed="true"]:hover,
-  html[data-theme="salesforce"] .toolbar-actions #sync-scroll-btn[aria-pressed="true"]:hover {
+  html[data-theme="fancy"] .toolbar-actions #line-wrap-btn[aria-pressed="true"]:hover,
+  html[data-theme="salesforce"] .toolbar-actions #sync-scroll-btn[aria-pressed="true"]:hover,
+  html[data-theme="salesforce"] .toolbar-actions #line-wrap-btn[aria-pressed="true"]:hover {
     background: var(--chrome-focus);
     color: var(--chrome-on-focus);
     filter: brightness(1.08);
