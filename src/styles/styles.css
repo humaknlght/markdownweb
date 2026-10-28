@@ -3100,6 +3100,16 @@ html[data-theme="fancy"] .mermaid-zoom-toolbar {
   color: var(--preview-muted);
 }
 
+/* marked wraps quote body in <p>/<ul>/… which keep margin-bottom: 1em;
+   trim ends so padding reads even (same pattern as .markdown-alert). */
+.preview blockquote > :first-child {
+  margin-top: 0;
+}
+
+.preview blockquote > :last-child {
+  margin-bottom: 0;
+}
+
 .preview dl {
   padding: 0;
 }

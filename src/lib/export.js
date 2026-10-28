@@ -263,6 +263,8 @@ export function buildHtmlDocument(bodyHtml, title) {
       color: var(--muted);
       border-left: 0.25em solid var(--quote);
     }
+    blockquote > :first-child { margin-top: 0; }
+    blockquote > :last-child { margin-bottom: 0; }
     table { border-collapse: collapse; width: 100%; }
     th, td { border: 1px solid var(--rule); padding: 0.4rem 0.65rem; }
     th { background: var(--code-bg); }
