@@ -486,8 +486,24 @@ function themeExportCss(theme) {
  */
 function sanitizeCssValue(value) {
   // Drop anything that could break out of a CSS declaration or </style>.
+  // Quotes are stripped for untrusted overrides; trusted DEFAULT_EXPORT_STYLE_VARS
+  // keep quoted font stacks because they are not re-sanitized.
   return String(value ?? "")
-    .replace(/[;{}<>]/g, "")
+    .replace(/[;{}<>"'`]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * Values interpolated into double-quoted HTML attributes.
+ * Must strip quotes (and other HTML meta-characters); CSS-only sanitization
+ * is not enough for attribute context (CWE-79 / CodeQL js/incomplete-html-attribute-sanitization).
+ * @param {string} value
+ * @returns {string}
+ */
+function sanitizeHtmlAttrValue(value) {
+  return String(value ?? "")
+    .replace(/[<>&"'`]/g, "")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -497,9 +513,15 @@ function sanitizeCssValue(value) {
  * @returns {string}
  */
 function formatExportRootVars(vars) {
-  const merged = { ...DEFAULT_EXPORT_STYLE_VARS, ...vars };
+  /** @type {Record<string, string>} */
+  const merged = { ...DEFAULT_EXPORT_STYLE_VARS };
+  for (const [name, raw] of Object.entries(vars || {})) {
+    if (!Object.prototype.hasOwnProperty.call(DEFAULT_EXPORT_STYLE_VARS, name)) continue;
+    const cleaned = sanitizeCssValue(raw);
+    if (cleaned) merged[name] = cleaned;
+  }
   return Object.entries(merged)
-    .map(([name, value]) => `      ${name}: ${sanitizeCssValue(value)};`)
+    .map(([name, value]) => `      ${name}: ${value};`)
     .join("\n");
 }
 
@@ -521,12 +543,17 @@ export function buildHtmlDocument(bodyHtml, title, options = {}) {
   const safeTitle = escapeHtml(title || "Untitled");
   const width = options.width === "full" ? "full" : "readable";
   const lineWrap = options.lineWrap !== false;
-  const theme = sanitizeCssValue(options.theme || "github-light") || "github-light";
+  // Attribute-safe: sanitizeHtmlAttrValue strips quotes; escapeHtml is defense in depth.
+  const theme =
+    escapeHtml(sanitizeHtmlAttrValue(options.theme || "github-light")) || "github-light";
   const maxWidth = width === "full" ? "none" : "52rem";
   const rootVars = formatExportRootVars(options.vars || {});
-  const colorScheme = sanitizeCssValue(
-    options.vars?.["--color-scheme"] || DEFAULT_EXPORT_STYLE_VARS["--color-scheme"],
-  );
+  const colorScheme =
+    escapeHtml(
+      sanitizeHtmlAttrValue(
+        options.vars?.["--color-scheme"] || DEFAULT_EXPORT_STYLE_VARS["--color-scheme"],
+      ),
+    ) || "light";
   const themeCss = themeExportCss(theme);
   return `<!DOCTYPE html>
 <html lang="en" data-theme="${theme}" data-width="${width}" data-line-wrap="${lineWrap ? "on" : "off"}">

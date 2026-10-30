@@ -79,6 +79,20 @@ describe("buildHtmlDocument", () => {
     assert.match(doc, /background:\s*#eaf5fe/);
     assert.match(doc, /color:\s*#014486/);
   });
+
+  it("strips HTML attribute breakout from theme and color-scheme", () => {
+    const doc = buildHtmlDocument("<p>Hi</p>", "Test", {
+      theme: 'evil" onload="alert(1)',
+      vars: { "--color-scheme": 'dark" onfocus="alert(2)' },
+    });
+    // Quotes must not close attributes / open new ones.
+    assert.doesNotMatch(doc, /"\s+on\w+=/i);
+    assert.match(doc, /data-theme="evil onload=alert\(1\)"/);
+    assert.match(doc, /color-scheme" content="dark onfocus=alert\(2\)"/);
+    // CSS :root must not retain quote injection from untrusted vars.
+    assert.match(doc, /--color-scheme:\s*dark onfocus=alert\(2\);/);
+    assert.doesNotMatch(doc, /--color-scheme:[^;]*"/);
+  });
 });
 
 describe("exportStyleOptionsFromPreview", () => {
