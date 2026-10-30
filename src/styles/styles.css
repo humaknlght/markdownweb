@@ -446,7 +446,8 @@ html[data-theme="salesforce"] .split-btn-group .split-btn-main {
   box-shadow: none;
 }
 
-html[data-theme="salesforce"] .split-btn-group .split-btn-prev[hidden] + .split-btn-main {
+html[data-theme="salesforce"] .split-btn-group .split-btn-prev[hidden] + .split-btn-main,
+html[data-theme="salesforce"] .format-bar .split-btn-group > .split-btn-main:first-child {
   border-radius: var(--radius-sm) 0 0 var(--radius-sm);
   box-shadow: 0 1px 2px rgba(8, 7, 7, 0.06);
 }
@@ -2247,7 +2248,115 @@ html.is-booting .panes {
 }
 
 .editor-pane {
+  display: flex;
+  flex-direction: column;
   border-right: 0;
+}
+
+.format-bar {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0.3rem;
+  flex-shrink: 0;
+  padding: 0.35rem 0.5rem;
+  border-bottom: 1px solid var(--chrome-border);
+  background: var(--chrome-bg);
+  z-index: 5;
+  overflow: visible;
+}
+
+.format-bar-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  flex-shrink: 0;
+}
+
+.format-bar-sep {
+  width: 1px;
+  align-self: stretch;
+  min-height: 1.25rem;
+  margin-inline: 0.1rem;
+  background: var(--chrome-border);
+  opacity: 0.7;
+  flex-shrink: 0;
+}
+
+.format-bar .btn {
+  min-height: var(--toolbar-control-h);
+  min-width: var(--toolbar-control-h);
+  padding: 0.25rem 0.35rem;
+}
+
+/* Match toolbar voice / view-mode split controls (slim caret, shared edge). */
+.format-bar .split-btn-group > .split-btn-main:first-child {
+  border-radius: 4px 0 0 4px;
+}
+
+.format-bar .split-btn-group .split-btn-toggle {
+  min-width: 1.35rem;
+  padding-inline: 0.2rem;
+}
+
+.format-bar .format-btn {
+  gap: 0.2rem;
+}
+
+.format-glyph {
+  font-family: var(--font-ui);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.format-glyph-italic {
+  font-style: italic;
+  font-weight: 600;
+}
+
+.format-glyph-code {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.format-bar .dropdown {
+  flex-shrink: 0;
+  z-index: 120;
+}
+
+.format-bar .dropdown-menu {
+  min-width: 11rem;
+}
+
+#format-more-btn[aria-expanded="true"] .kebab {
+  transform: rotate(45deg);
+}
+
+#format-more-btn[aria-expanded="true"] .kebab .circle {
+  opacity: 1;
+}
+
+/*
+ * Insert controls (image/table/…) sit on the bar when there is room.
+ * .is-compact is toggled from JS based on the format bar’s own width
+ * (viewport media queries miss splitter-resized editor panes).
+ */
+.format-bar-narrow {
+  display: none;
+}
+
+.format-bar.is-compact .format-bar-wide {
+  display: none !important;
+}
+
+.format-bar.is-compact .format-bar-sep.format-bar-narrow {
+  display: block;
+}
+
+.format-bar.is-compact .format-bar-narrow.dropdown {
+  display: block;
 }
 
 /* Delay hiding until the track has finished shrinking, so the pane stays
@@ -2312,6 +2421,12 @@ html.is-booting .panes {
   height: 100%;
   overflow: hidden;
   background: var(--editor-bg);
+}
+
+.editor-pane > .editor-wrap {
+  flex: 1;
+  min-height: 0;
+  height: auto;
 }
 
 .editor-highlight,
