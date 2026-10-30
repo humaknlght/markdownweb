@@ -1216,27 +1216,41 @@ const MERMAID_THEME_CSS = `
   /* Weekend/exclude bands — Mermaid defaults to #eee, which kills light outside labels. */
   .exclude-range { fill: var(--mermaid-exclude) !important; }
   .grid .tick { stroke: var(--mermaid-line) !important; }
-  .active0,.activeCrit0,.task0 {
+  /* Non-active bars keep series fills; stroke cycles border tokens. */
+  .task0 {
     fill: var(--mermaid-series-1) !important;
     stroke: var(--mermaid-node-border) !important;
   }
-  .active1,.activeCrit1,.task1,.done0,.doneCrit0 {
+  .task1,.done0,.doneCrit0 {
     fill: var(--mermaid-series-2) !important;
     stroke: var(--mermaid-node-border) !important;
   }
-  .active2,.activeCrit2,.task2,.done1,.doneCrit1,.crit0,.crit1 {
+  .task2,.done1,.doneCrit1,.crit0,.crit1 {
     fill: var(--mermaid-series-3) !important;
     stroke: var(--mermaid-cluster-border) !important;
   }
-  .active3,.activeCrit3,.task3,.done2,.done3,.doneCrit2,.doneCrit3,.crit2,.crit3 {
+  .task3,.done2,.done3,.doneCrit2,.doneCrit3,.crit2,.crit3 {
     fill: var(--mermaid-series-4) !important;
     stroke: var(--mermaid-line) !important;
   }
+  /* Active bars: fill matches that bar's border so the task reads solid. */
+  .active0,.activeCrit0 {
+    fill: var(--mermaid-node-border) !important;
+    stroke: var(--mermaid-node-border) !important;
+  }
+  .active1,.activeCrit1 {
+    fill: var(--mermaid-node-border) !important;
+    stroke: var(--mermaid-node-border) !important;
+  }
+  .active2,.activeCrit2 {
+    fill: var(--mermaid-cluster-border) !important;
+    stroke: var(--mermaid-cluster-border) !important;
+  }
+  .active3,.activeCrit3 {
+    fill: var(--mermaid-line) !important;
+    stroke: var(--mermaid-line) !important;
+  }
   .taskText:not(.taskTextOutsideLeft):not(.taskTextOutsideRight),
-  .activeText0:not(.taskTextOutsideLeft):not(.taskTextOutsideRight),
-  .activeText1:not(.taskTextOutsideLeft):not(.taskTextOutsideRight),
-  .activeText2:not(.taskTextOutsideLeft):not(.taskTextOutsideRight),
-  .activeText3:not(.taskTextOutsideLeft):not(.taskTextOutsideRight),
   .doneText0:not(.taskTextOutsideLeft):not(.taskTextOutsideRight),
   .doneText1:not(.taskTextOutsideLeft):not(.taskTextOutsideRight),
   .doneText2:not(.taskTextOutsideLeft):not(.taskTextOutsideRight),
@@ -1245,16 +1259,30 @@ const MERMAID_THEME_CSS = `
   .critText1:not(.taskTextOutsideLeft):not(.taskTextOutsideRight),
   .critText2:not(.taskTextOutsideLeft):not(.taskTextOutsideRight),
   .critText3:not(.taskTextOutsideLeft):not(.taskTextOutsideRight),
-  .activeCritText0:not(.taskTextOutsideLeft):not(.taskTextOutsideRight),
-  .activeCritText1:not(.taskTextOutsideLeft):not(.taskTextOutsideRight),
-  .activeCritText2:not(.taskTextOutsideLeft):not(.taskTextOutsideRight),
-  .activeCritText3:not(.taskTextOutsideLeft):not(.taskTextOutsideRight),
   .doneCritText0:not(.taskTextOutsideLeft):not(.taskTextOutsideRight),
   .doneCritText1:not(.taskTextOutsideLeft):not(.taskTextOutsideRight),
   .doneCritText2:not(.taskTextOutsideLeft):not(.taskTextOutsideRight),
   .doneCritText3:not(.taskTextOutsideLeft):not(.taskTextOutsideRight) {
     fill: var(--mermaid-series-fg) !important;
     color: var(--mermaid-series-fg) !important;
+  }
+  /* Active on-bar labels — ink chosen per border surface for AA contrast. */
+  .activeText0:not(.taskTextOutsideLeft):not(.taskTextOutsideRight),
+  .activeText1:not(.taskTextOutsideLeft):not(.taskTextOutsideRight),
+  .activeCritText0:not(.taskTextOutsideLeft):not(.taskTextOutsideRight),
+  .activeCritText1:not(.taskTextOutsideLeft):not(.taskTextOutsideRight) {
+    fill: var(--mermaid-active-on-node-fg) !important;
+    color: var(--mermaid-active-on-node-fg) !important;
+  }
+  .activeText2:not(.taskTextOutsideLeft):not(.taskTextOutsideRight),
+  .activeCritText2:not(.taskTextOutsideLeft):not(.taskTextOutsideRight) {
+    fill: var(--mermaid-active-on-cluster-fg) !important;
+    color: var(--mermaid-active-on-cluster-fg) !important;
+  }
+  .activeText3:not(.taskTextOutsideLeft):not(.taskTextOutsideRight),
+  .activeCritText3:not(.taskTextOutsideLeft):not(.taskTextOutsideRight) {
+    fill: var(--mermaid-active-on-line-fg) !important;
+    color: var(--mermaid-active-on-line-fg) !important;
   }
 
   /* Quadrant chart panels + in-panel labels */
@@ -7850,26 +7878,34 @@ async function exportDocument(format) {
     buildHtmlDocument,
     buildMarkdownFile,
     buildRtfDocument,
-    cleanPreviewHtml,
+    cleanPreviewHtmlForPrint,
     downloadBlob,
     exportBasename,
+    exportStyleOptionsFromPreview,
     printPreviewAsPdf,
   } = await loadExportModule();
 
   const title = titleFromMarkdown(markdown);
   const base = exportBasename(title);
+  const styleOptions = exportStyleOptionsFromPreview(preview);
 
   try {
     if (format === "markdown") {
       downloadBlob(buildMarkdownFile(markdown, title), `${base}.md`, "text/markdown;charset=utf-8");
       showToast("Markdown downloaded");
     } else if (format === "html") {
-      const html = buildHtmlDocument(cleanPreviewHtml(preview), title);
+      // Inline Mermaid SVG computed paints (same as PDF) so chart text/fills
+      // survive outside the live preview stylesheet.
+      const html = buildHtmlDocument(
+        cleanPreviewHtmlForPrint(preview),
+        title,
+        styleOptions,
+      );
       downloadBlob(html, `${base}.html`, "text/html;charset=utf-8");
       showToast("HTML downloaded");
     } else if (format === "pdf") {
       showToast("Choose Save as PDF in the print dialog");
-      await printPreviewAsPdf(preview, title);
+      await printPreviewAsPdf(preview, title, styleOptions);
     } else if (format === "docx") {
       downloadBlob(buildDocxBlob(preview, title), `${base}.docx`);
       showToast("DOCX downloaded");

@@ -64,6 +64,9 @@ html[data-theme="zen"] {
   --mermaid-series-3: #d45080;
   --mermaid-series-4: #d4a040;
   --mermaid-series-fg: #1a1208;
+  --mermaid-active-on-node-fg: #1a1208;
+  --mermaid-active-on-cluster-fg: #1a1208;
+  --mermaid-active-on-line-fg: #1a1208;
   --mermaid-exclude: #102830;
   --mermaid-gantt-0: var(--mermaid-series-1);
   --mermaid-gantt-1: var(--mermaid-series-2);

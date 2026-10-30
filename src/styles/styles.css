@@ -92,6 +92,10 @@ html[data-theme="github-light"] {
   --mermaid-series-3: var(--mermaid-label-bg);
   --mermaid-series-4: var(--mermaid-node-bg);
   --mermaid-series-fg: var(--mermaid-fg);
+  /* On-bar ink for active gantt tasks (fill = border); AA vs that border. */
+  --mermaid-active-on-node-fg: #000000;
+  --mermaid-active-on-cluster-fg: #ffffff;
+  --mermaid-active-on-line-fg: #ffffff;
   /* Gantt weekend/exclude bands (Mermaid default #eee). */
   --mermaid-exclude: #eeeeee;
   /* Gantt section row bands — hue-distinct so neighbors read apart at low opacity. */
@@ -168,6 +172,9 @@ html[data-theme="github-dark"] {
   --mermaid-series-3: var(--mermaid-label-bg);
   --mermaid-series-4: var(--mermaid-node-bg);
   --mermaid-series-fg: var(--mermaid-fg);
+  --mermaid-active-on-node-fg: #000000;
+  --mermaid-active-on-cluster-fg: #000000;
+  --mermaid-active-on-line-fg: #000000;
   --mermaid-exclude: var(--mermaid-node-bg);
   --mermaid-gantt-0: #3d6a9e;
   --mermaid-gantt-1: #7a52b0;
@@ -242,6 +249,9 @@ html[data-theme="sepia"] {
   --mermaid-series-3: var(--mermaid-label-bg);
   --mermaid-series-4: var(--mermaid-node-bg);
   --mermaid-series-fg: var(--mermaid-fg);
+  --mermaid-active-on-node-fg: #ffffff;
+  --mermaid-active-on-cluster-fg: #ffffff;
+  --mermaid-active-on-line-fg: #ffffff;
   --mermaid-exclude: var(--mermaid-label-bg);
   --mermaid-gantt-0: #d4b86a;
   --mermaid-gantt-1: #c47a5a;
@@ -316,6 +326,9 @@ html[data-theme="terminal"] {
   --mermaid-series-3: var(--mermaid-label-bg);
   --mermaid-series-4: var(--mermaid-node-bg);
   --mermaid-series-fg: var(--mermaid-fg);
+  --mermaid-active-on-node-fg: #000000;
+  --mermaid-active-on-cluster-fg: #000000;
+  --mermaid-active-on-line-fg: #000000;
   --mermaid-exclude: var(--mermaid-node-bg);
   --mermaid-gantt-0: #2a6b3e;
   --mermaid-gantt-1: #6b7a2a;
@@ -388,6 +401,9 @@ html[data-theme="salesforce"] {
   --mermaid-series-3: var(--mermaid-label-bg);
   --mermaid-series-4: var(--mermaid-node-bg);
   --mermaid-series-fg: var(--mermaid-fg);
+  --mermaid-active-on-node-fg: #ffffff;
+  --mermaid-active-on-cluster-fg: #ffffff;
+  --mermaid-active-on-line-fg: #ffffff;
   --mermaid-exclude: #eeeeee;
   --mermaid-gantt-0: #8ec5f0;
   --mermaid-gantt-1: #f0c878;
@@ -606,6 +622,9 @@ html[data-theme="fancy"] {
   --mermaid-series-3: #d45080;
   --mermaid-series-4: #d4a040;
   --mermaid-series-fg: #1a1208;
+  --mermaid-active-on-node-fg: #1a1208;
+  --mermaid-active-on-cluster-fg: #1a1208;
+  --mermaid-active-on-line-fg: #1a1208;
   --mermaid-exclude: #0c2838;
   --mermaid-gantt-0: var(--mermaid-series-1);
   --mermaid-gantt-1: var(--mermaid-series-2);
