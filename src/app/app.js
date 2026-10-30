@@ -5675,6 +5675,9 @@ function updateFilesChrome() {
   if (filesEmptyOpenBtn) {
     filesEmptyOpenBtn.hidden = cloudMode;
   }
+  if (filesOpenFileBtn) {
+    filesOpenFileBtn.hidden = cloudMode;
+  }
   if (filesOpenFolderBtn) {
     filesOpenFolderBtn.hidden = cloudMode || !fsAccessSupported;
   }
@@ -10625,6 +10628,19 @@ async function init() {
         e.preventDefault();
         void saveCurrentDocument();
       }
+      return;
+    }
+
+    if (
+      (e.metaKey || e.ctrlKey) &&
+      !e.altKey &&
+      !e.shiftKey &&
+      e.key.toLowerCase() === "o" &&
+      !isDriveFilesSource() &&
+      !isGistFilesSource()
+    ) {
+      e.preventDefault();
+      fileInput?.click();
       return;
     }
 
