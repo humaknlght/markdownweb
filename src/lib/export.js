@@ -8,6 +8,74 @@ export const GENERATOR_URL = "https://dev.ericperret.org/markdown/";
 /** @type {WeakSet<object>} */
 const purifyMediaHooksInstalled = new WeakSet();
 
+/** Tags blocked in standalone exports (phishing chrome / controls). */
+const EXPORT_FORBID_TAGS = [
+  "form",
+  "input",
+  "button",
+  "select",
+  "textarea",
+  "option",
+  "optgroup",
+  "fieldset",
+  "legend",
+];
+
+/**
+ * DOMPurify's SVG profile keeps `<foreignObject>` but strips its XHTML
+ * children — Mermaid flowchart/ER/journey labels live there. Stash those
+ * subtrees, sanitize the shell + the HTML interiors separately, then restore.
+ * @param {string} html
+ * @param {ReturnType<typeof createDOMPurify>} purify
+ * @returns {string}
+ */
+function preserveMermaidForeignObjects(html, purify) {
+  /** @type {{ attrs: string, inner: string }[]} */
+  const stash = [];
+  const withPlaceholders = String(html).replace(
+    /<foreignObject(\s[^>]*)?>[\s\S]*?<\/foreignObject>/gi,
+    (match, attrs = "") => {
+      const innerMatch = match.match(
+        /^<foreignObject\b[^>]*>([\s\S]*)<\/foreignObject>$/i,
+      );
+      const inner = innerMatch ? innerMatch[1] : "";
+      const cleanInner = purify.sanitize(inner, {
+        USE_PROFILES: { html: true },
+        FORBID_TAGS: EXPORT_FORBID_TAGS,
+      });
+      const id = stash.length;
+      stash.push({ attrs: String(attrs || ""), inner: cleanInner });
+      // Keep width/height/x/y on the placeholder so layout survives sanitize.
+      const safeAttrs = String(attrs || "").trim();
+      return `<foreignObject${safeAttrs ? ` ${safeAttrs}` : ""} data-export-fo="${id}"></foreignObject>`;
+    },
+  );
+
+  let clean = purify.sanitize(withPlaceholders, {
+    USE_PROFILES: { html: true, svg: true },
+    ADD_TAGS: ["foreignObject"],
+    ADD_ATTR: ["data-export-fo"],
+    FORBID_TAGS: EXPORT_FORBID_TAGS,
+  });
+
+  clean = clean.replace(
+    /<foreignObject\b([^>]*?)data-export-fo="(\d+)"([^>]*)>\s*<\/foreignObject>/gi,
+    (_, before, id, after) => {
+      const entry = stash[Number(id)];
+      if (!entry) return "";
+      // Drop the placeholder attr; keep any other attrs DOMPurify left on the shell.
+      const shellAttrs = `${before} ${after}`
+        .replace(/\s*data-export-fo="\d+"/gi, "")
+        .replace(/\s+/g, " ")
+        .trim();
+      const attrs = shellAttrs ? ` ${shellAttrs}` : "";
+      return `<foreignObject${attrs}>${entry.inner}</foreignObject>`;
+    },
+  );
+
+  return clean;
+}
+
 /**
  * Re-sanitize preview HTML before embedding in standalone exports.
  * @param {string} html
@@ -20,20 +88,7 @@ function sanitizeExportHtml(html) {
     installSafeMediaHooks(purify);
     purifyMediaHooksInstalled.add(purify);
   }
-  return purify.sanitize(html, {
-    USE_PROFILES: { html: true, svg: true },
-    FORBID_TAGS: [
-      "form",
-      "input",
-      "button",
-      "select",
-      "textarea",
-      "option",
-      "optgroup",
-      "fieldset",
-      "legend",
-    ],
-  });
+  return preserveMermaidForeignObjects(html, purify);
 }
 
 /**
@@ -83,8 +138,10 @@ export function cleanPreviewHtml(previewEl) {
  */
 export function cleanPreviewHtmlForPrint(previewEl) {
   const clone = preparePreviewClone(previewEl);
-  const liveSvgs = previewEl.querySelectorAll("svg");
-  const cloneSvgs = clone.querySelectorAll("svg");
+  // Only top-level diagram SVGs — nested marker/icon <svg>s shift indices
+  // and would bake the wrong computed paints onto the wrong tree.
+  const liveSvgs = previewEl.querySelectorAll(".mermaid > svg");
+  const cloneSvgs = clone.querySelectorAll(".mermaid > svg");
   const count = Math.min(liveSvgs.length, cloneSvgs.length);
   for (let i = 0; i < count; i++) {
     inlineSvgComputedStyles(liveSvgs[i], cloneSvgs[i]);
@@ -104,6 +161,29 @@ function preparePreviewClone(previewEl) {
   return clone;
 }
 
+/**
+ * Fluid Mermaid charts (gantt, etc.) are laid out for the live preview host
+ * width. Standalone HTML cannot re-run Mermaid, so unlock the captured px
+ * width and let the SVG fill the article — otherwise fullscreen export keeps
+ * empty side margins from `margin: 0 auto` + a stale max-width.
+ * @param {SVGElement} svg
+ */
+function prepareFluidMermaidSvgForExport(svg) {
+  const fluid =
+    svg.dataset.mermaidFluid === "1" ||
+    svg.getAttribute("aria-roledescription") === "gantt";
+  if (!fluid) return;
+  svg.setAttribute("data-export-fluid", "");
+  svg.style.removeProperty("max-width");
+  svg.style.width = "100%";
+  svg.style.height = "auto";
+  svg.style.margin = "0";
+  svg.setAttribute("width", "100%");
+  if (svg.getAttribute("viewBox")) {
+    svg.removeAttribute("height");
+  }
+}
+
 /** @param {HTMLElement} clone */
 function cleanupClone(clone) {
   for (const el of clone.querySelectorAll("[data-source-line], [data-source-line-end]")) {
@@ -116,6 +196,12 @@ function cleanupClone(clone) {
   for (const el of clone.querySelectorAll("[data-pending]")) {
     el.removeAttribute("data-pending");
   }
+
+  // Adapt fluid charts before stripping the fluid/natural markers.
+  for (const svg of clone.querySelectorAll(".mermaid > svg")) {
+    prepareFluidMermaidSvgForExport(/** @type {SVGElement} */ (svg));
+  }
+
   for (const el of clone.querySelectorAll(
     "[data-processed], [data-mermaid-natural], [data-mermaid-fluid]",
   )) {
@@ -178,102 +264,403 @@ export function buildMarkdownFile(markdown, title) {
   );
 }
 
+/** CSS custom properties mirrored from the live preview theme into HTML/PDF exports. */
+const EXPORT_STYLE_VARS = [
+  "--color-scheme",
+  "--preview-bg",
+  "--preview-fg",
+  "--preview-muted",
+  "--preview-link",
+  "--preview-link-hover",
+  "--preview-rule",
+  "--preview-code-bg",
+  "--preview-pre-bg",
+  "--preview-pre-border",
+  "--preview-quote",
+  "--preview-font",
+  "--preview-size",
+  "--heading-color",
+  "--font-mono",
+  "--syntax-comment",
+  "--syntax-keyword",
+  "--syntax-string",
+  "--syntax-number",
+  "--syntax-literal",
+  "--syntax-built-in",
+  "--syntax-type",
+  "--syntax-attr",
+  "--syntax-title",
+  "--syntax-meta",
+  "--syntax-deletion",
+  "--syntax-addition",
+  "--mermaid-bg",
+  "--mermaid-fg",
+  "--mermaid-font",
+  "--mermaid-node-bg",
+  "--mermaid-node-border",
+  "--mermaid-cluster-bg",
+  "--mermaid-cluster-border",
+  "--mermaid-line",
+  "--mermaid-label-bg",
+  "--mermaid-note-bg",
+  "--mermaid-note-fg",
+  "--mermaid-series-1",
+  "--mermaid-series-2",
+  "--mermaid-series-3",
+  "--mermaid-series-4",
+  "--mermaid-series-fg",
+  "--mermaid-active-on-node-fg",
+  "--mermaid-active-on-cluster-fg",
+  "--mermaid-active-on-line-fg",
+  "--mermaid-exclude",
+  "--mermaid-gantt-0",
+  "--mermaid-gantt-1",
+  "--mermaid-gantt-2",
+  "--mermaid-gantt-3",
+  "--mermaid-gantt-section-opacity",
+];
+
+/** Defaults match github-light / readable so unit tests stay stable offline. */
+const DEFAULT_EXPORT_STYLE_VARS = {
+  "--color-scheme": "light",
+  "--preview-bg": "#ffffff",
+  "--preview-fg": "#1f2328",
+  "--preview-muted": "#656d76",
+  "--preview-link": "#0969da",
+  "--preview-link-hover": "#0550ae",
+  "--preview-rule": "#d1d9e0",
+  "--preview-code-bg": "#f6f8fa",
+  "--preview-pre-bg": "#f6f8fa",
+  "--preview-pre-border": "#d1d9e0",
+  "--preview-quote": "#d1d9e0",
+  "--preview-font": '-apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif',
+  "--preview-size": "1rem",
+  "--heading-color": "inherit",
+  "--font-mono": "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+  "--syntax-comment": "#6a737d",
+  "--syntax-keyword": "#cc3745",
+  "--syntax-string": "#032f62",
+  "--syntax-number": "#005cc5",
+  "--syntax-literal": "#005cc5",
+  "--syntax-built-in": "#bb5107",
+  "--syntax-type": "#6f42c1",
+  "--syntax-attr": "#005cc5",
+  "--syntax-title": "#6f42c1",
+  "--syntax-meta": "#6a737d",
+  "--syntax-deletion": "#b31d28",
+  "--syntax-addition": "#207f37",
+  "--mermaid-bg": "#ffffff",
+  "--mermaid-fg": "#333333",
+  "--mermaid-font":
+    '-apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif',
+  "--mermaid-node-bg": "#ececff",
+  "--mermaid-node-border": "#9370db",
+  "--mermaid-cluster-bg": "#ffffde",
+  "--mermaid-cluster-border": "#6b6b22",
+  "--mermaid-line": "#333333",
+  "--mermaid-label-bg": "#e8e8e8",
+  "--mermaid-note-bg": "#fff5ad",
+  "--mermaid-note-fg": "#333333",
+  "--mermaid-series-1": "var(--mermaid-node-bg)",
+  "--mermaid-series-2": "var(--mermaid-cluster-bg)",
+  "--mermaid-series-3": "var(--mermaid-label-bg)",
+  "--mermaid-series-4": "var(--mermaid-node-bg)",
+  "--mermaid-series-fg": "var(--mermaid-fg)",
+  "--mermaid-active-on-node-fg": "#000000",
+  "--mermaid-active-on-cluster-fg": "#ffffff",
+  "--mermaid-active-on-line-fg": "#ffffff",
+  "--mermaid-exclude": "#eeeeee",
+  "--mermaid-gantt-0": "#c5b8f0",
+  "--mermaid-gantt-1": "#e8d878",
+  "--mermaid-gantt-2": "#e8a0b4",
+  "--mermaid-gantt-3": "#7ebfa8",
+  "--mermaid-gantt-section-opacity": "0.4",
+};
+
+/**
+ * Snapshot live preview settings (width, line wrap, theme tokens) for exports.
+ * @param {HTMLElement} previewEl
+ * @returns {{
+ *   width: "readable" | "full",
+ *   lineWrap: boolean,
+ *   theme: string,
+ *   vars: Record<string, string>
+ * }}
+ */
+export function exportStyleOptionsFromPreview(previewEl) {
+  const doc = previewEl?.ownerDocument || (typeof document !== "undefined" ? document : null);
+  const root = doc?.documentElement;
+  /** @type {Record<string, string>} */
+  const vars = {};
+  if (root && typeof getComputedStyle === "function") {
+    const cs = getComputedStyle(root);
+    for (const name of EXPORT_STYLE_VARS) {
+      const value = sanitizeCssValue(cs.getPropertyValue(name));
+      if (value) vars[name] = value;
+    }
+  }
+  const width = previewEl?.dataset?.width === "full" ? "full" : "readable";
+  const lineWrap = root?.dataset?.lineWrap !== "off";
+  const theme = sanitizeCssValue(root?.dataset?.theme || "github-light") || "github-light";
+  return { width, lineWrap, theme, vars };
+}
+
+/**
+ * Theme-specific preview rules that are not expressible as shared CSS variables.
+ * Keep these aligned with styles.css / zen.css `.preview` overrides.
+ * @param {string} theme
+ * @returns {string}
+ */
+function themeExportCss(theme) {
+  if (theme === "salesforce") {
+    return `
+    body {
+      background: #f4f4f4;
+      padding: 1rem;
+    }
+    article {
+      background: #ffffff;
+      border-radius: 1rem;
+      padding: 1.5rem 1.75rem 2.5rem;
+      box-shadow: 0 2px 8px rgba(8, 7, 7, 0.08), 0 8px 24px rgba(1, 118, 211, 0.12);
+    }
+    h1, h2 { border-bottom-color: #90d0fe; }
+    a { font-weight: 600; }
+    code:not(pre code) {
+      color: #014486;
+      border-radius: 0.5rem;
+    }
+    blockquote {
+      background: #eaf5fe;
+      border-left-width: 4px;
+      border-radius: 0 0.75rem 0.75rem 0;
+      padding: 0.65rem 1rem;
+      color: #032d60;
+    }
+    pre, pre code { color: #eaf5fe; }
+    pre { border-radius: 1rem; }
+`;
+  }
+  if (theme === "fancy") {
+    return `
+    body { background: #062436; }
+    h1, h2 { border-bottom-color: rgba(255, 255, 255, 0.2); }
+    blockquote {
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 0 10px 10px 0;
+      padding: 0.55rem 0.9rem;
+    }
+    pre { border-radius: 10px; }
+    .mermaid, .mermaid svg { background: transparent; }
+    .line-num {
+      background: transparent;
+      border-right-color: rgba(255, 255, 255, 0.14);
+      color: rgba(244, 248, 251, 0.5);
+    }
+`;
+  }
+  if (theme === "zen") {
+    return `
+    body { background: #0b1c24; }
+    h1, h2 { border-bottom-color: rgba(140, 200, 210, 0.22); }
+    blockquote {
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 0 10px 10px 0;
+      padding: 0.55rem 0.9rem;
+    }
+    pre { border-radius: 10px; }
+    .mermaid, .mermaid svg { background: transparent; }
+    .line-num {
+      background: transparent;
+      border-right-color: rgba(140, 200, 210, 0.16);
+      color: rgba(232, 244, 246, 0.5);
+    }
+`;
+  }
+  return "";
+}
+
+/**
+ * @param {string} value
+ * @returns {string}
+ */
+function sanitizeCssValue(value) {
+  // Drop anything that could break out of a CSS declaration or </style>.
+  return String(value ?? "")
+    .replace(/[;{}<>]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * @param {Record<string, string>} vars
+ * @returns {string}
+ */
+function formatExportRootVars(vars) {
+  const merged = { ...DEFAULT_EXPORT_STYLE_VARS, ...vars };
+  return Object.entries(merged)
+    .map(([name, value]) => `      ${name}: ${sanitizeCssValue(value)};`)
+    .join("\n");
+}
+
+/**
+ * @typedef {object} HtmlExportOptions
+ * @property {"readable"|"full"} [width]
+ * @property {boolean} [lineWrap]
+ * @property {string} [theme]
+ * @property {Record<string, string>} [vars]
+ */
+
 /**
  * @param {string} bodyHtml
  * @param {string} title
+ * @param {HtmlExportOptions} [options]
  * @returns {string}
  */
-export function buildHtmlDocument(bodyHtml, title) {
+export function buildHtmlDocument(bodyHtml, title, options = {}) {
   const safeTitle = escapeHtml(title || "Untitled");
+  const width = options.width === "full" ? "full" : "readable";
+  const lineWrap = options.lineWrap !== false;
+  const theme = sanitizeCssValue(options.theme || "github-light") || "github-light";
+  const maxWidth = width === "full" ? "none" : "52rem";
+  const rootVars = formatExportRootVars(options.vars || {});
+  const colorScheme = sanitizeCssValue(
+    options.vars?.["--color-scheme"] || DEFAULT_EXPORT_STYLE_VARS["--color-scheme"],
+  );
+  const themeCss = themeExportCss(theme);
   return `<!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="${theme}" data-width="${width}" data-line-wrap="${lineWrap ? "on" : "off"}">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="generator" content="${GENERATOR_URL}" />
+  <meta name="color-scheme" content="${colorScheme}" />
   <link rel="canonical" href="${GENERATOR_URL}" />
   <title>${safeTitle}</title>
   <style>
     :root {
-      color-scheme: light;
-      --fg: #1f2328;
-      --muted: #656d76;
-      --link: #0969da;
-      --rule: #d1d9e0;
-      --code-bg: #f6f8fa;
-      --quote: #d1d9e0;
-      --mermaid-bg: #ffffff;
-      --mermaid-fg: #333333;
-      --mermaid-node-bg: #ececff;
-      --mermaid-node-border: #9370db;
-      --mermaid-cluster-bg: #ffffde;
-      --mermaid-cluster-border: #6b6b22;
-      --mermaid-line: #333333;
-      --mermaid-label-bg: #e8e8e8;
-      --mermaid-note-bg: #fff5ad;
-      --mermaid-note-fg: #333333;
-      --mermaid-series-1: var(--mermaid-node-bg);
-      --mermaid-series-2: var(--mermaid-cluster-bg);
-      --mermaid-series-3: var(--mermaid-label-bg);
-      --mermaid-series-4: var(--mermaid-node-bg);
-      --mermaid-series-fg: var(--mermaid-fg);
-      --mermaid-exclude: #eeeeee;
-      --mermaid-gantt-0: #c5b8f0;
-      --mermaid-gantt-1: #e8d878;
-      --mermaid-gantt-2: #e8a0b4;
-      --mermaid-gantt-3: #7ebfa8;
-      --mermaid-gantt-section-opacity: 0.4;
+${rootVars}
     }
     @page { margin: 0.75in; }
     body {
       margin: 0;
       padding: 0;
-      font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
-      color: var(--fg);
-      background: #fff;
+      font: var(--preview-size)/1.65 var(--preview-font);
+      color: var(--preview-fg);
+      background: var(--preview-bg);
+      color-scheme: var(--color-scheme);
     }
     article {
-      max-width: 52rem;
+      max-width: ${maxWidth};
+      width: 100%;
       margin: 0 auto;
+      padding: 1.25rem 1.5rem 2.5rem;
+      box-sizing: border-box;
       overflow-wrap: anywhere;
     }
-    h1, h2, h3, h4, h5, h6 { line-height: 1.25; margin: 1.4em 0 0.6em; }
-    h1 { font-size: 2rem; border-bottom: 1px solid var(--rule); padding-bottom: 0.3em; }
-    h2 { font-size: 1.5rem; border-bottom: 1px solid var(--rule); padding-bottom: 0.3em; }
+    h1, h2, h3, h4, h5, h6 {
+      line-height: 1.25;
+      margin: 1.4em 0 0.55em;
+      font-weight: 650;
+      color: var(--heading-color);
+    }
+    h1 { font-size: 1.85em; border-bottom: 1px solid var(--preview-rule); padding-bottom: 0.3em; }
+    h2 { font-size: 1.45em; border-bottom: 1px solid var(--preview-rule); padding-bottom: 0.25em; }
+    h3 { font-size: 1.2em; }
     p, ul, ol, pre, blockquote, table { margin: 0 0 1em; }
-    a { color: var(--link); }
+    a { color: var(--preview-link); }
+    a:hover { color: var(--preview-link-hover); }
     code {
-      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-family: var(--font-mono);
       font-size: 0.875em;
-      background: var(--code-bg);
+      background: var(--preview-code-bg);
       padding: 0.15em 0.35em;
-      border-radius: 4px;
+      border-radius: 3px;
     }
     pre {
-      background: var(--code-bg);
-      border: 1px solid var(--rule);
+      background: var(--preview-pre-bg);
+      border: 1px solid var(--preview-pre-border);
       border-radius: 6px;
-      padding: 0.85rem 1rem;
+      padding: 0.85rem 0;
       overflow: auto;
     }
-    pre code { background: none; padding: 0; font-size: 0.8125rem; }
+    pre code {
+      background: transparent;
+      padding: 0;
+      font-size: 0.85em;
+      line-height: 1.5;
+      color: inherit;
+      display: grid;
+      grid-template-columns: max-content minmax(0, 1fr);
+      min-width: 100%;
+    }
+    html[data-line-wrap="off"] pre code {
+      grid-template-columns: max-content minmax(min-content, 1fr);
+    }
+    .code-line { display: contents; }
+    .line-num {
+      position: sticky;
+      left: 0;
+      z-index: 1;
+      box-sizing: border-box;
+      padding: 0 1rem 0 0.75rem;
+      border-right: 1px solid var(--preview-pre-border);
+      color: var(--syntax-comment);
+      text-align: right;
+      white-space: nowrap;
+      user-select: none;
+      background: var(--preview-pre-bg);
+    }
+    .line-src {
+      min-width: 0;
+      min-height: 1.5em;
+      padding: 0 1rem;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+    html[data-line-wrap="off"] .line-src {
+      min-width: min-content;
+      white-space: pre;
+      overflow-wrap: normal;
+      word-break: normal;
+    }
     blockquote {
       margin-left: 0;
       padding: 0 1em;
-      color: var(--muted);
-      border-left: 0.25em solid var(--quote);
+      color: var(--preview-muted);
+      border-left: 0.25em solid var(--preview-quote);
     }
     blockquote > :first-child { margin-top: 0; }
     blockquote > :last-child { margin-bottom: 0; }
-    table { border-collapse: collapse; width: 100%; }
-    th, td { border: 1px solid var(--rule); padding: 0.4rem 0.65rem; }
-    th { background: var(--code-bg); }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      display: block;
+      overflow: auto;
+    }
+    th, td { border: 1px solid var(--preview-rule); padding: 0.4em 0.7em; }
+    th { background: var(--preview-code-bg); font-weight: 600; }
     img { max-width: 100%; height: auto; }
-    hr { border: 0; border-top: 1px solid var(--rule); margin: 1.5em 0; }
+    hr { border: 0; border-top: 1px solid var(--preview-rule); margin: 1.5em 0; }
+    .hljs-comment, .hljs-quote { color: var(--syntax-comment); font-style: italic; }
+    .hljs-keyword, .hljs-selector-tag, .hljs-doctag { color: var(--syntax-keyword); }
+    .hljs-string, .hljs-regexp, .hljs-attribute { color: var(--syntax-string); }
+    .hljs-number, .hljs-literal, .hljs-variable, .hljs-template-variable { color: var(--syntax-number); }
+    .hljs-built_in, .hljs-builtin-name, .hljs-symbol { color: var(--syntax-built-in); }
+    .hljs-type, .hljs-title.class_ { color: var(--syntax-type); }
+    .hljs-attr, .hljs-selector-attr, .hljs-selector-class, .hljs-selector-id, .hljs-name { color: var(--syntax-attr); }
+    .hljs-title, .hljs-section { color: var(--syntax-title); }
+    .hljs-meta, .hljs-meta .hljs-keyword, .hljs-meta .hljs-string { color: var(--syntax-meta); }
+    .hljs-deletion { color: var(--syntax-deletion); }
+    .hljs-addition { color: var(--syntax-addition); }
+    .hljs-emphasis { font-style: italic; }
+    .hljs-strong { font-weight: 700; }
     .mermaid {
       overflow: visible;
       margin: 1rem 0;
       background: var(--mermaid-bg);
+      font-family: var(--mermaid-font);
       break-inside: avoid;
       page-break-inside: avoid;
     }
@@ -284,17 +671,37 @@ export function buildHtmlDocument(bodyHtml, title) {
       margin: 0 auto;
       background: var(--mermaid-bg);
     }
+    /* Fluid charts (gantt): fill the article instead of centering a frozen px width. */
+    .mermaid svg[data-export-fluid],
+    .mermaid svg[aria-roledescription="gantt"] {
+      width: 100%;
+      max-width: 100%;
+      margin: 0;
+    }
+    /* Gantt weekend/exclude bands — never inherit a stroke from parent <g>/<svg>. */
+    .mermaid .exclude-range {
+      fill: var(--mermaid-exclude) !important;
+      stroke: none !important;
+      stroke-width: 0 !important;
+    }
+    .mermaid rect.section {
+      opacity: var(--mermaid-gantt-section-opacity) !important;
+    }
+    .mermaid .section0 { fill: var(--mermaid-gantt-0) !important; }
+    .mermaid .section1 { fill: var(--mermaid-gantt-1) !important; }
+    .mermaid .section2 { fill: var(--mermaid-gantt-2) !important; }
+    .mermaid .section3 { fill: var(--mermaid-gantt-3) !important; }
     .export-generator {
       margin-top: 2.5rem;
       padding-top: 0.75rem;
-      border-top: 1px solid var(--rule);
+      border-top: 1px solid var(--preview-rule);
       font-size: 0.75rem;
-      color: var(--muted);
+      color: var(--preview-muted);
     }
-  </style>
+${themeCss}  </style>
 </head>
 <body>
-  <article>
+  <article data-width="${width}">
 ${bodyHtml}
     <p class="export-generator">Generated by ${GENERATOR_URL}</p>
   </article>
@@ -308,10 +715,12 @@ ${bodyHtml}
  * and export stays fast (no html2canvas). User chooses "Save as PDF".
  * @param {HTMLElement} previewEl
  * @param {string} title
+ * @param {HtmlExportOptions} [options]
  * @returns {Promise<void>}
  */
-export async function printPreviewAsPdf(previewEl, title) {
-  const html = buildHtmlDocument(cleanPreviewHtmlForPrint(previewEl), title);
+export async function printPreviewAsPdf(previewEl, title, options) {
+  const style = options || exportStyleOptionsFromPreview(previewEl);
+  const html = buildHtmlDocument(cleanPreviewHtmlForPrint(previewEl), title, style);
   await printHtmlDocument(html);
 }
 
@@ -524,19 +933,42 @@ function inlineSvgComputedStyles(sourceRoot, cloneRoot) {
     "stop-color",
     "stop-opacity",
   ];
+  // Structural containers: baking stroke/fill here inherits onto gantt
+  // weekend bands (exclude-range) and draws an extra border in HTML export.
+  const containerTags = new Set(["svg", "g", "defs", "clipPath", "mask", "marker", "symbol"]);
 
   const walk = (src, dst) => {
     if (src.nodeType !== 1 || dst.nodeType !== 1) return;
+    const tag = src.tagName.toLowerCase();
+    const isContainer = containerTags.has(tag);
     const cs = getComputedStyle(src);
-    for (const prop of props) {
-      const value = cs.getPropertyValue(prop);
-      if (!value) continue;
-      dst.style.setProperty(prop, value);
+
+    if (!isContainer) {
+      for (const prop of props) {
+        const value = cs.getPropertyValue(prop);
+        if (!value) continue;
+        dst.style.setProperty(prop, value);
+      }
+      const fill = cs.fill;
+      if (fill && fill !== "none") dst.setAttribute("fill", rgbToSvgColor(fill));
+      const stroke = cs.stroke;
+      if (stroke && stroke !== "none") dst.setAttribute("stroke", rgbToSvgColor(stroke));
+      else if (cs.getPropertyValue("stroke") === "none") dst.setAttribute("stroke", "none");
     }
-    const fill = cs.fill;
-    if (fill && fill !== "none") dst.setAttribute("fill", rgbToSvgColor(fill));
-    const stroke = cs.stroke;
-    if (stroke && stroke !== "none") dst.setAttribute("stroke", rgbToSvgColor(stroke));
+
+    // Gantt weekends: force no stroke + resolved exclude fill (DOMPurify may
+    // drop style="", but presentation attributes survive).
+    if (dst.classList?.contains("exclude-range")) {
+      dst.setAttribute("stroke", "none");
+      dst.style.setProperty("stroke", "none");
+      dst.style.setProperty("stroke-width", "0");
+      const fill = cs.fill;
+      if (fill && fill !== "none") {
+        const hex = rgbToSvgColor(fill);
+        dst.setAttribute("fill", hex);
+        dst.style.setProperty("fill", hex);
+      }
+    }
 
     const srcChildren = [...src.children];
     const dstChildren = [...dst.children];

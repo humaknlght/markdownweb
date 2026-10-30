@@ -59,6 +59,9 @@
     --mermaid-series-3: var(--mermaid-label-bg);
     --mermaid-series-4: var(--mermaid-node-bg);
     --mermaid-series-fg: var(--mermaid-fg);
+    --mermaid-active-on-node-fg: #000000;
+    --mermaid-active-on-cluster-fg: #ffffff;
+    --mermaid-active-on-line-fg: #ffffff;
     --mermaid-exclude: #eeeeee;
     --mermaid-gantt-0: #c5b8f0;
     --mermaid-gantt-1: #e8d878;

@@ -41,6 +41,9 @@ const MERMAID_VARS = [
   "--mermaid-series-3",
   "--mermaid-series-4",
   "--mermaid-series-fg",
+  "--mermaid-active-on-node-fg",
+  "--mermaid-active-on-cluster-fg",
+  "--mermaid-active-on-line-fg",
   "--mermaid-exclude",
   "--mermaid-gantt-0",
   "--mermaid-gantt-1",
@@ -185,6 +188,9 @@ describe("Mermaid theme contrast (WCAG 2.2 AA)", () => {
     assert.match(app, /\.commit-label/);
     assert.match(app, /\.titleText/);
     assert.match(app, /rect\.section-type-0/);
+    assert.match(app, /\.active0,\s*\.activeCrit0/);
+    assert.match(app, /fill:\s*var\(--mermaid-node-border\)/);
+    assert.match(app, /var\(--mermaid-active-on-node-fg\)/);
     assert.match(app, /\.activeText0/);
     assert.match(app, /\.doneText0\.taskTextOutsideRight/);
     assert.match(app, /path\.pieCircle:nth-of-type/);
@@ -235,6 +241,10 @@ describe("Mermaid theme contrast (WCAG 2.2 AA)", () => {
         ["series-fg/s2", c("--mermaid-series-fg"), c("--mermaid-series-2"), 4.5],
         ["series-fg/s3", c("--mermaid-series-fg"), c("--mermaid-series-3"), 4.5],
         ["series-fg/s4", c("--mermaid-series-fg"), c("--mermaid-series-4"), 4.5],
+        // Active gantt bars use border fills; on-bar ink must stay AA.
+        ["active-fg/node-border", c("--mermaid-active-on-node-fg"), c("--mermaid-node-border"), 4.5],
+        ["active-fg/cluster-border", c("--mermaid-active-on-cluster-fg"), c("--mermaid-cluster-border"), 4.5],
+        ["active-fg/line", c("--mermaid-active-on-line-fg"), c("--mermaid-line"), 4.5],
         // Outside gantt labels sit on exclude/weekend bands.
         ["fg/exclude", c("--mermaid-fg"), c("--mermaid-exclude"), 4.5],
       ];
@@ -310,13 +320,16 @@ describe("Mermaid theme contrast (WCAG 2.2 AA)", () => {
     const print = await fs.readFile(path.join(root, "src/styles/print.css"), "utf8");
     const exp = await fs.readFile(path.join(root, "src/lib/export.js"), "utf8");
     for (const name of MERMAID_VARS) {
-      const re = new RegExp(`${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*:\\s*([^;]+);`);
-      const p = print.match(re);
-      const e = exp.match(re);
+      const esc = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const printRe = new RegExp(`${esc}\\s*:\\s*([^;]+);`);
+      // export.js keeps defaults in DEFAULT_EXPORT_STYLE_VARS (JS object keys).
+      const exportRe = new RegExp(`"${esc}"\\s*:\\s*("(?:\\\\.|[^"])*"|'(?:\\\\.|[^'])*')`);
+      const p = print.match(printRe);
+      const e = exp.match(exportRe);
       assert.ok(p, `print.css missing ${name}`);
       assert.ok(e, `export.js missing ${name}`);
       assert.equal(p[1].trim(), light[name], `print.css ${name}`);
-      assert.equal(e[1].trim(), light[name], `export.js ${name}`);
+      assert.equal(JSON.parse(e[1]), light[name], `export.js ${name}`);
     }
   });
 });
