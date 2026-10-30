@@ -9,6 +9,15 @@ import {
   findCollapsedEmbeds,
   formatEmbedMarkdown,
 } from "../markdown/embeds.js";
+import {
+  insertCodeBlock,
+  insertHorizontalRule,
+  insertImage,
+  insertLink,
+  insertTable,
+  prefixLines,
+  wrapInline,
+} from "../markdown/format-markdown.js";
 import { frontmatterExtension } from "../markdown/frontmatter.js";
 import { tablePipesExtension } from "../markdown/tablePipes.js";
 import {
@@ -362,6 +371,19 @@ const collapseEditorBtn = document.getElementById("collapse-editor");
 const collapsePreviewBtn = document.getElementById("collapse-preview");
 const syncScrollBtn = document.getElementById("sync-scroll-btn");
 const lineWrapBtn = document.getElementById("line-wrap-btn");
+const formatBar = document.getElementById("format-bar");
+const headingDropdown = document.getElementById("heading-dropdown");
+const headingMenuBtn = document.getElementById("heading-menu-btn");
+const headingMenu = document.getElementById("heading-menu");
+const imageDropdown = document.getElementById("image-dropdown");
+const imageMenuBtn = document.getElementById("image-menu-btn");
+const imageMenu = document.getElementById("image-menu");
+const formatImageInput = document.getElementById("format-image-input");
+const formatMoreDropdown = document.getElementById("format-more-dropdown");
+const formatMoreBtn = document.getElementById("format-more-btn");
+const formatMoreMenu = document.getElementById("format-more-menu");
+/** @type {{ start: number, end: number }|null} */
+let pendingFormatImageRange = null;
 const previewPane = document.getElementById("preview-pane");
 const renderLoading = document.getElementById("render-loading");
 const historyBtn = document.getElementById("history-btn");
@@ -1893,12 +1915,43 @@ function mermaidNodeIsVisible(el) {
   return !el.closest("[hidden], .md-section-folded");
 }
 
+/**
+ * True when source is a gantt diagram (optional YAML frontmatter stripped).
+ * @param {string} src
+ */
+function mermaidSourceIsGantt(src) {
+  const body = String(src ?? "").replace(/^---[\s\S]*?\n---\s*/, "");
+  return /^\s*gantt\b/im.test(body);
+}
+
+/**
+ * Mermaid measures the host with offsetWidth/clientWidth. Skip run() while the
+ * pane is too narrow so gantt (etc.) cannot emit negative SVG rect widths.
+ * @param {HTMLElement} el
+ */
+function mermaidHostWideEnough(el) {
+  const w = el.clientWidth;
+  if (!(w >= MERMAID_MIN_HOST_WIDTH)) return false;
+  const src = mermaidSources.get(el) ?? el.textContent ?? "";
+  if (mermaidSourceIsGantt(src) && w < MERMAID_MIN_GANTT_HOST_WIDTH) return false;
+  return true;
+}
+
 /** @type {WeakMap<HTMLElement, string>} */
 const mermaidSources = new WeakMap();
 /** Last rendered host height per Mermaid source — reserves space across paints. */
 const mermaidHeightCache = new Map();
 let mermaidScaleRaf = 0;
 let mermaidRelayoutTimer = 0;
+let mermaidPendingTimer = 0;
+/**
+ * Mermaid gantt (and similar fluid charts) compute bar widths as
+ * hostWidth − labelMargin. Below ~this width those values go negative and
+ * Chrome floods the console with `<rect width="-N">` errors. Defer until the
+ * preview host is wide enough; resize retries via schedulePendingMermaidRender.
+ */
+const MERMAID_MIN_HOST_WIDTH = 48;
+const MERMAID_MIN_GANTT_HOST_WIDTH = 220;
 const MERMAID_ZOOM_MIN = 0.5;
 const MERMAID_ZOOM_MAX = 4;
 const MERMAID_ZOOM_STEP = 0.25;
@@ -2157,10 +2210,18 @@ function setupMermaidZoom() {
  */
 function syncMermaidSvgSizes() {
   let needsRelayout = false;
+  let hasDeferredPending = false;
   for (const host of preview.querySelectorAll(".mermaid")) {
     const svg = host.querySelector(":scope > svg");
     if (!svg) {
       ensureMermaidZoomControls(host);
+      if (
+        host.hasAttribute("data-pending") &&
+        mermaidNodeIsVisible(host) &&
+        mermaidHostWideEnough(host)
+      ) {
+        hasDeferredPending = true;
+      }
       continue;
     }
     ensureMermaidZoomControls(host);
@@ -2186,9 +2247,10 @@ function syncMermaidSvgSizes() {
     if (svg.dataset.mermaidFluid === "1") {
       // Do not scale the SVG up — that zooms fonts/bars. Keep the natural
       // size until a debounced Mermaid re-run lays out at the new width.
+      // Never tear down a good gantt SVG just to re-run into a too-narrow host.
       if (Math.abs(hostW - natural) >= 16) {
         svg.style.maxWidth = `${Math.min(natural, hostW)}px`;
-        needsRelayout = true;
+        if (mermaidHostWideEnough(host)) needsRelayout = true;
       } else {
         svg.style.maxWidth = `${hostW}px`;
       }
@@ -2197,6 +2259,7 @@ function syncMermaidSvgSizes() {
     }
   }
   if (needsRelayout) scheduleMermaidRelayout();
+  else if (hasDeferredPending) schedulePendingMermaidRender();
 }
 
 function scheduleMermaidScale() {
@@ -2205,6 +2268,18 @@ function scheduleMermaidScale() {
     mermaidScaleRaf = 0;
     syncMermaidSvgSizes();
   });
+}
+
+/**
+ * Retry Mermaid hosts left pending because the preview was too narrow.
+ * Debounced with the fluid relayout timer so splitter drags coalesce.
+ */
+function schedulePendingMermaidRender() {
+  window.clearTimeout(mermaidPendingTimer);
+  mermaidPendingTimer = window.setTimeout(() => {
+    mermaidPendingTimer = 0;
+    void renderMermaidDiagrams();
+  }, 220);
 }
 
 /**
@@ -2227,12 +2302,18 @@ function relayoutFluidMermaidDiagrams() {
     const svg = el.querySelector(":scope > svg");
     if (!svg || svg.dataset.mermaidFluid !== "1") continue;
     if (!mermaidSources.has(el)) continue;
+    // Keep the last good SVG while the pane is too narrow for a safe re-run.
+    if (!mermaidHostWideEnough(el)) continue;
     const natural = Number(svg.dataset.mermaidNatural);
     if (!Number.isFinite(natural)) continue;
     if (Math.abs(el.clientWidth - natural) < 16) continue;
     targets.push(el);
   }
-  if (!targets.length) return;
+  if (!targets.length) {
+    // Width may have grown enough for first-time deferred hosts.
+    void renderMermaidDiagrams();
+    return;
+  }
 
   mermaidGen += 1;
   for (const el of targets) {
@@ -2337,9 +2418,11 @@ async function renderMermaidDiagrams({ force = false } = {}) {
     void preview.offsetWidth;
   }
 
-  const nodes = [...preview.querySelectorAll(".mermaid[data-pending]")].filter(
+  const candidates = [...preview.querySelectorAll(".mermaid[data-pending]")].filter(
     (el) => force || mermaidNodeIsVisible(el),
   );
+  // Defer narrow hosts (esp. gantt) — leave data-pending for resize retry.
+  const nodes = candidates.filter((el) => mermaidHostWideEnough(el));
 
   try {
     if (nodes.length) {
@@ -3589,6 +3672,9 @@ function closeOverflowMenu() {
   closeExportMenu();
   closeWritingToolsMenu();
   closeViewModeMenu();
+  closeHeadingMenu();
+  closeImageMenu();
+  closeFormatMoreMenu();
 }
 
 function toggleOverflowMenu() {
@@ -3617,6 +3703,18 @@ function dismissOpenOverlay() {
   }
   if (viewModeMenu && !viewModeMenu.hidden) {
     closeViewModeMenu();
+    return true;
+  }
+  if (headingMenu && !headingMenu.hidden) {
+    closeHeadingMenu();
+    return true;
+  }
+  if (imageMenu && !imageMenu.hidden) {
+    closeImageMenu();
+    return true;
+  }
+  if (formatMoreMenu && !formatMoreMenu.hidden) {
+    closeFormatMoreMenu();
     return true;
   }
   if (historyMenu && !historyMenu.hidden) {
@@ -4489,6 +4587,219 @@ function insertAtCursor(text) {
   replaceEditorRange(editor.selectionStart, editor.selectionEnd, text);
 }
 
+/**
+ * Apply a format-bar edit (range replace + selection) via the undo-safe path.
+ * @param {{ from: number, to: number, text: string, selectionStart: number, selectionEnd: number }} edit
+ */
+function applyFormatEdit(edit) {
+  replaceEditorRange(edit.from, edit.to, edit.text);
+  const max = editor.value.length;
+  const selStart = Math.max(0, Math.min(edit.selectionStart, max));
+  const selEnd = Math.max(0, Math.min(edit.selectionEnd, max));
+  editor.setSelectionRange(selStart, selEnd);
+}
+
+/** @param {string} action @param {{ level?: number }} [opts] */
+function runFormatAction(action, opts = {}) {
+  if (!isAuthoringView() || panes.classList.contains("editor-collapsed")) return;
+  const value = editor.value;
+  const start = editor.selectionStart;
+  const end = editor.selectionEnd;
+  let edit = null;
+  switch (action) {
+    case "bold":
+      edit = wrapInline(value, start, end, "**");
+      break;
+    case "italic":
+      edit = wrapInline(value, start, end, "_");
+      break;
+    case "code":
+      edit = wrapInline(value, start, end, "`");
+      break;
+    case "link":
+      edit = insertLink(value, start, end);
+      break;
+    case "quote":
+      edit = prefixLines(value, start, end, "quote");
+      break;
+    case "bullet":
+      edit = prefixLines(value, start, end, "bullet");
+      break;
+    case "ordered":
+      edit = prefixLines(value, start, end, "ordered");
+      break;
+    case "heading":
+      edit = prefixLines(value, start, end, "heading", { level: opts.level || 2 });
+      break;
+    case "image":
+    case "image-url":
+      edit = insertImage(value, start, end);
+      break;
+    case "image-file":
+      pickImageFromDisk();
+      return;
+    case "code-block":
+      edit = insertCodeBlock(value, start, end);
+      break;
+    case "table":
+      edit = insertTable(value, start, end);
+      break;
+    case "hr":
+      edit = insertHorizontalRule(value, start, end);
+      break;
+    default:
+      return;
+  }
+  if (edit) applyFormatEdit(edit);
+}
+
+function closeHeadingMenu() {
+  if (!headingMenu || !headingMenuBtn) return;
+  headingMenu.hidden = true;
+  headingMenuBtn.setAttribute("aria-expanded", "false");
+}
+
+function openHeadingMenu() {
+  if (!headingMenu || !headingMenuBtn) return;
+  headingMenu.hidden = false;
+  headingMenuBtn.setAttribute("aria-expanded", "true");
+}
+
+function toggleHeadingMenu() {
+  if (!headingMenu) return;
+  if (headingMenu.hidden) {
+    closeImageMenu();
+    closeFormatMoreMenu();
+    closeHistory();
+    closeVoiceMenu();
+    closeShareMenu();
+    closeExportMenu();
+    closeWritingToolsMenu();
+    closeViewModeMenu();
+    openHeadingMenu();
+  } else {
+    closeHeadingMenu();
+  }
+}
+
+function closeImageMenu() {
+  if (!imageMenu || !imageMenuBtn) return;
+  imageMenu.hidden = true;
+  imageMenuBtn.setAttribute("aria-expanded", "false");
+}
+
+function openImageMenu() {
+  if (!imageMenu || !imageMenuBtn) return;
+  imageMenu.hidden = false;
+  imageMenuBtn.setAttribute("aria-expanded", "true");
+}
+
+function toggleImageMenu() {
+  if (!imageMenu) return;
+  if (imageMenu.hidden) {
+    closeHeadingMenu();
+    closeFormatMoreMenu();
+    closeHistory();
+    closeVoiceMenu();
+    closeShareMenu();
+    closeExportMenu();
+    closeWritingToolsMenu();
+    closeViewModeMenu();
+    openImageMenu();
+  } else {
+    closeImageMenu();
+  }
+}
+
+function closeFormatMoreMenu() {
+  if (!formatMoreMenu || !formatMoreBtn) return;
+  formatMoreMenu.hidden = true;
+  formatMoreBtn.setAttribute("aria-expanded", "false");
+}
+
+function openFormatMoreMenu() {
+  if (!formatMoreMenu || !formatMoreBtn) return;
+  formatMoreMenu.hidden = false;
+  formatMoreBtn.setAttribute("aria-expanded", "true");
+}
+
+function toggleFormatMoreMenu() {
+  if (!formatMoreMenu) return;
+  if (formatMoreMenu.hidden) {
+    closeHeadingMenu();
+    closeImageMenu();
+    closeHistory();
+    closeVoiceMenu();
+    closeShareMenu();
+    closeExportMenu();
+    closeWritingToolsMenu();
+    closeViewModeMenu();
+    openFormatMoreMenu();
+  } else {
+    closeFormatMoreMenu();
+  }
+}
+
+function pickImageFromDisk() {
+  if (!formatImageInput) return;
+  pendingFormatImageRange = {
+    start: editor.selectionStart,
+    end: editor.selectionEnd,
+  };
+  formatImageInput.click();
+}
+
+/**
+ * Embed an image file at a textarea range as a Markdown data-URI (same path as paste).
+ * @param {File} file
+ * @param {{ start?: number, end?: number, toast?: string }} [opts]
+ */
+async function insertImageFromFile(file, opts = {}) {
+  if (!file || !IMAGE_MIME_RE.test(file.type)) {
+    showToast("Not an image file");
+    return;
+  }
+  if (file.size > IMAGE_PASTE_MAX_BYTES) {
+    showToast("Image too large (max 2 MB)");
+    return;
+  }
+  const start = opts.start ?? editor.selectionStart;
+  const end = opts.end ?? editor.selectionEnd;
+  const selected = editor.value.slice(start, end);
+  try {
+    const dataUrl = await readFileAsDataURL(file);
+    if (!dataUrl.startsWith("data:image/")) {
+      showToast("Could not insert image");
+      return;
+    }
+    editor.focus();
+    editor.setSelectionRange(start, end);
+    insertAtCursor(formatEmbedMarkdown(imageAltFromSelection(selected, file), dataUrl));
+    showToast(opts.toast || "Image inserted");
+  } catch {
+    showToast("Could not insert image");
+  }
+}
+
+/**
+ * When the editor pane (or viewport) is too narrow for every format control,
+ * fold Image / Code block / Table / HR into the kebab. Driven by the bar’s
+ * own width so splitter resizes are covered — not just viewport media queries.
+ */
+const FORMAT_BAR_COMPACT_MAX = 580;
+
+function syncFormatBarCompact() {
+  if (!formatBar) return;
+  const width = formatBar.getBoundingClientRect().width;
+  if (width <= 0) return;
+  const compact = width < FORMAT_BAR_COMPACT_MAX;
+  const wasCompact = formatBar.classList.contains("is-compact");
+  if (compact === wasCompact) return;
+  formatBar.classList.toggle("is-compact", compact);
+  if (compact) closeImageMenu();
+  else closeFormatMoreMenu();
+}
+
 function readFileAsDataURL(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -4531,29 +4842,11 @@ async function onEditorPaste(e) {
   if (!file) return;
 
   e.preventDefault();
-
-  if (file.size > IMAGE_PASTE_MAX_BYTES) {
-    showToast("Image too large to paste (max 2 MB)");
-    return;
-  }
-
-  const start = editor.selectionStart;
-  const end = editor.selectionEnd;
-  const selected = editor.value.slice(start, end);
-
-  try {
-    const dataUrl = await readFileAsDataURL(file);
-    if (!dataUrl.startsWith("data:image/")) {
-      showToast("Could not paste image");
-      return;
-    }
-    editor.focus();
-    editor.setSelectionRange(start, end);
-    insertAtCursor(formatEmbedMarkdown(imageAltFromSelection(selected, file), dataUrl));
-    showToast("Image pasted");
-  } catch {
-    showToast("Could not paste image");
-  }
+  await insertImageFromFile(file, {
+    start: editor.selectionStart,
+    end: editor.selectionEnd,
+    toast: "Image pasted",
+  });
 }
 
 function isDirty() {
@@ -7514,6 +7807,9 @@ function toggleWritingToolsMenu() {
     closeShareMenu();
     closeExportMenu();
     closeViewModeMenu();
+    closeHeadingMenu();
+    closeImageMenu();
+    closeFormatMoreMenu();
     openWritingToolsMenu();
   } else {
     closeWritingToolsMenu();
@@ -7528,6 +7824,9 @@ function toggleExportMenu() {
     closeShareMenu();
     closeWritingToolsMenu();
     closeViewModeMenu();
+    closeHeadingMenu();
+    closeImageMenu();
+    closeFormatMoreMenu();
     openExportMenu();
   } else {
     closeExportMenu();
@@ -7808,6 +8107,9 @@ function toggleViewModeMenu() {
     closeShareMenu();
     closeExportMenu();
     closeWritingToolsMenu();
+    closeHeadingMenu();
+    closeImageMenu();
+    closeFormatMoreMenu();
     openViewModeMenu();
   } else {
     closeViewModeMenu();
@@ -10053,6 +10355,9 @@ async function init() {
     closeShareMenu();
     closeExportMenu();
     closeWritingToolsMenu();
+    closeHeadingMenu();
+    closeImageMenu();
+    closeFormatMoreMenu();
     toggleViewModeMenu();
   });
   viewModeMenu?.addEventListener("click", onViewModeMenuClick);
@@ -10169,12 +10474,68 @@ async function init() {
     closeExportMenu();
     closeWritingToolsMenu();
     closeViewModeMenu();
+    closeHeadingMenu();
+    closeImageMenu();
+    closeFormatMoreMenu();
     toggleHistory();
   });
 
   overflowBtn.addEventListener("click", (e) => {
     e.stopPropagation();
     toggleOverflowMenu();
+  });
+
+  // Keep textarea selection when clicking format controls (avoid focus steal).
+  formatBar?.addEventListener("mousedown", (e) => {
+    if (e.target.closest("button")) e.preventDefault();
+  });
+
+  if (formatBar && typeof ResizeObserver === "function") {
+    const formatBarRo = new ResizeObserver(() => syncFormatBarCompact());
+    formatBarRo.observe(formatBar);
+  }
+  syncFormatBarCompact();
+
+  formatBar?.addEventListener("click", (e) => {
+    const headingToggle = e.target.closest("#heading-menu-btn");
+    if (headingToggle) {
+      e.stopPropagation();
+      toggleHeadingMenu();
+      return;
+    }
+    const imageToggle = e.target.closest("#image-menu-btn");
+    if (imageToggle) {
+      e.stopPropagation();
+      toggleImageMenu();
+      return;
+    }
+    const moreToggle = e.target.closest("#format-more-btn");
+    if (moreToggle) {
+      e.stopPropagation();
+      toggleFormatMoreMenu();
+      return;
+    }
+    const item = e.target.closest("[data-format]");
+    if (!item || !formatBar.contains(item)) return;
+    e.stopPropagation();
+    const action = item.getAttribute("data-format");
+    const levelAttr = item.getAttribute("data-heading-level");
+    const level = levelAttr ? Number(levelAttr) : undefined;
+    closeHeadingMenu();
+    closeImageMenu();
+    closeFormatMoreMenu();
+    runFormatAction(action, { level });
+  });
+
+  formatImageInput?.addEventListener("change", () => {
+    const file = formatImageInput.files?.[0];
+    formatImageInput.value = "";
+    const range = pendingFormatImageRange;
+    pendingFormatImageRange = null;
+    if (!file) return;
+    const start = range?.start ?? editor.selectionStart;
+    const end = range?.end ?? editor.selectionEnd;
+    void insertImageFromFile(file, { start, end, toast: "Image inserted" });
   });
 
   // Dismiss the overflow panel after choosing an action. Nested dropdown
@@ -10194,6 +10555,9 @@ async function init() {
       closeWritingToolsMenu();
     }
     if (viewModeDropdown && !viewModeDropdown.contains(e.target)) closeViewModeMenu();
+    if (headingDropdown && !headingDropdown.contains(e.target)) closeHeadingMenu();
+    if (imageDropdown && !imageDropdown.contains(e.target)) closeImageMenu();
+    if (formatMoreDropdown && !formatMoreDropdown.contains(e.target)) closeFormatMoreMenu();
     // Native <select> option picks can click body after the OS menu closes; keep
     // the kebab open while focus remains on a control inside it.
     if (!toolbarMenu.contains(e.target) && !toolbarMenu.contains(document.activeElement)) {
@@ -10226,6 +10590,31 @@ async function init() {
         void saveCurrentDocument();
       }
       return;
+    }
+
+    if (
+      (e.metaKey || e.ctrlKey) &&
+      !e.altKey &&
+      !e.shiftKey &&
+      document.activeElement === editor &&
+      isAuthoringView()
+    ) {
+      const key = e.key.toLowerCase();
+      if (key === "b") {
+        e.preventDefault();
+        runFormatAction("bold");
+        return;
+      }
+      if (key === "i") {
+        e.preventDefault();
+        runFormatAction("italic");
+        return;
+      }
+      if (key === "k") {
+        e.preventDefault();
+        runFormatAction("link");
+        return;
+      }
     }
 
     if (isSlideNavView()) {
@@ -10284,6 +10673,7 @@ async function init() {
   window.matchMedia(NARROW_MQ).addEventListener("change", (e) => {
     syncToolbarBarPlacement();
     if (!e.matches) closeOverflowMenu();
+    syncFormatBarCompact();
   });
 }
 

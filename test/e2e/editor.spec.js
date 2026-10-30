@@ -24,6 +24,70 @@ test.describe("editor + render", () => {
     await expect(page.locator("#preview li")).toHaveCount(2);
   });
 
+  test("format bar bold wraps the selection", async ({ page }) => {
+    await openFreshApp(page);
+    const editor = page.locator("#editor");
+    await editor.fill("hello world");
+    await editor.evaluate((el) => {
+      el.focus();
+      el.setSelectionRange(0, 5);
+    });
+    await page.locator('#format-bar [data-format="bold"]').click();
+    await expect(editor).toHaveValue("**hello** world");
+  });
+
+  test("format bar Table inserts a pipe table", async ({ page }) => {
+    await openFreshApp(page);
+    const editor = page.locator("#editor");
+    await editor.fill("");
+    await editor.focus();
+    await page.locator('.format-bar-wide [data-format="table"]').click();
+    await expect(editor).toHaveValue(/\| Column 1 \| Column 2 \| Column 3 \|/);
+    await expect(editor).toHaveValue(/\| -------- \| -------- \| -------- \|/);
+  });
+
+  test("format bar Image from file embeds a data URI", async ({ page }) => {
+    await openFreshApp(page);
+    const editor = page.locator("#editor");
+    await editor.fill("photo");
+    await editor.evaluate((el) => {
+      el.focus();
+      el.setSelectionRange(0, 5);
+    });
+
+    const pngBase64 =
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+    const [fileChooser] = await Promise.all([
+      page.waitForEvent("filechooser"),
+      page.locator('.format-bar-wide [data-format="image-file"]').click(),
+    ]);
+    await fileChooser.setFiles({
+      name: "dot.png",
+      mimeType: "image/png",
+      buffer: Buffer.from(pngBase64, "base64"),
+    });
+    // Selection becomes alt text; long data URIs collapse in the editor display.
+    await expect(editor).toHaveValue(/!\[photo\]\(data:image\/png;base64,/);
+  });
+
+  test("format bar uses kebab overflow when the editor pane is narrow", async ({ page }) => {
+    await openFreshApp(page);
+    // Shrink only the editor column (viewport stays wide) — same as dragging the splitter.
+    await page.locator("#panes").evaluate((el) => {
+      el.style.setProperty("--split", "22%");
+    });
+    await expect(page.locator("#format-bar")).toHaveClass(/is-compact/);
+    await expect(page.locator("#format-more-btn")).toBeVisible();
+    await expect(page.locator('.format-bar-wide [data-format="table"]')).toBeHidden();
+
+    const editor = page.locator("#editor");
+    await editor.fill("");
+    await editor.focus();
+    await page.locator("#format-more-btn").click();
+    await page.locator('#format-more-menu [data-format="table"]').click();
+    await expect(editor).toHaveValue(/\| Column 1 \| Column 2 \| Column 3 \|/);
+  });
+
   test("open file button is keyboard-focusable", async ({ page }) => {
     await openFreshApp(page);
 
@@ -231,6 +295,58 @@ test.describe("editor + render", () => {
     await page.locator("#editor").fill("```mermaid\nflowchart LR\n  A-->B\n```");
     // Direct child only — zoom-button icons are nested SVGs inside .mermaid.
     await expect(page.locator("#preview .mermaid > svg")).toBeVisible({ timeout: 20_000 });
+  });
+
+  test("mermaid gantt defers render when the preview host is too narrow", async ({ page }) => {
+    await openFreshApp(page);
+
+    const rectErrors = [];
+    page.on("console", (msg) => {
+      if (msg.type() !== "error") return;
+      const text = msg.text();
+      if (/<rect> attribute width: A negative value is not valid/i.test(text)) {
+        rectErrors.push(text);
+      }
+    });
+
+    // Collapse the preview so gantt's hostWidth − labelMargin would go negative.
+    await page.addStyleTag({
+      content:
+        ".preview-pane, #preview, #preview .mermaid { width: 40px !important; max-width: 40px !important; min-width: 40px !important; }",
+    });
+    await page.evaluate(() => {
+      const last = [...document.querySelectorAll("style")].at(-1);
+      if (last) last.setAttribute("data-mermaid-narrow-test", "");
+    });
+
+    const gantt = [
+      "```mermaid",
+      "gantt",
+      "    dateFormat  YYYY-MM-DD",
+      "    title Narrow gantt",
+      "    section A section",
+      "    Completed task            :done,    des1, 2014-01-06,2014-01-08",
+      "    Active task               :active,  des2, 2014-01-09, 3d",
+      "```",
+    ].join("\n");
+    await page.locator("#editor").fill(gantt);
+
+    await expect(page.locator("#preview .mermaid")).toHaveCount(1, { timeout: 10_000 });
+    // Stay pending — do not call Mermaid.run into a tiny host.
+    await expect(page.locator("#preview .mermaid[data-pending]")).toHaveCount(1);
+    await expect(page.locator("#preview .mermaid > svg")).toHaveCount(0);
+    await page.waitForTimeout(600);
+    expect(rectErrors, rectErrors.join("\n")).toEqual([]);
+
+    // Drop the narrow override so ResizeObserver on .preview-pane retries paint.
+    await page.evaluate(() => {
+      for (const s of document.querySelectorAll("style[data-mermaid-narrow-test]")) {
+        s.remove();
+      }
+    });
+    await expect(page.locator("#preview .mermaid > svg")).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator("#preview .mermaid[data-pending]")).toHaveCount(0);
+    expect(rectErrors, rectErrors.join("\n")).toEqual([]);
   });
 
   test("mermaid diagram style switches between classic and Excalidraw", async ({ page }) => {
