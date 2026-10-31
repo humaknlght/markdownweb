@@ -179,28 +179,29 @@ describe("static source invariants", () => {
     assert.match(html, /yaml@2\.9\.1/);
     assert.match(html, /@octokit\/rest@22\.0\.1/);
 
-    const app = await fs.readFile(path.join(root, "src/app/app.js"), "utf8");
+    const constants = await fs.readFile(path.join(root, "src/app/constants.js"), "utf8");
+    const lazy = await fs.readFile(path.join(root, "src/app/lazy-modules.js"), "utf8");
     assert.match(
-      app,
+      constants,
       /THEMES = \[\s*"github-light",\s*"github-dark",\s*"sepia",\s*"terminal",\s*"salesforce",\s*"fancy",\s*"zen",\s*\]/,
     );
-    assert.match(app, /import\("\.\.\/lib\/export\.js"\)/);
-    assert.doesNotMatch(app, /from ["']\.\.\/lib\/export\.js["']/);
-    assert.match(app, /import\("\.\.\/lib\/chrome-ai\.js"\)/);
-    assert.doesNotMatch(app, /from ["']\.\.\/lib\/chrome-ai\.js["']/);
-    assert.match(app, /import\("\.\.\/lib\/theme-zen\.js"\)/);
-    assert.doesNotMatch(app, /from ["']\.\.\/lib\/theme-zen\.js["']/);
-    assert.match(app, /loadZenCss/);
-    assert.match(app, /zen\.css/);
+    assert.match(lazy, /import\("\.\.\/lib\/export\.js"\)/);
+    assert.doesNotMatch(lazy, /from ["']\.\.\/lib\/export\.js["']/);
+    assert.match(lazy, /import\("\.\.\/lib\/chrome-ai\.js"\)/);
+    assert.doesNotMatch(lazy, /from ["']\.\.\/lib\/chrome-ai\.js["']/);
+    assert.match(lazy, /import\("\.\.\/lib\/theme-zen\.js"\)/);
+    assert.doesNotMatch(lazy, /from ["']\.\.\/lib\/theme-zen\.js["']/);
+    assert.match(lazy, /loadZenCss/);
+    assert.match(lazy, /zen\.css/);
     const zenCss = await fs.readFile(path.join(root, "src/styles/zen.css"), "utf8");
     assert.match(zenCss, /data-theme="zen"/);
     assert.doesNotMatch(
       await fs.readFile(path.join(root, "src/styles/styles.css"), "utf8"),
       /\/\* Secret Zen theme/,
     );
-    assert.doesNotMatch(app, /cdn-integrity-urls\.js/);
-    assert.match(app, /cdnIntegrityUrlSet/);
-    assert.match(app, /script\[type=["']importmap["']\]/);
+    assert.doesNotMatch(lazy, /cdn-integrity-urls\.js/);
+    assert.match(lazy, /cdnIntegrityUrlSet/);
+    assert.match(lazy, /script\[type=["']importmap["']\]/);
     // Theme boot script list in HTML must mention the same themes
     for (const theme of [
       "github-light",
