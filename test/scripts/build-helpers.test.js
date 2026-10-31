@@ -178,6 +178,10 @@ describe("pwa.mjs", () => {
 
   it("builds a stable dev service worker from DEV_PRECACHE", () => {
     assert.ok(DEV_PRECACHE.includes("./app/app.js"));
+    assert.ok(
+      DEV_PRECACHE.includes("./app/state.js") ||
+        DEV_PRECACHE.includes("./app/hooks.js"),
+    );
     assert.ok(DEV_PRECACHE.includes("./styles/styles.css"));
     for (const url of CDN_PRECACHE) {
       assert.ok(DEV_PRECACHE.includes(url));
