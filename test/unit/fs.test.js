@@ -5,6 +5,7 @@ import {
   ensureEditableExtension,
   isEditableFileName,
   resolveFilePath,
+  revisionStampChanged,
   suggestedUntitledName,
 } from "../../src/lib/fs.js";
 
@@ -74,5 +75,16 @@ describe("fs helpers", () => {
     const file = await resolveFilePath(/** @type {any} */ (root), "docs/notes.md");
     assert.deepEqual(dirs, ["docs"]);
     assert.equal(file?.name, "notes.md");
+  });
+
+  it("revisionStampChanged detects mismatches and ignores empty stamps", () => {
+    assert.equal(revisionStampChanged(null, "1"), false);
+    assert.equal(revisionStampChanged("", "1"), false);
+    assert.equal(revisionStampChanged("1", null), false);
+    assert.equal(revisionStampChanged("1", ""), false);
+    assert.equal(revisionStampChanged("1", "1"), false);
+    assert.equal(revisionStampChanged("1", "2"), true);
+    assert.equal(revisionStampChanged(100, "100"), false);
+    assert.equal(revisionStampChanged(100, "101"), true);
   });
 });

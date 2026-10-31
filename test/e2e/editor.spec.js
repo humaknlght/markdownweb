@@ -98,6 +98,111 @@ test.describe("editor + render", () => {
     await expect(openFile).toBeFocused();
   });
 
+  test("open file via picker accepts clean and Save writes back", async ({ page }) => {
+    await page.addInitScript(() => {
+      window.__mdOpenWrites = [];
+      window.showOpenFilePicker = async () => {
+        const handle = {
+          kind: "file",
+          name: "opened.md",
+          queryPermission: async () => "granted",
+          requestPermission: async () => "granted",
+          getFile: async () => {
+            const blob = new Blob(["# Opened\n\nFrom disk."], { type: "text/markdown" });
+            return new File([blob], "opened.md", {
+              type: "text/markdown",
+              lastModified: 1_700_000_000_000,
+            });
+          },
+          createWritable: async () => ({
+            write: async (text) => {
+              window.__mdOpenWrites.push(String(text));
+            },
+            close: async () => {},
+          }),
+        };
+        return [handle];
+      };
+    });
+
+    // Untitled empty draft can look dirty vs snapshot — allow discard to open.
+    page.on("dialog", (dialog) => dialog.accept());
+
+    await openFreshApp(page);
+    await page.locator("#files-toggle-btn").click();
+    await page.locator("#files-open-file-btn").click();
+    await expect(page.locator("#external-modal")).toBeVisible();
+    await expect(page.locator("#editor")).toHaveValue(/# Opened/);
+    await page.locator("#external-modal .external-modal-accept").click();
+    await expect(page.locator("#external-modal")).toBeHidden();
+    await expect(page.locator("#save-btn")).not.toHaveClass(/is-dirty/);
+
+    await page.locator("#editor").fill("# Opened\n\nEdited.");
+    await expect(page.locator("#save-btn")).toHaveClass(/is-dirty/);
+    await page.locator("#save-btn").click();
+    await expect
+      .poll(async () => page.evaluate(() => window.__mdOpenWrites.length))
+      .toBeGreaterThan(0);
+    await expect(page.locator("#save-btn")).not.toHaveClass(/is-dirty/);
+  });
+
+  test("Save prompts when the on-disk file changed and cancel skips write", async ({ page }) => {
+    await page.addInitScript(() => {
+      window.__mdConflictWrites = 0;
+      window.__mdBumpDiskMtime = false;
+      window.__mdConflictPrompt = "";
+      let lastModified = 1_700_000_000_000;
+      window.showOpenFilePicker = async () => {
+        const handle = {
+          kind: "file",
+          name: "conflict.md",
+          queryPermission: async () => "granted",
+          requestPermission: async () => "granted",
+          getFile: async () => {
+            if (window.__mdBumpDiskMtime) lastModified = 1_700_000_000_999;
+            const blob = new Blob(["# Conflict\n\nBase."], { type: "text/markdown" });
+            return new File([blob], "conflict.md", {
+              type: "text/markdown",
+              lastModified,
+            });
+          },
+          createWritable: async () => ({
+            write: async () => {
+              window.__mdConflictWrites += 1;
+            },
+            close: async () => {},
+          }),
+        };
+        return [handle];
+      };
+    });
+
+    page.on("dialog", (dialog) => dialog.accept());
+
+    await openFreshApp(page);
+    await page.locator("#files-toggle-btn").click();
+    await page.locator("#files-open-file-btn").click();
+    await expect(page.locator("#external-modal")).toBeVisible();
+    await page.locator("#external-modal .external-modal-accept").click();
+    await expect(page.locator("#save-btn")).not.toHaveClass(/is-dirty/);
+
+    await page.locator("#editor").fill("# Conflict\n\nMine.");
+    await expect(page.locator("#save-btn")).toHaveClass(/is-dirty/);
+    await page.evaluate(() => {
+      window.__mdBumpDiskMtime = true;
+      window.confirm = (msg) => {
+        window.__mdConflictPrompt = String(msg);
+        return false;
+      };
+    });
+    await page.locator("#save-btn").click();
+    await expect
+      .poll(async () => page.evaluate(() => window.__mdConflictPrompt))
+      .toMatch(/changed since it was opened/i);
+    await expect.poll(async () => page.evaluate(() => window.__mdConflictWrites)).toBe(0);
+    await expect(page.locator("#save-btn")).toHaveClass(/is-dirty/);
+  });
+
   test("first visit loads the GUIDE into the editor", async ({ page }) => {
     await page.addInitScript(() => {
       try {

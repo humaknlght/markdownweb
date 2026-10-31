@@ -15,11 +15,11 @@ This guide covers how to use the app and every Markdown feature it supports.
 
 ### Opening files
 
-- **Open file** — In the Files drawer, use **Open file** to load `.md`, `.markdown`, `.txt`, `.html`, or `.htm` files.
-- **Drag and drop** — Drop a file onto the window to load it.
+- **Open file** — In the Files drawer, use **Open file** (or `Ctrl`/`Cmd`+`O`) to load `.md`, `.markdown`, `.txt`, `.html`, or `.htm` files. On Chromium with the File System Access API, this uses the system file picker and keeps a handle so **Save** can update the same file.
+- **Drag and drop** — Drop a file onto the window to load it. When the browser provides a file handle, Save can write back to that path too.
 - **Open with (PWA)** — An installed app can register as a handler for `.md` / `.markdown` files.
 
-When Markdown arrives from a share link, upload, or OS file open, an **External content** dialog asks you to **Accept** or **Reject** it. Until you Accept, the preview stays blank and editor syntax highlighting is off — only the plain source is shown — so untrusted Markdown is not parsed.
+When Markdown arrives from a share link, upload, or OS file open, an **External content** dialog asks you to **Accept** or **Reject** it. Until you Accept, the preview stays blank and editor syntax highlighting is off — only the plain source is shown — so untrusted Markdown is not parsed. After **Accept**, the opened content is a clean baseline (not marked unsaved) until you edit it. Browsers without File System Access fall back to a plain file input; those opens cannot write back to the original path (Save becomes Save As).
 
 ### Paste an image
 
@@ -46,7 +46,9 @@ Notes:
 
 Open it with the sidebar button in the toolbar. The **Outline** works in every browser. Folder browsing (**Open folder**, tree, **Save**) needs Chromium desktop with the File System Access API. **Google Drive** and **GitHub Gist** appear when the host has deployed the matching config (see [CONTRIBUTING.md](CONTRIBUTING.md)): use the **Local | Drive | Gist** toggle. For Drive, **Connect Drive**, then browse the **/markdown-editor** folder. For Gist, **Connect Gist** with a fine-grained personal access token (Gists permission), then open markdown files from your gists (including private). Click a Drive folder to open it; use **..** to go up. **New folder** works in Drive and Local (not Gist).
 
-Drafts and “unsaved” snapshots are scoped per open file (and a shared **untitled** slot), so two tabs editing different files do not overwrite each other. A document stays **unsaved** until it is written to disk (File System Access), saved to Google Drive or a Gist, or accepted from a share URL (`md` / `mdz`); IndexedDB auto-save alone does not clear that state.
+Drafts and “unsaved” snapshots are scoped per open file (and a shared **untitled** slot), so two tabs editing different files do not overwrite each other. A document stays **unsaved** until it is written to disk (File System Access), saved to Google Drive or a Gist, or accepted from a share URL / external open (`md` / `mdz`, upload, OS open); IndexedDB auto-save alone does not clear that state.
+
+**Save** writes back to the bound local file, Drive file, or Gist. If that remote copy changed since you opened it (or since your last save in this tab)—for example another app edited the file on disk—you get a confirm before overwrite.
 
 | Action | What it does |
 |--------|----------------|
@@ -110,7 +112,7 @@ Pick a theme from the dropdown. Your choice is remembered:
 
 ### Draft auto-save and local history
 
-Your current draft is **auto-saved** primarily in **IndexedDB** (with a small `localStorage` mirror when the document is under ~100 000 characters), so reloading the page restores your work. Auto-save does **not** clear the unsaved indicator (tab favicon badge, Save button, and installed-PWA app icon badge) — that clears when you **Save** to disk or **Accept** content from a share link (`md` / `mdz`).
+Your current draft is **auto-saved** primarily in **IndexedDB** (with a small `localStorage` mirror when the document is under ~100 000 characters), so reloading the page restores your work. Auto-save does **not** clear the unsaved indicator (tab favicon badge, Save button, and installed-PWA app icon badge) — that clears when you **Save** to disk / Drive / Gist, or **Accept** external content (share link, upload, or OS / picker open).
 
 Separately, **History** keeps up to **20** recent snapshots. The newest full document, older revision bodies, and the history index are committed together in **IndexedDB** (so a crash cannot leave the tip and index out of sync). `localStorage` mirrors a lightweight copy of the index for the menu. Snapshots are written after about **15 seconds** of idle typing. Open the history dropdown in the toolbar to restore an earlier version.
 

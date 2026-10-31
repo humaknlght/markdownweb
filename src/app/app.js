@@ -30,12 +30,14 @@ import {
   isFsAccessSupported,
   listDirectory,
   openDirectory,
-  readTextFile,
+  openWithPicker,
+  readTextFileMeta,
   removeEntry,
   renameEntry,
   restoreDirectory,
   loadStoredCurrentFileHandle,
   resolveFilePath,
+  revisionStampChanged,
   saveWithPicker,
   storeCurrentFileHandle,
   suggestedUntitledName,
@@ -54,8 +56,9 @@ import {
   googleDriveEnabled,
   hasSealedDriveSession,
   isDriveSessionMemoryOnly,
+  getDriveFileMeta,
   listDriveFolderChildren,
-  readDriveFileText,
+  readDriveFileWithMeta,
   renameDriveItemWithToken,
   saveExistingDriveFile,
   trashDriveItemWithToken,
@@ -74,7 +77,7 @@ import {
   isGistSessionMemoryOnly,
   listGists,
   prepareGistTokenVault,
-  readGistFileText,
+  readGistFileWithMeta,
   setGistPersonalAccessToken,
   tryRestoreGistAccessToken,
   unlockGistAccessToken,
@@ -474,6 +477,11 @@ let currentGistFile = null;
 let currentFileName = "";
 /** @type {string} Relative path under the open folder, when known. */
 let currentFilePath = "";
+/**
+ * Revision stamp for conflict-aware Save (local lastModified, Drive modifiedTime, Gist updated_at).
+ * @type {{ source: "fs"|"drive"|"gist", value: string } | null}
+ */
+let currentFileRevision = null;
 /** Set after loadGoogleDriveConfig() during boot. */
 let driveConfigured = false;
 /** Set after loadGithubGistConfig() during boot. */
@@ -2557,9 +2565,12 @@ function stashPreExternalState(contentOverride) {
   preExternalSnapshot = {
     content: contentOverride != null ? String(contentOverride) : getMarkdownSource(),
     fileHandle: currentFileHandle,
+    driveFile: currentDriveFile,
+    gistFile: currentGistFile,
     fileName: currentFileName,
     filePath: currentFilePath,
     savedSnapshot,
+    fileRevision: currentFileRevision,
   };
 }
 
@@ -2973,9 +2984,8 @@ function acceptExternalContent() {
   void persistDraft(content);
   void pushHistory(content);
   clearShareMarkdownFromUrl();
-  // URL share is a clean baseline; uploads / other external stay dirty until disk save.
-  if (pendingExternalFromUrl) markCleanFromEditor();
-  else updateSaveButton();
+  // Accept establishes a clean baseline (share URL, upload, or OS / picker open).
+  markCleanFromEditor();
   pendingExternalFromUrl = false;
   renderMarkdown(content);
   scheduleEditorHighlight();
@@ -2996,9 +3006,12 @@ function rejectExternalContent() {
 
   if (snapshot) {
     currentFileHandle = snapshot.fileHandle;
+    currentDriveFile = snapshot.driveFile ?? null;
+    currentGistFile = snapshot.gistFile ?? null;
     currentFileName = snapshot.fileName;
     currentFilePath = snapshot.filePath;
     savedSnapshot = snapshot.savedSnapshot;
+    currentFileRevision = snapshot.fileRevision ?? null;
     updateDocumentTitle();
     updateSaveButton();
     highlightActiveFileInTree();
@@ -4984,7 +4997,7 @@ function moveSavedSnapshot(fromKey, toKey) {
 }
 
 function markCleanFromEditor() {
-  // Call only after persisting to disk or accepting URL share content.
+  // Call only after persisting to disk or accepting URL share / external content.
   savedSnapshot = getMarkdownSource();
   writeSavedSnapshot(currentDocKey(), savedSnapshot);
   updateSaveButton();
@@ -4994,6 +5007,33 @@ function markCleanFromEditor() {
 function markDirtyBaseline() {
   savedSnapshot = "";
   updateSaveButton();
+}
+
+/**
+ * @param {"fs"|"drive"|"gist"} source
+ * @param {string | number | null | undefined} value
+ */
+function setCurrentFileRevision(source, value) {
+  const v = value == null ? "" : String(value);
+  currentFileRevision = v ? { source, value: v } : null;
+}
+
+function clearCurrentFileRevision() {
+  currentFileRevision = null;
+}
+
+/**
+ * Prompt when the remote copy changed since open / last save.
+ * @param {string} label
+ * @param {string | null | undefined} remoteValue
+ * @returns {boolean} true when Save may proceed
+ */
+function confirmOverwriteIfRemoteChanged(label, remoteValue) {
+  if (!currentFileRevision) return true;
+  if (!revisionStampChanged(currentFileRevision.value, remoteValue)) return true;
+  return window.confirm(
+    `${label} changed since it was opened. Overwrite with your version?`,
+  );
 }
 
 function pathForHandle(fileHandle) {
@@ -5024,6 +5064,7 @@ function clearCurrentFileBinding() {
   currentGistFile = null;
   currentFileName = "";
   currentFilePath = "";
+  clearCurrentFileRevision();
   updateDocumentTitle();
   updateSaveButton();
   highlightActiveFileInTree();
@@ -5041,6 +5082,9 @@ function bindCurrentFile(fileHandle, name, path = "") {
   currentFileHandle = fileHandle;
   currentFileName = name || fileHandle?.name || "";
   currentFilePath = path || pathForHandle(fileHandle) || "";
+  // Revision stamp is set by the open/save caller (needs lastModified from getFile).
+  if (!fileHandle) clearCurrentFileRevision();
+  else if (currentFileRevision?.source !== "fs") clearCurrentFileRevision();
   // Do not reload savedSnapshot here — open/create paths set the editor first and
   // markClean afterward. Restoring a stale snap made rapid switches (and disconnect)
   // look dirty via the same confirmDiscardIfDirty() check.
@@ -5051,7 +5095,7 @@ function bindCurrentFile(fileHandle, name, path = "") {
 }
 
 /**
- * @param {{ id: string, name: string, mimeType?: string }} file
+ * @param {{ id: string, name: string, mimeType?: string, modifiedTime?: string }} file
  */
 function bindCurrentDriveFile(file) {
   currentFileHandle = null;
@@ -5059,6 +5103,8 @@ function bindCurrentDriveFile(file) {
   currentGistFile = null;
   currentDriveFile = { id: file.id, name: file.name, mimeType: file.mimeType };
   currentFileName = file.name || "";
+  if (file.modifiedTime) setCurrentFileRevision("drive", file.modifiedTime);
+  else if (currentFileRevision?.source !== "drive") clearCurrentFileRevision();
   updateDocumentTitle();
   updateSaveButton();
   highlightActiveFileInTree();
@@ -5066,7 +5112,7 @@ function bindCurrentDriveFile(file) {
 }
 
 /**
- * @param {{ gistId: string, filename: string }} file
+ * @param {{ gistId: string, filename: string, updatedAt?: string }} file
  */
 function bindCurrentGistFile(file) {
   currentFileHandle = null;
@@ -5074,6 +5120,8 @@ function bindCurrentGistFile(file) {
   currentDriveFile = null;
   currentGistFile = { gistId: file.gistId, filename: file.filename };
   currentFileName = file.filename || "";
+  if (file.updatedAt) setCurrentFileRevision("gist", file.updatedAt);
+  else if (currentFileRevision?.source !== "gist") clearCurrentFileRevision();
   updateDocumentTitle();
   updateSaveButton();
   highlightActiveFileInTree();
@@ -6237,11 +6285,16 @@ async function openDriveTreeFile(fileId) {
     if (seq !== openDocumentSeq) return;
     const token = await ensureDriveAccessToken();
     if (seq !== openDocumentSeq) return;
-    const content = await readDriveFileText(token, fileId);
+    const { text: content, meta } = await readDriveFileWithMeta(token, fileId);
     if (seq !== openDocumentSeq) return;
     setEditorValue(content);
     const fromKey = currentDocKey();
-    bindCurrentDriveFile({ id: entry.id, name: entry.name, mimeType: entry.mimeType });
+    bindCurrentDriveFile({
+      id: entry.id,
+      name: entry.name,
+      mimeType: entry.mimeType,
+      modifiedTime: meta.modifiedTime,
+    });
     const toKey = currentDocKey();
     if (fromKey !== toKey) {
       void moveDraft(fromKey, toKey);
@@ -6277,11 +6330,15 @@ async function openGistTreeFile(entryId) {
     if (seq !== openDocumentSeq) return;
     const token = await ensureGistAccessToken();
     if (seq !== openDocumentSeq) return;
-    const content = await readGistFileText(token, entry.gistId, entry.filename);
+    const { content, updatedAt } = await readGistFileWithMeta(
+      token,
+      entry.gistId,
+      entry.filename,
+    );
     if (seq !== openDocumentSeq) return;
     setEditorValue(content);
     const fromKey = currentDocKey();
-    bindCurrentGistFile({ gistId: entry.gistId, filename: entry.filename });
+    bindCurrentGistFile({ gistId: entry.gistId, filename: entry.filename, updatedAt });
     const toKey = currentDocKey();
     if (fromKey !== toKey) {
       void moveDraft(fromKey, toKey);
@@ -6459,10 +6516,13 @@ async function openFsFile(path) {
     // Persist the outgoing document under its own key before switching.
     await persistDraft(getMarkdownSource());
     if (seq !== openDocumentSeq) return;
-    const text = await readTextFile(/** @type {FileSystemFileHandle} */ (entry.handle));
+    const { text, lastModified } = await readTextFileMeta(
+      /** @type {FileSystemFileHandle} */ (entry.handle),
+    );
     if (seq !== openDocumentSeq) return;
     setEditorValue(text);
     bindCurrentFile(/** @type {FileSystemFileHandle} */ (entry.handle), entry.handle.name, path);
+    setCurrentFileRevision("fs", lastModified);
     selectFsPath(path);
     markCleanFromEditor();
     await finishOpenDocument(entry.handle.name, seq);
@@ -6573,7 +6633,11 @@ async function promptCreateFile(target = null) {
       const token = await ensureGistAccessToken();
       const created = await createPrivateGist(token, { filename: name, content: "" });
       await openCreatedEmptyDocument(() =>
-        bindCurrentGistFile({ gistId: created.id, filename: created.filename }),
+        bindCurrentGistFile({
+          gistId: created.id,
+          filename: created.filename,
+          updatedAt: created.updatedAt,
+        }),
       );
       await refreshActiveFilesTree();
       showToast(`Created ${name}`);
@@ -6596,12 +6660,16 @@ async function promptCreateFile(target = null) {
       return;
     }
     const handle = await createFile(dir, name, "");
+    const createdMeta = await readTextFileMeta(handle);
     const basePath =
       dir === rootDirHandle ? "" : ([...fsEntries.entries()].find(([, e]) => e.handle === dir)?.[0] ?? "");
     if (basePath) expandedPaths.add(basePath);
     await refreshActiveFilesTree();
     const createdPath = joinFsPath(basePath, name);
-    await openCreatedEmptyDocument(() => bindCurrentFile(handle, name, createdPath));
+    await openCreatedEmptyDocument(() => {
+      bindCurrentFile(handle, name, createdPath);
+      setCurrentFileRevision("fs", createdMeta.lastModified);
+    });
     selectFsPath(createdPath);
     showToast(`Created ${name}`);
   } catch (err) {
@@ -6703,6 +6771,12 @@ async function promptRenameEntry(id) {
       const renamedPath = joinFsPath(parentPathOf(id), finalName);
       const fromKey = currentDocKey();
       bindCurrentFile(/** @type {FileSystemFileHandle} */ (renamed), finalName, renamedPath);
+      try {
+        const meta = await readTextFileMeta(/** @type {FileSystemFileHandle} */ (renamed));
+        setCurrentFileRevision("fs", meta.lastModified);
+      } catch {
+        /* keep prior stamp if re-read fails */
+      }
       const toKey = currentDocKey();
       if (fromKey !== toKey) {
         void moveDraft(fromKey, toKey);
@@ -6775,10 +6849,21 @@ async function saveCurrentDocumentToDrive() {
   const text = getMarkdownSource();
   try {
     if (currentDriveFile?.id) {
-      await saveExistingDriveFile(currentDriveFile.id, {
+      const token = await ensureDriveAccessToken();
+      const meta = await getDriveFileMeta(token, currentDriveFile.id);
+      if (
+        !confirmOverwriteIfRemoteChanged(
+          currentDriveFile.name || currentFileName || "This Drive file",
+          meta.modifiedTime,
+        )
+      ) {
+        return;
+      }
+      const saved = await saveExistingDriveFile(currentDriveFile.id, {
         name: currentDriveFile.name || currentFileName || suggestedUntitledName(text),
         content: text,
       });
+      if (saved.modifiedTime) setCurrentFileRevision("drive", saved.modifiedTime);
       markCleanFromEditor();
       showToast(`Saved ${currentDriveFile.name || currentFileName}`);
       void refreshDriveTree();
@@ -6827,7 +6912,26 @@ async function saveCurrentDocumentToGist() {
   try {
     if (currentGistFile?.gistId && currentGistFile?.filename) {
       const token = await ensureGistAccessToken();
-      await updateGistFile(token, currentGistFile.gistId, currentGistFile.filename, text);
+      const remote = await readGistFileWithMeta(
+        token,
+        currentGistFile.gistId,
+        currentGistFile.filename,
+      );
+      if (
+        !confirmOverwriteIfRemoteChanged(
+          currentGistFile.filename || "This gist",
+          remote.updatedAt,
+        )
+      ) {
+        return;
+      }
+      const saved = await updateGistFile(
+        token,
+        currentGistFile.gistId,
+        currentGistFile.filename,
+        text,
+      );
+      if (saved.updatedAt) setCurrentFileRevision("gist", saved.updatedAt);
       markCleanFromEditor();
       showToast(`Saved ${currentGistFile.filename}`);
       void refreshGistTree();
@@ -6846,7 +6950,11 @@ async function saveCurrentDocumentToGist() {
     const token = await ensureGistAccessToken();
     const created = await createPrivateGist(token, { filename, content: text });
     const fromKey = currentDocKey();
-    bindCurrentGistFile({ gistId: created.id, filename: created.filename });
+    bindCurrentGistFile({
+      gistId: created.id,
+      filename: created.filename,
+      updatedAt: created.updatedAt,
+    });
     const toKey = currentDocKey();
     if (fromKey !== toKey) {
       void moveDraft(fromKey, toKey);
@@ -6892,7 +7000,18 @@ async function saveCurrentDocument() {
     }
 
     if (currentFileHandle) {
+      const file = await currentFileHandle.getFile();
+      if (
+        !confirmOverwriteIfRemoteChanged(
+          currentFileName || currentFileHandle.name || "This file",
+          String(file.lastModified),
+        )
+      ) {
+        return;
+      }
       await writeTextFile(currentFileHandle, text);
+      const after = await currentFileHandle.getFile();
+      setCurrentFileRevision("fs", after.lastModified);
       markCleanFromEditor();
       showToast(`Saved ${currentFileName || currentFileHandle.name}`);
       return;
@@ -6910,6 +7029,8 @@ async function saveCurrentDocument() {
       const createdPath = joinFsPath(basePath, name);
       const fromKey = currentDocKey();
       bindCurrentFile(handle, name, createdPath);
+      const createdMeta = await readTextFileMeta(handle);
+      setCurrentFileRevision("fs", createdMeta.lastModified);
       const toKey = currentDocKey();
       if (fromKey !== toKey) {
         void moveDraft(fromKey, toKey);
@@ -6928,6 +7049,8 @@ async function saveCurrentDocument() {
     }
     const fromKey = currentDocKey();
     bindCurrentFile(handle, handle.name, "");
+    const savedMeta = await readTextFileMeta(handle);
+    setCurrentFileRevision("fs", savedMeta.lastModified);
     const toKey = currentDocKey();
     if (fromKey !== toKey) {
       void moveDraft(fromKey, toKey);
@@ -7674,6 +7797,31 @@ async function restoreCurrentFileBindingOnLoad() {
   }
 }
 
+/**
+ * Load local file content into the editor as external (Accept/Reject) content.
+ * When a FileSystemFileHandle is provided, bind it and mark clean so Save can write back.
+ * @param {{ text: string, name: string, handle?: FileSystemFileHandle|null, lastModified?: number|null }} opts
+ */
+function loadExternalLocalFile({ text, name, handle = null, lastModified = null }) {
+  stashPreExternalState();
+  pendingExternalFromUrl = false;
+  setEditorValue(text);
+  bindCurrentFile(handle || null, name || "", "");
+  if (handle && lastModified != null) setCurrentFileRevision("fs", lastModified);
+  else if (!handle) clearCurrentFileRevision();
+  selectFsPath("");
+  // Real on-disk handle: opened content is the clean baseline (stays clean after Accept).
+  if (handle) markCleanFromEditor();
+  else updateSaveButton();
+  setContentExternal(true);
+  if (currentView !== "edit") setView("edit", { syncUrl: false });
+  showToast(`Loaded ${name}`);
+}
+
+/**
+ * Fallback open via `<input type="file">` (no writable handle).
+ * @param {File} file
+ */
 function handleFile(file) {
   if (!file) return;
   if (!TEXT_FILE_RE.test(file.name) && !file.type.startsWith("text/") && file.type !== "text/html") {
@@ -7683,18 +7831,45 @@ function handleFile(file) {
   if (!confirmDiscardIfDirty()) return;
   const reader = new FileReader();
   reader.onload = () => {
-    const text = String(reader.result ?? "");
-    stashPreExternalState();
-    pendingExternalFromUrl = false;
-    setEditorValue(text);
-    bindCurrentFile(null, file.name || "", "");
-    selectFsPath("");
-    setContentExternal(true);
-    updateSaveButton();
-    showToast(`Loaded ${file.name}`);
+    loadExternalLocalFile({
+      text: String(reader.result ?? ""),
+      name: file.name || "",
+      handle: null,
+    });
   };
   reader.onerror = () => showToast("Could not read file");
   reader.readAsText(file);
+}
+
+/**
+ * Open via showOpenFilePicker when available; otherwise fall back to the file input.
+ */
+async function openLocalFileChooser() {
+  if (typeof window.showOpenFilePicker === "function") {
+    try {
+      if (!confirmDiscardIfDirty()) return;
+      const picked = await openWithPicker();
+      if (!picked) return;
+      const name = picked.handle.name || "";
+      if (!TEXT_FILE_RE.test(name)) {
+        showToast("Only Markdown, text, or HTML files are supported");
+        return;
+      }
+      loadExternalLocalFile({
+        text: picked.text,
+        name,
+        handle: picked.handle,
+        lastModified: picked.lastModified,
+      });
+      return;
+    } catch (err) {
+      if (err?.name === "AbortError") return;
+      console.error(err);
+      showToast("Could not open file");
+      return;
+    }
+  }
+  fileInput?.click();
 }
 
 /**
@@ -7710,17 +7885,8 @@ async function openLaunchedFile(fileHandle) {
   }
   if (!confirmDiscardIfDirty()) return;
   try {
-    const text = await readTextFile(fileHandle);
-    stashPreExternalState();
-    pendingExternalFromUrl = false;
-    setEditorValue(text);
-    bindCurrentFile(fileHandle, name);
-    selectFsPath("");
-    // File Handling API opens a real on-disk file — that is the clean baseline.
-    markCleanFromEditor();
-    setContentExternal(true);
-    if (currentView !== "edit") setView("edit", { syncUrl: false });
-    showToast(`Loaded ${name}`);
+    const { text, lastModified } = await readTextFileMeta(fileHandle);
+    loadExternalLocalFile({ text, name, handle: fileHandle, lastModified });
   } catch (err) {
     console.error(err);
     showToast("Could not open file");
@@ -7774,8 +7940,35 @@ function setupDragAndDrop() {
     if (!isFileDrag(e)) return;
     e.preventDefault();
     reset();
-    handleFile(e.dataTransfer.files?.[0]);
+    void handleDrop(e.dataTransfer);
   });
+}
+
+/**
+ * Prefer a FileSystemFileHandle from the drop (write-back capable); else FileReader.
+ * @param {DataTransfer | null | undefined} dataTransfer
+ */
+async function handleDrop(dataTransfer) {
+  if (!dataTransfer) return;
+  const items = dataTransfer.items;
+  if (items?.length) {
+    for (const item of items) {
+      if (item.kind !== "file") continue;
+      if (typeof item.getAsFileSystemHandle === "function") {
+        try {
+          const handle = await item.getAsFileSystemHandle();
+          if (handle?.kind === "file") {
+            await openLaunchedFile(/** @type {FileSystemFileHandle} */ (handle));
+            return;
+          }
+        } catch (err) {
+          console.error(err);
+        }
+      }
+      break;
+    }
+  }
+  handleFile(dataTransfer.files?.[0]);
 }
 
 async function copyText(url, toastMessage) {
@@ -10362,7 +10555,7 @@ async function init() {
   });
 
   filesOpenFileBtn?.addEventListener("click", () => {
-    fileInput?.click();
+    void openLocalFileChooser();
   });
   fileInput?.addEventListener("change", () => {
     const file = fileInput.files?.[0];
@@ -10640,7 +10833,7 @@ async function init() {
       !isGistFilesSource()
     ) {
       e.preventDefault();
-      fileInput?.click();
+      void openLocalFileChooser();
       return;
     }
 

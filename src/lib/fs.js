@@ -321,11 +321,20 @@ export async function listDirectory(dirHandle) {
 
 /**
  * @param {FileSystemFileHandle} fileHandle
+ * @returns {Promise<{ text: string, lastModified: number }>}
+ */
+export async function readTextFileMeta(fileHandle) {
+  const file = await fileHandle.getFile();
+  return { text: await file.text(), lastModified: file.lastModified };
+}
+
+/**
+ * @param {FileSystemFileHandle} fileHandle
  * @returns {Promise<string>}
  */
 export async function readTextFile(fileHandle) {
-  const file = await fileHandle.getFile();
-  return file.text();
+  const { text } = await readTextFileMeta(fileHandle);
+  return text;
 }
 
 /**
@@ -405,6 +414,39 @@ export async function renameEntry(parentHandle, handle, newName) {
   throw new Error("Rename is not supported in this browser");
 }
 
+/** Accept map shared by open/save pickers. */
+function editableAcceptTypes() {
+  return {
+    "text/markdown": [".md", ".markdown", ".mdown", ".mkd"],
+    "text/plain": [".txt"],
+    "text/html": [".html", ".htm"],
+  };
+}
+
+/**
+ * Open via the system file picker (File System Access API).
+ * @returns {Promise<{ handle: FileSystemFileHandle, text: string, lastModified: number }|null>}
+ */
+export async function openWithPicker() {
+  if (typeof window.showOpenFilePicker !== "function") return null;
+  const [handle] = await window.showOpenFilePicker({
+    multiple: false,
+    types: [
+      {
+        description: "Text",
+        accept: editableAcceptTypes(),
+      },
+    ],
+  });
+  if (!handle || handle.kind !== "file") return null;
+  // Prefer readwrite so Save can write back without a second prompt.
+  await ensureHandlePermission(handle, "readwrite").catch(() =>
+    ensureHandlePermission(handle, "read"),
+  );
+  const { text, lastModified } = await readTextFileMeta(handle);
+  return { handle, text, lastModified };
+}
+
 /**
  * Save-as via the system save picker (no folder open).
  * @param {string} suggestedName
@@ -433,4 +475,16 @@ export async function saveWithPicker(suggestedName, text) {
   });
   await writeTextFile(handle, text);
   return handle;
+}
+
+/**
+ * Whether a stored revision stamp differs from the current remote value.
+ * @param {string | null | undefined} stored
+ * @param {string | null | undefined} remote
+ * @returns {boolean}
+ */
+export function revisionStampChanged(stored, remote) {
+  if (stored == null || stored === "") return false;
+  if (remote == null || remote === "") return false;
+  return String(stored) !== String(remote);
 }
