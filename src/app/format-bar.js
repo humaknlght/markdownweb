@@ -2,23 +2,10 @@ import { hooks } from "./hooks.js";
 import {
   state,
   editor,
-  panes,
-  formatBar,
-  headingMenuBtn,
-  headingMenu,
-  imageMenuBtn,
-  imageMenu,
-  formatImageInput,
-  formatMoreBtn,
-  formatMoreMenu
+  panes
 } from "./state.js";
+import { HISTORY_DEBOUNCE_MS } from "./constants.js";
 import {
-  HISTORY_DEBOUNCE_MS,
-  IMAGE_MIME_RE,
-  IMAGE_PASTE_MAX_BYTES
-} from "./constants.js";
-import {
-  formatEmbedMarkdown,
   insertCodeBlock,
   insertHorizontalRule,
   insertImage,
@@ -27,7 +14,6 @@ import {
   prefixLines,
   wrapInline
 } from "./vendor-deps.js";
-
 
 export function onEditorInput() {
   if (state.suppressEditorInput) return;

@@ -2,19 +2,9 @@ import { hooks } from "./hooks.js";
 import {
   state,
   saveBtn,
-  currentFileNameEl,
   fsAccessSupported,
-  fsEntries,
   isStandaloneDisplay
 } from "./state.js";
-import {
-  STORAGE_KEYS,
-  SAVED_SNAPSHOT_MAX_KEYS
-} from "./constants.js";
-import {
-  revisionStampChanged,
-  storeCurrentFileHandle
-} from "./vendor-deps.js";
 
 export function appBadgeNeedsNotificationPermission() {
   return /Mac|iPhone|iPad|iPod/i.test(navigator.userAgent || "");

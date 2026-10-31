@@ -1,4 +1,11 @@
 import { createHash } from "node:crypto";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { collectDevFirstPartyModuleUrls } from "./dev-module-graph.mjs";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const srcDir = path.resolve(__dirname, "..", "src");
+const DEV_FIRST_PARTY_MODULES = collectDevFirstPartyModuleUrls(srcDir);
 
 /** CDN modules the app needs fully offline (import map). Mermaid ESM entry is
  * precached; diagram chunks are cached on first use by the service worker.
@@ -39,7 +46,7 @@ export const DEV_PRECACHE = [
   "./privacy.html",
   "./styles/styles.css",
   "./styles/print.css",
-  "./app/app.js",
+  ...DEV_FIRST_PARTY_MODULES,
   "./drive/drive-helper.js",
   "./assets/fancy.avif",
   "./GUIDE.md",

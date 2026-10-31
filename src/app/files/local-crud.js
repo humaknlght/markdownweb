@@ -1,16 +1,12 @@
 import { hooks } from "../hooks.js";
 import {
   state,
-  driveEntries,
   gistEntries,
   fsEntries,
-  expandedPaths,
+  expandedPaths
 } from "../state.js";
 import {
-  ensureDriveAccessToken,
-  readDriveFileWithMeta,
   ensureGistAccessToken,
-  readGistFileWithMeta,
   moveDraft,
   createFile,
   createFolder,
@@ -24,7 +20,7 @@ import {
   createPrivateGist,
   deleteGist,
   joinFsPath,
-  parentPathOf,
+  parentPathOf
 } from "../vendor-deps.js";
 
 export async function createUntitledDocument() {

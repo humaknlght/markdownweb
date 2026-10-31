@@ -1,17 +1,9 @@
 import { hooks } from "./hooks.js";
 import {
   state,
-  editor,
-  preview,
-  viewModeMainBtn,
-  viewModeMenuBtn,
-  viewModeMenu,
-  presentChrome,
-  presentExitBtn,
-  presentProgress
+  presentChrome
 } from "./state.js";
 import {
-  THEMES,
   VIEWS,
   PRESENT_CHROME_IDLE_MS,
   PRESENT_SWIPE_MIN_DX

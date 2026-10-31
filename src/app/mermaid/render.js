@@ -1,6 +1,5 @@
 import { hooks } from "../hooks.js";
 import {
-  state,
   preview,
   mermaidSources,
   mermaidHeightCache

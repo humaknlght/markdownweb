@@ -4,8 +4,7 @@ import {
   escapeHtml,
   marked,
   Renderer,
-  hljs,
-  wrapHighlightedLines,
+  hljs
 } from "./vendor-deps.js";
 
 /** Assign 1-based source line numbers to top-level block tokens. */

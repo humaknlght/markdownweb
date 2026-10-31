@@ -1,30 +1,20 @@
 import { hooks } from "./hooks.js";
-import {
-  state
-} from "./state.js";
+import { state } from "./state.js";
 import {
   STORAGE_KEYS,
   HISTORY_LIMIT,
-  HISTORY_MAX_CHARS,
-  HISTORY_TIP_MAX,
-  HISTORY_INDEX_VERSION,
-  PATCH_MAX_CHARS
+  HISTORY_INDEX_VERSION
 } from "./constants.js";
 import {
   applyPatch,
   contentHash,
-  makeRevisionBody,
-  clearHistoryBodies,
-  commitHistoryBodies,
   getHistoryIndex,
   getRev,
   getTip,
   setHistoryIndex,
   setTip,
-  storageBudgetOk,
   titleFromMarkdown
 } from "./vendor-deps.js";
-
 
 export function newHistoryId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;

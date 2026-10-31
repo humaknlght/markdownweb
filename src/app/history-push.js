@@ -1,9 +1,6 @@
 import { hooks } from "./hooks.js";
+import { state } from "./state.js";
 import {
-  state
-} from "./state.js";
-import {
-  STORAGE_KEYS,
   HISTORY_LIMIT,
   HISTORY_MAX_CHARS,
   HISTORY_TIP_MAX,
@@ -11,15 +8,11 @@ import {
   PATCH_MAX_CHARS
 } from "./constants.js";
 import {
-  applyPatch,
   contentHash,
   makeRevisionBody,
   clearHistoryBodies,
   commitHistoryBodies,
-  getHistoryIndex,
-  getRev,
   getTip,
-  setHistoryIndex,
   setTip,
   storageBudgetOk,
   titleFromMarkdown

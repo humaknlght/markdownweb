@@ -1,5 +1,4 @@
 import { isFsAccessSupported } from "../lib/fs.js";
-import { DRIVE_DEFAULT_FOLDER_NAME } from "../drive/google-drive.js";
 
 export const editor = document.getElementById("editor");
 export const editorHighlight = document.getElementById("editor-highlight");

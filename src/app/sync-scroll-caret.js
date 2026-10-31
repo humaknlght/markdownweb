@@ -4,17 +4,8 @@ import {
   editor,
   preview,
   panes,
-  aiProofEditorWrap,
-  aiProofEditor,
-  aiProofHighlight,
-  aiProofHighlightCode,
-  syncScrollBtn,
-  lineWrapBtn,
   previewPane
 } from "./state.js";
-import {
-  STORAGE_KEYS
-} from "./constants.js";
 
 export function editorCaretLine() {
   const text = editor.value.slice(0, editor.selectionStart);

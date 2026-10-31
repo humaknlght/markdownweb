@@ -1,19 +1,12 @@
 import { hooks } from "../hooks.js";
 import {
   state,
-  panes,
   speakBtn,
   speakPauseBtn,
   speakPrevBtn,
   speakNextBtn,
-  previewPane,
-  cloudSpeechModal,
   speechSupported
 } from "../state.js";
-import {
-  wordEndOffset
-} from "../vendor-deps.js";
-
 
 export function updateSpeakButton() {
   if (!speakBtn || !speechSupported) return;

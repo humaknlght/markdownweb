@@ -1,11 +1,9 @@
 import { hooks } from "./hooks.js";
 import {
   state,
-  saveBtn,
   currentFileNameEl,
   fsAccessSupported,
-  fsEntries,
-  isStandaloneDisplay
+  fsEntries
 } from "./state.js";
 import {
   STORAGE_KEYS,
@@ -15,7 +13,6 @@ import {
   revisionStampChanged,
   storeCurrentFileHandle
 } from "./vendor-deps.js";
-
 
 export function isDirty() {
   // Clean only after a disk save/load or Accept of URL md/mdz content.

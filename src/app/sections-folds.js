@@ -1,11 +1,8 @@
 import { hooks } from "./hooks.js";
 import {
-  state,
   preview,
-  previewPane,
   collapsedSections
 } from "./state.js";
-
 
 export function headingTitleText(heading) {
   const label = heading.querySelector(":scope > .md-section-label");

@@ -32,6 +32,7 @@ import {
 import { applyCdnIntegrity, loadCdnIntegrity } from "./cdn-integrity.mjs";
 import { guideSourcePath } from "./sync-guide.mjs";
 import { buildDevServiceWorker } from "./pwa.mjs";
+import { injectDevLocalModulepreloads } from "./dev-module-graph.mjs";
 import {
   CORP,
   headersFor as buildHeaders,
@@ -58,7 +59,8 @@ async function loadSrcIndexHtmlWithSri() {
     fs.readFile(srcIndexPath, "utf8"),
     loadCdnIntegrity(),
   ]);
-  return applyCdnIntegrity(html, integrity);
+  const withSri = applyCdnIntegrity(html, integrity);
+  return injectDevLocalModulepreloads(withSri, path.join(repoRoot, "src"));
 }
 
 async function resolveCspConfig() {

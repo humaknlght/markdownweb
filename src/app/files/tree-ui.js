@@ -23,11 +23,8 @@ import {
   filesPermission,
   filesTree,
   fsAccessSupported,
-  driveEntries,
-  gistEntries,
   fsEntries,
-  drivePathLabel,
-  DRIVE_ROOT_UI_NAME,
+  drivePathLabel
 } from "../state.js";
 import {
   ensureEditableExtension,

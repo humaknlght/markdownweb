@@ -1,40 +1,10 @@
 import { hooks } from "../hooks.js";
 import {
   state,
-  filesOpenFileBtn,
-  filesDrawerTitle,
-  filesOpenFolderBtn,
-  filesSourceLocalBtn,
-  filesSourceDriveBtn,
-  filesSourceGistBtn,
-  filesConnectDriveBtn,
-  filesConnectGistBtn,
-  filesDriveOfflineHint,
-  filesEmptyConnectBtn,
-  filesEmptyConnectGistBtn,
-  filesEmptyCopy,
-  filesNewFileBtn,
-  filesNewFolderBtn,
-  filesRefreshBtn,
-  filesEmpty,
-  filesEmptyOpenBtn,
-  filesLoading,
-  filesLoadingCopy,
-  filesPermission,
-  filesTree,
-  fsAccessSupported,
   driveEntries,
   gistEntries,
-  fsEntries,
-  drivePathLabel
+  fsEntries
 } from "../state.js";
-import {
-  ensureEditableExtension,
-  isEditableFileName,
-  hasSealedDriveSession,
-  hasSealedGistSession
-} from "../vendor-deps.js";
-
 
 export function isDriveFilesSource() {
   return state.driveConfigured && state.filesSource === "drive";
@@ -90,20 +60,6 @@ export function getActiveTreeEntry(id) {
   const entry = fsEntries.get(id);
   return entry ? { id, name: entry.handle.name, kind: entry.kind } : null;
 }
-
-/**
- * Shared tree row DOM for Local, Drive, and Gist listings.
- * @param {{
- *   id: string,
- *   kind: "file"|"directory",
- *   name: string,
- *   idAttr?: "path"|"driveId"|"gistId",
- *   twistieText?: string,
- *   twistieSpacer?: boolean,
- *   rowClass?: string,
- *   action?: string,
- * }} opts
- */
 
 hooks.isDriveFilesSource = isDriveFilesSource;
 hooks.isGistFilesSource = isGistFilesSource;

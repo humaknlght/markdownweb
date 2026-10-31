@@ -2,7 +2,6 @@ import { hooks } from "./hooks.js";
 import {
   state,
   editor,
-  panes,
   formatBar,
   headingMenuBtn,
   headingMenu,
@@ -13,20 +12,10 @@ import {
   formatMoreMenu
 } from "./state.js";
 import {
-  HISTORY_DEBOUNCE_MS,
   IMAGE_MIME_RE,
   IMAGE_PASTE_MAX_BYTES
 } from "./constants.js";
-import {
-  formatEmbedMarkdown,
-  insertCodeBlock,
-  insertHorizontalRule,
-  insertImage,
-  insertLink,
-  insertTable,
-  prefixLines,
-  wrapInline
-} from "./vendor-deps.js";
+import { formatEmbedMarkdown } from "./vendor-deps.js";
 
 export function closeHeadingMenu() {
   if (!headingMenu || !headingMenuBtn) return;

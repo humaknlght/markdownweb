@@ -12,11 +12,8 @@ import {
 } from "./state.js";
 import {
   THEMES,
-  VIEWS,
-  PRESENT_CHROME_IDLE_MS,
-  PRESENT_SWIPE_MIN_DX
+  VIEWS
 } from "./constants.js";
-
 
 export function syncHashForView(view) {
   const url = new URL(window.location.href);

@@ -1,6 +1,5 @@
 import { hooks } from "./hooks.js";
 import {
-  editor,
   preview,
   shareBtn,
   shareMenu,
@@ -9,15 +8,9 @@ import {
   writingToolsBtn,
   writingToolsMenu
 } from "./state.js";
-import {
-  SHARE_URL_WARN_CHARS,
-} from "./constants.js";
-import {
-  titleFromMarkdown
-} from "./vendor-deps.js";
-import {
-  loadExportModule
-} from "./lazy-modules.js";
+import { SHARE_URL_WARN_CHARS } from "./constants.js";
+import { titleFromMarkdown } from "./vendor-deps.js";
+import { loadExportModule } from "./lazy-modules.js";
 
 export async function copyText(url, toastMessage) {
   try {

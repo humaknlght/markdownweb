@@ -2,17 +2,10 @@ import { hooks } from "../hooks.js";
 import {
   state,
   panes,
-  speakBtn,
-  speakPauseBtn,
-  speakPrevBtn,
-  speakNextBtn,
   previewPane,
-  cloudSpeechModal,
-  speechSupported
+  cloudSpeechModal
 } from "../state.js";
-import {
-  wordEndOffset
-} from "../vendor-deps.js";
+import { wordEndOffset } from "../vendor-deps.js";
 
 export function speakPreviousTrack() {
   if (!state.speechActive || !state.speechTracks.length) return;

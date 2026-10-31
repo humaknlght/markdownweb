@@ -2,27 +2,15 @@ import { hooks } from "../hooks.js";
 import {
   state,
   driveEntries,
-  gistEntries,
-  filesTree,
-  fsEntries,
-  expandedPaths,
-  fsAccessSupported,
+  gistEntries
 } from "../state.js";
 import {
   ensureDriveAccessToken,
   readDriveFileWithMeta,
   ensureGistAccessToken,
   readGistFileWithMeta,
-  moveDraft,
-  ensureHandlePermission,
-  listDirectory,
-  openDirectory,
-  readTextFileMeta,
-  resolveFilePath,
-  joinFsPath,
-  parentPathOf,
+  moveDraft
 } from "../vendor-deps.js";
-
 
 export async function finishOpenDocument(name, seq = state.openDocumentSeq) {
   if (seq !== state.openDocumentSeq) return;

@@ -2,69 +2,25 @@ import { hooks } from "./hooks.js";
 import {
   state,
   editor,
-  editorHighlight,
-  panes,
-  themeSelect,
-  widthSelect,
-  mermaidLookSelect,
-  fileInput,
-  filesOpenFileBtn,
   shareDropdown,
-  shareBtn,
   exportDropdown,
-  exportBtn,
-  exportMenu,
   writingToolsDropdown,
-  aiProofEditor,
   speakDropdown,
-  collapseEditorBtn,
-  collapsePreviewBtn,
-  syncScrollBtn,
-  lineWrapBtn,
   formatBar,
   headingDropdown,
   imageDropdown,
   formatImageInput,
   formatMoreDropdown,
-  previewPane,
   historyBtn,
   historyDropdown,
   toolbarMenu,
   toolbarActions,
   overflowBtn,
-  editViewBtn,
   viewModeDropdown,
-  viewModeMainBtn,
-  viewModeMenuBtn,
-  viewModeMenu,
-  presentViewBtn,
-  printBtn,
-  helpBtn,
-  presentPrevBtn,
-  presentNextBtn,
-  presentExitBtn,
-  externalModal,
   mermaidZoomDialog,
   filesContextMenu
 } from "./state.js";
-import {
-  STORAGE_KEYS,
-  NARROW_MQ,
-  THEMES,
-  WIDTHS,
-  MERMAID_LOOKS
-} from "./constants.js";
-import {
-  loadGoogleDriveConfig,
-  googleDriveEnabled,
-  tryRestoreDriveAccessToken,
-  loadGithubGistConfig,
-  githubGistEnabled,
-  tryRestoreGistAccessToken,
-  getTip,
-  probeHistoryIdb,
-  setDraft
-} from "./vendor-deps.js";
+import { NARROW_MQ } from "./constants.js";
 
 export function setupBootUiListeners() {
   historyBtn.addEventListener("click", (e) => {

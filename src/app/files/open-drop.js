@@ -1,46 +1,13 @@
 import { hooks } from "../hooks.js";
 import {
   state,
-  panes,
   fileInput,
-  dropOverlay,
-  filesToggleBtn,
-  saveBtn,
-  filesDrawer,
-  filesBackdrop,
-  filesOpenFolderBtn,
-  filesSourceLocalBtn,
-  filesSourceDriveBtn,
-  filesSourceGistBtn,
-  filesConnectDriveBtn,
-  filesConnectGistBtn,
-  filesEmptyConnectBtn,
-  filesEmptyConnectGistBtn,
-  filesNewFileBtn,
-  filesNewFolderBtn,
-  filesRefreshBtn,
-  filesEmptyOpenBtn,
-  filesRegrantBtn,
-  filesReopenBtn,
-  filesTree,
-  filesContextMenu,
-  fsAccessSupported,
-  expandedPaths
+  dropOverlay
 } from "../state.js";
+import { TEXT_FILE_RE } from "../constants.js";
 import {
-  STORAGE_KEYS,
-  TEXT_FILE_RE
-} from "../constants.js";
-import {
-  clearStoredDirectory,
   openWithPicker,
-  readTextFileMeta,
-  restoreDirectory,
-  loadStoredCurrentFileHandle,
-  resolveFilePath,
-  purgeLegacyCleartextToken,
-  purgeLegacyGistCleartextToken,
-  parentPathOf
+  readTextFileMeta
 } from "../vendor-deps.js";
 
 export function loadExternalLocalFile({ text, name, handle = null, lastModified = null }) {

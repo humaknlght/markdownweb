@@ -1,15 +1,12 @@
 import { hooks } from "../hooks.js";
 import {
   state,
-  editor,
   filesTree,
   gistPatModal,
   gistPatInput,
   gistEntries
 } from "../state.js";
-import {
-  STORAGE_KEYS
-} from "../constants.js";
+import { STORAGE_KEYS } from "../constants.js";
 import {
   clearGistAccessToken,
   editableGistFiles,

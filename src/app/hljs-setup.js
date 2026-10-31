@@ -1,13 +1,5 @@
 import hljs from "highlight.js";
-import hljsMarkdown from "https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.12.0/es/languages/markdown.min.js";
-import hljsXml from "https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.12.0/es/languages/xml.min.js";
-import {
-  HLJS_LANG_ALIASES,
-  canonicalHljsLang,
-  collectEditorLanguages,
-} from "../markdown/markdown-utils.js";
-import { withMarkdownEscapes } from "../markdown/hljs-markdown.js";
-import { CDN_INTEGRITY_URLS } from "./lazy-modules.js";
+import { collectEditorLanguages } from "../markdown/markdown-utils.js";
 
 const HLJS_LANG_CDN =
   "https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.12.0/es/languages";

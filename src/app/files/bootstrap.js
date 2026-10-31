@@ -2,8 +2,6 @@ import { hooks } from "../hooks.js";
 import {
   state,
   panes,
-  fileInput,
-  dropOverlay,
   filesToggleBtn,
   saveBtn,
   filesDrawer,
@@ -27,14 +25,9 @@ import {
   fsAccessSupported,
   expandedPaths
 } from "../state.js";
-import {
-  STORAGE_KEYS,
-  TEXT_FILE_RE
-} from "../constants.js";
+import { STORAGE_KEYS } from "../constants.js";
 import {
   clearStoredDirectory,
-  openWithPicker,
-  readTextFileMeta,
   restoreDirectory,
   loadStoredCurrentFileHandle,
   resolveFilePath,
@@ -42,7 +35,6 @@ import {
   purgeLegacyGistCleartextToken,
   parentPathOf
 } from "../vendor-deps.js";
-
 
 export function setupFilesDrawer() {
   // Drawer + outline are available everywhere; folder browsing needs FS Access.
