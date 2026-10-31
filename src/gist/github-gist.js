@@ -32,6 +32,7 @@ import {
   getGist,
   listGists,
   readGistFileText,
+  readGistFileWithMeta,
   updateGistFile,
 } from "./github-gist-api.js";
 
@@ -42,6 +43,7 @@ export {
   getGist,
   listGists,
   readGistFileText,
+  readGistFileWithMeta,
   updateGistFile,
 };
 

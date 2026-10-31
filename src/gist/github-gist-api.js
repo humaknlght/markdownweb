@@ -76,7 +76,7 @@ export function editableGistFiles(gist) {
 /**
  * @param {string} token
  * @param {string} gistId
- * @returns {Promise<{ id: string, description: string, public: boolean, files: Record<string, { filename: string, content: string, language?: string | null }> }>}
+ * @returns {Promise<{ id: string, description: string, public: boolean, updatedAt: string, files: Record<string, { filename: string, content: string, language?: string | null }> }>}
  */
 export async function getGist(token, gistId) {
   const octokit = await createGistOctokit(token);
@@ -95,6 +95,7 @@ export async function getGist(token, gistId) {
     id: data.id,
     description: data.description || "",
     public: Boolean(data.public),
+    updatedAt: data.updated_at || "",
     files,
   };
 }
@@ -107,17 +108,29 @@ export async function getGist(token, gistId) {
  * @returns {Promise<string>}
  */
 export async function readGistFileText(token, gistId, filename) {
+  const { content } = await readGistFileWithMeta(token, gistId, filename);
+  return content;
+}
+
+/**
+ * Read one gist file plus gist-level updatedAt (conflict stamp).
+ * @param {string} token
+ * @param {string} gistId
+ * @param {string} filename
+ * @returns {Promise<{ content: string, updatedAt: string }>}
+ */
+export async function readGistFileWithMeta(token, gistId, filename) {
   const gist = await getGist(token, gistId);
   const file = gist.files[filename];
   if (!file) throw new Error(`File not found in gist: ${filename}`);
-  return file.content;
+  return { content: file.content, updatedAt: gist.updatedAt || "" };
 }
 
 /**
  * Create a private gist with a single markdown file.
  * @param {string} token
  * @param {{ filename: string, content: string, description?: string }} opts
- * @returns {Promise<{ id: string, filename: string }>}
+ * @returns {Promise<{ id: string, filename: string, updatedAt: string }>}
  */
 export async function createPrivateGist(token, opts) {
   const filename = opts.filename || "untitled.md";
@@ -129,7 +142,7 @@ export async function createPrivateGist(token, opts) {
       [filename]: { content: opts.content ?? "" },
     },
   });
-  return { id: data.id, filename };
+  return { id: data.id, filename, updatedAt: data.updated_at || "" };
 }
 
 /**
@@ -138,7 +151,7 @@ export async function createPrivateGist(token, opts) {
  * @param {string} gistId
  * @param {string} filename
  * @param {string} content
- * @returns {Promise<{ id: string, filename: string }>}
+ * @returns {Promise<{ id: string, filename: string, updatedAt: string }>}
  */
 export async function updateGistFile(token, gistId, filename, content) {
   const octokit = await createGistOctokit(token);
@@ -148,7 +161,7 @@ export async function updateGistFile(token, gistId, filename, content) {
       [filename]: { content },
     },
   });
-  return { id: data.id, filename };
+  return { id: data.id, filename, updatedAt: data.updated_at || "" };
 }
 
 /**

@@ -29,7 +29,7 @@ export const DRIVE_EDITABLE_MIME_TYPES = [
 ].join(",");
 
 /**
- * @typedef {{ id: string, name: string, mimeType?: string }} DriveFileMeta
+ * @typedef {{ id: string, name: string, mimeType?: string, modifiedTime?: string }} DriveFileMeta
  * @typedef {{
  *   type: typeof DRIVE_MSG_TYPE,
  *   v: number,
@@ -90,6 +90,32 @@ export function isDriveEditableFile(name, mimeType = "") {
 /**
  * @param {string} accessToken
  * @param {string} fileId
+ * @returns {Promise<DriveFileMeta>}
+ */
+export async function getDriveFileMeta(accessToken, fileId) {
+  const url = new URL(
+    `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}`,
+  );
+  url.searchParams.set("fields", "id,name,mimeType,modifiedTime");
+  const res = await fetch(url.href, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    throw new Error(`Drive meta failed (${res.status})${detail ? `: ${detail}` : ""}`);
+  }
+  const json = await res.json();
+  return {
+    id: String(json.id || fileId),
+    name: String(json.name || ""),
+    mimeType: json.mimeType ? String(json.mimeType) : undefined,
+    modifiedTime: json.modifiedTime ? String(json.modifiedTime) : undefined,
+  };
+}
+
+/**
+ * @param {string} accessToken
+ * @param {string} fileId
  * @returns {Promise<string>}
  */
 export async function readDriveFileText(accessToken, fileId) {
@@ -104,6 +130,20 @@ export async function readDriveFileText(accessToken, fileId) {
     throw new Error(`Drive read failed (${res.status})${detail ? `: ${detail}` : ""}`);
   }
   return res.text();
+}
+
+/**
+ * Read file media plus metadata (for conflict stamps).
+ * @param {string} accessToken
+ * @param {string} fileId
+ * @returns {Promise<{ text: string, meta: DriveFileMeta }>}
+ */
+export async function readDriveFileWithMeta(accessToken, fileId) {
+  const [text, meta] = await Promise.all([
+    readDriveFileText(accessToken, fileId),
+    getDriveFileMeta(accessToken, fileId),
+  ]);
+  return { text, meta };
 }
 
 /**
@@ -356,7 +396,7 @@ export async function createDriveFile(accessToken, { name, content, mimeType, pa
     `--${boundary}--`;
 
   const res = await fetch(
-    "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,mimeType",
+    "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,mimeType,modifiedTime",
     {
       method: "POST",
       headers: {
@@ -371,7 +411,12 @@ export async function createDriveFile(accessToken, { name, content, mimeType, pa
     throw new Error(`Drive create failed (${res.status})${detail ? `: ${detail}` : ""}`);
   }
   const json = await res.json();
-  return { id: String(json.id), name: String(json.name || name), mimeType: json.mimeType };
+  return {
+    id: String(json.id),
+    name: String(json.name || name),
+    mimeType: json.mimeType,
+    modifiedTime: json.modifiedTime ? String(json.modifiedTime) : undefined,
+  };
 }
 
 /**
@@ -383,7 +428,7 @@ export async function createDriveFile(accessToken, { name, content, mimeType, pa
 export async function updateDriveFile(accessToken, fileId, { content, mimeType, name }) {
   const mime = mimeType || (name ? mimeTypeForName(name) : "text/plain");
   const res = await fetch(
-    `https://www.googleapis.com/upload/drive/v3/files/${encodeURIComponent(fileId)}?uploadType=media&fields=id,name,mimeType`,
+    `https://www.googleapis.com/upload/drive/v3/files/${encodeURIComponent(fileId)}?uploadType=media&fields=id,name,mimeType,modifiedTime`,
     {
       method: "PATCH",
       headers: {
@@ -405,6 +450,7 @@ export async function updateDriveFile(accessToken, fileId, { content, mimeType, 
     id: String(json.id || fileId),
     name: String(json.name || name || ""),
     mimeType: json.mimeType || mime,
+    modifiedTime: json.modifiedTime ? String(json.modifiedTime) : undefined,
   };
 }
 

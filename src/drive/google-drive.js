@@ -41,10 +41,12 @@ import {
 export {
   DRIVE_DEFAULT_FOLDER_NAME,
   createDriveFolder,
+  getDriveFileMeta,
   listDriveAppFolder,
   listDriveAppFiles,
   listDriveFolderChildren,
   readDriveFileText,
+  readDriveFileWithMeta,
   ensureDriveAppFolder,
 } from "./google-drive-api.js";
 
@@ -395,7 +397,7 @@ export function isDriveSessionMemoryOnly() {
 /**
  * @param {string} fileId
  * @param {{ name: string, content: string }} opts
- * @returns {Promise<{ id: string, name: string, mimeType?: string }>}
+ * @returns {Promise<{ id: string, name: string, mimeType?: string, modifiedTime?: string }>}
  */
 export async function saveExistingDriveFile(fileId, { name, content }) {
   let token = await ensureDriveAccessToken();

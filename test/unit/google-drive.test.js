@@ -15,7 +15,9 @@ import {
   isDriveMessage,
   makeDriveMessage,
   mimeTypeForName,
+  getDriveFileMeta,
   readDriveFileText,
+  readDriveFileWithMeta,
   updateDriveFile,
 } from "../../src/drive/google-drive-api.js";
 import {
@@ -138,6 +140,37 @@ describe("google-drive-api helpers", () => {
     }
   });
 
+  it("reads Drive file meta and withMeta for conflict stamps", async () => {
+    const original = globalThis.fetch;
+    globalThis.fetch = mock.fn(async (url, init) => {
+      const href = String(url);
+      assert.equal(init.headers.Authorization, "Bearer tok");
+      if (href.includes("alt=media")) {
+        return { ok: true, text: async () => "# Hello" };
+      }
+      assert.match(href, /files\/abc123\?/);
+      assert.match(href, /modifiedTime/);
+      return {
+        ok: true,
+        json: async () => ({
+          id: "abc123",
+          name: "notes.md",
+          mimeType: "text/markdown",
+          modifiedTime: "2026-01-02T03:04:05.000Z",
+        }),
+      };
+    });
+    try {
+      const meta = await getDriveFileMeta("tok", "abc123");
+      assert.equal(meta.modifiedTime, "2026-01-02T03:04:05.000Z");
+      const both = await readDriveFileWithMeta("tok", "abc123");
+      assert.equal(both.text, "# Hello");
+      assert.equal(both.meta.modifiedTime, "2026-01-02T03:04:05.000Z");
+    } finally {
+      globalThis.fetch = original;
+    }
+  });
+
   it("creates and updates Drive files via fetch", async () => {
     const original = globalThis.fetch;
     const calls = [];
@@ -145,14 +178,26 @@ describe("google-drive-api helpers", () => {
       calls.push({ url: String(url), method: init.method, body: init.body });
       if (String(url).includes("uploadType=multipart")) {
         assert.match(String(init.body), /"parents":\["folder1"\]/);
+        assert.match(String(url), /modifiedTime/);
         return {
           ok: true,
-          json: async () => ({ id: "new1", name: "doc.md", mimeType: "text/markdown" }),
+          json: async () => ({
+            id: "new1",
+            name: "doc.md",
+            mimeType: "text/markdown",
+            modifiedTime: "2026-01-01T00:00:00.000Z",
+          }),
         };
       }
+      assert.match(String(url), /modifiedTime/);
       return {
         ok: true,
-        json: async () => ({ id: "new1", name: "doc.md", mimeType: "text/markdown" }),
+        json: async () => ({
+          id: "new1",
+          name: "doc.md",
+          mimeType: "text/markdown",
+          modifiedTime: "2026-01-01T01:00:00.000Z",
+        }),
       };
     });
     try {
@@ -162,11 +207,13 @@ describe("google-drive-api helpers", () => {
         parentId: "folder1",
       });
       assert.equal(created.id, "new1");
+      assert.equal(created.modifiedTime, "2026-01-01T00:00:00.000Z");
       assert.match(calls[0].url, /uploadType=multipart/);
       assert.equal(calls[0].method, "POST");
 
       const updated = await updateDriveFile("tok", "new1", { name: "doc.md", content: "# Y" });
       assert.equal(updated.id, "new1");
+      assert.equal(updated.modifiedTime, "2026-01-01T01:00:00.000Z");
       assert.equal(calls[1].method, "PATCH");
     } finally {
       globalThis.fetch = original;
