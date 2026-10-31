@@ -30,6 +30,7 @@ import {
 } from "./pwa.mjs";
 import { applyCdnIntegrity, loadCdnIntegrity } from "./cdn-integrity.mjs";
 import { copyGuideTo } from "./sync-guide.mjs";
+import { createStateHooksManglePlugin } from "./mangle-state-hooks.mjs";
 
 const zopfliGzipAsync = promisify(zopfliGzip);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -178,6 +179,9 @@ async function buildCss(fancyFileName) {
 }
 
 async function buildJs(guideUrl, dropsUrl, zenCssUrl) {
+  const mangleStateHooks = await createStateHooksManglePlugin(
+    path.join(srcDir, "app"),
+  );
   const result = await esbuild.build({
     entryPoints: [
       path.join(srcDir, "app", "app.js"),
@@ -195,6 +199,7 @@ async function buildJs(guideUrl, dropsUrl, zenCssUrl) {
     legalComments: "none",
     treeShaking: true,
     metafile: true,
+    plugins: [mangleStateHooks],
     external: ["marked", "dompurify", "highlight.js", "gemoji", "yaml"],
     define: {
       __GUIDE_URL__: JSON.stringify(guideUrl),
