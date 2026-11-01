@@ -2244,16 +2244,37 @@ body.files-source-drive .gist-only:not(.cloud-only):not(.files-source-btn) {
   --preview-track: 0%;
 }
 
+/* Head boot script paints collapse via <html> attrs before #panes exists / JS runs. */
+html[data-boot-editor-collapsed="1"] .panes {
+  --editor-track: 0%;
+  --preview-track: 100%;
+  --splitter-track: 0px;
+}
+
+html[data-boot-preview-collapsed="1"] .panes {
+  --editor-track: 100%;
+  --preview-track: 0%;
+  --splitter-track: 0px;
+}
+
+html[data-boot-editor-collapsed="1"][data-boot-preview-collapsed="1"] .panes {
+  --editor-track: 0%;
+  --preview-track: 0%;
+}
+
+html[data-boot-width="full"] .preview {
+  max-width: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .panes {
     --collapse-duration: 0s;
   }
 }
 
-/* Hide panes only until the inline boot script (after #panes) restores split /
-   collapse from localStorage. That script drops is-booting during HTML parse so
-   the shell can paint before app.js modules / IDB finish. --collapse-duration
-   stays 0 while hidden so a late JS restore cannot animate from 50/50. */
+/* Head boot sets layout attrs then drops is-booting before first paint. Keep the
+   hide gate only if that script fails, so a late JS restore cannot animate from
+   the default 50/50 split. */
 html.is-booting .panes {
   --collapse-duration: 0s;
   visibility: hidden;
@@ -2721,8 +2742,8 @@ mark.speech-word {
   overflow-anchor: none;
 }
 
-body[data-view="present"] .preview .md-section-toggle,
-body[data-view="slides"] .preview .md-section-toggle {
+html[data-view="present"] .preview .md-section-toggle,
+html[data-view="slides"] .preview .md-section-toggle {
   display: none;
 }
 
@@ -3928,11 +3949,11 @@ html[data-theme="fancy"] .photo-credit:not([hidden]) {
     display: none;
   }
 
-  body[data-view="slides"] .toolbar-actions .view-mode-icon-slides {
+  html[data-view="slides"] .toolbar-actions .view-mode-icon-slides {
     display: none;
   }
 
-  body[data-view="slides"] .toolbar-actions .view-mode-icon-edit {
+  html[data-view="slides"] .toolbar-actions .view-mode-icon-edit {
     display: block;
   }
 
@@ -3962,7 +3983,7 @@ html[data-theme="fancy"] .photo-credit:not([hidden]) {
     display: none !important;
   }
 
-  body[data-view="reader"] .toolbar-actions #view-mode-dropdown {
+  html[data-view="reader"] .toolbar-actions #view-mode-dropdown {
     display: block;
   }
 
@@ -4178,65 +4199,65 @@ html[data-theme="fancy"] .photo-credit:not([hidden]) {
 }
 
 /* View modes: edit (default), reader, present, slides */
-body[data-view="edit"] .reader-only,
-body[data-view="slides"] .reader-only {
+html[data-view="edit"] .reader-only,
+html[data-view="slides"] .reader-only {
   display: none !important;
 }
 
-body[data-view="reader"] .authoring-only,
-body[data-view="present"] .authoring-only {
+html[data-view="reader"] .authoring-only,
+html[data-view="present"] .authoring-only {
   display: none !important;
 }
 
-body[data-view="reader"] .files-drawer,
-body[data-view="present"] .files-drawer,
-body[data-view="reader"] .files-backdrop,
-body[data-view="present"] .files-backdrop,
-body[data-view="reader"] .files-context-menu,
-body[data-view="present"] .files-context-menu {
+html[data-view="reader"] .files-drawer,
+html[data-view="present"] .files-drawer,
+html[data-view="reader"] .files-backdrop,
+html[data-view="present"] .files-backdrop,
+html[data-view="reader"] .files-context-menu,
+html[data-view="present"] .files-context-menu {
   display: none !important;
 }
 
-body[data-view="reader"] .panes,
-body[data-view="present"] .panes {
+html[data-view="reader"] .panes,
+html[data-view="present"] .panes {
   grid-template-columns: minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr);
 }
 
-body[data-view="reader"] .editor-pane,
-body[data-view="reader"] .splitter,
-body[data-view="present"] .editor-pane,
-body[data-view="present"] .splitter {
+html[data-view="reader"] .editor-pane,
+html[data-view="reader"] .splitter,
+html[data-view="present"] .editor-pane,
+html[data-view="present"] .splitter {
   display: none;
 }
 
-body[data-view="reader"] .preview-pane,
-body[data-view="present"] .preview-pane {
+html[data-view="reader"] .preview-pane,
+html[data-view="present"] .preview-pane {
   border: 0;
 }
 
-body[data-view="reader"] .preview {
+html[data-view="reader"] .preview {
   padding-top: 2rem;
   padding-bottom: 3.5rem;
 }
 
-body[data-view="present"] .toolbar {
+html[data-view="present"] .toolbar {
   display: none;
 }
 
-body[data-view="present"] .preview-pane,
-body[data-view="slides"] .preview-pane {
+html[data-view="present"] .preview-pane,
+html[data-view="slides"] .preview-pane {
   position: relative;
   display: flex;
   flex-direction: column;
   background: var(--preview-bg, #fff);
 }
 
-body[data-view="present"] .preview-pane {
+html[data-view="present"] .preview-pane {
   touch-action: pan-y;
 }
 
-body[data-view="present"] .preview {
+html[data-view="present"] .preview {
   flex: 1;
   width: 100%;
   max-width: min(52rem, 92vw);
@@ -4244,27 +4265,27 @@ body[data-view="present"] .preview {
   overflow: auto;
 }
 
-body[data-view="slides"] .preview {
+html[data-view="slides"] .preview {
   flex: 1;
   overflow: auto;
 }
 
-body[data-view="present"] .preview[data-width="full"] {
+html[data-view="present"] .preview[data-width="full"] {
   max-width: none;
 }
 
-body[data-view="present"] .preview > [hidden],
-body[data-view="slides"] .preview > [hidden] {
+html[data-view="present"] .preview > [hidden],
+html[data-view="slides"] .preview > [hidden] {
   display: none !important;
 }
 
 /* Each slide starts with an h1/h2 that is not :first-child (earlier slides
    stay in the DOM as [hidden]), so the normal heading margin-top would leave
    a gap. Zero it for all section titles in slides/present. */
-body[data-view="present"] .preview > h1,
-body[data-view="present"] .preview > h2,
-body[data-view="slides"] .preview > h1,
-body[data-view="slides"] .preview > h2 {
+html[data-view="present"] .preview > h1,
+html[data-view="present"] .preview > h2,
+html[data-view="slides"] .preview > h1,
+html[data-view="slides"] .preview > h2 {
   margin-top: 0;
 }
 
@@ -4285,20 +4306,20 @@ body[data-view="slides"] .preview > h2 {
   backdrop-filter: blur(12px);
 }
 
-body[data-view="present"] .present-chrome {
+html[data-view="present"] .present-chrome {
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.35s ease;
 }
 
-body[data-view="present"] .present-chrome.is-active {
+html[data-view="present"] .present-chrome.is-active {
   opacity: 1;
   pointer-events: auto;
   transition: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  body[data-view="present"] .present-chrome {
+  html[data-view="present"] .present-chrome {
     transition: none;
   }
 }

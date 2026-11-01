@@ -164,16 +164,16 @@
 
   /* Slides/present hide non-current sections with higher specificity on screen;
      beat that so Print includes the whole deck. */
-  body[data-view="present"] .preview > [hidden],
-  body[data-view="slides"] .preview > [hidden] {
+  html[data-view="present"] .preview > [hidden],
+  html[data-view="slides"] .preview > [hidden] {
     display: revert !important;
   }
 
   /* One slide per page (skip the first heading so page 1 isn’t blank). */
-  body[data-view="present"] .preview > h1:not(:first-child),
-  body[data-view="present"] .preview > h2:not(:first-child),
-  body[data-view="slides"] .preview > h1:not(:first-child),
-  body[data-view="slides"] .preview > h2:not(:first-child) {
+  html[data-view="present"] .preview > h1:not(:first-child),
+  html[data-view="present"] .preview > h2:not(:first-child),
+  html[data-view="slides"] .preview > h1:not(:first-child),
+  html[data-view="slides"] .preview > h2:not(:first-child) {
     break-before: page;
     page-break-before: always;
   }

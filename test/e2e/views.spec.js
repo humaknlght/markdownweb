@@ -12,7 +12,7 @@ test.describe("views / slides / present", () => {
     page,
   }) => {
     await page.locator("#view-mode-main-btn").click();
-    await expect(page.locator("body")).toHaveAttribute("data-view", "slides");
+    await expect(page.locator("html")).toHaveAttribute("data-view", "slides");
     await expect(page.locator("#present-progress")).toContainText("1 /");
 
     await page.locator("#present-next-btn").click();
@@ -20,22 +20,22 @@ test.describe("views / slides / present", () => {
 
     await page.locator("#view-mode-menu-btn").click();
     await page.locator("#present-menu-btn").click();
-    await expect(page.locator("body")).toHaveAttribute("data-view", "present");
+    await expect(page.locator("html")).toHaveAttribute("data-view", "present");
     await expect(page.locator("#present-progress")).toContainText("2 /");
   });
 
   test("Escape closes menus before exiting slides", async ({ page }) => {
     await page.locator("#view-mode-main-btn").click();
-    await expect(page.locator("body")).toHaveAttribute("data-view", "slides");
+    await expect(page.locator("html")).toHaveAttribute("data-view", "slides");
 
     await page.locator("#history-btn").click();
     await expect(page.locator("#history-menu")).toBeVisible();
     await page.keyboard.press("Escape");
     await expect(page.locator("#history-menu")).toBeHidden();
-    await expect(page.locator("body")).toHaveAttribute("data-view", "slides");
+    await expect(page.locator("html")).toHaveAttribute("data-view", "slides");
 
     await page.keyboard.press("Escape");
-    await expect(page.locator("body")).toHaveAttribute("data-view", "edit");
+    await expect(page.locator("html")).toHaveAttribute("data-view", "edit");
   });
 
   test("slide 2+ headings have zero top margin", async ({ page }) => {

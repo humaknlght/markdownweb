@@ -25,6 +25,8 @@ export function applyCollapseState() {
 
   panes.classList.toggle("editor-collapsed", editorCollapsed);
   panes.classList.toggle("preview-collapsed", previewCollapsed);
+  document.documentElement.removeAttribute("data-boot-editor-collapsed");
+  document.documentElement.removeAttribute("data-boot-preview-collapsed");
 
   collapseEditorBtn.setAttribute("aria-pressed", String(editorCollapsed));
   collapsePreviewBtn.setAttribute("aria-pressed", String(previewCollapsed));
@@ -44,6 +46,8 @@ export function isStackedLayout() {
 export function applySplit(percent, { persist = true } = {}) {
   state.splitPercent = clampSplit(Number(percent) || 50);
   panes.style.setProperty("--split", `${state.splitPercent}%`);
+  // Head boot sets --split on <html>; drop it once panes owns the live value.
+  document.documentElement.style.removeProperty("--split");
   splitter.setAttribute("aria-valuenow", String(Math.round(state.splitPercent)));
   hooks.invalidateScrollAnchors();
   if (persist) {

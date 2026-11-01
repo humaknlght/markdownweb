@@ -23,7 +23,7 @@ test.describe("share + trust modal", () => {
     await page.goto(`/#mdz=${mdz}&theme=github-light&view=edit`);
     await waitForAppReady(page);
 
-    await expect(page.locator("body")).toHaveAttribute("data-view", "edit");
+    await expect(page.locator("html")).toHaveAttribute("data-view", "edit");
     await expect(page.locator("#external-modal")).toBeVisible();
     await expect(page.locator("#preview")).toContainText(
       "Preview is paused until you accept this content.",
@@ -80,11 +80,11 @@ test.describe("share + trust modal", () => {
 
     await page.locator("#editor").fill("# A\n\n## B\n\nSlide body.");
     await page.locator("#view-mode-main-btn").click();
-    await expect(page.locator("body")).toHaveAttribute("data-view", "slides");
+    await expect(page.locator("html")).toHaveAttribute("data-view", "slides");
     expect(page.url()).not.toMatch(/mdz=/);
 
     await page.locator("#view-mode-main-btn").click();
-    await expect(page.locator("body")).toHaveAttribute("data-view", "edit");
+    await expect(page.locator("html")).toHaveAttribute("data-view", "edit");
     expect(page.url()).not.toMatch(/mdz=/);
   });
 });

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="github-light" data-line-wrap="on" class="is-booting">
+<html lang="en" data-theme="github-light" data-view="edit" data-line-wrap="on" class="is-booting">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -75,6 +75,7 @@
   <script>window.__MD_SW__="__SW_URL__";</script>
   <script>
     (function () {
+      var root = document.documentElement;
       try {
         var THEMES = {
           "github-light": 1,
@@ -85,14 +86,26 @@
           fancy: 1,
           zen: 1,
         };
-        var urlTheme = null;
+        var params = null;
         try {
           var hash = window.location.hash.slice(1);
-          if (hash) urlTheme = new URLSearchParams(hash).get("theme");
-          if (!urlTheme) urlTheme = new URLSearchParams(window.location.search).get("theme");
+          params = hash
+            ? new URLSearchParams(hash)
+            : new URLSearchParams(window.location.search);
+          if (
+            hash &&
+            !params.has("theme") &&
+            !params.has("view") &&
+            !params.has("guide") &&
+            !params.has("mdz") &&
+            !params.has("md")
+          ) {
+            params = new URLSearchParams(window.location.search);
+          }
         } catch (e) {
-          /* ignore */
+          params = new URLSearchParams();
         }
+        var urlTheme = params.get("theme");
         var saved = localStorage.getItem("md-editor:theme");
         var theme =
           urlTheme && THEMES[urlTheme]
@@ -102,16 +115,51 @@
               : window.matchMedia("(prefers-color-scheme: dark)").matches
                 ? "github-dark"
                 : "github-light";
-        document.documentElement.setAttribute("data-theme", theme);
+        root.setAttribute("data-theme", theme);
         var wrap = localStorage.getItem("md-editor:line-wrap");
-        document.documentElement.setAttribute(
-          "data-line-wrap",
-          wrap === "0" ? "off" : "on",
-        );
+        root.setAttribute("data-line-wrap", wrap === "0" ? "off" : "on");
+
+        var urlView = params.get("view");
+        var view =
+          urlView === "edit" ||
+          urlView === "reader" ||
+          urlView === "present" ||
+          urlView === "slides"
+            ? urlView
+            : params.get("guide") === "1"
+              ? "reader"
+              : "edit";
+        root.setAttribute("data-view", view);
+
+        var splitRaw = localStorage.getItem("md-editor:split");
+        var split = splitRaw == null ? 50 : Number(splitRaw);
+        if (!Number.isFinite(split)) split = 50;
+        if (split < 15) split = 15;
+        if (split > 85) split = 85;
+        root.style.setProperty("--split", split + "%");
+
+        var authoring = view === "edit" || view === "slides";
+        if (localStorage.getItem("md-editor:editor-collapsed") === "1") {
+          root.setAttribute("data-boot-editor-collapsed", "1");
+        }
+        if (
+          authoring &&
+          localStorage.getItem("md-editor:preview-collapsed") === "1"
+        ) {
+          root.setAttribute("data-boot-preview-collapsed", "1");
+        }
+
+        var width = localStorage.getItem("md-editor:width");
+        if (width === "readable" || width === "full") {
+          root.setAttribute("data-boot-width", width);
+        }
       } catch (e) {
-        document.documentElement.setAttribute("data-theme", "github-light");
-        document.documentElement.setAttribute("data-line-wrap", "on");
+        root.setAttribute("data-theme", "github-light");
+        root.setAttribute("data-view", "edit");
+        root.setAttribute("data-line-wrap", "on");
       }
+      // Layout attrs are on <html> before CSS/first paint — safe to show panes.
+      root.classList.remove("is-booting");
     })();
   </script>
   <link rel="stylesheet" href="styles/styles.css" />
@@ -159,7 +207,7 @@
     crossorigin="anonymous"
   />
 </head>
-<body data-view="edit">
+<body>
   <header class="toolbar">
     <div class="brand-group">
       <button
@@ -860,75 +908,6 @@
         </div>
       </section>
     </main>
-    <!-- Reveal the pane shell before app.js modules finish loading. Layout prefs
-         are applied here so the default 50/50 split is never painted, and
-         html.is-booting (visibility:hidden on .panes) does not wait on IDB/CDN. -->
-    <script>
-      (function () {
-        try {
-          var panes = document.getElementById("panes");
-          if (!panes) return;
-          var splitRaw = localStorage.getItem("md-editor:split");
-          var split = splitRaw == null ? 50 : Number(splitRaw);
-          if (!Number.isFinite(split)) split = 50;
-          if (split < 15) split = 15;
-          if (split > 85) split = 85;
-          panes.style.setProperty("--split", split + "%");
-
-          var view = "edit";
-          try {
-            var hash = window.location.hash.slice(1);
-            var params = hash
-              ? new URLSearchParams(hash)
-              : new URLSearchParams(window.location.search);
-            if (
-              hash &&
-              !params.has("view") &&
-              !params.has("guide") &&
-              !params.has("mdz") &&
-              !params.has("md") &&
-              !params.has("theme")
-            ) {
-              params = new URLSearchParams(window.location.search);
-            }
-            var urlView = params.get("view");
-            if (
-              urlView === "edit" ||
-              urlView === "reader" ||
-              urlView === "present" ||
-              urlView === "slides"
-            ) {
-              view = urlView;
-            } else if (params.get("guide") === "1") {
-              view = "reader";
-            }
-          } catch (e) {
-            /* ignore */
-          }
-          document.body.dataset.view = view;
-
-          var authoring = view === "edit" || view === "slides";
-          if (localStorage.getItem("md-editor:editor-collapsed") === "1") {
-            panes.classList.add("editor-collapsed");
-          }
-          if (
-            authoring &&
-            localStorage.getItem("md-editor:preview-collapsed") === "1"
-          ) {
-            panes.classList.add("preview-collapsed");
-          }
-
-          var width = localStorage.getItem("md-editor:width");
-          var preview = document.getElementById("preview");
-          if (preview && (width === "readable" || width === "full")) {
-            preview.dataset.width = width;
-          }
-        } catch (e) {
-          /* ignore */
-        }
-        document.documentElement.classList.remove("is-booting");
-      })();
-    </script>
   </div>
 
   <ul class="files-context-menu dropdown-menu" id="files-context-menu" role="menu" hidden>

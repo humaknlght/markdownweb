@@ -59,8 +59,8 @@ export async function init() {
   });
   hooks.applyCollapseState();
   hooks.setupSplitter();
-  // Shell may already be visible (inline script after #panes). Re-commit layout
-  // here so a late restore still cannot animate from the default 50/50 split.
+  // Head boot already revealed the shell; commit JS layout without animating
+  // from the default 50/50 if is-booting somehow remained.
   void getComputedStyle(panes).gridTemplateColumns;
   document.documentElement.classList.remove("is-booting");
   hooks.setupDragAndDrop();
