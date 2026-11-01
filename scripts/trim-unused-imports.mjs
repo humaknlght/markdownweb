@@ -5,7 +5,7 @@
  */
 import fs from "node:fs/promises";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 /** Split app modules only — lib/markdown use imports referenced from JSDoc. */
@@ -24,20 +24,48 @@ async function walkJs(dir) {
   return out;
 }
 
+/** Collect template `${…}` expression source for identifier scanning. */
+function extractTemplateExpressions(code) {
+  let parts = "";
+  for (let i = 0; i < code.length; i++) {
+    if (code[i] === "$" && code[i + 1] === "{") {
+      i += 2;
+      let depth = 1;
+      const start = i;
+      while (i < code.length && depth > 0) {
+        if (code[i] === "{") depth++;
+        else if (code[i] === "}") depth--;
+        i++;
+      }
+      parts += ` ${code.slice(start, i - 1)} `;
+    }
+  }
+  return parts;
+}
+
+function stripLiteralsForUsedScan(code) {
+  return code
+    .replace(/`(?:\\.|[^`\\])*`/g, "``")
+    .replace(/'(?:\\.|[^'\\])*'/g, "''")
+    .replace(/\/(?:\\.|[^/\\\n])+\/[dgimsuvy]*/g, '""')
+    .replace(/"(?:\\.|[^"\\])*"/g, '""');
+}
+
 function usedIdents(code) {
   const set = new Set();
   for (const m of code.matchAll(/@type\s+\{[^}]*\btypeof\s+(\w+)/g)) {
     set.add(m[1]);
   }
-  const cleaned = code
+  const noComments = code
     .replace(/\/\*[\s\S]*?\*\//g, " ")
-    .replace(/\/\/.*$/gm, " ")
-    .replace(/'(?:\\.|[^'\\])*'/g, "''")
-    .replace(/"(?:\\.|[^"\\])*"/g, '""')
-    .replace(/`(?:\\.|[^`\\])*`/g, "``");
+    .replace(/\/\/.*$/gm, " ");
+  const templateExprs = extractTemplateExpressions(noComments);
+  const cleaned = stripLiteralsForUsedScan(noComments);
   const re = /\b([A-Za-z_$][\w$]*)\b/g;
-  let m;
-  while ((m = re.exec(cleaned))) set.add(m[1]);
+  for (const chunk of [templateExprs, cleaned]) {
+    let m;
+    while ((m = re.exec(chunk))) set.add(m[1]);
+  }
   return set;
 }
 
@@ -183,7 +211,12 @@ async function main() {
   console.log(`${dryRun ? "Would trim" : "Trimmed"} ${touched} file(s)`);
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+const isCli = process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url;
+if (isCli) {
+  main().catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
+}
+
+export { extractTemplateExpressions, usedIdents };

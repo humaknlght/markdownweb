@@ -24,7 +24,8 @@ import {
   filesTree,
   fsAccessSupported,
   fsEntries,
-  drivePathLabel
+  drivePathLabel,
+  DRIVE_ROOT_UI_NAME
 } from "../state.js";
 import {
   ensureEditableExtension,
