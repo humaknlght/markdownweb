@@ -71,9 +71,19 @@ export function ensureHljsLanguage(name) {
   return pending;
 }
 
+/**
+ * Ensure every fence language used in `source` is registered.
+ * @returns {Promise<string[]>} Canonical language ids that were newly loaded.
+ *   Empty when nothing needed loading (or every load failed).
+ */
 export async function ensureHljsLanguagesForSource(source) {
   const langs = collectEditorLanguages(source);
-  if (!langs.length) return false;
-  const results = await Promise.all(langs.map((lang) => ensureHljsLanguage(lang)));
-  return results.some(Boolean);
+  if (!langs.length) return [];
+  const results = await Promise.all(
+    langs.map(async (lang) => {
+      const loaded = await ensureHljsLanguage(lang);
+      return loaded ? canonicalHljsLang(lang) : null;
+    })
+  );
+  return results.filter(Boolean);
 }
