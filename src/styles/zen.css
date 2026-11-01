@@ -76,8 +76,9 @@ html[data-theme="zen"] {
   --install-fill: var(--chrome-focus);
   --install-fill-hover: color-mix(in srgb, var(--chrome-focus) 82%, white);
   --install-fg: var(--chrome-on-focus);
-  --install-grad-a: #7dd3c8;
-  --install-grad-b: #5ec8c8;
+  /* High-contrast pair so the conic border spin reads on the teal fill. */
+  --install-grad-a: #e8f4f6;
+  --install-grad-b: #f9a8d4;
 }
 
 html[data-theme="zen"],
@@ -100,8 +101,6 @@ html[data-theme="zen"] .toolbar,
 html[data-theme="zen"] .panes,
 html[data-theme="zen"] .files-drawer,
 html[data-theme="zen"] .files-backdrop,
-html[data-theme="zen"] .toast,
-html[data-theme="zen"] .update-toast,
 html[data-theme="zen"] .external-modal,
 html[data-theme="zen"] .present-chrome {
   position: relative;
@@ -258,10 +257,57 @@ html[data-theme="zen"] .panes.is-resizing .splitter {
   background: var(--chrome-focus);
 }
 
-html[data-theme="zen"] .toast {
+/* Keep toasts position:fixed (above the WebGL canvas) — do not fold them into
+   the body flex stack via the relative/z-index:1 chrome rule above. */
+html[data-theme="zen"] .toast,
+html[data-theme="zen"] .update-toast {
+  position: fixed;
+  z-index: 55;
   border: 1px solid var(--zen-glass-border);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
+}
+
+html[data-theme="zen"] .update-toast .btn:not(.btn-spin-border) {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(140, 200, 210, 0.42);
+  color: var(--chrome-text);
+}
+
+html[data-theme="zen"] .update-toast .btn:not(.btn-spin-border):hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+html[data-theme="zen"] .btn.btn-spin-border,
+html[data-theme="zen"] #install-btn:not([hidden]) {
+  border: 3px solid transparent;
+  color: var(--install-fg);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  animation: install-border-spin 2.5s linear infinite;
+  background:
+    linear-gradient(var(--install-fill), var(--install-fill)) padding-box,
+    conic-gradient(
+        from var(--install-angle),
+        var(--install-grad-a),
+        var(--install-grad-b),
+        var(--install-grad-a)
+      )
+      border-box;
+}
+
+html[data-theme="zen"] .btn.btn-spin-border:hover,
+html[data-theme="zen"] #install-btn:not([hidden]):hover {
+  color: var(--install-fg);
+  background:
+    linear-gradient(var(--install-fill-hover), var(--install-fill-hover)) padding-box,
+    conic-gradient(
+        from var(--install-angle),
+        var(--install-grad-a),
+        var(--install-grad-b),
+        var(--install-grad-a)
+      )
+      border-box;
 }
 
 html[data-theme="zen"] .files-drawer {

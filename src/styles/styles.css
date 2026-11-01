@@ -2250,10 +2250,10 @@ body.files-source-drive .gist-only:not(.cloud-only):not(.files-source-btn) {
   }
 }
 
-/* app.js restores the stored collapse/split state after its modules load, which
-   is past the first paint. Stay hidden with the transition off until then, so
-   the default 50/50 layout is never shown and never has to animate away.
-   app.js drops the class once the restored layout is committed. */
+/* Hide panes only until the inline boot script (after #panes) restores split /
+   collapse from localStorage. That script drops is-booting during HTML parse so
+   the shell can paint before app.js modules / IDB finish. --collapse-duration
+   stays 0 while hidden so a late JS restore cannot animate from 50/50. */
 html.is-booting .panes {
   --collapse-duration: 0s;
   visibility: hidden;
@@ -3544,6 +3544,11 @@ html[data-theme] .preview .markdown-frontmatter-error pre {
   background: var(--chrome-hover);
 }
 
+/* Stack above the SW update toast when both are visible. */
+#update-toast:not([hidden]) ~ #fs-permission-toast:not([hidden]) {
+  bottom: 4.25rem;
+}
+
 #install-btn[hidden] {
   display: none !important;
 }
@@ -3555,6 +3560,7 @@ html[data-theme] .preview .markdown-frontmatter-error pre {
   inherits: false;
 }
 
+.btn-spin-border,
 #install-btn:not([hidden]) {
   border: 3px solid transparent;
   border-radius: 6px;
@@ -3572,6 +3578,7 @@ html[data-theme] .preview .markdown-frontmatter-error pre {
   animation: install-border-spin 2.5s linear infinite;
 }
 
+.btn-spin-border:hover,
 #install-btn:not([hidden]):hover {
   color: var(--install-fg);
   background:
@@ -3585,21 +3592,76 @@ html[data-theme] .preview .markdown-frontmatter-error pre {
       border-box;
 }
 
+/* Beat .update-toast .btn chrome fills so Allow keeps the spinning border. */
+.update-toast .btn.btn-spin-border,
+.update-toast .btn.btn-spin-border:hover {
+  color: var(--install-fg);
+  border: 3px solid transparent;
+  background:
+    linear-gradient(var(--install-fill), var(--install-fill)) padding-box,
+    conic-gradient(
+        from var(--install-angle),
+        var(--install-grad-a),
+        var(--install-grad-b),
+        var(--install-grad-a)
+      )
+      border-box;
+}
+
+.update-toast .btn.btn-spin-border:hover {
+  background:
+    linear-gradient(var(--install-fill-hover), var(--install-fill-hover)) padding-box,
+    conic-gradient(
+        from var(--install-angle),
+        var(--install-grad-a),
+        var(--install-grad-b),
+        var(--install-grad-a)
+      )
+      border-box;
+}
+
+html[data-theme="salesforce"] .btn-spin-border,
 html[data-theme="salesforce"] #install-btn:not([hidden]) {
   border-radius: var(--radius-sm);
   border-color: transparent;
   box-shadow: none;
 }
 
+html[data-theme="salesforce"] .btn-spin-border:hover,
 html[data-theme="salesforce"] #install-btn:not([hidden]):hover {
   border-color: transparent;
 }
 
+html[data-theme="fancy"] .btn.btn-spin-border,
 html[data-theme="fancy"] #install-btn:not([hidden]) {
   border-radius: 8px;
   border-color: transparent;
+  color: var(--install-fg);
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
+  background:
+    linear-gradient(var(--install-fill), var(--install-fill)) padding-box,
+    conic-gradient(
+        from var(--install-angle),
+        var(--install-grad-a),
+        var(--install-grad-b),
+        var(--install-grad-a)
+      )
+      border-box;
+}
+
+html[data-theme="fancy"] .btn.btn-spin-border:hover,
+html[data-theme="fancy"] #install-btn:not([hidden]):hover {
+  color: var(--install-fg);
+  background:
+    linear-gradient(var(--install-fill-hover), var(--install-fill-hover)) padding-box,
+    conic-gradient(
+        from var(--install-angle),
+        var(--install-grad-a),
+        var(--install-grad-b),
+        var(--install-grad-a)
+      )
+      border-box;
 }
 
 @keyframes install-border-spin {
@@ -3609,6 +3671,7 @@ html[data-theme="fancy"] #install-btn:not([hidden]) {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .btn-spin-border,
   #install-btn:not([hidden]) {
     animation: none;
     --install-angle: 135deg;

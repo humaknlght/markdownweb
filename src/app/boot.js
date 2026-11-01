@@ -59,6 +59,10 @@ export async function init() {
   });
   hooks.applyCollapseState();
   hooks.setupSplitter();
+  // Shell may already be visible (inline script after #panes). Re-commit layout
+  // here so a late restore still cannot animate from the default 50/50 split.
+  void getComputedStyle(panes).gridTemplateColumns;
+  document.documentElement.classList.remove("is-booting");
   hooks.setupDragAndDrop();
   hooks.setupPwa();
   await loadGoogleDriveConfig();
@@ -232,13 +236,8 @@ export async function init() {
   // After draft/URL load so a launched file overwrites the restored editor.
   hooks.setupFileHandling();
 
-  // Commit the restored layout before revealing the panes, so the stored
-  // position is the first one shown and later collapses still animate.
-  void getComputedStyle(panes).gridTemplateColumns;
-  document.documentElement.classList.remove("is-booting");
-
-  // Paint the shell first, then render — large drafts can block marked/DOMPurify
-  // for well over a second; the preview shows a delayed spinner while that runs.
+  // Shell was revealed after sync layout; render after draft restore so large
+  // docs do not block first paint — preview shows a delayed spinner if needed.
   void hooks.renderMarkdown(hooks.getMarkdownSource());
 
   hooks.setupBootListeners();

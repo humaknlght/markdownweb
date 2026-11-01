@@ -529,7 +529,7 @@
           <span class="btn-text">Report a bug</span>
         </a>
       </div>
-      <button type="button" class="btn" id="install-btn" title="Install app" aria-label="Install app" hidden>
+      <button type="button" class="btn btn-spin-border" id="install-btn" title="Install app" aria-label="Install app" hidden>
         Install
       </button>
       <button
@@ -638,7 +638,7 @@
           </div>
           <div class="files-permission" id="files-permission" hidden>
             <p>Permission needed to access the saved folder.</p>
-            <button type="button" class="btn" id="files-regrant-btn">Allow access</button>
+            <button type="button" class="btn btn-spin-border" id="files-regrant-btn">Allow access</button>
             <button type="button" class="btn" id="files-reopen-btn">Choose folder</button>
           </div>
           <ul class="files-tree" id="files-tree" role="tree" hidden></ul>
@@ -860,6 +860,75 @@
         </div>
       </section>
     </main>
+    <!-- Reveal the pane shell before app.js modules finish loading. Layout prefs
+         are applied here so the default 50/50 split is never painted, and
+         html.is-booting (visibility:hidden on .panes) does not wait on IDB/CDN. -->
+    <script>
+      (function () {
+        try {
+          var panes = document.getElementById("panes");
+          if (!panes) return;
+          var splitRaw = localStorage.getItem("md-editor:split");
+          var split = splitRaw == null ? 50 : Number(splitRaw);
+          if (!Number.isFinite(split)) split = 50;
+          if (split < 15) split = 15;
+          if (split > 85) split = 85;
+          panes.style.setProperty("--split", split + "%");
+
+          var view = "edit";
+          try {
+            var hash = window.location.hash.slice(1);
+            var params = hash
+              ? new URLSearchParams(hash)
+              : new URLSearchParams(window.location.search);
+            if (
+              hash &&
+              !params.has("view") &&
+              !params.has("guide") &&
+              !params.has("mdz") &&
+              !params.has("md") &&
+              !params.has("theme")
+            ) {
+              params = new URLSearchParams(window.location.search);
+            }
+            var urlView = params.get("view");
+            if (
+              urlView === "edit" ||
+              urlView === "reader" ||
+              urlView === "present" ||
+              urlView === "slides"
+            ) {
+              view = urlView;
+            } else if (params.get("guide") === "1") {
+              view = "reader";
+            }
+          } catch (e) {
+            /* ignore */
+          }
+          document.body.dataset.view = view;
+
+          var authoring = view === "edit" || view === "slides";
+          if (localStorage.getItem("md-editor:editor-collapsed") === "1") {
+            panes.classList.add("editor-collapsed");
+          }
+          if (
+            authoring &&
+            localStorage.getItem("md-editor:preview-collapsed") === "1"
+          ) {
+            panes.classList.add("preview-collapsed");
+          }
+
+          var width = localStorage.getItem("md-editor:width");
+          var preview = document.getElementById("preview");
+          if (preview && (width === "readable" || width === "full")) {
+            preview.dataset.width = width;
+          }
+        } catch (e) {
+          /* ignore */
+        }
+        document.documentElement.classList.remove("is-booting");
+      })();
+    </script>
   </div>
 
   <ul class="files-context-menu dropdown-menu" id="files-context-menu" role="menu" hidden>
@@ -1079,7 +1148,13 @@
 
   <div class="update-toast" id="update-toast" hidden role="status">
     <span>Update available</span>
-    <button type="button" class="btn" id="update-reload-btn">Reload</button>
+    <button type="button" class="btn btn-spin-border" id="update-reload-btn">Reload</button>
+  </div>
+
+  <div class="update-toast fs-permission-toast" id="fs-permission-toast" hidden role="status">
+    <span>Folder access needed to browse your files</span>
+    <button type="button" class="btn btn-spin-border" id="fs-permission-allow-btn">Allow</button>
+    <button type="button" class="btn" id="fs-permission-dismiss-btn">Dismiss</button>
   </div>
 
   <p class="photo-credit" id="photo-credit" hidden>
