@@ -90,6 +90,9 @@ export const mermaidZoomCloseBtn = document.getElementById("mermaid-zoom-close")
 export const installBtn = document.getElementById("install-btn");
 export const updateToast = document.getElementById("update-toast");
 export const updateReloadBtn = document.getElementById("update-reload-btn");
+export const fsPermissionToast = document.getElementById("fs-permission-toast");
+export const fsPermissionAllowBtn = document.getElementById("fs-permission-allow-btn");
+export const fsPermissionDismissBtn = document.getElementById("fs-permission-dismiss-btn");
 export const filesToggleBtn = document.getElementById("files-toggle-btn");
 export const saveBtn = document.getElementById("save-btn");
 export const filesDrawer = document.getElementById("files-drawer");
@@ -197,6 +200,8 @@ export const state = {
   contextTarget: null,
   filesDrawerOpen: false,
   awaitingFsPermission: false,
+  /** User dismissed the folder-permission toast (mirrored in localStorage). */
+  fsPermissionToastDismissed: false,
   deferredInstallPrompt: null,
   editorHighlightRaf: 0,
   suppressEditorInput: false,

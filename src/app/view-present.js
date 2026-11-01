@@ -200,7 +200,7 @@ export function updateViewModeMenuSelection() {
 }
 
 export function onViewModeMenuClick(e) {
-  // Scope to menuitems only — body also has [data-view], which closest() would hit.
+  // Scope to menuitems only — <html> also has [data-view], which closest() would hit.
   const item = e.target.closest("#view-mode-menu [role='menuitem']");
   if (!item) return;
   const view =
@@ -261,7 +261,7 @@ export function setView(view, { syncUrl = true } = {}) {
   if (leavingPresent) {
     void hooks.leavePresentFullscreen();
   }
-  document.body.dataset.view = next;
+  document.documentElement.dataset.view = next;
   hooks.syncExternalModal();
   updateViewModeMainBtn();
 

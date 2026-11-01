@@ -22,6 +22,8 @@ import {
   filesReopenBtn,
   filesTree,
   filesContextMenu,
+  fsPermissionAllowBtn,
+  fsPermissionDismissBtn,
   fsAccessSupported,
   expandedPaths
 } from "../state.js";
@@ -53,6 +55,8 @@ export function setupFilesDrawer() {
 
   filesToggleBtn?.addEventListener("click", () => hooks.toggleFilesDrawer());
   filesBackdrop?.addEventListener("click", () => hooks.setFilesDrawerOpen(false));
+  fsPermissionAllowBtn?.addEventListener("click", () => void hooks.regrantFolderPermission());
+  fsPermissionDismissBtn?.addEventListener("click", () => hooks.dismissFsPermissionToast());
   // On narrow layouts, drag the panes left over the drawer to dismiss it.
   panes.addEventListener("pointerdown", hooks.onDrawerCloseDragPointerDown, { passive: true });
   // Non-passive so we can preventDefault once the dismiss gesture is claimed.
@@ -193,9 +197,13 @@ export function setupFilesDrawer() {
     filesRegrantBtn?.addEventListener("click", () => void hooks.regrantFolderPermission());
   }
 
-  // Start collapsed per plan; ignore stale open preference for first paint safety —
-  // still restore if user previously left it open.
-  const savedOpen = localStorage.getItem(STORAGE_KEYS.filesDrawer) === "1";
+  // Restore open/closed from localStorage (default closed).
+  let savedOpen = false;
+  try {
+    savedOpen = localStorage.getItem(STORAGE_KEYS.filesDrawer) === "1";
+  } catch {
+    /* private mode */
+  }
   hooks.setFilesDrawerOpen(savedOpen, { persist: false });
   hooks.updateFilesChrome();
   hooks.updateSaveButton();
@@ -209,8 +217,8 @@ export async function restoreFilesDirectoryOnLoad() {
     if (permission === "granted") {
       await hooks.setRootDirectory(handle, { permissionOk: true });
     } else {
+      // Keep the user's drawer preference — regrant UI lives inside the drawer.
       await hooks.setRootDirectory(handle, { permissionOk: false });
-      hooks.setFilesDrawerOpen(true, { persist: false });
     }
   } catch (err) {
     console.error(err);

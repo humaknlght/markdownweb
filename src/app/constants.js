@@ -14,6 +14,7 @@ export const STORAGE_KEYS = {
   syncScroll: "md-editor:sync-scroll",
   lineWrap: "md-editor:line-wrap",
   filesDrawer: "md-editor:filesDrawer",
+  fsPermissionToastDismissed: "md-editor:fsPermissionToastDismissed",
   filesSource: "md-editor:filesSource",
   currentFile: "md-editor:currentFile",
   currentFilePath: "md-editor:currentFilePath",

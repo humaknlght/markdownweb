@@ -120,6 +120,7 @@ export function setPreviewWidth(width, { persist = true } = {}) {
   const next = WIDTHS.includes(width) ? width : "readable";
   const changed = preview.dataset.width !== next;
   preview.dataset.width = next;
+  document.documentElement.removeAttribute("data-boot-width");
   widthSelect.value = next;
   hooks.invalidateScrollAnchors();
   if (persist) {

@@ -6,6 +6,7 @@ import {
   filesDrawer,
   filesBackdrop,
   filesContextMenu,
+  fsPermissionToast,
   fsAccessSupported
 } from "../state.js";
 import {
@@ -22,6 +23,48 @@ export function syncFilesToggleLabel() {
   const label = `${state.filesDrawerOpen ? "Hide" : "Show"} ${filesDrawerToggleNoun()}`;
   filesToggleBtn.title = label;
   filesToggleBtn.setAttribute("aria-label", label);
+}
+
+function readFsPermissionToastDismissed() {
+  try {
+    return localStorage.getItem(STORAGE_KEYS.fsPermissionToastDismissed) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function writeFsPermissionToastDismissed(dismissed) {
+  try {
+    if (dismissed) {
+      localStorage.setItem(STORAGE_KEYS.fsPermissionToastDismissed, "1");
+    } else {
+      localStorage.removeItem(STORAGE_KEYS.fsPermissionToastDismissed);
+    }
+  } catch {
+    /* quota / private mode */
+  }
+}
+
+/** Non-blocking prompt when a saved folder needs File System Access re-grant. */
+export function syncFsPermissionToast() {
+  if (!fsPermissionToast) return;
+  if (!state.awaitingFsPermission) {
+    // Clear so a future permission loss can prompt again.
+    state.fsPermissionToastDismissed = false;
+    writeFsPermissionToastDismissed(false);
+    fsPermissionToast.hidden = true;
+    return;
+  }
+  state.fsPermissionToastDismissed =
+    state.fsPermissionToastDismissed || readFsPermissionToastDismissed();
+  // Drawer already has the full regrant UI — only prompt when it is closed.
+  fsPermissionToast.hidden = state.fsPermissionToastDismissed || state.filesDrawerOpen;
+}
+
+export function dismissFsPermissionToast() {
+  state.fsPermissionToastDismissed = true;
+  writeFsPermissionToastDismissed(true);
+  if (fsPermissionToast) fsPermissionToast.hidden = true;
 }
 
 export function setFilesDrawerOpen(open, { persist = true, preserveDragWidth = false } = {}) {
@@ -43,8 +86,13 @@ export function setFilesDrawerOpen(open, { persist = true, preserveDragWidth = f
     if (!preserveDragWidth) filesDrawer?.style.removeProperty("width");
   }
   if (persist) {
-    localStorage.setItem(STORAGE_KEYS.filesDrawer, state.filesDrawerOpen ? "1" : "0");
+    try {
+      localStorage.setItem(STORAGE_KEYS.filesDrawer, state.filesDrawerOpen ? "1" : "0");
+    } catch {
+      /* quota / private mode */
+    }
   }
+  syncFsPermissionToast();
 }
 
 export function toggleFilesDrawer() {
@@ -175,6 +223,8 @@ export function openFilesContextMenu(x, y, target) {
 
 hooks.filesDrawerToggleNoun = filesDrawerToggleNoun;
 hooks.syncFilesToggleLabel = syncFilesToggleLabel;
+hooks.syncFsPermissionToast = syncFsPermissionToast;
+hooks.dismissFsPermissionToast = dismissFsPermissionToast;
 hooks.setFilesDrawerOpen = setFilesDrawerOpen;
 hooks.toggleFilesDrawer = toggleFilesDrawer;
 hooks.onDrawerCloseDragPointerDown = onDrawerCloseDragPointerDown;

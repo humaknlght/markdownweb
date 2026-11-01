@@ -178,6 +178,7 @@ export function updateFilesChrome() {
   if (filesPermission) {
     filesPermission.hidden = cloudMode || !state.awaitingFsPermission;
   }
+  hooks.syncFsPermissionToast();
   if (filesTree) filesTree.hidden = cloudLoading || !hasRoot;
   if (filesNewFileBtn) filesNewFileBtn.disabled = false;
   if (filesNewFolderBtn) {

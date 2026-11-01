@@ -253,7 +253,7 @@ test.describe("editor + render", () => {
     const helpPage = await context.newPage();
     await helpPage.goto(new URL(href, page.url()).toString());
     await helpPage.waitForFunction(() => !document.documentElement.classList.contains("is-booting"));
-    await expect(helpPage.locator("body")).toHaveAttribute("data-view", "reader");
+    await expect(helpPage.locator("html")).toHaveAttribute("data-view", "reader");
     await expect
       .poll(async () => headingText(helpPage.locator("#preview h1")), { timeout: 10_000 })
       .toMatch(/How to use Markdown Editor/);
