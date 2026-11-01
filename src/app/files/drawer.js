@@ -25,20 +25,45 @@ export function syncFilesToggleLabel() {
   filesToggleBtn.setAttribute("aria-label", label);
 }
 
+function readFsPermissionToastDismissed() {
+  try {
+    return localStorage.getItem(STORAGE_KEYS.fsPermissionToastDismissed) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function writeFsPermissionToastDismissed(dismissed) {
+  try {
+    if (dismissed) {
+      localStorage.setItem(STORAGE_KEYS.fsPermissionToastDismissed, "1");
+    } else {
+      localStorage.removeItem(STORAGE_KEYS.fsPermissionToastDismissed);
+    }
+  } catch {
+    /* quota / private mode */
+  }
+}
+
 /** Non-blocking prompt when a saved folder needs File System Access re-grant. */
 export function syncFsPermissionToast() {
   if (!fsPermissionToast) return;
   if (!state.awaitingFsPermission) {
+    // Clear so a future permission loss can prompt again.
     state.fsPermissionToastDismissed = false;
+    writeFsPermissionToastDismissed(false);
     fsPermissionToast.hidden = true;
     return;
   }
+  state.fsPermissionToastDismissed =
+    state.fsPermissionToastDismissed || readFsPermissionToastDismissed();
   // Drawer already has the full regrant UI — only prompt when it is closed.
   fsPermissionToast.hidden = state.fsPermissionToastDismissed || state.filesDrawerOpen;
 }
 
 export function dismissFsPermissionToast() {
   state.fsPermissionToastDismissed = true;
+  writeFsPermissionToastDismissed(true);
   if (fsPermissionToast) fsPermissionToast.hidden = true;
 }
 

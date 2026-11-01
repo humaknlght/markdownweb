@@ -200,7 +200,7 @@ export const state = {
   contextTarget: null,
   filesDrawerOpen: false,
   awaitingFsPermission: false,
-  /** Session-only: user dismissed the non-blocking folder-permission toast. */
+  /** User dismissed the folder-permission toast (mirrored in localStorage). */
   fsPermissionToastDismissed: false,
   deferredInstallPrompt: null,
   editorHighlightRaf: 0,
