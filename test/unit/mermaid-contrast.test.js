@@ -172,54 +172,71 @@ function parseMermaidTokens(css, theme) {
 
 describe("Mermaid theme contrast (WCAG 2.2 AA)", () => {
   it("forces tspan / note-fg / series overrides in MERMAID_THEME_CSS", async () => {
-    const app = await fs.readFile(path.join(root, "src/app/app.js"), "utf8");
-    assert.match(app, /text tspan/);
-    assert.match(app, /\.noteText tspan/);
-    assert.match(app, /var\(--mermaid-note-fg\)/);
-    assert.match(app, /var\(--mermaid-series-1\)/);
-    assert.match(app, /var\(--mermaid-series-fg\)/);
-    assert.match(app, /\.exclude-range/);
-    assert.match(app, /var\(--mermaid-exclude\)/);
-    assert.match(app, /rect\.section/);
-    assert.match(app, /var\(--mermaid-gantt-0\)/);
-    assert.match(app, /var\(--mermaid-gantt-section-opacity\)/);
-    assert.match(app, /\.sectionTitle/);
-    assert.match(app, /\.pieTitleText/);
-    assert.match(app, /\.commit-label/);
-    assert.match(app, /\.titleText/);
-    assert.match(app, /rect\.section-type-0/);
-    assert.match(app, /\.active0,\s*\.activeCrit0/);
-    assert.match(app, /fill:\s*var\(--mermaid-node-border\)/);
-    assert.match(app, /var\(--mermaid-active-on-node-fg\)/);
-    assert.match(app, /\.activeText0/);
-    assert.match(app, /\.doneText0\.taskTextOutsideRight/);
-    assert.match(app, /path\.pieCircle:nth-of-type/);
-    assert.match(app, /\.quadrant:nth-child\(4\)/);
-    assert.match(app, /stroke:\s*var\(--mermaid-note-fg\)/);
-    assert.match(app, /rect\.actor/);
-    assert.match(app, /circle:not\(\[class\]\)/);
+    const themeCss = await fs.readFile(
+      path.join(root, "src/app/mermaid/theme-css.js"),
+      "utf8",
+    );
+    assert.match(themeCss, /text tspan/);
+    assert.match(themeCss, /\.noteText tspan/);
+    assert.match(themeCss, /var\(--mermaid-note-fg\)/);
+    assert.match(themeCss, /var\(--mermaid-series-1\)/);
+    assert.match(themeCss, /var\(--mermaid-series-fg\)/);
+    assert.match(themeCss, /\.exclude-range/);
+    assert.match(themeCss, /var\(--mermaid-exclude\)/);
+    assert.match(themeCss, /rect\.section/);
+    assert.match(themeCss, /var\(--mermaid-gantt-0\)/);
+    assert.match(themeCss, /var\(--mermaid-gantt-section-opacity\)/);
+    assert.match(themeCss, /\.sectionTitle/);
+    assert.match(themeCss, /\.pieTitleText/);
+    assert.match(themeCss, /\.commit-label/);
+    assert.match(themeCss, /\.titleText/);
+    assert.match(themeCss, /rect\.section-type-0/);
+    assert.match(themeCss, /\.active0,\s*\.activeCrit0/);
+    assert.match(themeCss, /fill:\s*var\(--mermaid-node-border\)/);
+    assert.match(themeCss, /var\(--mermaid-active-on-node-fg\)/);
+    assert.match(themeCss, /\.activeText0/);
+    assert.match(themeCss, /\.doneText0\.taskTextOutsideRight/);
+    assert.match(themeCss, /path\.pieCircle:nth-of-type/);
+    assert.match(themeCss, /\.quadrant:nth-child\(4\)/);
+    assert.match(themeCss, /stroke:\s*var\(--mermaid-note-fg\)/);
+    assert.match(themeCss, /rect\.actor/);
+    assert.match(themeCss, /circle:not\(\[class\]\)/);
     // foreignObject edge labels use CSS background on labelBkg AND inner <p>
-    assert.match(app, /\.edgeLabel p/);
-    assert.match(app, /background-color:\s*var\(--mermaid-label-bg\)/);
+    assert.match(themeCss, /\.edgeLabel p/);
+    assert.match(themeCss, /background-color:\s*var\(--mermaid-label-bg\)/);
   });
 
   it("binds Excalidraw/handDrawn paints to theme tokens for WCAG contrast", async () => {
-    const app = await fs.readFile(path.join(root, "src/app/app.js"), "utf8");
+    const color = await fs.readFile(path.join(root, "src/app/mermaid/color.js"), "utf8");
+    const sketch = await fs.readFile(path.join(root, "src/app/mermaid/sketch.js"), "utf8");
+    const load = await fs.readFile(path.join(root, "src/app/mermaid/load.js"), "utf8");
+    const themeCss = await fs.readFile(
+      path.join(root, "src/app/mermaid/theme-css.js"),
+      "utf8",
+    );
+    const constants = await fs.readFile(path.join(root, "src/app/constants.js"), "utf8");
+    const mermaid = [color, sketch, load, themeCss, constants].join("\n");
     const css = await fs.readFile(path.join(root, "src/styles/styles.css"), "utf8");
-    assert.match(app, /function mermaidThemeVariablesFromCss/);
-    assert.match(app, /function normalizeMermaidHandDrawnColors/);
-    assert.match(app, /function mermaidTextInkVarForFill/);
-    assert.match(app, /function fitMermaidSvgViewBox/);
-    assert.match(app, /fitMermaidSvgViewBox\(sketched,\s*\{\s*tighten:\s*true\s*\}\)/);
-    assert.match(app, /themeVariables:\s*mermaidThemeVariablesFromCss\(\)/);
-    assert.match(app, /fillStyle:\s*["']solid["']/);
-    assert.match(app, /look:\s*["']classic["']/);
-    assert.match(app, /MERMAID_HAND_FONT/);
-    assert.match(app, /Excalifont/);
-    assert.match(app, /surfaceToInk/);
-    assert.match(app, /var\(--mermaid-node-border\)/);
-    assert.match(app, /path\.edge-thickness-normal/);
-    assert.match(app, /setProperty\(attr,\s*value,\s*["']important["']\)/);
+    assert.match(mermaid, /function mermaidThemeVariablesFromCss/);
+    assert.match(mermaid, /function normalizeMermaidHandDrawnColors/);
+    assert.match(mermaid, /function mermaidTextInkVarForFill/);
+    assert.match(mermaid, /function fitMermaidSvgViewBox/);
+    assert.match(
+      mermaid,
+      /(?:hooks\.)?fitMermaidSvgViewBox\(sketched,\s*\{\s*tighten:\s*true\s*\}\)/,
+    );
+    assert.match(
+      mermaid,
+      /themeVariables:\s*(?:hooks\.)?mermaidThemeVariablesFromCss\(\)/,
+    );
+    assert.match(mermaid, /fillStyle:\s*["']solid["']/);
+    assert.match(mermaid, /look:\s*["']classic["']/);
+    assert.match(mermaid, /MERMAID_HAND_FONT/);
+    assert.match(mermaid, /Excalifont/);
+    assert.match(mermaid, /surfaceToInk/);
+    assert.match(mermaid, /var\(--mermaid-node-border\)/);
+    assert.match(mermaid, /path\.edge-thickness-normal/);
+    assert.match(mermaid, /setProperty\(attr,\s*value,\s*["']important["']\)/);
     assert.match(css, /font-family:\s*"Excalifont"/);
     assert.match(css, /excalifont@1\.0\.0/);
     assert.match(css, /data-mermaid-look="handDrawn"/);

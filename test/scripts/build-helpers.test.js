@@ -34,6 +34,22 @@ import {
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { usedIdents } from "../../scripts/trim-unused-imports.mjs";
+
+describe("trim-unused-imports.mjs", () => {
+  it("counts identifiers inside template literal expressions", () => {
+    const used = usedIdents("export const x = `/${FOO}`;\n");
+    assert.equal(used.has("FOO"), true);
+  });
+
+  it("does not treat quotes inside regex literals as string delimiters", () => {
+    const used = usedIdents(
+      'function esc(v) { return String(v).replace(/["\\\\]/g, "\\\\$&"); }\n' +
+        "function f() { return filesTree; }\n",
+    );
+    assert.equal(used.has("filesTree"), true);
+  });
+});
 
 describe("csp.mjs", () => {
   it("extracts inline scripts and ignores src scripts", () => {
@@ -178,6 +194,10 @@ describe("pwa.mjs", () => {
 
   it("builds a stable dev service worker from DEV_PRECACHE", () => {
     assert.ok(DEV_PRECACHE.includes("./app/app.js"));
+    assert.ok(
+      DEV_PRECACHE.includes("./app/state.js") ||
+        DEV_PRECACHE.includes("./app/hooks.js"),
+    );
     assert.ok(DEV_PRECACHE.includes("./styles/styles.css"));
     for (const url of CDN_PRECACHE) {
       assert.ok(DEV_PRECACHE.includes(url));
