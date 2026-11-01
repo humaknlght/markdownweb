@@ -15,13 +15,22 @@ import {
   ensureHljsLanguagesForSource
 } from "./hljs-setup.js";
 
-export async function renderMarkdown(source) {
+/**
+ * @param {string} source
+ * @param {{ skipLoadingUi?: boolean }} [options]
+ *   Quiet re-paint after a background HLJS grammar load: keep the existing
+ *   preview visible (no clear / spinner flash). Mermaid fence grammars are
+ *   editor-only, so those loads refresh the editor highlight without a
+ *   second preview paint.
+ */
+export async function renderMarkdown(source, options = {}) {
   if (state.contentIsExternal) {
     hooks.clearUntrustedPreview();
     return;
   }
   if (state.speechActive) hooks.stopSpeaking();
 
+  const skipLoadingUi = options.skipLoadingUi === true;
   const gen = ++state.paintGen;
   const large = (source || "").length >= RENDER_LOADING_EAGER_CHARS;
 
@@ -36,21 +45,30 @@ export async function renderMarkdown(source) {
 
   // Large sync preview work blocks timers, so reveal the spinner before parse
   // (after the editor is already on screen). Smaller docs keep the 700ms delay.
-  if (large) {
-    // Clear the previous document so it is not visible under the spinner.
-    hooks.clearPreviewContent();
-    hooks.beginRenderLoading({ eager: true });
-    await hooks.yieldToPaint();
-    if (gen !== state.paintGen) return;
-  } else {
-    hooks.beginRenderLoading();
+  // Skip both on quiet language-load re-paints so a finished preview is not
+  // cleared / covered again when a fence grammar arrives.
+  if (!skipLoadingUi) {
+    if (large) {
+      // Clear the previous document so it is not visible under the spinner.
+      hooks.clearPreviewContent();
+      hooks.beginRenderLoading({ eager: true });
+      await hooks.yieldToPaint();
+      if (gen !== state.paintGen) return;
+    } else {
+      hooks.beginRenderLoading();
+    }
   }
 
-  // Load missing fence grammars in the background; re-render once they arrive.
-  void ensureHljsLanguagesForSource(source).then((loadedAny) => {
-    if (!loadedAny || state.contentIsExternal) return;
+  // Load missing fence grammars in the background. Mermaid preview uses its
+  // own renderer, so a mermaid-only HLJS load only refreshes the editor
+  // overlay. Other newly loaded grammars re-paint the preview quietly.
+  void ensureHljsLanguagesForSource(source).then((loadedLangs) => {
+    if (!loadedLangs.length || state.contentIsExternal) return;
     if (hooks.getMarkdownSource() !== source) return;
-    void renderMarkdown(source).then(() => hooks.scheduleEditorHighlight());
+    hooks.updateEditorHighlight();
+    hooks.scheduleEditorHighlight();
+    if (loadedLangs.every((lang) => lang === "mermaid")) return;
+    void renderMarkdown(source, { skipLoadingUi: true });
   });
 
   try {
