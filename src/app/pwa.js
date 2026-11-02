@@ -50,28 +50,59 @@ export function registerServiceWorker() {
       updateReloadBtn.onclick = () => activateWaiting(worker);
     };
 
-    if (registration.waiting) offerUpdate(registration.waiting);
-
-    registration.addEventListener("updatefound", () => {
-      const worker = registration.installing;
+    const tracked = new WeakSet();
+    const trackInstalled = (worker) => {
       if (!worker) return;
+      // Already waiting (often installed by the other tab). `statechange`
+      // will not fire again, which is why a refresh was required to see it.
+      if (worker.state === "installed") {
+        offerUpdate(worker);
+        return;
+      }
+      if (tracked.has(worker)) return;
+      tracked.add(worker);
       worker.addEventListener("statechange", () => {
         if (worker.state === "installed") offerUpdate(worker);
       });
+    };
+
+    trackInstalled(registration.waiting);
+    trackInstalled(registration.installing);
+
+    registration.addEventListener("updatefound", () => {
+      trackInstalled(registration.installing || registration.waiting);
     });
+
+    // A tab switch is not a navigation, so the browser will not fetch sw.js
+    // by itself. Calling update() synchronously from `visibilitychange` is
+    // also dropped: Chrome still treats the page as background for that turn
+    // and never sends the request. Wait a frame, and also listen for focus /
+    // pageshow — switching windows keeps visibilityState "visible", and a
+    // restored page does not always emit visibilitychange.
+    let updateFrame = 0;
+    const checkForAppUpdate = () => {
+      if (document.visibilityState !== "visible") return;
+      trackInstalled(registration.waiting);
+      trackInstalled(registration.installing);
+      if (updateFrame) return;
+      updateFrame = requestAnimationFrame(() => {
+        updateFrame = 0;
+        if (document.visibilityState !== "visible") return;
+        registration.update().catch(() => {});
+      });
+    };
+
+    checkForAppUpdate();
+    document.addEventListener("visibilitychange", checkForAppUpdate);
+    window.addEventListener("focus", checkForAppUpdate);
+    window.addEventListener("pageshow", checkForAppUpdate);
   };
 
+  // Revalidate sw.js on every update check instead of trusting a fresh
+  // HTTP cache entry (which would skip the network for up to 24 hours).
   navigator.serviceWorker
-    .register(resolveServiceWorkerUrl())
-    .then((registration) => {
-      watchRegistration(registration);
-      registration.update().catch(() => {});
-      document.addEventListener("visibilitychange", () => {
-        if (document.visibilityState === "visible") {
-          registration.update().catch(() => {});
-        }
-      });
-    })
+    .register(resolveServiceWorkerUrl(), { updateViaCache: "none" })
+    .then(watchRegistration)
     .catch((err) => {
       console.warn("Service worker registration failed:", err);
     });
