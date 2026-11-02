@@ -33,6 +33,8 @@ export function setTheme(theme, { persist = true } = {}) {
   if (photoCredit) {
     photoCredit.hidden = next !== "fancy";
   }
+  hooks.syncPreviewFrameChrome?.();
+  hooks.schedulePreviewFrameHeight?.();
   syncZenTheme(next === "zen");
   if (persist) {
     try {
@@ -71,6 +73,8 @@ export async function syncZenTheme(active) {
   state.zenThemeWanted = active;
   if (!active) {
     detachZenTypingRipples();
+    // Drop mirrored zen.css from the preview iframe (tokens only apply while Zen).
+    hooks.syncPreviewFrameChrome?.();
     const zenPending = getZenModulePromise();
     if (zenPending) {
       try {
@@ -85,6 +89,9 @@ export async function syncZenTheme(active) {
   try {
     // Stylesheet + WebGL chunk load only when Zen is unlocked.
     const [, mod] = await Promise.all([loadZenCss(), loadZenModule()]);
+    // Zen tokens live in the lazy sheet — mirror it into the preview iframe.
+    hooks.syncPreviewFrameChrome?.();
+    hooks.schedulePreviewFrameHeight?.();
     if (!state.zenThemeWanted) {
       mod.stopZenBackdrop();
       detachZenTypingRipples();
@@ -123,6 +130,7 @@ export function setPreviewWidth(width, { persist = true } = {}) {
   document.documentElement.removeAttribute("data-boot-width");
   widthSelect.value = next;
   hooks.invalidateScrollAnchors();
+  hooks.schedulePreviewFrameHeight?.();
   if (persist) {
     try {
       localStorage.setItem(STORAGE_KEYS.width, next);
@@ -143,6 +151,7 @@ export function setMermaidLook(look, { persist = true, rerender = true } = {}) {
   const changed = state.mermaidLook !== next;
   state.mermaidLook = /** @type {"classic" | "handDrawn"} */ (next);
   document.documentElement.dataset.mermaidLook = next;
+  hooks.syncPreviewFrameChrome?.();
   if (mermaidLookSelect) mermaidLookSelect.value = next;
   if (persist) {
     try {

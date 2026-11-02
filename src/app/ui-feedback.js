@@ -65,6 +65,7 @@ export function clearUntrustedPreview() {
   state.mermaidGen += 1;
   preview.innerHTML =
     '<p class="external-preview-placeholder">Preview is paused until you accept this content.</p>';
+  hooks.schedulePreviewFrameHeight?.();
   hooks.invalidateScrollAnchors();
   hooks.updateDocOutline();
 }
@@ -90,6 +91,7 @@ export function clearPreviewContent() {
   state.mermaidGen += 1;
   preview.innerHTML = "";
   if (previewPane) previewPane.scrollTop = 0;
+  hooks.schedulePreviewFrameHeight?.();
   hooks.invalidateScrollAnchors();
   hooks.updateDocOutline();
 }

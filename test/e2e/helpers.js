@@ -152,12 +152,38 @@ export async function openFreshApp(page, path = "/", speechOptions = {}) {
 export async function waitForAppReady(page) {
   await page.waitForFunction(() => !document.documentElement.classList.contains("is-booting"));
   await page.locator("#editor").waitFor({ state: "attached" });
+  // Sandboxed preview article is created in initPreviewFrame().
+  await page.waitForFunction(() => {
+    const frame = document.getElementById("preview-frame");
+    return Boolean(frame?.contentDocument?.getElementById("preview"));
+  });
   // Initial markdown paint is async (yield + marked); wait until it settles.
   await page.waitForFunction(() => {
     const pane = document.getElementById("preview-pane");
     return !pane || pane.getAttribute("aria-busy") !== "true";
   });
 }
+
+/**
+ * Frame that hosts the rendered Markdown preview.
+ * @param {import('playwright/test').Page} page
+ */
+export function previewFrameLocator(page) {
+  return page.frameLocator("#preview-frame");
+}
+
+/**
+ * Inner `#preview` article (sandboxed). Prefer this over `page.locator("#preview")`.
+ * @param {import('playwright/test').Page} page
+ * @param {string} [selector] Optional selector scoped under `#preview`
+ * @param {import('playwright/test').LocatorOptions} [options]
+ */
+export function previewLocator(page, selector = "", options) {
+  const root = previewFrameLocator(page).locator("#preview");
+  if (!selector) return root;
+  return options ? root.locator(selector, options) : root.locator(selector);
+}
+
 
 /**
  * Accept the external-content dialog if it is open.

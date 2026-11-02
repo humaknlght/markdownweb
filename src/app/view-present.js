@@ -100,9 +100,9 @@ export function showPresentSection(index) {
     child.hidden = !active.includes(child);
   }
   updatePresentProgress();
-  preview.scrollTop = 0;
   const pane = document.getElementById("preview-pane");
   if (pane) pane.scrollTop = 0;
+  hooks.schedulePreviewFrameHeight?.();
   state.outlineScrollSource = "preview";
   hooks.scheduleOutlineHighlight();
   void hooks.renderMermaidDiagrams();
@@ -262,6 +262,7 @@ export function setView(view, { syncUrl = true } = {}) {
     void hooks.leavePresentFullscreen();
   }
   document.documentElement.dataset.view = next;
+  hooks.syncPreviewFrameChrome?.();
   hooks.syncExternalModal();
   updateViewModeMainBtn();
 

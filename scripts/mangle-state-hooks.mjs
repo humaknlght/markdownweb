@@ -162,8 +162,10 @@ export function mangleStateHooksSource(src, map, opts = {}) {
     chunk
       .replace(memberRe, (_, root, prop) => `${root}.${map.get(prop)}`)
       // Shorten the shared bags themselves (hooks.a → h.a, state.b → s.b).
-      .replace(/\bhooks\b/g, "h")
-      .replace(/\bstate\b/g, "s")
+      // Do not rewrite object-literal keys (`hooks:` / `state:`): those are
+      // often third-party API names (e.g. marked.use({ hooks: … })).
+      .replace(/\bhooks\b(?!\s*:)/g, "h")
+      .replace(/\bstate\b(?!\s*:)/g, "s")
   );
 
   if (opts.mangleStateObjectKeys) {

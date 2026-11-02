@@ -1736,8 +1736,18 @@ body[data-ai-proof-preview="1"] .preview-pane {
   background: var(--editor-bg);
 }
 
-body[data-ai-proof-preview="1"] .preview-pane > .preview {
+body[data-ai-proof-preview="1"] .preview-pane > #preview-frame {
   display: none;
+}
+
+.preview-frame {
+  display: block;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  /* Height is set from content so #preview-pane remains the scroll container. */
+  height: 1px;
+  vertical-align: top;
 }
 
 body[data-ai-proof-preview="1"] .ai-proof-editor-wrap {

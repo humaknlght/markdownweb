@@ -32,6 +32,21 @@ export const HISTORY_INDEX_VERSION = 3;
 export const PATCH_MAX_CHARS = 100_000;
 export const STORAGE_CHANNEL = "md-editor-storage";
 export const RENDER_DEBOUNCE_MS = 80;
+/**
+ * CSP for the sandboxed preview iframe document.
+ * Blocks scripts and all remote subresources (phone-home images, etc.).
+ */
+export const PREVIEW_FRAME_CSP = [
+  "default-src 'none'",
+  "script-src 'none'",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob:",
+  "media-src 'self' data: blob:",
+  "font-src 'self' https://cdn.jsdelivr.net",
+  "base-uri 'none'",
+  "form-action 'none'",
+].join("; ");
+
 /** Delay before the preview loading spinner becomes visible. */
 export const RENDER_LOADING_DELAY_MS = 700;
 /**

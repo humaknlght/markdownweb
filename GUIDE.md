@@ -40,7 +40,7 @@ Notes:
 - Max size is **2 MB**. Larger pastes are rejected with a toast.
 - If you have text selected when you paste, that selection becomes the image alt text.
 - In the editor, long `data:` URIs collapse to a short chip so the source stays readable; the full URI is used for preview and export.
-- Remote `https://…` image URLs are **not** loaded in the preview (they cannot phone home). Prefer paste-as-data-URI embeds, or same-origin / `blob:` images.
+- Remote `https://…` image URLs are **not** loaded in the preview (they cannot phone home). The preview runs in a sandboxed iframe with a strict Content Security Policy that blocks remote subresources; prefer paste-as-data-URI embeds, or same-origin / `blob:` images.
 
 ### Files drawer
 
@@ -233,7 +233,7 @@ Line two
 ![Alt](./same-origin.png "Title")
 ```
 
-Remote `https://` image URLs are stripped in the preview (no phone-home). To embed from the clipboard, see [Paste an image](#paste-an-image).
+Remote `https://` image URLs are stripped in the preview (no phone-home); the sandboxed preview CSP also blocks remote subresources. To embed from the clipboard, see [Paste an image](#paste-an-image).
 
 Reference-style links:
 

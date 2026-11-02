@@ -157,6 +157,41 @@ export async function exportDocument(format) {
   closeExportMenu();
 }
 
+/**
+ * Print the rendered preview via a parent-owned print document.
+ * Needed because window.print() on the app shell does not reliably include
+ * sandboxed iframe contents.
+ */
+export async function printPreviewDocument() {
+  const markdown = hooks.getMarkdownSource();
+  if (!markdown.trim()) {
+    hooks.showToast("Nothing to print");
+    return;
+  }
+  if (!preview) {
+    hooks.showToast("Preview unavailable");
+    return;
+  }
+
+  await hooks.renderMermaidDiagrams({ force: true });
+
+  const {
+    exportStyleOptionsFromPreview,
+    printPreviewAsPdf,
+  } = await loadExportModule();
+
+  const title = titleFromMarkdown(markdown);
+  const styleOptions = exportStyleOptionsFromPreview(preview);
+  try {
+    hooks.syncPrintPageOrientation?.();
+    await printPreviewAsPdf(preview, title, styleOptions);
+  } catch {
+    hooks.showToast("Print failed");
+  } finally {
+    hooks.clearPrintPageOrientation?.();
+  }
+}
+
 hooks.copyText = copyText;
 hooks.copyShareUrl = copyShareUrl;
 hooks.closeShareMenu = closeShareMenu;
@@ -167,3 +202,4 @@ hooks.closeWritingToolsMenu = closeWritingToolsMenu;
 hooks.toggleWritingToolsMenu = toggleWritingToolsMenu;
 hooks.toggleExportMenu = toggleExportMenu;
 hooks.exportDocument = exportDocument;
+hooks.printPreviewDocument = printPreviewDocument;

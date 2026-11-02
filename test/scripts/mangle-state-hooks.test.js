@@ -50,6 +50,23 @@ describe("mangle-state-hooks", () => {
     assert.match(out, /^async function dropAsync/m);
   });
 
+  it("preserves third-party object keys named hooks/state", () => {
+    const map = buildPropMangleMap(["paintGen"]);
+    const out = mangleStateHooksSource(
+      [
+        'import { hooks } from "./hooks.js";',
+        "marked.use({ hooks: { processAllTokens(t) { return t; } } });",
+        "hooks.paintGen;",
+        "const cfg = { state: true, hooks: false };",
+      ].join("\n"),
+      map
+    );
+    assert.match(out, /marked\.use\(\{\s*hooks:\s*\{/);
+    assert.match(out, /const cfg = \{\s*state:\s*true,\s*hooks:\s*false/);
+    assert.match(out, /\bh\.\w+/); // hooks.paintGen → h.<mangled>
+    assert.doesNotMatch(out, /\bhooks\.paintGen\b/);
+  });
+
   it("rewrites hooks calls to direct imports", () => {
     const ui = path.resolve("src/app/ui-feedback.js");
     const other = path.resolve("src/app/boot.js");

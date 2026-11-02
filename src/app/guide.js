@@ -2,7 +2,6 @@ import { hooks } from "./hooks.js";
 import {
   state,
   editor,
-  preview,
   previewPane,
   helpBtn
 } from "./state.js";
@@ -80,8 +79,8 @@ export async function loadHelpGuide() {
   hooks.setContentExternal(false);
   if (state.currentView !== "edit") hooks.setView("edit", { syncUrl: false });
   editor.scrollTop = 0;
-  preview.scrollTop = 0;
   if (previewPane) previewPane.scrollTop = 0;
+  hooks.schedulePreviewFrameHeight?.();
   hooks.closeOverflowMenu();
   hooks.showToast("Loaded help guide");
 }

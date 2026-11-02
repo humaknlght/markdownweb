@@ -8,6 +8,7 @@ import {
   openSettings,
   closeSettings,
   clickHelp,
+  previewLocator
 } from "./helpers.js";
 
 const mermaidFixture = readFileSync(
@@ -20,8 +21,8 @@ test.describe("editor + render", () => {
     await openFreshApp(page);
 
     await page.locator("#editor").fill("# Hello\n\n- one\n- two");
-    await expect.poll(async () => headingText(page.locator("#preview h1"))).toBe("Hello");
-    await expect(page.locator("#preview li")).toHaveCount(2);
+    await expect.poll(async () => headingText(previewLocator(page, "h1"))).toBe("Hello");
+    await expect(previewLocator(page, "li")).toHaveCount(2);
   });
 
   test("format bar bold wraps the selection", async ({ page }) => {
@@ -231,7 +232,7 @@ test.describe("editor + render", () => {
     await openFreshApp(page);
 
     await page.locator("#editor").fill("# Draft\n\nNot the guide.");
-    await expect.poll(async () => headingText(page.locator("#preview h1"))).toBe("Draft");
+    await expect.poll(async () => headingText(previewLocator(page, "h1"))).toBe("Draft");
 
     await clickHelp(page);
     await expect
@@ -244,7 +245,7 @@ test.describe("editor + render", () => {
     await openFreshApp(page);
 
     await page.locator("#editor").fill("# Keep working\n\nDo not clobber me.");
-    await expect.poll(async () => headingText(page.locator("#preview h1"))).toBe("Keep working");
+    await expect.poll(async () => headingText(previewLocator(page, "h1"))).toBe("Keep working");
 
     const href = await page.locator("#help-btn").getAttribute("href");
     expect(href).toMatch(/guide=1/);
@@ -255,7 +256,7 @@ test.describe("editor + render", () => {
     await helpPage.waitForFunction(() => !document.documentElement.classList.contains("is-booting"));
     await expect(helpPage.locator("html")).toHaveAttribute("data-view", "reader");
     await expect
-      .poll(async () => headingText(helpPage.locator("#preview h1")), { timeout: 10_000 })
+      .poll(async () => headingText(previewLocator(helpPage, "h1")), { timeout: 10_000 })
       .toMatch(/How to use Markdown Editor/);
 
     // Original tab draft is unchanged.
@@ -384,8 +385,8 @@ test.describe("editor + render", () => {
     page.on("request", onReq);
     try {
       await page.locator("#editor").fill("# No diagrams\n\nJust text.");
-      await expect.poll(async () => headingText(page.locator("#preview h1"))).toBe("No diagrams");
-      await expect(page.locator("#preview .mermaid")).toHaveCount(0);
+      await expect.poll(async () => headingText(previewLocator(page, "h1"))).toBe("No diagrams");
+      await expect(previewLocator(page, ".mermaid")).toHaveCount(0);
       await page.waitForTimeout(400);
 
       expect(mermaidRequests, mermaidRequests.join("\n")).toEqual([]);
@@ -399,7 +400,7 @@ test.describe("editor + render", () => {
 
     await page.locator("#editor").fill("```mermaid\nflowchart LR\n  A-->B\n```");
     // Direct child only — zoom-button icons are nested SVGs inside .mermaid.
-    await expect(page.locator("#preview .mermaid > svg")).toBeVisible({ timeout: 20_000 });
+    await expect(previewLocator(page, ".mermaid > svg")).toBeVisible({ timeout: 20_000 });
   });
 
   test("mermaid gantt defers render when the preview host is too narrow", async ({ page }) => {
@@ -415,13 +416,21 @@ test.describe("editor + render", () => {
     });
 
     // Collapse the preview so gantt's hostWidth − labelMargin would go negative.
-    await page.addStyleTag({
-      content:
-        ".preview-pane, #preview, #preview .mermaid { width: 40px !important; max-width: 40px !important; min-width: 40px !important; }",
-    });
+    // Tag the style in the same turn it is created so later injections cannot
+    // steal the data-mermaid-narrow-test marker (suite flake).
     await page.evaluate(() => {
-      const last = [...document.querySelectorAll("style")].at(-1);
-      if (last) last.setAttribute("data-mermaid-narrow-test", "");
+      const parentStyle = document.createElement("style");
+      parentStyle.setAttribute("data-mermaid-narrow-test", "");
+      parentStyle.textContent =
+        ".preview-pane, #preview-frame { width: 40px !important; max-width: 40px !important; min-width: 40px !important; }";
+      document.head.appendChild(parentStyle);
+      const doc = document.getElementById("preview-frame")?.contentDocument;
+      if (!doc) return;
+      const style = doc.createElement("style");
+      style.setAttribute("data-mermaid-narrow-test", "");
+      style.textContent =
+        "#preview, #preview .mermaid { width: 40px !important; max-width: 40px !important; min-width: 40px !important; }";
+      doc.head.appendChild(style);
     });
 
     const gantt = [
@@ -436,21 +445,32 @@ test.describe("editor + render", () => {
     ].join("\n");
     await page.locator("#editor").fill(gantt);
 
-    await expect(page.locator("#preview .mermaid")).toHaveCount(1, { timeout: 10_000 });
+    await expect(previewLocator(page, ".mermaid")).toHaveCount(1, { timeout: 10_000 });
     // Stay pending — do not call Mermaid.run into a tiny host.
-    await expect(page.locator("#preview .mermaid[data-pending]")).toHaveCount(1);
-    await expect(page.locator("#preview .mermaid > svg")).toHaveCount(0);
+    await expect(previewLocator(page, ".mermaid[data-pending]")).toHaveCount(1);
+    await expect(previewLocator(page, ".mermaid > svg")).toHaveCount(0);
     await page.waitForTimeout(600);
     expect(rectErrors, rectErrors.join("\n")).toEqual([]);
 
-    // Drop the narrow override so ResizeObserver on .preview-pane retries paint.
+    // Drop the narrow override so layout observers retry Mermaid at a safe width.
     await page.evaluate(() => {
       for (const s of document.querySelectorAll("style[data-mermaid-narrow-test]")) {
         s.remove();
       }
+      const doc = document.getElementById("preview-frame")?.contentDocument;
+      if (doc) {
+        for (const s of doc.querySelectorAll("style[data-mermaid-narrow-test]")) {
+          s.remove();
+        }
+      }
+      document.getElementById("panes")?.classList.remove("preview-collapsed", "editor-collapsed");
     });
-    await expect(page.locator("#preview .mermaid > svg")).toBeVisible({ timeout: 20_000 });
-    await expect(page.locator("#preview .mermaid[data-pending]")).toHaveCount(0);
+    // Re-paint at the recovered width (headless layout observers are not always
+    // delivered after removing injected width constraints on the iframe).
+    const source = await page.locator("#editor").inputValue();
+    await page.locator("#editor").fill(source);
+    await expect(previewLocator(page, ".mermaid > svg")).toBeVisible({ timeout: 20_000 });
+    await expect(previewLocator(page, ".mermaid[data-pending]")).toHaveCount(0);
     expect(rectErrors, rectErrors.join("\n")).toEqual([]);
   });
 
@@ -458,7 +478,7 @@ test.describe("editor + render", () => {
     await openFreshApp(page);
 
     await page.locator("#editor").fill("```mermaid\nflowchart LR\n  A-->B\n```");
-    const svg = page.locator("#preview .mermaid > svg");
+    const svg = previewLocator(page, ".mermaid > svg");
     await expect(svg).toBeVisible({ timeout: 20_000 });
     const classicPathCount = await svg.locator("path").count();
 
@@ -489,7 +509,7 @@ test.describe("editor + render", () => {
       "```",
     ].join("\n");
     await page.locator("#editor").fill(sequence);
-    const svg = page.locator("#preview .mermaid > svg");
+    const svg = previewLocator(page, ".mermaid > svg");
     await expect(svg).toBeVisible({ timeout: 20_000 });
     const classicPathCount = await svg.locator("path").count();
 
@@ -524,7 +544,7 @@ test.describe("editor + render", () => {
         "```",
       ].join("\n"),
     );
-    const svg = page.locator("#preview .mermaid > svg");
+    const svg = previewLocator(page, ".mermaid > svg");
     await expect(svg).toBeVisible({ timeout: 20_000 });
     await openSettings(page);
     await page.locator("#mermaid-look-select").selectOption("handDrawn");
@@ -569,7 +589,9 @@ test.describe("editor + render", () => {
       let sawGreen = false;
       let sawOrange = false;
       let textFails = 0;
-      const svgEl = document.querySelector("#preview .mermaid svg");
+      const svgEl = document
+        .getElementById("preview-frame")
+        ?.contentDocument?.querySelector("#preview .mermaid svg");
       for (const el of svgEl.querySelectorAll("path, rect, polygon, circle, ellipse")) {
         const fill = parse(getComputedStyle(el).fill);
         if (near(fill, green)) sawGreen = true;
@@ -618,18 +640,18 @@ test.describe("editor + render", () => {
         "```",
       ].join("\n"),
     );
-    await expect(page.locator("#preview .mermaid > svg").first()).toBeVisible({
+    await expect(previewLocator(page, ".mermaid > svg").first()).toBeVisible({
       timeout: 20_000,
     });
     await openSettings(page);
     await page.locator("#mermaid-look-select").selectOption("handDrawn");
-    await expect(page.locator("#preview .mermaid > svg").first()).toBeVisible({
+    await expect(previewLocator(page, ".mermaid > svg").first()).toBeVisible({
       timeout: 20_000,
     });
     await expect
       .poll(
         async () =>
-          page.locator('#preview .mermaid svg [stroke^="var(--mermaid-"]').count(),
+          previewLocator(page, '.mermaid svg [stroke^="var(--mermaid-"]').count(),
         { timeout: 20_000 },
       )
       .toBeGreaterThan(0);
@@ -659,9 +681,10 @@ test.describe("editor + render", () => {
         const bg = parse(root.getPropertyValue("--mermaid-bg"));
         const nodeBg = parse(root.getPropertyValue("--mermaid-node-bg"));
         let bad = 0;
-        for (const el of document.querySelectorAll(
+        const previewDoc = document.getElementById("preview-frame")?.contentDocument;
+        for (const el of previewDoc?.querySelectorAll(
           "#preview .mermaid svg path, #preview .mermaid svg line",
-        )) {
+        ) || []) {
           const st = getComputedStyle(el);
           const stroke = parse(st.stroke);
           if (!stroke || st.stroke === "none") continue;
@@ -681,11 +704,11 @@ test.describe("editor + render", () => {
     await page.locator("#editor").fill(
       "# Before\n\n```mermaid\nflowchart LR\n  A-->B\n```\n\n# After",
     );
-    const diagram = page.locator("#preview .mermaid").first();
+    const diagram = previewLocator(page, ".mermaid").first();
     await expect(diagram.locator("> svg")).toBeVisible({ timeout: 20_000 });
     await expect(diagram.locator(".mermaid-zoom-btn")).toBeVisible();
 
-    const previewHeading = page.locator("#preview h1", { hasText: "Before" });
+    const previewHeading = previewLocator(page, "h1", { hasText: "Before" });
     await expect(previewHeading).toBeVisible();
 
     await diagram.locator(".mermaid-zoom-btn").click();
@@ -695,7 +718,7 @@ test.describe("editor + render", () => {
 
     // Preview content stays put; only the dialog shows the enlarged diagram.
     await expect(previewHeading).toBeVisible();
-    await expect(page.locator("#preview h1", { hasText: "After" })).toBeVisible();
+    await expect(previewLocator(page, "h1", { hasText: "After" })).toBeVisible();
 
     const beforeIn = await zoomDialog.locator("#mermaid-zoom-level").textContent();
     await zoomDialog.locator("#mermaid-zoom-in").click();
@@ -719,7 +742,7 @@ test.describe("editor + render", () => {
         "```",
       ].join("\n"),
     );
-    const diagram = page.locator("#preview .mermaid").first();
+    const diagram = previewLocator(page, ".mermaid").first();
     await expect(diagram.locator("> svg")).toBeVisible({ timeout: 20_000 });
     await openSettings(page);
     await page.locator("#mermaid-look-select").selectOption("handDrawn");
@@ -776,7 +799,7 @@ test.describe("editor + render", () => {
     await openSettings(page);
     await page.locator("#width-select").selectOption("readable");
     await page.locator("#editor").fill(gantt);
-    const diagram = page.locator("#preview .mermaid").first();
+    const diagram = previewLocator(page, ".mermaid").first();
     await expect(diagram.locator("> svg")).toBeVisible({ timeout: 20_000 });
     await expect
       .poll(async () => {
@@ -802,7 +825,7 @@ test.describe("editor + render", () => {
 
     await openSettings(page);
     await page.locator("#width-select").selectOption("full");
-    await expect(page.locator("#preview")).toHaveAttribute("data-width", "full");
+    await expect(previewLocator(page)).toHaveAttribute("data-width", "full");
 
     // Mermaid must re-run so viewBox width tracks the host (not a CSS zoom of the old viewBox).
     await expect
@@ -834,12 +857,12 @@ test.describe("editor + render", () => {
     await page.locator("#editor").fill(
       "```mermaid\ngraph TD\n  A[Start] --> B{OK?}\n  B -->|Yes| C[Done]\n  B -->|No| A\n```",
     );
-    await expect(page.locator("#preview .mermaid > svg")).toBeVisible({ timeout: 20_000 });
-    await expect(page.locator("#preview .mermaid .edgeLabel p")).toHaveCount(2, {
+    await expect(previewLocator(page, ".mermaid > svg")).toBeVisible({ timeout: 20_000 });
+    await expect(previewLocator(page, ".mermaid .edgeLabel p")).toHaveCount(2, {
       timeout: 20_000,
     });
 
-    const labels = await page.locator("#preview .mermaid .edgeLabel p").evaluateAll((nodes) => {
+    const labels = await previewLocator(page, ".mermaid .edgeLabel p").evaluateAll((nodes) => {
       function parseColor(str) {
         if (!str || str === "transparent" || str === "rgba(0, 0, 0, 0)" || str === "none") {
           return null;
@@ -972,13 +995,13 @@ test.describe("editor + render", () => {
     await page.locator("#editor").fill(`${mermaidFixture.replace(/\s+$/, "")}\n\n`);
     // Diagram SVGs use id="mermaid-…"; zoom-button icons do not. Some fences in
     // the fixture can fail to paint, so do not require hostCount === svgCount.
-    const diagramSvg = page.locator('#preview .mermaid svg[id^="mermaid-"]');
+    const diagramSvg = previewLocator(page, 'svg[id^="mermaid-"]');
     await expect
       .poll(async () => diagramSvg.count(), { timeout: 90_000 })
       .toBeGreaterThanOrEqual(10);
     await expect
       .poll(
-        async () => page.locator("#preview .mermaid[data-pending]").count(),
+        async () => previewLocator(page, ".mermaid[data-pending]").count(),
         { timeout: 90_000 },
       )
       .toBe(0);
@@ -1008,8 +1031,12 @@ test.describe("editor + render", () => {
             preview: preview.scrollTop,
             eMax: editor.scrollHeight - editor.clientHeight,
             pH: preview.scrollHeight,
-            pending: document.querySelectorAll("#preview .mermaid[data-pending]").length,
-            svgs: document.querySelectorAll('#preview .mermaid svg[id^="mermaid-"]').length,
+            pending: document
+              .getElementById("preview-frame")
+              ?.contentDocument?.querySelectorAll("#preview .mermaid[data-pending]").length,
+            svgs: document
+              .getElementById("preview-frame")
+              ?.contentDocument?.querySelectorAll('#preview .mermaid svg[id^="mermaid-"]').length,
           };
         }),
       );
@@ -1051,24 +1078,130 @@ test.describe("editor + render", () => {
 
     // Newly added text must remain in the preview viewport after paints settle.
     await expect
-      .poll(async () => page.locator("#preview").innerText(), { timeout: 10_000 })
+      .poll(async () => previewLocator(page).innerText(), { timeout: 10_000 })
       .toContain(marker);
     const markerVisible = await page.evaluate((text) => {
       const pane = document.getElementById("preview-pane");
-      const walker = document.createTreeWalker(document.getElementById("preview"), NodeFilter.SHOW_TEXT);
+      const frame = document.getElementById("preview-frame");
+      const previewEl = frame?.contentDocument?.getElementById("preview");
+      if (!pane || !frame || !previewEl) return false;
+      const walker = previewEl.ownerDocument.createTreeWalker(
+        previewEl,
+        NodeFilter.SHOW_TEXT,
+      );
       let node = walker.nextNode();
       while (node) {
         if ((node.nodeValue || "").includes(text)) {
-          const range = document.createRange();
+          const range = previewEl.ownerDocument.createRange();
           range.selectNodeContents(node.parentElement || node);
           const rect = range.getBoundingClientRect();
+          const frameRect = frame.getBoundingClientRect();
           const paneRect = pane.getBoundingClientRect();
-          return rect.bottom > paneRect.top && rect.top < paneRect.bottom;
+          const top = rect.top + frameRect.top;
+          const bottom = rect.bottom + frameRect.top;
+          return bottom > paneRect.top && top < paneRect.bottom;
         }
         node = walker.nextNode();
       }
       return false;
     }, marker);
     expect(markerVisible).toBe(true);
+  });
+
+  test("sync scroll reveals caret target after a tall image settles", async ({
+    page,
+  }) => {
+    test.setTimeout(60_000);
+    await openFreshApp(page);
+    await page.setViewportSize({ width: 1400, height: 900 });
+
+    const tallJpeg = readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), "fixtures/tall-sync.jpg"),
+    );
+    const dataUri = `data:image/jpeg;base64,${tallJpeg.toString("base64")}`;
+    const md = [
+      "# Top",
+      "",
+      `![tall](${dataUri})`,
+      "",
+      "> eric 4",
+      "",
+    ].join("\n");
+
+    await page.locator("#editor").fill(md);
+    await expect
+      .poll(async () => previewLocator(page).innerText(), { timeout: 15_000 })
+      .toContain("eric 4");
+
+    // Wait until the JPEG has intrinsic height (decode), not just a broken box.
+    await expect
+      .poll(
+        async () =>
+          page.evaluate(() => {
+            const img = document
+              .getElementById("preview-frame")
+              ?.contentDocument?.querySelector("#preview img");
+            return img?.naturalHeight || 0;
+          }),
+        { timeout: 15_000 },
+      )
+      .toBeGreaterThan(1000);
+
+    await page.locator("#sync-scroll-btn").click();
+    await expect(page.locator("#sync-scroll-btn")).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+
+    // Caret on the blockquote line; force preview to the top so reveal must work.
+    await page.locator("#editor").evaluate((editor) => {
+      const needle = "> eric 4";
+      const at = editor.value.indexOf(needle) + needle.length;
+      editor.focus();
+      editor.setSelectionRange(at, at);
+      const line = editor.value.slice(0, at).split("\n").length;
+      // Approximate: keep the caret line near the middle of the editor viewport.
+      editor.scrollTop = Math.max(0, (line - 3) * 20);
+    });
+    await page.evaluate(() => {
+      document.getElementById("preview-pane").scrollTop = 0;
+    });
+
+    await page.keyboard.type("5");
+    await expect
+      .poll(async () => previewLocator(page).innerText(), { timeout: 10_000 })
+      .toContain("eric 45");
+
+    // After re-paint + image re-decode, the caret block must be in the pane.
+    await expect
+      .poll(
+        async () =>
+          page.evaluate(() => {
+            const pane = document.getElementById("preview-pane");
+            const frame = document.getElementById("preview-frame");
+            const previewEl = frame?.contentDocument?.getElementById("preview");
+            if (!pane || !frame || !previewEl) return false;
+            const walker = previewEl.ownerDocument.createTreeWalker(
+              previewEl,
+              NodeFilter.SHOW_TEXT,
+            );
+            let node = walker.nextNode();
+            while (node) {
+              if ((node.nodeValue || "").includes("eric 45")) {
+                const el = node.parentElement || node;
+                const rect = el.getBoundingClientRect();
+                const frameRect = frame.getBoundingClientRect();
+                const paneRect = pane.getBoundingClientRect();
+                const top = rect.top + frameRect.top;
+                const bottom = rect.bottom + frameRect.top;
+                return bottom > paneRect.top + 4 && top < paneRect.bottom - 4;
+              }
+              node = walker.nextNode();
+            }
+            return false;
+          }),
+        { timeout: 20_000 },
+      )
+      .toBe(true);
   });
 });

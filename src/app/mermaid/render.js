@@ -12,6 +12,14 @@ import {
  * @param {HTMLElement} el
  */
 export function rememberMermaidSource(el) {
+  // No diagram SVG means the host is showing fence text. A morph reuses the
+  // element across edits, so the map may still hold the previous fence.
+  // Leaving it stale made restore put the old SVG back and the preview never
+  // updated.
+  if (!el.querySelector(":scope > svg")) {
+    mermaidSources.set(el, el.textContent ?? "");
+    return;
+  }
   if (!mermaidSources.has(el)) {
     mermaidSources.set(el, el.textContent ?? "");
   }
@@ -59,7 +67,9 @@ export function restoreMermaidRenders(bySource) {
     const list = bySource.get(key);
     const reuse = list?.shift();
     if (reuse) {
-      el.replaceChildren(reuse.svg);
+      // A morph may have kept this host and its SVG. Replacing it with a clone
+      // would drop the zoom control and repaint the diagram on every keystroke.
+      if (!el.querySelector(":scope > svg")) el.replaceChildren(reuse.svg);
       el.style.minHeight = "";
       el.removeAttribute("data-pending");
       continue;

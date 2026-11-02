@@ -66,7 +66,9 @@ export function addCodeLineNumbers(root) {
 }
 
 marked.use({
-  hooks: {
+  // String key: production mangling must not rename this to `h` — marked only
+  // recognizes the API name `hooks` (see mangle-state-hooks.mjs).
+  ["hooks"]: {
     processAllTokens(tokens) {
       return annotateSourceLines(tokens);
     },

@@ -29,6 +29,7 @@ import "./history-rewrite.js";
 import "./pwa.js";
 import "./share-url.js";
 import "./render-markdown.js";
+import "./preview-frame.js";
 import "./history-commit.js";
 import "./history-push.js";
 import "./history-ui.js";

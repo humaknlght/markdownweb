@@ -2,7 +2,7 @@ import { hooks } from "../hooks.js";
 import {
   state,
   editor,
-  preview,
+  previewFrame,
   writingToolsMenu,
   aiWriteDialog,
   aiRewriteDialog,
@@ -243,7 +243,7 @@ export function installAiDialogs(s, api) {
   function showProofreadPreview(originalSlice, correctedSlice) {
     if (!aiProofEditorWrap || !aiProofEditor || !aiProofHighlightCode) return;
     document.body.dataset.aiProofPreview = "1";
-    if (preview) preview.hidden = true;
+    if (previewFrame) previewFrame.hidden = true;
     aiProofEditorWrap.hidden = false;
     if (previewPane) {
       previewPane.setAttribute("aria-label", "Proofread result");
@@ -265,15 +265,15 @@ export function installAiDialogs(s, api) {
       document.body.dataset.aiProofPreview === "1" ||
       (aiProofEditorWrap && !aiProofEditorWrap.hidden);
     if (!active) {
-      // Recover a blank right pane if Apply left #preview hidden.
-      if (preview?.hidden) preview.hidden = false;
+      // Recover a blank right pane if Apply left the preview frame hidden.
+      if (previewFrame?.hidden) previewFrame.hidden = false;
       return;
     }
     delete document.body.dataset.aiProofPreview;
     if (aiProofEditorWrap) aiProofEditorWrap.hidden = true;
     if (aiProofEditor) aiProofEditor.value = "";
     if (aiProofHighlightCode) aiProofHighlightCode.innerHTML = "";
-    if (preview) preview.hidden = false;
+    if (previewFrame) previewFrame.hidden = false;
     if (previewPane) {
       previewPane.setAttribute("aria-label", "Rendered preview");
     }

@@ -7,9 +7,85 @@ import {
   previewPane
 } from "./state.js";
 
+/**
+ * 1-based source line of the editor caret (or selection start).
+ * Cached incrementally so holding ←/→ on a huge line (e.g. collapsed data URI
+ * after expand, or a long wrap-off row) does not re-scan the whole prefix.
+ */
+/**
+ * Shift a preview scroll target so the block matching a caret still visible in
+ * the editor stays in the preview viewport. A raw top-of-viewport sync would
+ * otherwise follow a tall image sitting at the editor top and scroll the caret
+ * block off screen.
+ *
+ * @param {number} target
+ */
+export function adjustPreviewScrollForVisibleCaret(target) {
+  const line = editorCaretLine();
+  if (!isEditorLineVisible(line)) return target;
+  const el = previewElementForLine(line);
+  if (!el || !hooks.previewNodeIsLaidOut(el)) return target;
+  const pad = 8;
+  const top = hooks.offsetWithin(el, previewPane);
+  const height = el.offsetHeight;
+  const bottom = top + height;
+  const viewH = previewPane.clientHeight;
+  if (viewH <= 0) return target;
+  if (height > viewH - pad * 2) {
+    if (bottom <= target) return bottom - pad;
+    if (top >= target + viewH) return top - viewH + pad;
+    return target;
+  }
+  let next = target;
+  if (bottom > next + viewH - pad) next = bottom - viewH + pad;
+  if (top < next + pad) next = top - pad;
+  return next;
+}
+
 export function editorCaretLine() {
-  const text = editor.value.slice(0, editor.selectionStart);
-  return (text.match(/\n/g) || []).length + 1;
+  const value = editor.value;
+  const pos = editor.selectionStart;
+  const cachePos = state.caretLineCachePos;
+  if (cachePos === pos && cachePos >= 0) return state.caretLineCacheLine;
+
+  let line = state.caretLineCacheLine;
+  if (cachePos >= 0 && cachePos <= value.length && pos <= value.length) {
+    if (pos > cachePos) {
+      for (let i = cachePos; i < pos; i++) {
+        if (value.charCodeAt(i) === 10) line += 1;
+      }
+    } else if (pos < cachePos) {
+      for (let i = pos; i < cachePos; i++) {
+        if (value.charCodeAt(i) === 10) line -= 1;
+      }
+    }
+  } else {
+    line = 1;
+    for (let i = 0; i < pos; i++) {
+      if (value.charCodeAt(i) === 10) line += 1;
+    }
+  }
+  state.caretLineCachePos = pos;
+  state.caretLineCacheLine = line;
+  return line;
+}
+
+/** Call when editor text changes so the caret-line cache cannot walk stale offsets. */
+export function invalidateCaretLineCache() {
+  state.caretLineCachePos = -1;
+  state.caretLineCacheLine = 1;
+  state.lastSelectPos = -1;
+}
+
+/** True when the text between two caret offsets contains a newline. */
+export function selectionDeltaCrossesLine(from, to) {
+  const value = editor.value;
+  const start = Math.max(0, Math.min(from, to));
+  const end = Math.min(value.length, Math.max(from, to));
+  for (let i = start; i < end; i++) {
+    if (value.charCodeAt(i) === 10) return true;
+  }
+  return false;
 }
 
 /** Preview block that covers the given 1-based source line. */
@@ -36,16 +112,20 @@ export function previewElementForLine(line) {
  * @param {HTMLElement} pane
  */
 export function previewElementNeedsReveal(el, pane) {
-  const paneRect = pane.getBoundingClientRect();
-  const elRect = el.getBoundingClientRect();
+  // Use scroll-space (offsetWithin), not getBoundingClientRect: preview
+  // nodes live in the sandboxed iframe while `#preview-pane` is the parent
+  // scroll root — cross-document client rects are not comparable.
   const pad = 8;
-  const viewTop = paneRect.top + pad;
-  const viewBottom = paneRect.bottom - pad;
-  if (elRect.bottom <= viewTop || elRect.top >= viewBottom) return true;
+  const top = hooks.offsetWithin(el, pane);
+  const height = el.offsetHeight;
+  const bottom = top + height;
+  const viewTop = pane.scrollTop + pad;
+  const viewBottom = pane.scrollTop + pane.clientHeight - pad;
+  if (bottom <= viewTop || top >= viewBottom) return true;
   // Fully visible.
-  if (elRect.top >= viewTop && elRect.bottom <= viewBottom) return false;
+  if (top >= viewTop && bottom <= viewBottom) return false;
   // Oversized but intersecting — leave the current scroll alone.
-  if (elRect.height > pane.clientHeight - pad * 2) return false;
+  if (height > pane.clientHeight - pad * 2) return false;
   // Partially clipped smaller block — nudge into view.
   return true;
 }
@@ -56,12 +136,13 @@ export function previewElementNeedsReveal(el, pane) {
  * @param {HTMLElement} pane
  */
 export function revealPreviewElement(el, pane) {
-  const paneRect = pane.getBoundingClientRect();
-  const elRect = el.getBoundingClientRect();
   const pad = 8;
   const top = hooks.offsetWithin(el, pane);
-  if (elRect.bottom > paneRect.bottom - pad) {
-    hooks.clampScrollTop(pane, top + el.offsetHeight - pane.clientHeight + pad);
+  const height = el.offsetHeight;
+  const bottom = top + height;
+  const viewBottom = pane.scrollTop + pane.clientHeight - pad;
+  if (bottom > viewBottom) {
+    hooks.clampScrollTop(pane, top + height - pane.clientHeight + pad);
   } else {
     hooks.clampScrollTop(pane, top - pad);
   }
@@ -100,7 +181,7 @@ export function revealPreviewForEditorCaret() {
 
 /** 1-based source line nearest the top of the editor viewport. */
 export function editorLineNearViewportTop() {
-  const lineTops = hooks.measureEditorLineTops();
+  const lineTops = state.editorLineTops || (state.editorLineTops = hooks.measureEditorLineTops());
   if (!lineTops.length) return 1;
   const y = editor.scrollTop + 4;
   let lo = 0;
@@ -115,7 +196,7 @@ export function editorLineNearViewportTop() {
 
 /** Whether a 1-based editor line intersects the visible editor viewport. */
 export function isEditorLineVisible(line) {
-  const lineTops = hooks.measureEditorLineTops();
+  const lineTops = state.editorLineTops || (state.editorLineTops = hooks.measureEditorLineTops());
   if (!lineTops.length || line < 1 || line > lineTops.length) return false;
   const top = lineTops[line - 1];
   const bottom = line < lineTops.length ? lineTops[line] : top + 20;
@@ -177,11 +258,24 @@ export function syncSlidesFromEditor({ preferCaret = true } = {}) {
   revealPreviewElement(el, previewPane);
 }
 
-export function scheduleRevealPreviewForCaret() {
+/**
+ * @param {{ force?: boolean }} [opts]
+ *   `force` — re-reveal even if the caret line is unchanged (height settle).
+ */
+export function scheduleRevealPreviewForCaret({ force = false } = {}) {
   scheduleOutlineHighlight();
-  if (!state.syncScrollEnabled || state.caretRevealRaf) return;
+  if (!state.syncScrollEnabled) return;
+  // Always take the latest request: a pending RAF may have been queued before
+  // preview height settled (e.g. large image still decoding). Dropping the
+  // newer call left the caret target scrolled out of view.
+  if (state.caretRevealRaf) cancelAnimationFrame(state.caretRevealRaf);
   state.caretRevealRaf = requestAnimationFrame(() => {
     state.caretRevealRaf = 0;
+    const line = editorCaretLine();
+    // Holding ←/→ (or clicking within the same line) must not re-measure the
+    // preview on every selectionchange — that stalls caret painting.
+    if (!force && line === state.lastCaretRevealLine) return;
+    state.lastCaretRevealLine = line;
     revealPreviewForEditorCaret();
   });
 }
@@ -190,15 +284,15 @@ export function scheduleRevealPreviewForCaret() {
 
 /** 1-based source line of the last heading at or above the preview viewport top. */
 export function previewLineNearViewportTop() {
-  const paneRect = previewPane.getBoundingClientRect();
-  if (paneRect.height <= 0) return 0;
-  const marker = paneRect.top + Math.min(40, paneRect.height * 0.2);
+  if (!previewPane || previewPane.clientHeight <= 0) return 0;
+  // Same scroll-space rule as caret reveal: headings live in the iframe.
+  const marker = previewPane.scrollTop + Math.min(40, previewPane.clientHeight * 0.2);
   let line = 0;
   for (const h of preview.querySelectorAll("h1, h2, h3, h4, h5, h6")) {
     if (!hooks.previewNodeIsLaidOut(h)) continue;
     const src = Number(h.getAttribute("data-source-line"));
     if (!Number.isFinite(src) || src < 1) continue;
-    if (h.getBoundingClientRect().top <= marker) line = src;
+    if (hooks.offsetWithin(h, previewPane) <= marker) line = src;
     else break;
   }
   return line;
@@ -242,10 +336,13 @@ export function toggleLineWrap() {
 }
 
 hooks.editorCaretLine = editorCaretLine;
+hooks.invalidateCaretLineCache = invalidateCaretLineCache;
+hooks.selectionDeltaCrossesLine = selectionDeltaCrossesLine;
 hooks.previewElementForLine = previewElementForLine;
 hooks.previewElementNeedsReveal = previewElementNeedsReveal;
 hooks.revealPreviewElement = revealPreviewElement;
 hooks.revealPreviewForEditorCaret = revealPreviewForEditorCaret;
+hooks.adjustPreviewScrollForVisibleCaret = adjustPreviewScrollForVisibleCaret;
 hooks.editorLineNearViewportTop = editorLineNearViewportTop;
 hooks.isEditorLineVisible = isEditorLineVisible;
 hooks.presentSectionIndexForLine = presentSectionIndexForLine;

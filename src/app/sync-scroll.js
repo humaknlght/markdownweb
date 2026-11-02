@@ -34,6 +34,7 @@ export function applyScrollRatio(el, ratio) {
 
 export function invalidateScrollAnchors() {
   state.scrollAnchors = null;
+  state.editorLineTops = null;
 }
 
 /** True when `el` participates in preview layout (not slide-hidden or section-folded). */
@@ -44,7 +45,18 @@ export function previewNodeIsLaidOut(el) {
 export function offsetWithin(el, container) {
   const elRect = el.getBoundingClientRect();
   const containerRect = container.getBoundingClientRect();
-  return elRect.top - containerRect.top + container.scrollTop;
+  // Preview nodes live in the sandboxed iframe: getBoundingClientRect is
+  // relative to the iframe viewport, so translate via the frame element into
+  // the parent viewport before mapping into `#preview-pane` scroll space.
+  let top = elRect.top;
+  const owner = el?.ownerDocument;
+  if (owner && owner !== document) {
+    const frame = owner.defaultView?.frameElement;
+    if (frame) {
+      top += frame.getBoundingClientRect().top;
+    }
+  }
+  return top - containerRect.top + container.scrollTop;
 }
 
 export function ensureLineMirror() {
@@ -108,6 +120,7 @@ export function measureEditorLineTops() {
 
 export function buildScrollAnchors() {
   const lineTops = measureEditorLineTops();
+  state.editorLineTops = lineTops;
   const anchors = [{ editor: 0, preview: 0 }];
 
   for (const el of preview.querySelectorAll("[data-source-line]")) {
@@ -213,6 +226,8 @@ export function setSyncScroll(enabled, { persist = true } = {}) {
 export function setLineWrap(enabled, { persist = true } = {}) {
   state.lineWrapEnabled = Boolean(enabled);
   document.documentElement.dataset.lineWrap = state.lineWrapEnabled ? "on" : "off";
+  hooks.syncPreviewFrameChrome?.();
+  hooks.schedulePreviewFrameHeight?.();
   if (lineWrapBtn) {
     lineWrapBtn.setAttribute("aria-pressed", String(state.lineWrapEnabled));
     const wrapLabel = state.lineWrapEnabled ? "Unwrap lines" : "Wrap lines";
@@ -227,6 +242,7 @@ export function setLineWrap(enabled, { persist = true } = {}) {
     }
   }
   invalidateScrollAnchors();
+  hooks.syncEditorHighlightScroll({ insets: true });
   if (state.syncScrollEnabled) {
     syncPreviewFromEditor();
     hooks.revealPreviewForEditorCaret();
@@ -267,14 +283,16 @@ export function syncPreviewFromEditor() {
   }
   beginSyncDriver("editor");
   const anchors = getScrollAnchors();
+  let target;
   if (anchors.length >= 2) {
-    clampScrollTop(
-      previewPane,
-      interpolateAnchor(editor.scrollTop, anchors, "editor", "preview"),
-    );
+    target = interpolateAnchor(editor.scrollTop, anchors, "editor", "preview");
   } else {
-    applyScrollRatio(previewPane, scrollRatio(editor));
+    target = scrollRatio(editor) * Math.max(0, previewPane.scrollHeight - previewPane.clientHeight);
   }
+  if (typeof hooks.adjustPreviewScrollForVisibleCaret === "function") {
+    target = hooks.adjustPreviewScrollForVisibleCaret(target);
+  }
+  clampScrollTop(previewPane, target);
 }
 
 export function syncEditorFromPreview() {

@@ -23,9 +23,13 @@ export function onEditorInput() {
   if (!state.contentIsExternal) {
     hooks.persistDraftFireAndForget(source);
   }
+  hooks.invalidateCaretLineCache?.();
   hooks.scheduleEditorHighlight();
   hooks.invalidateScrollAnchors();
   hooks.scheduleRender();
+  // Typing does not fire the caret keyup/click handlers — reveal on input so
+  // sync-scroll keeps the edited preview block in view while paint catches up.
+  hooks.scheduleRevealPreviewForCaret?.({ force: true });
   hooks.updateSaveButton();
   window.clearTimeout(state.historyTimer);
   state.historyTimer = window.setTimeout(() => void hooks.pushHistory(source), HISTORY_DEBOUNCE_MS);

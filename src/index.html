@@ -890,7 +890,12 @@
         <div class="render-loading" id="render-loading" hidden aria-hidden="true">
           <div class="render-loading-spinner" role="status" aria-label="Loading preview"></div>
         </div>
-        <article class="preview" id="preview"></article>
+        <iframe
+          class="preview-frame"
+          id="preview-frame"
+          title="Rendered preview"
+          sandbox="allow-same-origin allow-popups"
+        ></iframe>
         <div class="editor-wrap ai-proof-editor-wrap" id="ai-proof-editor-wrap" hidden>
           <pre class="editor-highlight" id="ai-proof-highlight" aria-hidden="true" inert><code></code></pre>
           <textarea
