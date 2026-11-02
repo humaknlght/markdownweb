@@ -153,6 +153,7 @@ export function toggleSectionCollapse(heading) {
   if (busy || hooks.isSlideNavView() || hooks.prefersReducedMotion()) {
     applySectionCollapse();
     hooks.invalidateScrollAnchors();
+    hooks.schedulePreviewFrameHeight?.();
     return;
   }
 
@@ -163,6 +164,7 @@ export function toggleSectionCollapse(heading) {
   if (!preview.querySelector(".md-section-anim")) {
     applySectionCollapse();
     hooks.invalidateScrollAnchors();
+    hooks.schedulePreviewFrameHeight?.();
     return;
   }
 
@@ -171,11 +173,13 @@ export function toggleSectionCollapse(heading) {
       if (gen !== state.sectionFoldAnimGen) return;
       applySectionCollapse();
       hooks.invalidateScrollAnchors();
+      hooks.schedulePreviewFrameHeight?.();
     })
     .catch(() => {
       if (gen !== state.sectionFoldAnimGen) return;
       applySectionCollapse();
       hooks.invalidateScrollAnchors();
+      hooks.schedulePreviewFrameHeight?.();
     });
 }
 

@@ -74,18 +74,42 @@ export function mermaidNeedsSketch() {
 
 /**
  * Convert a rendered Mermaid SVG into a RoughJS sketch (Excalidraw-like).
- * SVG must stay in the document so computed theme styles resolve.
+ * Sketching runs in the parent document: svg2roughjs stack-overflows on SVG
+ * nodes that live in the sandboxed preview iframe browsing context.
  * @param {SVGElement} svg
  * @returns {Promise<SVGElement | null>}
  */
 export async function sketchMermaidSvg(svg) {
   const Svg2Roughjs = await loadSvg2Rough();
+  const ownerDoc = svg.ownerDocument || document;
+  const preBox = svg.getBoundingClientRect();
+  const srcClass = svg.getAttribute("class");
+  const srcViewBox = svg.getAttribute("viewBox");
+  const srcStyle = svg.querySelector("style");
+  const srcVb = (srcViewBox || "")
+    .trim()
+    .split(/[\s,]+/)
+    .map(Number);
+  const sourceSize = {
+    cssWidth: preBox.width,
+    cssHeight: preBox.height,
+    viewBoxWidth: srcVb.length === 4 && srcVb[2] > 0 ? srcVb[2] : 0,
+    hostWidth: svg.parentElement?.clientWidth ?? 0,
+  };
+
+  const staging = document.createElement("div");
   const scratch = document.createElement("div");
-  scratch.hidden = true;
-  scratch.setAttribute("aria-hidden", "true");
-  // Keep in-DOM for layout/style resolution of the source SVG next to it.
-  svg.parentElement?.appendChild(scratch);
+  for (const el of [staging, scratch]) {
+    el.hidden = true;
+    el.setAttribute("aria-hidden", "true");
+    document.body.appendChild(el);
+  }
   try {
+    const source = /** @type {SVGSVGElement} */ (document.importNode(svg, true));
+    if (preBox.width > 0) source.style.width = `${preBox.width}px`;
+    if (preBox.height > 0) source.style.height = `${preBox.height}px`;
+    staging.appendChild(source);
+
     const converter = new Svg2Roughjs(scratch);
     // Match Mermaid hand-drawn labels (Excalifont). Default Comic Sans is a joke.
     converter.fontFamily = MERMAID_HAND_FONT;
@@ -99,36 +123,25 @@ export async function sketchMermaidSvg(svg) {
       // strokes, which fail WCAG against the diagram canvas on many themes.
       fillStyle: "solid",
     };
-    converter.svg = /** @type {SVGSVGElement} */ (svg);
+    converter.svg = source;
     await converter.sketch();
-    const sketched = scratch.querySelector(":scope > svg");
-    if (!(sketched instanceof SVGElement)) return null;
+    const sketchedParent = scratch.querySelector(":scope > svg");
+    if (!(sketchedParent instanceof SVGElement)) return null;
+
+    const sketched = /** @type {SVGElement} */ (ownerDoc.importNode(sketchedParent, true));
     sketched.dataset.mermaidSketched = "1";
     // Keep class for theming. Size from the classic SVG's rendered CSS box —
     // copying width="100%" would upscale tall viewBoxes and cause vertical scroll.
-    const srcClass = svg.getAttribute("class");
-    const preBox = svg.getBoundingClientRect();
-    const srcVb = (svg.getAttribute("viewBox") || "")
-      .trim()
-      .split(/[\s,]+/)
-      .map(Number);
-    const sourceSize = {
-      cssWidth: preBox.width,
-      cssHeight: preBox.height,
-      viewBoxWidth: srcVb.length === 4 && srcVb[2] > 0 ? srcVb[2] : 0,
-      hostWidth: svg.parentElement?.clientWidth ?? 0,
-    };
     if (srcClass && !sketched.getAttribute("class")) {
       sketched.setAttribute("class", srcClass);
     }
-    if (!sketched.getAttribute("viewBox") && svg.getAttribute("viewBox")) {
-      sketched.setAttribute("viewBox", svg.getAttribute("viewBox"));
+    if (!sketched.getAttribute("viewBox") && srcViewBox) {
+      sketched.setAttribute("viewBox", srcViewBox);
     }
     // svg2roughjs drops Mermaid's <style> (themeCSS, p{margin:0}) — copy it back
     // so labels/theme rules still apply after sketch (and in the zoom dialog).
-    const srcStyle = svg.querySelector("style");
     if (srcStyle && !sketched.querySelector("style")) {
-      sketched.insertBefore(srcStyle.cloneNode(true), sketched.firstChild);
+      sketched.insertBefore(ownerDoc.importNode(srcStyle, true), sketched.firstChild);
     }
     // Hachure strokes often reuse fill pastels — remap to WCAG theme ink.
     hooks.normalizeMermaidHandDrawnColors(sketched);
@@ -139,6 +152,7 @@ export async function sketchMermaidSvg(svg) {
     hooks.sizeSketchedMermaidSvg(sketched, sourceSize);
     return sketched;
   } finally {
+    staging.remove();
     scratch.remove();
   }
 }

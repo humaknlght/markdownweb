@@ -22,6 +22,9 @@ import {
 } from "./vendor-deps.js";
 
 export async function init() {
+  // Preview article lives inside a sandboxed iframe; bind it before any paint/UI.
+  hooks.initPreviewFrame();
+
   state.guideSession = hooks.hasGuideUrlFlag();
   const shareState = await hooks.getShareState();
   const fromUrl = shareState.markdown;

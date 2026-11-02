@@ -1,18 +1,22 @@
 import { test, expect } from "playwright/test";
-import { openFreshApp, headingText } from "./helpers.js";
+import {
+  openFreshApp,
+  headingText,
+  previewLocator
+} from "./helpers.js";
 
 /** Click a section twistie and wait until the fold animation has fully settled. */
 async function toggleSectionSettled(page, heading) {
   await heading.locator(":scope > .md-section-toggle").click();
   // Tall sections skip the height animation; still wait a frame so applySectionCollapse
   // (and any in-flight paint) can commit is-collapsed before the next toggle.
-  await expect(page.locator("#preview .md-section-anim")).toHaveCount(0);
+  await expect(previewLocator(page, ".md-section-anim")).toHaveCount(0);
   await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
 }
 
 /** Preview heading by visible label text. */
 function previewHeading(page, tag, label) {
-  return page.locator(`#preview ${tag}`).filter({
+  return previewLocator(page, `${tag}`).filter({
     has: page.locator(":scope > .md-section-label", { hasText: label }),
   });
 }
@@ -22,7 +26,7 @@ async function waitForPreviewHeadings(page, labels) {
   for (const label of labels) {
     await expect
       .poll(async () => {
-        const texts = await page.locator("#preview .md-section-label").allTextContents();
+        const texts = await previewLocator(page, ".md-section-label").allTextContents();
         return texts.some((t) => t.includes(label));
       })
       .toBe(true);
@@ -71,8 +75,11 @@ async function watchFoldAnimation(page, { siblingLabels, collapsedBodyMarkers })
         return origAppend.call(this, child);
       };
 
+      const previewRoot = () =>
+        document.getElementById("preview-frame")?.contentDocument?.getElementById("preview");
+
       const headingByLabel = (label) =>
-        [...document.querySelectorAll("#preview h1, #preview h2, #preview h3")].find((h) =>
+        [...(previewRoot()?.querySelectorAll("h1, h2, h3") || [])].find((h) =>
           (h.querySelector(".md-section-label")?.textContent || "").includes(label),
         );
 
@@ -83,7 +90,7 @@ async function watchFoldAnimation(page, { siblingLabels, collapsedBodyMarkers })
 
         for (const label of labels) {
           const h = headingByLabel(label);
-          if (!h || !document.contains(h)) {
+          if (!h || !h.isConnected) {
             w.siblingVanish = true;
             continue;
           }
@@ -104,7 +111,7 @@ async function watchFoldAnimation(page, { siblingLabels, collapsedBodyMarkers })
         }
 
         for (const marker of markers) {
-          const el = [...document.querySelectorAll("#preview p, #preview ul, #preview ol")].find(
+          const el = [...(previewRoot()?.querySelectorAll("p, ul, ol") || [])].find(
             (node) => (node.textContent || "").includes(marker),
           );
           if (!el) continue;
@@ -145,10 +152,10 @@ test.describe("section fold", () => {
 
   test("collapse hides section body and expand shows it again", async ({ page }) => {
     await page.locator("#editor").fill("## Section\n\nVisible body paragraph.\n\n## Next\n\nNext body.");
-    await expect.poll(async () => headingText(page.locator("#preview h2").first())).toBe("Section");
+    await expect.poll(async () => headingText(previewLocator(page, "h2").first())).toBe("Section");
 
     const section = previewHeading(page, "h2", "Section");
-    const body = page.locator("#preview p", { hasText: "Visible body paragraph" });
+    const body = previewLocator(page, "p", { hasText: "Visible body paragraph" });
 
     await expect(body).toBeVisible();
     await expect(section).not.toHaveClass(/is-collapsed/);
@@ -182,11 +189,11 @@ test.describe("section fold", () => {
         "Sibling body.",
       ].join("\n"),
     );
-    await expect.poll(async () => headingText(page.locator("#preview h1"))).toBe("Parent");
+    await expect.poll(async () => headingText(previewLocator(page, "h1"))).toBe("Parent");
 
     const parent = previewHeading(page, "h1", "Parent");
     const nested = previewHeading(page, "h2", "Nested");
-    const nestedBody = page.locator("#preview p", { hasText: "NESTED_SECRET_BODY" });
+    const nestedBody = previewLocator(page, "p", { hasText: "NESTED_SECRET_BODY" });
 
     await toggleSectionSettled(page, nested);
     await expect(nested).toHaveClass(/is-collapsed/);
@@ -251,8 +258,8 @@ test.describe("section fold", () => {
     const supported = previewHeading(page, "h2", "Supported Markdown");
     const mermaid = previewHeading(page, "h2", "Mermaid diagrams");
     const yaml = previewHeading(page, "h2", "YAML front matter");
-    const supportedBody = page.locator("#preview p", { hasText: "SUPPORTED_BODY_MARKER" });
-    const mermaidBody = page.locator("#preview p", { hasText: "MERMAID_BODY_MARKER" });
+    const supportedBody = previewLocator(page, "p", { hasText: "SUPPORTED_BODY_MARKER" });
+    const mermaidBody = previewLocator(page, "p", { hasText: "MERMAID_BODY_MARKER" });
 
     await toggleSectionSettled(page, gettingStarted);
     await expect(gettingStarted).toHaveClass(/is-collapsed/);
@@ -321,20 +328,20 @@ test.describe("section fold", () => {
         "CHILD_B_BODY",
       ].join("\n"),
     );
-    await expect.poll(async () => headingText(page.locator("#preview h1").first())).toBe("Parent");
+    await expect.poll(async () => headingText(previewLocator(page, "h1").first())).toBe("Parent");
 
     const parent = previewHeading(page, "h1", "Parent");
     const childA = previewHeading(page, "h2", "Child A");
     const childB = previewHeading(page, "h2", "Child B");
-    const intro = page.locator("#preview p", { hasText: "PARENT_INTRO" });
-    const bodyA = page.locator("#preview p", { hasText: "CHILD_A_BODY" });
-    const bodyB = page.locator("#preview p", { hasText: "CHILD_B_BODY" });
+    const intro = previewLocator(page, "p", { hasText: "PARENT_INTRO" });
+    const bodyA = previewLocator(page, "p", { hasText: "CHILD_A_BODY" });
+    const bodyB = previewLocator(page, "p", { hasText: "CHILD_B_BODY" });
 
     // Rapid: collapse parent, then child, without waiting — reproduces the
     // is-collapsed / visible-body desync from interrupted fold animations.
     await parent.locator(":scope > .md-section-toggle").click();
     await childA.locator(":scope > .md-section-toggle").click();
-    await expect(page.locator("#preview .md-section-anim")).toHaveCount(0);
+    await expect(previewLocator(page, ".md-section-anim")).toHaveCount(0);
 
     // Parent collapsed wins: its body (including child headings) must be hidden.
     await expect(parent).toHaveClass(/is-collapsed/);
@@ -343,7 +350,7 @@ test.describe("section fold", () => {
     await expect(childB).toBeHidden();
     await expect(bodyA).toBeHidden();
     await expect(bodyB).toBeHidden();
-    await expect(page.locator("#preview .md-section-anim")).toHaveCount(0);
+    await expect(previewLocator(page, ".md-section-anim")).toHaveCount(0);
 
     // Expand parent again; child A should still be collapsed with only its body hidden.
     await toggleSectionSettled(page, parent);

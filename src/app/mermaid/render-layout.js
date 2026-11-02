@@ -6,11 +6,39 @@ import {
   mermaidHeightCache
 } from "../state.js";
 
+/**
+ * Ensure the diagram SVG is a direct child of the Mermaid host.
+ * Mermaid's iframe-hosted `run()` can leave an empty sibling SVG next to the
+ * real diagram — keep the richest SVG, not the first match.
+ * @param {HTMLElement} el
+ * @returns {SVGElement | null}
+ */
+export function hoistMermaidDiagramSvg(el) {
+  const svgs = [...el.querySelectorAll("svg")].filter(
+    (node) => !node.closest(".mermaid-zoom-btn"),
+  );
+  if (!svgs.length) return null;
+  const svg = svgs.reduce((best, cur) =>
+    cur.querySelectorAll("*").length > best.querySelectorAll("*").length ? cur : best,
+  );
+  if (svg.parentElement !== el) {
+    // Preserve zoom controls if they were already mounted.
+    const zoomBtn = el.querySelector(":scope > .mermaid-zoom-btn");
+    el.replaceChildren(svg);
+    if (zoomBtn) el.appendChild(zoomBtn);
+  }
+  return /** @type {SVGElement} */ (svg);
+}
+
 export function syncMermaidSvgSizes() {
   let needsRelayout = false;
   let hasDeferredPending = false;
   for (const host of preview.querySelectorAll(".mermaid")) {
-    const svg = host.querySelector(":scope > svg");
+    // Do not hoist here — ResizeObserver can run mid-mermaid.run and would
+    // discard Mermaid's in-progress wrapper + SVG. Hoist only after run().
+    const svg =
+      host.querySelector(":scope > svg") ||
+      [...host.querySelectorAll("svg")].find((node) => !node.closest(".mermaid-zoom-btn"));
     if (!svg) {
       hooks.ensureMermaidZoomControls(host);
       if (
@@ -76,7 +104,17 @@ export function schedulePendingMermaidRender() {
   window.clearTimeout(state.mermaidPendingTimer);
   state.mermaidPendingTimer = window.setTimeout(() => {
     state.mermaidPendingTimer = 0;
-    void renderMermaidDiagrams();
+    void renderMermaidDiagrams().finally(() => {
+      // Layout can settle a few frames after stylesheet / splitter changes.
+      // Keep retrying while hosts remain pending and under the retry budget.
+      if (!preview?.querySelector(".mermaid[data-pending]")) {
+        state.mermaidPendingRetries = 0;
+        return;
+      }
+      state.mermaidPendingRetries = (state.mermaidPendingRetries || 0) + 1;
+      if (state.mermaidPendingRetries < 12) schedulePendingMermaidRender();
+      else state.mermaidPendingRetries = 0;
+    });
   }, 220);
 }
 
@@ -195,7 +233,13 @@ export async function renderMermaidDiagrams({ force = false } = {}) {
   const gen = state.mermaidGen;
   for (const el of all) {
     // Don't blank diagrams that already rendered (re-entry from slide change).
-    if (!el.querySelector(":scope > svg")) {
+    const existing =
+      el.querySelector(":scope > svg") ||
+      [...el.querySelectorAll("svg")].find((node) => !node.closest(".mermaid-zoom-btn"));
+    // Empty SVGs (cross-document Mermaid failures) must be retried.
+    const hasDiagram =
+      existing && existing.querySelectorAll("path, rect, polygon, circle, line, polyline, text, foreignObject").length > 0;
+    if (!hasDiagram) {
       hooks.rememberMermaidSource(el);
       el.setAttribute("data-pending", "");
     }
@@ -222,6 +266,8 @@ export async function renderMermaidDiagrams({ force = false } = {}) {
   // Defer narrow hosts (esp. gantt) — leave data-pending for resize retry.
   const nodes = candidates.filter((el) => hooks.mermaidHostWideEnough(el));
 
+  /** @type {{ el: HTMLElement, staging: HTMLElement }[]} */
+  const staged = [];
   try {
     if (nodes.length) {
       if (state.mermaidLook === "handDrawn") await hooks.ensureExcalifontLoaded();
@@ -229,11 +275,35 @@ export async function renderMermaidDiagrams({ force = false } = {}) {
       const mermaid = await hooks.loadMermaid();
       if (gen !== state.mermaidGen) return;
       mermaid.initialize(hooks.mermaidConfig());
-      await mermaid.run({ nodes, suppressErrors: true });
+      // Run Mermaid in the parent document. Rendering into the sandboxed preview
+      // iframe yields empty SVGs (layout/sanitize against a foreign Document).
+      for (const el of nodes) {
+        hooks.rememberMermaidSource(el);
+        const staging = document.createElement("div");
+        staging.className = "mermaid";
+        staging.textContent = mermaidSources.get(el) ?? "";
+        staging.style.cssText = `position:absolute;left:-99999px;top:0;width:${Math.max(el.clientWidth, 1)}px;visibility:hidden;pointer-events:none;`;
+        document.body.appendChild(staging);
+        staged.push({ el, staging });
+      }
+      await mermaid.run({
+        nodes: staged.map((s) => s.staging),
+        suppressErrors: true,
+      });
+      for (const { el, staging } of staged) {
+        const srcSvg =
+          staging.querySelector(":scope > svg") ||
+          [...staging.querySelectorAll("svg")].find((node) => !node.closest(".mermaid-zoom-btn"));
+        if (srcSvg) {
+          const adopted = /** @type {SVGElement} */ (el.ownerDocument.importNode(srcSvg, true));
+          el.replaceChildren(adopted);
+        }
+      }
     }
   } catch {
     /* invalid diagrams render into their nodes; import failures are ignored */
   } finally {
+    for (const { staging } of staged) staging.remove();
     for (const undo of restore.reverse()) undo();
   }
 
@@ -294,6 +364,7 @@ export function rerenderAllMermaidDiagrams() {
   });
 }
 
+hooks.hoistMermaidDiagramSvg = hoistMermaidDiagramSvg;
 hooks.syncMermaidSvgSizes = syncMermaidSvgSizes;
 hooks.scheduleMermaidScale = scheduleMermaidScale;
 hooks.schedulePendingMermaidRender = schedulePendingMermaidRender;

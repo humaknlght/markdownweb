@@ -43,7 +43,7 @@ export function updateEditorHighlight() {
     `${decorateEmbedTokens(html)}\n`,
     { ALLOWED_TAGS: ["span"], ALLOWED_ATTR: ["class"] },
   );
-  syncEditorHighlightScroll();
+  syncEditorHighlightScroll({ insets: true });
 }
 
 /** Mark collapsed data-URI tokens so they read as a single truncated chip. */
@@ -62,20 +62,39 @@ export function scheduleEditorHighlight() {
   });
 }
 
-export function syncEditorHighlightScroll() {
-  // Match the textarea content box so wrapping stays aligned when a scrollbar
-  // occupies space (non-overlay scrollbars on Windows/Linux).
-  const dx = editor.offsetWidth - editor.clientWidth;
-  const dy = editor.offsetHeight - editor.clientHeight;
-  editorHighlight.style.inset = `0 ${dx}px ${dy}px 0`;
+/**
+ * Keep the highlight layer aligned with the textarea.
+ * `insets` measures the scrollbar gutter (forced layout). Scroll and caret
+ * moves must leave it false — that read, after a transform write, flushes the
+ * whole highlight layer and the caret skips characters while ←/→ repeats.
+ * @param {{ insets?: boolean }} [opts]
+ */
+export function syncEditorHighlightScroll({ insets = false } = {}) {
+  if (insets) {
+    // Match the textarea content box so wrapping stays aligned when a scrollbar
+    // occupies space (non-overlay scrollbars on Windows/Linux).
+    const dx = editor.offsetWidth - editor.clientWidth;
+    const dy = editor.offsetHeight - editor.clientHeight;
+    if (dx !== state.highlightInsetX || dy !== state.highlightInsetY) {
+      state.highlightInsetX = dx;
+      state.highlightInsetY = dy;
+      editorHighlight.style.inset = `0 ${dx}px ${dy}px 0`;
+    }
+  }
+  const left = editor.scrollLeft;
+  const top = editor.scrollTop;
+  if (left === state.highlightSyncLeft && top === state.highlightSyncTop) return;
+  state.highlightSyncLeft = left;
+  state.highlightSyncTop = top;
   // Translate the highlight content instead of scrolling the layer — keeps
   // browser Find from moving a second scrollport out of sync with #editor.
-  editorHighlightCode.style.transform = `translate(${-editor.scrollLeft}px, ${-editor.scrollTop}px)`;
+  editorHighlightCode.style.transform = `translate(${-left}px, ${-top}px)`;
 }
 
 export function setEditorValue(text) {
   editor.value = collapseDataUris(text ?? "");
   collapsedSections.clear();
+  hooks.invalidateCaretLineCache?.();
   scheduleEditorHighlight();
 }
 

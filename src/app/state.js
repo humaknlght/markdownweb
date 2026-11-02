@@ -4,7 +4,18 @@ import { DRIVE_DEFAULT_FOLDER_NAME } from "../drive/google-drive.js";
 export const editor = document.getElementById("editor");
 export const editorHighlight = document.getElementById("editor-highlight");
 export const editorHighlightCode = editorHighlight.querySelector("code");
-export const preview = document.getElementById("preview");
+/** Sandboxed frame that hosts the rendered Markdown article. */
+export const previewFrame = document.getElementById("preview-frame");
+/**
+ * Inner `#preview` article inside {@link previewFrame}.
+ * Null until `initPreviewFrame()` runs; live ESM binding updates importers.
+ * @type {HTMLElement | null}
+ */
+export let preview = null;
+/** @param {HTMLElement | null} el */
+export function setPreviewElement(el) {
+  preview = el;
+}
 export const panes = document.getElementById("panes");
 export const splitter = document.getElementById("splitter");
 export const themeSelect = document.getElementById("theme-select");
@@ -256,8 +267,25 @@ export const state = {
   syncScrollDriver: null,
   syncScrollUnlockTimer: 0,
   scrollAnchors: null,
+  /** Editor line tops captured while building {@link scrollAnchors}. */
+  editorLineTops: null,
   lineMirror: null,
   caretRevealRaf: 0,
+  /** Last editor line that triggered preview caret-reveal (skip same-line repeats). */
+  lastCaretRevealLine: 0,
+  /** Incremental cache for editorCaretLine() during arrow-key holds. */
+  caretLineCachePos: -1,
+  caretLineCacheLine: 1,
+  /** Last seen editor.scrollTop — horizontal-only scrolls skip vertical sync. */
+  lastEditorScrollTop: -1,
+  /** selectionStart at the previous `select` — same-line repeats skip reveal. */
+  lastSelectPos: -1,
+  /** Last highlight transform applied, so unchanged scrolls do not write style. */
+  highlightSyncLeft: -1,
+  highlightSyncTop: -1,
+  /** Scrollbar gutter last written onto the highlight layer. -1 = not yet measured. */
+  highlightInsetX: -1,
+  highlightInsetY: -1,
   mermaidModule: undefined,
   svg2roughModule: undefined,
   mermaidGen: 0,
@@ -266,6 +294,8 @@ export const state = {
   mermaidScaleRaf: 0,
   mermaidRelayoutTimer: 0,
   mermaidPendingTimer: 0,
+  /** Retries while Mermaid hosts stay `data-pending` after a width recovery. */
+  mermaidPendingRetries: 0,
   /** @type {number} */
   mermaidZoomFactor: 1,
   /** @type {number} */

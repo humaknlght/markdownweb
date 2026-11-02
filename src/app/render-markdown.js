@@ -1,8 +1,10 @@
 import { hooks } from "./hooks.js";
 import {
   state,
-  preview
+  preview,
+  mermaidSources
 } from "./state.js";
+import { morphPreviewHtml } from "./preview-morph.js";
 import {
   RENDER_DEBOUNCE_MS,
   RENDER_LOADING_EAGER_CHARS
@@ -48,9 +50,9 @@ export async function renderMarkdown(source, options = {}) {
   // Skip both on quiet language-load re-paints so a finished preview is not
   // cleared / covered again when a fence grammar arrives.
   if (!skipLoadingUi) {
-    if (large) {
-      // Clear the previous document so it is not visible under the spinner.
-      hooks.clearPreviewContent();
+    // First paint of a large doc has nothing to keep on screen. Later keystrokes
+    // morph the existing DOM, so blanking it here would flash the preview.
+    if (large && preview.childNodes.length === 0) {
       hooks.beginRenderLoading({ eager: true });
       await hooks.yieldToPaint();
       if (gen !== state.paintGen) return;
@@ -112,10 +114,12 @@ export function paintMarkdown(source, gen = state.paintGen) {
     // re-paint them (that collapse was hiding newly added preview text).
     const mermaidReuse = hooks.takeMermaidRenderReuse();
     state.mermaidGen += 1;
-    preview.innerHTML = clean;
+    morphPreviewHtml(preview, clean, (el) => mermaidSources.get(el));
     hooks.restoreMermaidRenders(mermaidReuse);
     hooks.addCodeLineNumbers(preview);
     hooks.enhanceSectionToggles();
+    hooks.bindPreviewMediaHeightSettle?.(preview);
+    hooks.schedulePreviewFrameHeight?.();
     if (hooks.isSlideNavView()) {
       hooks.buildPresentSections();
       hooks.showPresentSection(state.presentIndex);
@@ -135,6 +139,8 @@ export function paintMarkdown(source, gen = state.paintGen) {
         hooks.buildPresentSections();
         hooks.showPresentSection(state.presentIndex);
       }
+      hooks.bindPreviewMediaHeightSettle?.(preview);
+      hooks.schedulePreviewFrameHeight?.();
       hooks.invalidateScrollAnchors();
       hooks.beginSyncDriver("editor");
       hooks.syncPreviewFromEditor();

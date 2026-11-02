@@ -111,7 +111,9 @@ export function setupBootCoreListeners() {
   });
   viewModeMenu?.addEventListener("click", hooks.onViewModeMenuClick);
   presentViewBtn?.addEventListener("click", hooks.enterPresentMode);
-  printBtn?.addEventListener("click", () => window.print());
+  printBtn?.addEventListener("click", () => {
+    void hooks.printPreviewDocument();
+  });
   helpBtn?.addEventListener("click", (e) => {
     // Keep modified / middle clicks as real navigation (new tab).
     if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) {
@@ -146,9 +148,15 @@ export function setupBootCoreListeners() {
   editor.addEventListener(
     "scroll",
     () => {
+      // Highlight layer must track both axes; vertical sync-scroll must not.
+      hooks.syncEditorHighlightScroll();
+      const top = editor.scrollTop;
+      // Holding ←/→ on a long wrap-off line only changes scrollLeft. Rebuilding
+      // preview anchors (measureEditorLineTops) on every repeat stalls the caret.
+      if (top === state.lastEditorScrollTop) return;
+      state.lastEditorScrollTop = top;
       // Ignore echo scrolls from preview-driven sync so outline stays on the preview section.
       if (state.syncScrollDriver !== "preview") state.outlineScrollSource = "editor";
-      hooks.syncEditorHighlightScroll();
       hooks.syncPreviewFromEditor();
       hooks.scheduleOutlineHighlight();
     },
@@ -199,12 +207,20 @@ export function setupBootCoreListeners() {
     state.outlineScrollSource = "editor";
     // Browser Find scrolls the textarea to the match; that scroll is not always
     // accompanied by a "scroll" event, so re-align the highlight layer here.
+    // Transform only — a layout read on this path stalls the caret (see
+    // syncEditorHighlightScroll).
     hooks.syncEditorHighlightScroll();
+    const pos = editor.selectionStart;
+    const prev = state.lastSelectPos;
+    state.lastSelectPos = pos;
+    // Holding ←/→ fires `select` per character. Same-line moves must not
+    // schedule outline or preview work; that keeps the caret from painting.
+    if (prev >= 0 && !hooks.selectionDeltaCrossesLine(prev, pos)) return;
     hooks.scheduleRevealPreviewForCaret();
   });
   if (typeof ResizeObserver === "function") {
     const ro = new ResizeObserver(() => {
-      hooks.syncEditorHighlightScroll();
+      hooks.syncEditorHighlightScroll({ insets: true });
       hooks.invalidateScrollAnchors();
       hooks.scheduleMermaidScale();
       if (state.syncScrollEnabled) {
@@ -216,6 +232,10 @@ export function setupBootCoreListeners() {
     ro.observe(previewPane);
     if (aiProofEditor) ro.observe(aiProofEditor);
   }
+  window.addEventListener("resize", () => {
+    hooks.scheduleMermaidScale();
+    hooks.schedulePreviewFrameHeight?.();
+  });
 }
 
 hooks.setupBootCoreListeners = setupBootCoreListeners;

@@ -2,6 +2,8 @@
 
 Markdown Editor is a client-side app. Markdown is rendered in the browser; this project does not run a server that stores or processes document contents.
 
+Accepted Markdown is painted into a sandboxed preview iframe (`allow-same-origin` + `allow-popups`, without `allow-scripts`) with its own Content Security Policy that blocks scripts and remote subresources. DOMPurify and remote-media stripping remain defense in depth.
+
 ## Supported versions
 
 Security fixes are applied on the default branch and deployed to [https://dev.ericperret.org/markdown/](https://dev.ericperret.org/markdown/). There are no maintained older releases.
@@ -38,6 +40,7 @@ In scope:
 
 - Cross-site scripting or HTML injection that runs in the preview or the page after sanitization
 - Content Security Policy bypasses in the shipped headers or production build
+- Escape from the sandboxed preview iframe (`allow-same-origin` without `allow-scripts`) into the app chrome, or preview-document CSP bypasses that load remote subresources
 - Share-link or file-open handling that runs or keeps untrusted Markdown without the external-content prompt
 - Service worker behavior that can serve attacker-controlled cached content
 - Subresource Integrity or import-map checks that allow a script outside the intended allowlist

@@ -1,11 +1,16 @@
 import { test, expect } from "playwright/test";
-import { openFreshApp, headingText, openSettings } from "./helpers.js";
+import {
+  openFreshApp,
+  headingText,
+  openSettings,
+  previewLocator
+} from "./helpers.js";
 
 test.describe("layout / speech / print", () => {
   test("collapsing the editor leaves the preview visible", async ({ page }) => {
     await openFreshApp(page);
     await page.locator("#editor").fill("# Hi\n\nBody");
-    await expect.poll(async () => headingText(page.locator("#preview h1"))).toBe("Hi");
+    await expect.poll(async () => headingText(previewLocator(page, "h1"))).toBe("Hi");
 
     await page.locator("#collapse-editor").click();
     await expect(page.locator("#panes")).toHaveClass(/editor-collapsed/);
@@ -26,7 +31,7 @@ test.describe("layout / speech / print", () => {
   test("speak button toggles with stubbed speechSynthesis", async ({ page }) => {
     await openFreshApp(page);
     await page.locator("#editor").fill("# Speak\n\nHello world from the preview.");
-    await expect.poll(async () => headingText(page.locator("#preview h1"))).toBe("Speak");
+    await expect.poll(async () => headingText(previewLocator(page, "h1"))).toBe("Speak");
 
     const speak = page.locator("#speak-btn");
     await expect(speak).toBeVisible();
@@ -39,7 +44,7 @@ test.describe("layout / speech / print", () => {
   test("cloud-only voices confirm before read-aloud starts", async ({ page }) => {
     await openFreshApp(page, "/", { cloudOnly: true });
     await page.locator("#editor").fill("# Speak\n\nHello from a cloud voice.");
-    await expect.poll(async () => headingText(page.locator("#preview h1"))).toBe("Speak");
+    await expect.poll(async () => headingText(previewLocator(page, "h1"))).toBe("Speak");
 
     const speak = page.locator("#speak-btn");
     const modal = page.locator("#cloud-speech-modal");

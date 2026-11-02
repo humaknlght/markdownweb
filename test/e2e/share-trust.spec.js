@@ -4,6 +4,7 @@ import {
   waitForAppReady,
   preparePage,
   headingText,
+  previewLocator
 } from "./helpers.js";
 
 async function compressToMdz(text) {
@@ -25,7 +26,7 @@ test.describe("share + trust modal", () => {
 
     await expect(page.locator("html")).toHaveAttribute("data-view", "edit");
     await expect(page.locator("#external-modal")).toBeVisible();
-    await expect(page.locator("#preview")).toContainText(
+    await expect(previewLocator(page)).toContainText(
       "Preview is paused until you accept this content.",
     );
     await expect(page.locator("#editor")).toHaveValue(markdown);
@@ -40,7 +41,7 @@ test.describe("share + trust modal", () => {
 
     await page.locator("#external-modal .external-modal-accept").click();
     await expect(page.locator("#external-modal")).toBeHidden();
-    expect(await headingText(page.locator("#preview h1"))).toBe("Accept Me");
+    expect(await headingText(previewLocator(page, "h1"))).toBe("Accept Me");
     await expect(page).not.toHaveURL(/mdz=/);
   });
 
