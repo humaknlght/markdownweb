@@ -6,7 +6,7 @@ Accepted Markdown is painted into a sandboxed preview iframe (`allow-same-origin
 
 ## Supported versions
 
-Security fixes are applied on the default branch and deployed to [https://dev.ericperret.org/markdown/](https://dev.ericperret.org/markdown/). There are no maintained older releases.
+Security fixes are applied on the default branch and deployed to [https://markdown.ericperret.org/](https://markdown.ericperret.org/). There are no maintained older releases.
 
 | Version | Supported |
 | --- | --- |

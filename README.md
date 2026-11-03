@@ -4,7 +4,7 @@
 
 A fast, client-side Markdown editor. Paste upload, or open Markdown and see rendered HTML beside it. Everything runs in the browser — no server processing.
 
-**Try it:** [https://dev.ericperret.org/markdown/](https://dev.ericperret.org/markdown/)
+**Try it:** [https://markdown.ericperret.org/](https://markdown.ericperret.org/)
 
 ![Markdown Editor — split editor and live HTML preview with Mermaid and GitHub alerts](docs/screenshot.png)
 
@@ -144,7 +144,7 @@ Optional dedicated APIs (when still exposed behind flags):
 
 Also enable **Optimization Guide On Device Model** if prompted, and check `chrome://on-device-internals` for model download status. Hardware requirements apply (desktop OS, sufficient RAM/storage/GPU or CPU cores).
 
-### Production ([https://dev.ericperret.org/markdown/](https://dev.ericperret.org/markdown/))
+### Production ([https://markdown.ericperret.org/](https://markdown.ericperret.org/))
 
 With Chrome 148+, the Prompt API is available on the open web (no origin trial). Older Writer / Rewriter / Proofreader origin trials have ended; those dedicated APIs are used automatically when Chrome exposes them.
 

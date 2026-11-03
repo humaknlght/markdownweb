@@ -3,7 +3,7 @@ import { extractFrontmatter } from "../markdown/frontmatter.js";
 import { installSafeMediaHooks } from "./safe-media-uri.js";
 
 /** Generator / provenance stamped into every export. */
-export const GENERATOR_URL = "https://dev.ericperret.org/markdown/";
+export const GENERATOR_URL = "https://markdown.ericperret.org/";
 
 /** @type {WeakSet<object>} */
 const purifyMediaHooksInstalled = new WeakSet();
