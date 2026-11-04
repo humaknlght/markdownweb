@@ -34,7 +34,35 @@ import {
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { usedIdents } from "../../scripts/trim-unused-imports.mjs";
+import { minifyPreviewFrameDocWrite } from "../../scripts/minify-preview-frame-html.mjs";
+
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+
+describe("minify-preview-frame-html.mjs", () => {
+  it("minifies the doc.write HTML shell and keeps interpolations", async () => {
+    const src = await fs.readFile(
+      path.join(repoRoot, "src/app/preview-frame.js"),
+      "utf8",
+    );
+    const out = await minifyPreviewFrameDocWrite(src);
+    const before = src.match(/doc\.write\(`([\s\S]*?)`\);/)?.[1] ?? "";
+    const after = out.match(/doc\.write\(`([\s\S]*?)`\);/)?.[1] ?? "";
+    assert.ok(after.length < before.length);
+    assert.match(after, /\$\{PREVIEW_FRAME_CSP\}/);
+    assert.match(after, /\$\{cssHref\}/);
+    assert.doesNotMatch(after, /Shared styles\.css/);
+    assert.match(after, /id="preview"/);
+  });
+
+  it("throws when the template is missing", async () => {
+    await assert.rejects(
+      () => minifyPreviewFrameDocWrite("export function init() {}"),
+      /expected doc\.write/,
+    );
+  });
+});
 
 describe("trim-unused-imports.mjs", () => {
   it("counts identifiers inside template literal expressions", () => {
