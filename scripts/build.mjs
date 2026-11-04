@@ -31,6 +31,7 @@ import {
 import { applyCdnIntegrity, loadCdnIntegrity } from "./cdn-integrity.mjs";
 import { copyGuideTo } from "./sync-guide.mjs";
 import { createStateHooksManglePlugin } from "./mangle-state-hooks.mjs";
+import { minifyPreviewFrameDocWrite } from "./minify-preview-frame-html.mjs";
 
 const zopfliGzipAsync = promisify(zopfliGzip);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -181,6 +182,12 @@ async function buildCss(fancyFileName) {
 async function buildJs(guideUrl, dropsUrl, zenCssUrl) {
   const mangleStateHooks = await createStateHooksManglePlugin(
     path.join(srcDir, "app"),
+    {
+      postprocess: async (file, contents) => {
+        if (path.basename(file) !== "preview-frame.js") return contents;
+        return minifyPreviewFrameDocWrite(contents);
+      },
+    },
   );
   const result = await esbuild.build({
     entryPoints: [

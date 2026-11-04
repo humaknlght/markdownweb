@@ -42,7 +42,7 @@ export const PREVIEW_FRAME_CSP = [
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob:",
   "media-src 'self' data: blob:",
-  "font-src 'self' https://cdn.jsdelivr.net",
+  "font-src https://cdn.jsdelivr.net",
   "base-uri 'none'",
   "form-action 'none'",
 ].join("; ");

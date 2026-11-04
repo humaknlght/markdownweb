@@ -536,8 +536,10 @@ export function rewriteHooksToDirectImports(file, src, registry, appDir) {
 
 /**
  * @param {string} appDir absolute path to src/app
+ * @param {{ postprocess?: (file: string, contents: string) => string | Promise<string> }} [opts]
  */
-export async function createStateHooksManglePlugin(appDir) {
+export async function createStateHooksManglePlugin(appDir, opts = {}) {
+  const { postprocess } = opts;
   const registry = await collectHooksRegistry(appDir);
   const stateProps = new Set();
   // State props only (hooks are de-virtualized below).
@@ -577,9 +579,10 @@ export async function createStateHooksManglePlugin(appDir) {
         src = rewriteHooksToDirectImports(file, src, registry, appDirResolved);
         src = stripUnreferencedExports(src, keepExport);
         const isState = path.basename(file) === "state.js";
-        const contents = mangleStateHooksSource(src, map, {
+        let contents = mangleStateHooksSource(src, map, {
           mangleStateObjectKeys: isState,
         });
+        if (postprocess) contents = await postprocess(file, contents);
         return { contents, loader: "js" };
       });
     },
