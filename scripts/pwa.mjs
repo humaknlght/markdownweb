@@ -78,7 +78,7 @@ export function buildManifest(iconNames) {
       name: "Markdown Editor",
       short_name: "MD Editor",
       description:
-        "Paste or upload Markdown and see a live HTML preview in your browser.",
+        "Edit Markdown with a live HTML preview. Mermaid diagrams, themes, share links, and optional Drive or Gist. Everything runs securely in your browser.",
       id: "./",
       start_url: "./?source=pwa",
       scope: "./",
