@@ -19,6 +19,8 @@ export const STORAGE_KEYS = {
   currentFile: "md-editor:currentFile",
   currentFilePath: "md-editor:currentFilePath",
   savedSnapshot: "md-editor:savedSnapshot",
+  /** After first visit, early boot hides `.site-intro` before paint. */
+  siteIntroSeen: "md-editor:site-intro-seen",
 };
 
 export const HISTORY_LIMIT = 20;
