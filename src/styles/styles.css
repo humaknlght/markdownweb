@@ -1043,7 +1043,7 @@ html.site-intro-seen .site-intro {
 }
 
 /*
- * Single overflow panel at every width. Desktop: Theme/Width/Diagrams/Print/Help/Bug.
+ * Single overflow panel at every width. Desktop: Theme/Width/Diagrams/Print/Help/Bug/Privacy.
  * Narrow: JS moves #toolbar-bar in first, so the same panel holds everything.
  */
 .toolbar-actions {
