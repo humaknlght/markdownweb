@@ -211,7 +211,7 @@ FileETag MTime Size
     Header always set Cross-Origin-Embedder-Policy "require-corp" env=!IS_DRIVE_HELPER
     Header set X-Content-Type-Options "nosniff" env=!IS_DRIVE_HELPER
     Header always set Referrer-Policy "strict-origin-when-cross-origin" env=!IS_DRIVE_HELPER
-    # Chrome Writing Assistance origin trials for https://dev.ericperret.org
+    # Chrome Writing Assistance origin trials for https://markdown.ericperret.org
     # Register Writer/Rewriter + Proofreader, then uncomment and paste tokens
     # (use `add`, not `set`, so both headers are sent):
     # Header always add Origin-Trial "WRITER_REWRITER_TOKEN"

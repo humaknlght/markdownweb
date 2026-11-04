@@ -12,7 +12,7 @@ body:
     attributes:
       label: Where did you see it?
       description: Hosted URL, local `npm run dev`, or installed PWA.
-      placeholder: https://dev.ericperret.org/markdown/
+      placeholder: https://markdown.ericperret.org/
     validations:
       required: true
   - type: input

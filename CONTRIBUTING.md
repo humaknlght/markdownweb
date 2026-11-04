@@ -63,7 +63,7 @@ Drive is **off** until the host provides credentials. Each deployment needs its 
 3. Create an **OAuth 2.0 Client ID** (application type: Web application).
    - Authorized JavaScript origins: your prod origin and, for local work, `https://127.0.0.1:3456`.
    - Authorized redirect URIs (exact match required, including the trailing slash), for example:
-     - `https://dev.ericperret.org/markdown/drive-helper/`
+     - `https://markdown.ericperret.org/drive-helper/`
      - `https://127.0.0.1:3456/drive-helper/`
 4. Copy the example and set `clientId` (this file is gitignored):
 
@@ -83,7 +83,7 @@ If the file is missing or `clientId` is empty, Drive buttons stay hidden. Do not
 
 Sign-in runs in `drive-helper/` via an **OAuth 2.0 implicit grant** (`response_type=token`: Google returns a short-lived access token in the URL fragment; no `gsi/client` script, no client secret, and **no host-side token-exchange proxy** so the static server never sees the token). After Connect, the access token is kept **in memory only** (not written to `sessionStorage`, so XSS cannot scrape a stored copy). When WebAuthn **PRF** is available, the token is also **sealed** with AES-GCM into `localStorage` (ciphertext only); refresh / cold start / new tab uses **Unlock Drive** + passkey. Without PRF, refresh or closing the tab requires **Connect** again. Legacy IndexedDB silent vaults and any leftover plaintext session key are purged. **Disconnect** clears memory + sealed storage. Own `.htaccess` / SW bypass keep headers sane; `Permissions-Policy` allows `publickey-credentials-create|get` for `self`. The files drawer lists, opens, and saves under the **/markdown-editor** folder (including subfolders) via Drive REST on the main page. Scope: `drive.file`. The Drive folder name on Google’s side remains `markdown-editor`.
 
-For OAuth branding / verification, the hosted privacy policy is `privacy.html` (for example `https://dev.ericperret.org/markdown/privacy.html`).
+For OAuth branding / verification, the hosted privacy policy is `privacy.html` (for example `https://markdown.ericperret.org/privacy.html`).
 
 ## GitHub Gist (optional)
 
