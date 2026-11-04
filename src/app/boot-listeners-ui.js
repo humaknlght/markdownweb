@@ -22,6 +22,126 @@ import {
 } from "./state.js";
 import { NARROW_MQ } from "./constants.js";
 
+/**
+ * App-wide keyboard shortcuts. Also invoked from the preview iframe bridge —
+ * parent `document` listeners never see keys while that frame is focused.
+ * @param {KeyboardEvent} e
+ */
+export function handleAppKeydown(e) {
+  // Native <dialog showModal()> traps focus; still block app shortcuts while open.
+  if (hooks.isExternalModalOpen()) {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    return;
+  }
+  if (mermaidZoomDialog?.open) {
+    // Zoom dialog owns Escape / +/- ; skip app shortcuts (incl. present nav).
+    return;
+  }
+  if (hooks.setupChromeAi.isDialogOpen?.()) {
+    // Let the dialog handle Escape; skip app-level shortcuts.
+    return;
+  }
+
+  if ((e.metaKey || e.ctrlKey) && (e.code === "KeyS" || e.key.toLowerCase() === "s")) {
+    if (hooks.canSaveDocument() && hooks.isAuthoringView()) {
+      e.preventDefault();
+      void hooks.saveCurrentDocument();
+    }
+    return;
+  }
+
+  // Prefer e.code so layout/IME quirks do not drop Cmd/Ctrl+O. Skip key-repeat
+  // so holding the chord cannot stack pickers ("File picker already active").
+  if (
+    (e.metaKey || e.ctrlKey) &&
+    !e.altKey &&
+    !e.shiftKey &&
+    !e.repeat &&
+    (e.code === "KeyO" || e.key.toLowerCase() === "o") &&
+    !hooks.isDriveFilesSource() &&
+    !hooks.isGistFilesSource()
+  ) {
+    e.preventDefault();
+    // Use the gesture window (preview iframe when focused) so showOpenFilePicker
+    // still sees transient user activation.
+    void hooks.openLocalFileChooser({ pickerWindow: e.view || window });
+    return;
+  }
+
+  if (
+    (e.metaKey || e.ctrlKey) &&
+    !e.altKey &&
+    !e.shiftKey &&
+    document.activeElement === editor &&
+    hooks.isAuthoringView()
+  ) {
+    const key = e.key.toLowerCase();
+    if (key === "b") {
+      e.preventDefault();
+      hooks.runFormatAction("bold");
+      return;
+    }
+    if (key === "i") {
+      e.preventDefault();
+      hooks.runFormatAction("italic");
+      return;
+    }
+    if (key === "k") {
+      e.preventDefault();
+      hooks.runFormatAction("link");
+      return;
+    }
+  }
+
+  if (hooks.isSlideNavView()) {
+    if (e.key === "Escape") {
+      // Menus first — don't exit slides/present while an overlay is open.
+      if (hooks.dismissOpenOverlay()) {
+        e.preventDefault();
+        return;
+      }
+      hooks.exitPresentMode();
+      e.preventDefault();
+      return;
+    }
+    // Don't steal Space/arrows from buttons, menus, selects, tree, splitter, etc.
+    if (hooks.isSlideNavTypingOrControl(document.activeElement)) return;
+    if (e.key === "ArrowRight" || e.key === "ArrowDown" || e.key === " " || e.key === "PageDown") {
+      hooks.presentNext();
+      e.preventDefault();
+      return;
+    }
+    if (e.key === "ArrowLeft" || e.key === "ArrowUp" || e.key === "PageUp") {
+      hooks.presentPrev();
+      e.preventDefault();
+      return;
+    }
+    if (e.key === "Home") {
+      hooks.showPresentSection(0);
+      hooks.syncEditorToPresentSection();
+      e.preventDefault();
+      return;
+    }
+    if (e.key === "End") {
+      hooks.showPresentSection(state.presentSections.length - 1);
+      hooks.syncEditorToPresentSection();
+      e.preventDefault();
+      return;
+    }
+  }
+
+  if (e.key === "Escape") {
+    if (hooks.dismissOpenOverlay()) {
+      e.preventDefault();
+      return;
+    }
+    if (state.speechActive) hooks.stopSpeaking();
+  }
+}
+
 export function setupBootUiListeners() {
   historyBtn.addEventListener("click", (e) => {
     e.stopPropagation();
@@ -123,113 +243,7 @@ export function setupBootUiListeners() {
   });
 
   document.addEventListener("keydown", (e) => {
-    // Native <dialog showModal()> traps focus; still block app shortcuts while open.
-    if (hooks.isExternalModalOpen()) {
-      if (e.key === "Escape") {
-        e.preventDefault();
-        e.stopPropagation();
-      }
-      return;
-    }
-    if (mermaidZoomDialog?.open) {
-      // Zoom dialog owns Escape / +/- ; skip app shortcuts (incl. present nav).
-      return;
-    }
-    if (hooks.setupChromeAi.isDialogOpen?.()) {
-      // Let the dialog handle Escape; skip app-level shortcuts.
-      return;
-    }
-
-    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") {
-      if (hooks.canSaveDocument() && hooks.isAuthoringView()) {
-        e.preventDefault();
-        void hooks.saveCurrentDocument();
-      }
-      return;
-    }
-
-    if (
-      (e.metaKey || e.ctrlKey) &&
-      !e.altKey &&
-      !e.shiftKey &&
-      e.key.toLowerCase() === "o" &&
-      !hooks.isDriveFilesSource() &&
-      !hooks.isGistFilesSource()
-    ) {
-      e.preventDefault();
-      void hooks.openLocalFileChooser();
-      return;
-    }
-
-    if (
-      (e.metaKey || e.ctrlKey) &&
-      !e.altKey &&
-      !e.shiftKey &&
-      document.activeElement === editor &&
-      hooks.isAuthoringView()
-    ) {
-      const key = e.key.toLowerCase();
-      if (key === "b") {
-        e.preventDefault();
-        hooks.runFormatAction("bold");
-        return;
-      }
-      if (key === "i") {
-        e.preventDefault();
-        hooks.runFormatAction("italic");
-        return;
-      }
-      if (key === "k") {
-        e.preventDefault();
-        hooks.runFormatAction("link");
-        return;
-      }
-    }
-
-    if (hooks.isSlideNavView()) {
-      if (e.key === "Escape") {
-        // Menus first — don't exit slides/present while an overlay is open.
-        if (hooks.dismissOpenOverlay()) {
-          e.preventDefault();
-          return;
-        }
-        hooks.exitPresentMode();
-        e.preventDefault();
-        return;
-      }
-      // Don't steal Space/arrows from buttons, menus, selects, tree, splitter, etc.
-      if (hooks.isSlideNavTypingOrControl(document.activeElement)) return;
-      if (e.key === "ArrowRight" || e.key === "ArrowDown" || e.key === " " || e.key === "PageDown") {
-        hooks.presentNext();
-        e.preventDefault();
-        return;
-      }
-      if (e.key === "ArrowLeft" || e.key === "ArrowUp" || e.key === "PageUp") {
-        hooks.presentPrev();
-        e.preventDefault();
-        return;
-      }
-      if (e.key === "Home") {
-        hooks.showPresentSection(0);
-        hooks.syncEditorToPresentSection();
-        e.preventDefault();
-        return;
-      }
-      if (e.key === "End") {
-        hooks.showPresentSection(state.presentSections.length - 1);
-        hooks.syncEditorToPresentSection();
-        e.preventDefault();
-        return;
-      }
-    }
-
-    if (e.key === "Escape") {
-      if (hooks.dismissOpenOverlay()) {
-        e.preventDefault();
-        return;
-      }
-      if (state.speechActive) hooks.stopSpeaking();
-    }
+    hooks.handleAppKeydown(e);
   });
 
   window.addEventListener("beforeunload", (e) => {
@@ -246,4 +260,5 @@ export function setupBootUiListeners() {
   });
 }
 
+hooks.handleAppKeydown = handleAppKeydown;
 hooks.setupBootUiListeners = setupBootUiListeners;

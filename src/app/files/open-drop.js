@@ -51,18 +51,25 @@ export function handleFile(file) {
 
 /**
  * Open via showOpenFilePicker when available; otherwise fall back to the file input.
+ * Opens the picker before any discard confirm so a dirty `window.confirm()` cannot
+ * consume the transient user activation Chromium requires.
+ * @param {{ pickerWindow?: Window }} [options]
  */
-export async function openLocalFileChooser() {
-  if (typeof window.showOpenFilePicker === "function") {
+export async function openLocalFileChooser(options = {}) {
+  const pickerWindow = options.pickerWindow || window;
+  const canUsePicker =
+    typeof pickerWindow.showOpenFilePicker === "function" ||
+    typeof window.showOpenFilePicker === "function";
+  if (canUsePicker) {
     try {
-      if (!hooks.confirmDiscardIfDirty()) return;
-      const picked = await openWithPicker();
+      const picked = await openWithPicker(pickerWindow);
       if (!picked) return;
       const name = picked.handle.name || "";
       if (!TEXT_FILE_RE.test(name)) {
         hooks.showToast("Only Markdown, text, or HTML files are supported");
         return;
       }
+      if (!hooks.confirmDiscardIfDirty()) return;
       loadExternalLocalFile({
         text: picked.text,
         name,

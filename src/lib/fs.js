@@ -425,11 +425,24 @@ function editableAcceptTypes() {
 
 /**
  * Open via the system file picker (File System Access API).
+ * Must be called from a user-gesture window (keydown/click). When the preview
+ * iframe is focused, pass that frame's `contentWindow` — activation does not
+ * propagate to the parent.
+ * @param {Window} [pickerWindow]
  * @returns {Promise<{ handle: FileSystemFileHandle, text: string, lastModified: number }|null>}
  */
-export async function openWithPicker() {
-  if (typeof window.showOpenFilePicker !== "function") return null;
-  const [handle] = await window.showOpenFilePicker({
+export async function openWithPicker(pickerWindow = window) {
+  const gestureWin = pickerWindow || window;
+  // Prefer the gesture window so Chromium sees transient activation; fall back
+  // to the parent (e.g. tests that only mock the top window).
+  const showPicker =
+    typeof gestureWin.showOpenFilePicker === "function"
+      ? gestureWin.showOpenFilePicker.bind(gestureWin)
+      : typeof window.showOpenFilePicker === "function"
+        ? window.showOpenFilePicker.bind(window)
+        : null;
+  if (!showPicker) return null;
+  const [handle] = await showPicker({
     multiple: false,
     types: [
       {

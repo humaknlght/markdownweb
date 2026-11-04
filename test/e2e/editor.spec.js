@@ -147,6 +147,54 @@ test.describe("editor + render", () => {
     await expect(page.locator("#save-btn")).not.toHaveClass(/is-dirty/);
   });
 
+  test("Cmd/Ctrl+O opens a file even when the preview iframe is focused", async ({ page }) => {
+    await page.addInitScript(() => {
+      window.__mdShortcutOpens = 0;
+      window.showOpenFilePicker = async () => {
+        window.__mdShortcutOpens += 1;
+        const handle = {
+          kind: "file",
+          name: "shortcut.md",
+          queryPermission: async () => "granted",
+          requestPermission: async () => "granted",
+          getFile: async () => {
+            const blob = new Blob(["# Shortcut open\n"], { type: "text/markdown" });
+            return new File([blob], "shortcut.md", {
+              type: "text/markdown",
+              lastModified: 1_700_000_000_000,
+            });
+          },
+        };
+        return [handle];
+      };
+    });
+
+    page.on("dialog", (dialog) => dialog.accept());
+
+    await openFreshApp(page);
+    await page.locator("#editor").fill("# Preview focus\n\nClick me.");
+    await expect.poll(async () => headingText(previewLocator(page, "h1"))).toBe("Preview focus");
+
+    // Gesture window is the iframe; mirror the mock so we do not hit the native
+    // headless picker (which aborts and looks like a no-op).
+    await page.evaluate(() => {
+      const frame = document.getElementById("preview-frame");
+      if (frame?.contentWindow) {
+        frame.contentWindow.showOpenFilePicker = window.showOpenFilePicker;
+      }
+    });
+
+    // Clicking rendered preview focuses the sandboxed iframe; parent keydown
+    // alone would miss the shortcut without the input bridge.
+    await previewLocator(page, "h1").click();
+    await page.keyboard.press(process.platform === "darwin" ? "Meta+o" : "Control+o");
+
+    await expect
+      .poll(async () => page.evaluate(() => window.__mdShortcutOpens))
+      .toBeGreaterThan(0);
+    await expect(page.locator("#editor")).toHaveValue(/# Shortcut open/);
+  });
+
   test("Save prompts when the on-disk file changed and cancel skips write", async ({ page }) => {
     await page.addInitScript(() => {
       window.__mdConflictWrites = 0;
