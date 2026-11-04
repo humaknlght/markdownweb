@@ -284,9 +284,27 @@ describe("static source invariants", () => {
     assert.deepEqual(Object.keys(map.integrity).sort(), Object.keys(integrity).sort());
   });
 
+  it("robots.txt and sitemap.xml list the production indexable URLs", async () => {
+    const robots = await fs.readFile(path.join(root, "public/robots.txt"), "utf8");
+    assert.match(robots, /User-agent:\s*\*/);
+    assert.match(robots, /Disallow:\s*\/drive-helper\//);
+    assert.match(
+      robots,
+      /Sitemap:\s*https:\/\/markdown\.ericperret\.org\/sitemap\.xml/,
+    );
+    assert.doesNotMatch(robots, /dev\.ericperret\.org/);
+
+    const sitemap = await fs.readFile(path.join(root, "public/sitemap.xml"), "utf8");
+    assert.match(sitemap, /https:\/\/markdown\.ericperret\.org\//);
+    assert.match(sitemap, /https:\/\/markdown\.ericperret\.org\/privacy\.html/);
+    assert.doesNotMatch(sitemap, /drive-helper/);
+    assert.doesNotMatch(sitemap, /dev\.ericperret\.org/);
+  });
+
   it("htaccess has security and cache rules", async () => {
     const ht = await fs.readFile(path.join(root, "public/.htaccess"), "utf8");
     assert.match(ht, /DirectorySlash On/);
+    assert.match(ht, /robots\\.txt\|sitemap\\.xml/);
     assert.match(ht, /__SCRIPT_SRC__/);
     assert.match(ht, /__GUIDE_URL__/);
     assert.match(ht, /SetEnvIf Request_URI "drive-helper" IS_DRIVE_HELPER/);

@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+Disallow: /drive-helper/
+
+Sitemap: https://markdown.ericperret.org/sitemap.xml
