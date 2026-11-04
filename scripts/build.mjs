@@ -509,6 +509,15 @@ async function writeApacheConfig(scriptSrc, guideUrl, driveHelperCsp) {
     path.join(distDir, "csp.json"),
     JSON.stringify({ scriptSrc, guideUrl, driveHelperCsp }, null, 2) + "\n"
   );
+
+  await copyFile(
+    path.join(root, "public", "robots.txt"),
+    path.join(distDir, "robots.txt"),
+  );
+  await copyFile(
+    path.join(root, "public", "sitemap.xml"),
+    path.join(distDir, "sitemap.xml"),
+  );
 }
 
 async function main() {

@@ -99,9 +99,19 @@ describe("production build invariants", { timeout: 180_000 }, () => {
       assert.ok(files.some((f) => /^icon-192\.[a-f0-9]{8}\.png$/.test(f)));
       assert.ok(files.some((f) => /^GUIDE\.[a-f0-9]{8}\.md$/.test(f)));
       assert.ok(files.includes("sw.js"));
+      assert.ok(files.includes("robots.txt"));
+      assert.ok(files.includes("sitemap.xml"));
       assert.ok(!files.some((f) => /^sw\.[a-f0-9]{8}\.js$/.test(f)));
       assert.match(html, /window\.__MD_SW__="\.\/sw\.js"/);
       assert.doesNotMatch(html, /__SW_URL__/);
+
+      const robots = await fs.readFile(path.join(dist, "robots.txt"), "utf8");
+      assert.match(
+        robots,
+        /Sitemap:\s*https:\/\/markdown\.ericperret\.org\/sitemap\.xml/,
+      );
+      const sitemap = await fs.readFile(path.join(dist, "sitemap.xml"), "utf8");
+      assert.match(sitemap, /https:\/\/markdown\.ericperret\.org\/privacy\.html/);
 
       const appFile = files.find((f) => /^app\.[a-f0-9]{8}\.js$/.test(f));
       const original = await fs.readFile(path.join(dist, appFile));
