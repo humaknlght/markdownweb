@@ -660,6 +660,19 @@ html[data-theme="fancy"] .toolbar {
   box-shadow: var(--chrome-shadow);
 }
 
+html[data-theme="fancy"] .site-intro {
+  margin: 0.45rem var(--fancy-margin) 0;
+  padding: 0.45rem 0.85rem;
+  border: 1px solid var(--fancy-glass-border);
+  border-radius: 12px;
+  background: var(--fancy-glass);
+  backdrop-filter: blur(18px) saturate(1.35);
+  -webkit-backdrop-filter: blur(18px) saturate(1.35);
+  box-shadow: var(--chrome-shadow);
+  color: #f4f8fb;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.4);
+}
+
 html[data-theme="fancy"] .brand {
   color: #ffffff;
   text-shadow: 0 1px 8px rgba(0, 0, 0, 0.35);
@@ -910,6 +923,21 @@ body {
   flex-wrap: nowrap;
   position: relative;
   z-index: 100;
+}
+
+.site-intro {
+  margin: 0;
+  padding: 0.35rem 0.75rem 0.45rem;
+  border-bottom: 1px solid var(--chrome-border);
+  background: var(--chrome-bg);
+  color: var(--chrome-muted);
+  font-size: 0.75rem;
+  line-height: 1.35;
+  flex-shrink: 0;
+}
+
+html.site-intro-seen .site-intro {
+  display: none;
 }
 
 .brand-group {
@@ -4251,7 +4279,8 @@ html[data-view="reader"] .preview {
   padding-bottom: 3.5rem;
 }
 
-html[data-view="present"] .toolbar {
+html[data-view="present"] .toolbar,
+html[data-view="present"] .site-intro {
   display: none;
 }
 

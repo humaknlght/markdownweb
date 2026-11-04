@@ -98,6 +98,7 @@ html[data-theme="zen"] body {
 }
 
 html[data-theme="zen"] .toolbar,
+html[data-theme="zen"] .site-intro,
 html[data-theme="zen"] .panes,
 html[data-theme="zen"] .files-drawer,
 html[data-theme="zen"] .files-backdrop,
@@ -119,6 +120,19 @@ html[data-theme="zen"] .toolbar {
   backdrop-filter: blur(18px) saturate(1.25);
   -webkit-backdrop-filter: blur(18px) saturate(1.25);
   box-shadow: var(--chrome-shadow);
+}
+
+html[data-theme="zen"] .site-intro {
+  margin: 0.45rem var(--zen-margin) 0;
+  padding: 0.45rem 0.85rem;
+  border: 1px solid var(--zen-glass-border);
+  border-radius: 12px;
+  background: var(--zen-glass);
+  backdrop-filter: blur(18px) saturate(1.25);
+  -webkit-backdrop-filter: blur(18px) saturate(1.25);
+  box-shadow: var(--chrome-shadow);
+  color: #e8f4f6;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.45);
 }
 
 html[data-theme="zen"] .brand {
