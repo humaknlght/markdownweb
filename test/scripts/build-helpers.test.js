@@ -50,7 +50,7 @@ describe("minify-preview-frame-html.mjs", () => {
     const before = src.match(/doc\.write\(`([\s\S]*?)`\);/)?.[1] ?? "";
     const after = out.match(/doc\.write\(`([\s\S]*?)`\);/)?.[1] ?? "";
     assert.ok(after.length < before.length);
-    assert.match(after, /\$\{PREVIEW_FRAME_CSP\}/);
+    assert.match(after, /\$\{frameCsp\}/);
     assert.match(after, /\$\{cssHref\}/);
     assert.doesNotMatch(after, /Shared styles\.css/);
     assert.match(after, /id="preview"/);

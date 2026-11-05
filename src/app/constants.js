@@ -35,19 +35,42 @@ export const PATCH_MAX_CHARS = 100_000;
 export const STORAGE_CHANNEL = "md-editor-storage";
 export const RENDER_DEBOUNCE_MS = 80;
 /**
+ * CSP source for the embedding page origin, or "" when unavailable.
+ * The preview frame is document.written into a srcless about:blank iframe;
+ * Firefox resolves CSP `'self'` against about:blank there, so same-origin
+ * stylesheets/images need an explicit host source (see Mozilla 2021482).
+ * @param {string} [origin]
+ * @returns {string}
+ */
+export function previewFrameOriginSrc(origin = globalThis.location?.origin || "") {
+  if (!origin || origin === "null") return "";
+  // Only http(s) origins are valid CSP host sources.
+  if (!/^https?:\/\//i.test(origin)) return "";
+  return origin;
+}
+
+/**
  * CSP for the sandboxed preview iframe document.
  * Blocks scripts and all remote subresources (phone-home images, etc.).
+ * @param {string} [origin] Embedding page origin (`location.origin`).
  */
-export const PREVIEW_FRAME_CSP = [
-  "default-src 'none'",
-  "script-src 'none'",
-  "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob:",
-  "media-src 'self' data: blob:",
-  "font-src https://cdn.jsdelivr.net",
-  "base-uri 'none'",
-  "form-action 'none'",
-].join("; ");
+export function buildPreviewFrameCsp(origin = globalThis.location?.origin || "") {
+  const originSrc = previewFrameOriginSrc(origin);
+  const withOrigin = originSrc ? ` ${originSrc}` : "";
+  return [
+    "default-src 'none'",
+    "script-src 'none'",
+    `style-src 'self' 'unsafe-inline'${withOrigin}`,
+    `img-src 'self' data: blob:${withOrigin}`,
+    `media-src 'self' data: blob:${withOrigin}`,
+    "font-src https://cdn.jsdelivr.net",
+    "base-uri 'none'",
+    "form-action 'none'",
+  ].join("; ");
+}
+
+/** Stable CSP string without an embedder origin (unit / string compares). */
+export const PREVIEW_FRAME_CSP = buildPreviewFrameCsp("");
 
 /** Delay before the preview loading spinner becomes visible. */
 export const RENDER_LOADING_DELAY_MS = 700;

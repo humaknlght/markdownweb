@@ -1,5 +1,5 @@
 import { hooks } from "./hooks.js";
-import { PREVIEW_FRAME_CSP } from "./constants.js";
+import { buildPreviewFrameCsp, PREVIEW_FRAME_CSP } from "./constants.js";
 import {
   state,
   preview,
@@ -8,7 +8,7 @@ import {
   setPreviewElement,
 } from "./state.js";
 
-export { PREVIEW_FRAME_CSP };
+export { buildPreviewFrameCsp, PREVIEW_FRAME_CSP };
 
 const PREVIEW_FRAME_SANDBOX = "allow-same-origin allow-popups";
 
@@ -198,13 +198,16 @@ export function initPreviewFrame() {
   const cssHref = resolvePreviewStylesheetHref()
     .replace(/&/g, "&amp;")
     .replace(/"/g, "&quot;");
+  // Include location.origin: Firefox treats this srcless frame as about:blank,
+  // so style-src 'self' alone does not allow https://…/styles.*.css.
+  const frameCsp = buildPreviewFrameCsp();
 
   doc.open();
   doc.write(`<!DOCTYPE html>
 <html lang="en" class="md-preview-frame">
 <head>
   <meta charset="utf-8">
-  <meta http-equiv="Content-Security-Policy" content="${PREVIEW_FRAME_CSP}">
+  <meta http-equiv="Content-Security-Policy" content="${frameCsp}">
   <link rel="stylesheet" href="${cssHref}">
   <style>
     /*
