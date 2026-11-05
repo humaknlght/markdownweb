@@ -268,12 +268,20 @@ export function initPreviewFrame() {
 
 /**
  * Parent listeners on #preview-pane do not see events inside the iframe.
- * Forward wheel so the pane still scrolls, and re-fire present swipe pointers.
+ * Forward wheel so the pane still scrolls, re-fire present swipe pointers, and
+ * route keyboard shortcuts (Cmd/Ctrl+O, etc.) through the parent handler.
  * @param {Document} doc
  */
 function bindPreviewFrameInputBridge(doc) {
   if (doc.documentElement.dataset.mdInputBridge === "1") return;
   doc.documentElement.dataset.mdInputBridge = "1";
+
+  // Keys stay in this browsing context while the frame is focused; without this
+  // bridge, Cmd/Ctrl+O and other app shortcuts appear to fail "most of the time"
+  // after clicking the preview.
+  doc.addEventListener("keydown", (e) => {
+    hooks.handleAppKeydown?.(e);
+  });
 
   doc.addEventListener(
     "wheel",
