@@ -15,6 +15,7 @@ import "./marked-setup.js";
 import "./editor.js";
 import "./marked-renderer.js";
 import "./mermaid/normalize.js";
+import "./mermaid/clicks.js";
 import "./mermaid/theme-css.js";
 import "./mermaid/color.js";
 import "./mermaid/sketch.js";

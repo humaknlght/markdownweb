@@ -451,6 +451,30 @@ test.describe("editor + render", () => {
     await expect(previewLocator(page, ".mermaid > svg")).toBeVisible({ timeout: 20_000 });
   });
 
+  test("mermaid gantt click href becomes a real SVG link", async ({ page }) => {
+    await openFreshApp(page);
+
+    const gantt = [
+      "```mermaid",
+      "gantt",
+      "  dateFormat YYYY-MM-DD",
+      "  title Clickable tasks",
+      "  section A",
+      "  Visit docs :a1, 2026-01-01, 3d",
+      '  click a1 href "https://example.com/gantt-task"',
+      "```",
+    ].join("\n");
+    await page.locator("#editor").fill(gantt);
+
+    const diagram = previewLocator(page, ".mermaid").first();
+    await expect(diagram.locator("> svg")).toBeVisible({ timeout: 20_000 });
+    const link = diagram.locator('svg a[href="https://example.com/gantt-task"]');
+    await expect(link).toHaveCount(2, { timeout: 10_000 }); // bar + label
+    await expect(link.first()).toHaveAttribute("target", "_blank");
+    await expect(link.first()).toHaveAttribute("rel", "noopener noreferrer");
+    await expect(diagram.locator("svg a rect.task, svg a .task").first()).toBeVisible();
+  });
+
   test("mermaid gantt defers render when the preview host is too narrow", async ({ page }) => {
     await openFreshApp(page);
 
