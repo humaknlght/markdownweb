@@ -3132,10 +3132,6 @@ html[data-theme="fancy"] .mermaid-zoom-toolbar {
   color: var(--syntax-keyword);
 }
 
-.preview .hljs-string,
-.preview .hljs-regexp,
-.preview .hljs-addition,
-.preview .hljs-attribute,
 .editor-highlight .md-data-uri {
   display: inline;
   padding: 0.05em 0.25em;
@@ -3145,6 +3141,10 @@ html[data-theme="fancy"] .mermaid-zoom-toolbar {
   -webkit-box-decoration-break: clone;
 }
 
+.preview .hljs-string,
+.preview .hljs-regexp,
+.preview .hljs-addition,
+.preview .hljs-attribute,
 .editor-highlight .hljs-string,
 .editor-highlight .hljs-regexp,
 .editor-highlight .hljs-addition,
