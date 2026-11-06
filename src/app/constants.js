@@ -44,9 +44,15 @@ export const RENDER_DEBOUNCE_MS = 80;
  */
 export function previewFrameOriginSrc(origin = globalThis.location?.origin || "") {
   if (!origin || origin === "null") return "";
-  // Only http(s) origins are valid CSP host sources.
-  if (!/^https?:\/\//i.test(origin)) return "";
-  return origin;
+  try {
+    const url = new URL(origin);
+    // Only exact http(s) origins are valid CSP host sources (no path/query).
+    if (url.protocol !== "http:" && url.protocol !== "https:") return "";
+    if (url.origin !== origin) return "";
+    return url.origin;
+  } catch {
+    return "";
+  }
 }
 
 /**
