@@ -168,6 +168,10 @@ export const MERMAID_THEME_CSS = `
     color: var(--mermaid-fg) !important;
     stroke: none !important;
   }
+  /* SVG <a> wrappers we add for click href (sandbox has no allow-scripts). */
+  a, a text, a tspan, .clickable {
+    cursor: pointer !important;
+  }
   /* foreignObject HTML chips (journey tasks, some labels) */
   foreignObject div,foreignObject span,foreignObject p,
   foreignObject .task,foreignObject .journey-section {

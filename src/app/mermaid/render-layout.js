@@ -330,6 +330,10 @@ export async function renderMermaidDiagrams({ force = false } = {}) {
         delete svg.dataset.mermaidNatural;
         delete svg.dataset.mermaidFluid;
       }
+      // Mermaid bindFunctions attach JS listeners (lost on importNode into the
+      // sandboxed preview). Re-apply click hrefs as real SVG <a> links.
+      const srcForLinks = mermaidSources.get(el) ?? "";
+      if (srcForLinks) hooks.linkMermaidSvgClicks?.(svg, srcForLinks);
     }
     // Release the paint reservation now that the real SVG owns layout.
     el.style.minHeight = "";
