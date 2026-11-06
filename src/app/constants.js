@@ -63,16 +63,8 @@ export function previewFrameOriginSrc(origin = globalThis.location?.origin || ""
 export function buildPreviewFrameCsp(origin = globalThis.location?.origin || "") {
   const originSrc = previewFrameOriginSrc(origin);
   const withOrigin = originSrc ? ` ${originSrc}` : "";
-  return [
-    "default-src 'none'",
-    "script-src 'none'",
-    `style-src 'self' 'unsafe-inline'${withOrigin}`,
-    `img-src 'self' data: blob:${withOrigin}`,
-    `media-src 'self' data: blob:${withOrigin}`,
-    "font-src https://cdn.jsdelivr.net",
-    "base-uri 'none'",
-    "form-action 'none'",
-  ].join("; ");
+
+  return `default-src 'none';script-src 'none';style-src 'self' 'unsafe-inline'${withOrigin};img-src 'self' data: blob:${withOrigin};media-src 'self' data: blob:${withOrigin};font-src https://cdn.jsdelivr.net;base-uri 'none';form-action 'none'`;
 }
 
 /** Stable CSP string without an embedder origin (unit / string compares). */
@@ -107,7 +99,7 @@ export const WIDTHS = ["readable", "full"];
 /** Mermaid `look` values — handDrawn is the RoughJS / Excalidraw-style sketch. */
 export const MERMAID_LOOKS = ["classic", "handDrawn"];
 /** Hand-drawn diagram face (cdn.jsdelivr.net/npm/excalifont@1.0.0). */
-export const MERMAID_HAND_FONT = '"Excalifont", "Segoe UI", "Helvetica Neue", sans-serif';
+export const MERMAID_HAND_FONT = '"Excalifont","Segoe UI","Helvetica Neue",sans-serif';
 export const VIEWS = ["edit", "reader", "present", "slides"];
 
 export const PRESENT_CHROME_IDLE_MS = 5000;
