@@ -5,7 +5,7 @@ import {
   previewLocator,
   headingText,
 } from "./helpers.js";
-import { PREVIEW_FRAME_CSP } from "../../src/app/constants.js";
+import { buildPreviewFrameCsp } from "../../src/app/constants.js";
 
 test.describe("preview sandbox isolation", () => {
   test("preview frame is sandboxed without allow-scripts and carries a blocking CSP", async ({
@@ -20,14 +20,17 @@ test.describe("preview sandbox isolation", () => {
         frame?.contentDocument
           ?.querySelector('meta[http-equiv="Content-Security-Policy"]')
           ?.getAttribute("content") || "";
-      return { sandbox, csp };
+      return { sandbox, csp, origin: location.origin };
     });
 
     expect(meta.sandbox.split(/\s+/).sort().join(" ")).toBe(
       "allow-popups allow-same-origin",
     );
     expect(meta.sandbox).not.toMatch(/\ballow-scripts\b/);
-    expect(meta.csp).toBe(PREVIEW_FRAME_CSP);
+    // Parent origin is listed explicitly so Firefox about:blank 'self' still
+    // allows same-origin stylesheets (styles.*.css).
+    expect(meta.csp).toBe(buildPreviewFrameCsp(meta.origin));
+    expect(meta.csp).toContain(meta.origin);
   });
 
   test("preview iframe loads the parent stylesheet so theme tokens apply", async ({
