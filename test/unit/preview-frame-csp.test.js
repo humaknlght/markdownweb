@@ -20,7 +20,7 @@ describe("preview frame CSP", () => {
         "font-src https://cdn.jsdelivr.net",
         "base-uri 'none'",
         "form-action 'none'",
-      ].join("; "),
+      ].join(";"),
     );
   });
 
@@ -40,7 +40,7 @@ describe("preview frame CSP", () => {
         "font-src https://cdn.jsdelivr.net",
         "base-uri 'none'",
         "form-action 'none'",
-      ].join("; "),
+      ].join(";"),
     );
   });
 });
