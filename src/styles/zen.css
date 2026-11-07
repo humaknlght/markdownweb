@@ -382,3 +382,41 @@ html[data-theme="zen"] .outline-row.is-active {
     margin-inline: 0.35rem;
   }
 }
+
+/*
+ * Window Controls Overlay: zen.css loads after styles.css and sets
+ * `position: relative` on .toolbar (for the WebGL stacking context). That
+ * overrides the shared WCO `position: fixed` rule and leaves an empty gap
+ * under the traffic lights. Re-assert the titlebar geometry here, and use a
+ * near-opaque strip so the glass card doesn’t float over the water canvas.
+ */
+html[data-wco][data-theme="zen"] .toolbar {
+  position: fixed;
+  z-index: 100;
+  left: env(titlebar-area-x, 0);
+  top: env(titlebar-area-y, 0);
+  width: env(titlebar-area-width, 100%);
+  height: var(--toolbar-h);
+  min-height: var(--toolbar-h);
+  margin: 0;
+  padding: 0 0.75rem;
+  box-sizing: border-box;
+  border: 0;
+  border-radius: 0;
+  /* Solid #0b1c24 = theme-color / page base — matches OS overlay chrome. */
+  background: #0b1c24;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  -webkit-app-region: drag;
+  app-region: drag;
+}
+
+html[data-wco][data-theme="zen"] .toolbar :is(a, button, input, select, textarea, label, .brand, .dropdown-menu, .toolbar-actions) {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+html[data-wco][data-theme="zen"] .site-intro {
+  margin-top: 0.45rem;
+}

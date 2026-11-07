@@ -4397,3 +4397,68 @@ html[data-view="present"] .present-chrome.is-active {
   background: var(--chrome-hover);
   outline: none;
 }
+
+/*
+ * PWA chrome borders (browser tabs keep the default .toolbar border-bottom only):
+ * - Installed + system title bar: top + bottom on the button bar
+ * - Installed + WCO (button bar in the title bar): no top/bottom
+ */
+html[data-pwa]:not([data-wco]) .toolbar {
+  border-top: 1px solid var(--chrome-border);
+  border-bottom: 1px solid var(--chrome-border);
+}
+
+/*
+ * Window Controls Overlay — layout matches
+ * https://web.dev/articles/window-controls-overlay
+ * (fixed into titlebar-area-* env vars + app-region drag).
+ * html[data-wco] is set only when navigator.windowControlsOverlay.visible
+ * is true (overlay actually on — not merely display_override in the manifest).
+ */
+html[data-wco] {
+  --toolbar-h: env(titlebar-area-height, 3rem);
+}
+
+/* Reserve flow space so panes don't jump under the fixed toolbar. */
+html[data-wco] body {
+  padding-top: var(--toolbar-h);
+}
+
+html[data-wco] .toolbar {
+  position: fixed;
+  left: env(titlebar-area-x, 0);
+  top: env(titlebar-area-y, 0);
+  width: env(titlebar-area-width, 100%);
+  height: var(--toolbar-h);
+  min-height: var(--toolbar-h);
+  padding: 0 0.75rem;
+  box-sizing: border-box;
+  border-top: 0;
+  border-bottom: 0;
+  /* Must match <meta name="theme-color"> — Chromium paints the traffic-light /
+     caption overlay with that solid color; glass/blur here will never blend. */
+  background: var(--chrome-bg);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: none;
+  -webkit-app-region: drag;
+  app-region: drag;
+}
+
+html[data-wco] .toolbar :is(a, button, input, select, textarea, label, .brand, .dropdown-menu, .toolbar-actions) {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+/* Fancy/Zen use transparent --chrome-bg; pin the same solids as THEME_COLORS. */
+html[data-wco][data-theme="fancy"] .toolbar {
+  margin: 0;
+  border-radius: 0;
+  border-left: 0;
+  border-right: 0;
+  border-top: 0;
+  border-bottom: 0;
+  height: var(--toolbar-h);
+  min-height: var(--toolbar-h);
+  background: #062436;
+}

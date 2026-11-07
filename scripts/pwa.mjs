@@ -82,6 +82,7 @@ export function buildManifest(iconNames) {
       id: "./",
       start_url: "./?source=pwa",
       scope: "./",
+      display_override: ["window-controls-overlay"],
       display: "standalone",
       orientation: "any",
       background_color: "#0d1117",

@@ -336,6 +336,7 @@ export function drivePathLabel() {
 export function isStandaloneDisplay() {
   return (
     window.matchMedia("(display-mode: standalone)").matches ||
+    window.matchMedia("(display-mode: window-controls-overlay)").matches ||
     window.navigator.standalone === true
   );
 }

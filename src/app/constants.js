@@ -95,6 +95,17 @@ export const THEMES = [
   "fancy",
   "zen",
 ];
+
+/** Page / PWA chrome color for `<meta name="theme-color">` (WCO titlebar blend). */
+export const THEME_COLORS = {
+  "github-light": "#f6f7f9",
+  "github-dark": "#010409",
+  sepia: "#e8dcc4",
+  terminal: "#060806",
+  salesforce: "#eaf5fe",
+  fancy: "#062436",
+  zen: "#0b1c24",
+};
 export const WIDTHS = ["readable", "full"];
 /** Mermaid `look` values — handDrawn is the RoughJS / Excalidraw-style sketch. */
 export const MERMAID_LOOKS = ["classic", "handDrawn"];
