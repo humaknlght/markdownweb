@@ -164,8 +164,10 @@ export function mangleStateHooksSource(src, map, opts = {}) {
       // Shorten the shared bags themselves (hooks.a → h.a, state.b → s.b).
       // Do not rewrite object-literal keys (`hooks:` / `state:`): those are
       // often third-party API names (e.g. marked.use({ hooks: … })).
-      .replace(/\bhooks\b(?!\s*:)/g, "h")
-      .replace(/\bstate\b(?!\s*:)/g, "s")
+      // Do not rewrite property access (worker.state, audioCtx.state, obj.hooks) —
+      // those are platform / third-party fields, not the shared bags.
+      .replace(/(?<!\.)\bhooks\b(?!\s*:)/g, "h")
+      .replace(/(?<!\.)\bstate\b(?!\s*:)/g, "s")
   );
 
   if (opts.mangleStateObjectKeys) {
