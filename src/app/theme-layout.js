@@ -11,6 +11,7 @@ import {
 import {
   STORAGE_KEYS,
   THEMES,
+  THEME_COLORS,
   WIDTHS,
   MERMAID_LOOKS
 } from "./constants.js";
@@ -26,10 +27,18 @@ export function preferredGithubTheme() {
     : "github-light";
 }
 
+/** Keep meta theme-color aligned with the active theme (Window Controls Overlay). */
+export function syncThemeColorMeta(theme) {
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (!meta) return;
+  meta.setAttribute("content", THEME_COLORS[theme] || THEME_COLORS["github-dark"]);
+}
+
 export function setTheme(theme, { persist = true } = {}) {
   const next = THEMES.includes(theme) ? theme : preferredGithubTheme();
   document.documentElement.dataset.theme = next;
   themeSelect.value = next;
+  syncThemeColorMeta(next);
   if (photoCredit) {
     photoCredit.hidden = next !== "fancy";
   }
@@ -169,6 +178,7 @@ export function setMermaidLook(look, { persist = true, rerender = true } = {}) {
 }
 
 hooks.preferredGithubTheme = preferredGithubTheme;
+hooks.syncThemeColorMeta = syncThemeColorMeta;
 hooks.setTheme = setTheme;
 hooks.detachZenTypingRipples = detachZenTypingRipples;
 hooks.attachZenTypingRipples = attachZenTypingRipples;

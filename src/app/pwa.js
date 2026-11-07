@@ -6,6 +6,9 @@ import {
   updateReloadBtn,
   isStandaloneDisplay
 } from "./state.js";
+import { applyPwaDisplayAttrs } from "./pwa-display-attrs.js";
+
+export { applyPwaDisplayAttrs } from "./pwa-display-attrs.js";
 
 export function resolveServiceWorkerUrl() {
   try {
@@ -108,6 +111,31 @@ export function registerServiceWorker() {
     });
 }
 
+/** Sync `data-pwa` / `data-wco` from the current display mode + overlay. */
+export function syncPwaDisplayAttrs() {
+  applyPwaDisplayAttrs(document.documentElement, {
+    standalone: isStandaloneDisplay(),
+    wcoVisible: Boolean(navigator.windowControlsOverlay?.visible),
+  });
+}
+
+export function setupWindowControlsOverlay() {
+  syncPwaDisplayAttrs();
+
+  const overlay = navigator.windowControlsOverlay;
+  if (overlay) {
+    overlay.addEventListener("geometrychange", syncPwaDisplayAttrs);
+  }
+
+  for (const query of ["(display-mode: standalone)", "(display-mode: window-controls-overlay)"]) {
+    try {
+      window.matchMedia(query).addEventListener("change", syncPwaDisplayAttrs);
+    } catch {
+      /* matchMedia / addEventListener unavailable */
+    }
+  }
+}
+
 export function setupPwa() {
   if (installBtn) {
     if (isStandaloneDisplay()) {
@@ -130,10 +158,15 @@ export function setupPwa() {
     });
   }
 
+  setupWindowControlsOverlay();
+
   // Register immediately — module scripts often run after `load`.
   registerServiceWorker();
 }
 
 hooks.resolveServiceWorkerUrl = resolveServiceWorkerUrl;
 hooks.registerServiceWorker = registerServiceWorker;
+hooks.applyPwaDisplayAttrs = applyPwaDisplayAttrs;
+hooks.syncPwaDisplayAttrs = syncPwaDisplayAttrs;
+hooks.setupWindowControlsOverlay = setupWindowControlsOverlay;
 hooks.setupPwa = setupPwa;

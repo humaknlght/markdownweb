@@ -164,6 +164,7 @@ describe("pwa.mjs", () => {
   it("builds a standalone manifest with file handlers", () => {
     const m = JSON.parse(buildManifest());
     assert.equal(m.display, "standalone");
+    assert.deepEqual(m.display_override, ["window-controls-overlay"]);
     assert.equal(m.start_url, "./?source=pwa");
     assert.equal(m.launch_handler.client_mode, "focus-existing");
     assert.ok(m.file_handlers[0].accept["text/markdown"].includes(".md"));
