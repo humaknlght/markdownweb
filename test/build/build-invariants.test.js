@@ -115,6 +115,10 @@ describe("production build invariants", { timeout: 180_000 }, () => {
 
       const appFile = files.find((f) => /^app\.[a-f0-9]{8}\.js$/.test(f));
       const original = await fs.readFile(path.join(dist, appFile));
+      const appJs = original.toString("utf8");
+      // state-bag mangling must not rewrite ServiceWorker.state (update toast).
+      assert.match(appJs, /\.state==="installed"/);
+      assert.doesNotMatch(appJs, /\.s==="installed"/);
       const gz = gunzipSync(await fs.readFile(path.join(dist, `${appFile}.gz`)));
       const br = brotliDecompressSync(await fs.readFile(path.join(dist, `${appFile}.br`)));
       assert.deepEqual(gz, original);

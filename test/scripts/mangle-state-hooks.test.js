@@ -67,6 +67,27 @@ describe("mangle-state-hooks", () => {
     assert.doesNotMatch(out, /\bhooks\.paintGen\b/);
   });
 
+  it("preserves platform .state / .hooks property access", () => {
+    const map = buildPropMangleMap(["deferredInstallPrompt"]);
+    const out = mangleStateHooksSource(
+      [
+        'import { state } from "./state.js";',
+        'import { hooks } from "./hooks.js";',
+        "if (worker.state === \"installed\") offerUpdate(worker);",
+        "if (audioCtx.state === \"suspended\") audioCtx.resume();",
+        "const apiHooks = marked.hooks;",
+        "state.deferredInstallPrompt = null;",
+        "hooks.paintGen;",
+      ].join("\n"),
+      map
+    );
+    assert.match(out, /worker\.state === "installed"/);
+    assert.match(out, /audioCtx\.state === "suspended"/);
+    assert.match(out, /marked\.hooks/);
+    assert.match(out, /\bs\.\w+ = null/); // state bag shortened
+    assert.doesNotMatch(out, /\bstate\.deferredInstallPrompt\b/);
+  });
+
   it("rewrites hooks calls to direct imports", () => {
     const ui = path.resolve("src/app/ui-feedback.js");
     const other = path.resolve("src/app/boot.js");
