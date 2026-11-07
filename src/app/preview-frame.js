@@ -271,7 +271,8 @@ export function initPreviewFrame() {
 
 /**
  * Parent listeners on #preview-pane do not see events inside the iframe.
- * Forward wheel so the pane still scrolls, re-fire present swipe pointers, and
+ * Forward wheel so the pane still scrolls, re-fire present swipe pointers,
+ * dismiss chrome menus on click (parent document click never fires here), and
  * route keyboard shortcuts (Cmd/Ctrl+O, etc.) through the parent handler.
  * @param {Document} doc
  */
@@ -284,6 +285,13 @@ function bindPreviewFrameInputBridge(doc) {
   // after clicking the preview.
   doc.addEventListener("keydown", (e) => {
     hooks.handleAppKeydown?.(e);
+  });
+
+  // Toolbar/format dropdowns listen for outside clicks on the parent document;
+  // clicks in this frame never reach that listener, so menus would stick open.
+  doc.addEventListener("click", () => {
+    hooks.closeOverflowMenu?.();
+    hooks.closeFilesContextMenu?.();
   });
 
   doc.addEventListener(

@@ -42,6 +42,16 @@ test.describe("views / slides / present", () => {
     await expect(page.locator("html")).toHaveAttribute("data-view", "edit");
   });
 
+  test("clicking the preview iframe closes an open toolbar dropdown", async ({ page }) => {
+    await page.locator("#export-btn").click();
+    await expect(page.locator("#export-menu")).toBeVisible();
+
+    // Parent document click listeners never see events inside the sandboxed
+    // preview frame; the input bridge must dismiss chrome menus.
+    await previewLocator(page, "h1").click();
+    await expect(page.locator("#export-menu")).toBeHidden();
+  });
+
   test("slide 2+ headings have zero top margin", async ({ page }) => {
     await page.locator("#view-mode-main-btn").click();
     await page.locator("#present-next-btn").click();
