@@ -24,8 +24,7 @@ export function parseStaticRelativeImports(filePath, srcDir) {
   const dir = path.dirname(filePath);
   const out = [];
   const re = new RegExp(STATIC_IMPORT_RE.source, "gm");
-  let m;
-  while ((m = re.exec(text))) {
+  for (const m of text.matchAll(re)) {
     const spec = m[1];
     if (!spec.endsWith(".js")) continue;
     const resolved = path.normalize(path.join(dir, spec));

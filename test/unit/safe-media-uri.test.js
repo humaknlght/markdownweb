@@ -1,5 +1,5 @@
-import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { describe, it } from "node:test";
 import { JSDOM } from "jsdom";
 import {
   isSafeMediaUri,
@@ -13,7 +13,10 @@ describe("safe-media-uri", () => {
     assert.equal(isSafeMediaUri("blob:null/abc"), true);
     assert.equal(isSafeMediaUri("#frag"), true);
     assert.equal(isSafeMediaUri("?q=1"), true);
-    assert.equal(isSafeMediaUri("https://raw.githubusercontent.com/a/b/c.png"), false);
+    assert.equal(
+      isSafeMediaUri("https://raw.githubusercontent.com/a/b/c.png"),
+      false,
+    );
     assert.equal(isSafeMediaUri("HTTPS://Evil.Example/x"), false);
   });
 
@@ -33,6 +36,9 @@ describe("safe-media-uri", () => {
     stripRemoteMediaAttributes(use);
     assert.equal(image.getAttribute("href"), null);
     assert.equal(use.getAttribute("xlink:href"), null);
-    assert.equal(use.getAttributeNS("http://www.w3.org/1999/xlink", "href"), null);
+    assert.equal(
+      use.getAttributeNS("http://www.w3.org/1999/xlink", "href"),
+      null,
+    );
   });
 });

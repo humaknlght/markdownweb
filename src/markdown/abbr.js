@@ -62,7 +62,7 @@ export function applyAbbreviations(html, map = abbrs) {
   }));
 
   let skipDepth = 0;
-  return html.replace(/(<[^>]+>)|([^<]+)/g, (whole, tag, text) => {
+  return html.replace(/(<[^>]+>)|([^<]+)/g, (_whole, tag, text) => {
     if (tag) {
       if (/^<\/(?:code|pre|kbd|samp|abbr)\b/i.test(tag)) {
         skipDepth = Math.max(0, skipDepth - 1);

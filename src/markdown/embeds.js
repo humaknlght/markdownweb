@@ -54,7 +54,9 @@ export function rememberEmbed(dataUrl) {
  */
 export function formatEmbedDataUrl(dataUrl) {
   const compact = String(dataUrl || "").replace(/\s+/g, "");
-  const match = compact.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,([A-Za-z0-9+/=]+)$/i);
+  const match = compact.match(
+    /^data:(image\/[a-zA-Z0-9.+-]+);base64,([A-Za-z0-9+/=]+)$/i,
+  );
   if (!match || compact.length < DATA_URI_COLLAPSE_MIN) return compact;
   const mime = match[1];
   const head = match[2].slice(0, 12);
@@ -219,7 +221,9 @@ export function findCollapsedEmbeds(text) {
 export function collapsedEmbedUriTouched(emb, selStart, selEnd, inputType) {
   if (selStart < emb.uriEnd && selEnd > emb.uriStart) return true;
   if (selStart !== selEnd) return false;
-  if (inputType === "deleteContentBackward" && selStart === emb.uriEnd) return true;
-  if (inputType === "deleteContentForward" && selStart === emb.uriStart) return true;
+  if (inputType === "deleteContentBackward" && selStart === emb.uriEnd)
+    return true;
+  if (inputType === "deleteContentForward" && selStart === emb.uriStart)
+    return true;
   return false;
 }

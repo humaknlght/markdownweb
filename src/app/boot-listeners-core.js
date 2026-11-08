@@ -1,39 +1,38 @@
+import { NARROW_MQ } from "./constants.js";
 import { hooks } from "./hooks.js";
 import {
-  state,
-  editor,
-  editorHighlight,
-  themeSelect,
-  widthSelect,
-  mermaidLookSelect,
-  fileInput,
-  filesOpenFileBtn,
-  shareBtn,
-  exportBtn,
-  exportMenu,
   aiProofEditor,
   collapseEditorBtn,
   collapsePreviewBtn,
-  syncScrollBtn,
-  lineWrapBtn,
-  previewPane,
-  toolbarMenu,
+  editor,
+  editorHighlight,
   editViewBtn,
-  viewModeMainBtn,
-  viewModeMenuBtn,
-  viewModeMenu,
-  presentViewBtn,
-  printBtn,
+  exportBtn,
+  exportMenu,
+  externalModal,
+  fileInput,
+  filesOpenFileBtn,
   helpBtn,
-  presentPrevBtn,
-  presentNextBtn,
+  lineWrapBtn,
+  mermaidLookSelect,
   presentExitBtn,
-  externalModal
+  presentNextBtn,
+  presentPrevBtn,
+  presentViewBtn,
+  previewPane,
+  printBtn,
+  shareBtn,
+  state,
+  syncScrollBtn,
+  themeSelect,
+  toolbarMenu,
+  viewModeMainBtn,
+  viewModeMenu,
+  viewModeMenuBtn,
+  widthSelect,
 } from "./state.js";
-import { NARROW_MQ } from "./constants.js";
 
 export function setupBootCoreListeners() {
-
   // Non-critical UI — after first paint (next frame), so speak/history work ASAP.
   requestAnimationFrame(() => {
     hooks.setupSpeech();
@@ -61,14 +60,20 @@ export function setupBootCoreListeners() {
   widthSelect.addEventListener("change", () => {
     hooks.setPreviewWidth(widthSelect.value, { persist: true });
     // Narrow: dismiss after pick so the preview is visible. Desktop: keep open for multi-tweaks.
-    if (window.matchMedia(NARROW_MQ).matches && toolbarMenu.classList.contains("is-open")) {
+    if (
+      window.matchMedia(NARROW_MQ).matches &&
+      toolbarMenu.classList.contains("is-open")
+    ) {
       hooks.closeOverflowMenu();
     }
   });
 
   mermaidLookSelect?.addEventListener("change", () => {
     hooks.setMermaidLook(mermaidLookSelect.value, { persist: true });
-    if (window.matchMedia(NARROW_MQ).matches && toolbarMenu.classList.contains("is-open")) {
+    if (
+      window.matchMedia(NARROW_MQ).matches &&
+      toolbarMenu.classList.contains("is-open")
+    ) {
       hooks.closeOverflowMenu();
     }
   });
@@ -118,7 +123,14 @@ export function setupBootCoreListeners() {
   });
   helpBtn?.addEventListener("click", (e) => {
     // Keep modified / middle clicks as real navigation (new tab).
-    if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) {
+    if (
+      e.defaultPrevented ||
+      e.button !== 0 ||
+      e.metaKey ||
+      e.ctrlKey ||
+      e.shiftKey ||
+      e.altKey
+    ) {
       return;
     }
     e.preventDefault();
@@ -130,17 +142,36 @@ export function setupBootCoreListeners() {
   presentPrevBtn?.addEventListener("click", hooks.presentPrev);
   presentNextBtn?.addEventListener("click", hooks.presentNext);
   presentExitBtn?.addEventListener("click", hooks.exitPresentMode);
-  document.addEventListener("pointermove", hooks.onPresentChromePointerActivity, { passive: true });
-  previewPane.addEventListener("pointerdown", hooks.onPresentSwipePointerDown, { passive: true });
-  previewPane.addEventListener("pointerup", hooks.onPresentSwipePointerUp, { passive: true });
-  previewPane.addEventListener("pointercancel", hooks.onPresentSwipePointerCancel, { passive: true });
-  document.addEventListener("fullscreenchange", hooks.onPresentFullscreenChange);
-  document.addEventListener("webkitfullscreenchange", hooks.onPresentFullscreenChange);
+  document.addEventListener(
+    "pointermove",
+    hooks.onPresentChromePointerActivity,
+    { passive: true },
+  );
+  previewPane.addEventListener("pointerdown", hooks.onPresentSwipePointerDown, {
+    passive: true,
+  });
+  previewPane.addEventListener("pointerup", hooks.onPresentSwipePointerUp, {
+    passive: true,
+  });
+  previewPane.addEventListener(
+    "pointercancel",
+    hooks.onPresentSwipePointerCancel,
+    { passive: true },
+  );
+  document.addEventListener(
+    "fullscreenchange",
+    hooks.onPresentFullscreenChange,
+  );
+  document.addEventListener(
+    "webkitfullscreenchange",
+    hooks.onPresentFullscreenChange,
+  );
   // Escape must not dismiss — only Accept / Reject (method=dialog) close the modal.
   externalModal?.addEventListener("cancel", (e) => e.preventDefault());
   externalModal?.addEventListener("close", () => {
     if (externalModal.returnValue === "accept") hooks.acceptExternalContent();
-    else if (externalModal.returnValue === "reject") hooks.rejectExternalContent();
+    else if (externalModal.returnValue === "reject")
+      hooks.rejectExternalContent();
   });
 
   collapseEditorBtn.addEventListener("click", hooks.toggleEditorCollapse);
@@ -158,7 +189,8 @@ export function setupBootCoreListeners() {
       if (top === state.lastEditorScrollTop) return;
       state.lastEditorScrollTop = top;
       // Ignore echo scrolls from preview-driven sync so outline stays on the preview section.
-      if (state.syncScrollDriver !== "preview") state.outlineScrollSource = "editor";
+      if (state.syncScrollDriver !== "preview")
+        state.outlineScrollSource = "editor";
       hooks.syncPreviewFromEditor();
       hooks.scheduleOutlineHighlight();
     },
@@ -179,7 +211,8 @@ export function setupBootCoreListeners() {
     () => {
       // Ignore echo scrolls from editor-driven sync (e.g. click-to-reveal) so the
       // outline keeps following the editor caret/section the user just entered.
-      if (state.syncScrollDriver !== "editor") state.outlineScrollSource = "preview";
+      if (state.syncScrollDriver !== "editor")
+        state.outlineScrollSource = "preview";
       hooks.syncEditorFromPreview();
       hooks.scheduleOutlineHighlight();
     },

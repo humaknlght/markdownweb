@@ -1,45 +1,49 @@
 import { hooks } from "../hooks.js";
 import {
-  state,
-  filesOpenFileBtn,
-  filesDrawerTitle,
-  filesOpenFolderBtn,
-  filesSourceLocalBtn,
-  filesSourceDriveBtn,
-  filesSourceGistBtn,
+  DRIVE_ROOT_UI_NAME,
+  drivePathLabel,
   filesConnectDriveBtn,
   filesConnectGistBtn,
+  filesDrawerTitle,
   filesDriveOfflineHint,
+  filesEmpty,
   filesEmptyConnectBtn,
   filesEmptyConnectGistBtn,
   filesEmptyCopy,
-  filesNewFileBtn,
-  filesNewFolderBtn,
-  filesRefreshBtn,
-  filesEmpty,
   filesEmptyOpenBtn,
   filesLoading,
   filesLoadingCopy,
+  filesNewFileBtn,
+  filesNewFolderBtn,
+  filesOpenFileBtn,
+  filesOpenFolderBtn,
   filesPermission,
+  filesRefreshBtn,
+  filesSourceDriveBtn,
+  filesSourceGistBtn,
+  filesSourceLocalBtn,
   filesTree,
   fsAccessSupported,
   fsEntries,
-  drivePathLabel,
-  DRIVE_ROOT_UI_NAME
+  state,
 } from "../state.js";
 import {
   ensureEditableExtension,
-  isEditableFileName,
   hasSealedDriveSession,
-  hasSealedGistSession
+  hasSealedGistSession,
+  isEditableFileName,
 } from "../vendor-deps.js";
 
 export function createFilesTreeItem(opts) {
   const idAttr =
     opts.idAttr ||
-    (hooks.isGistFilesSource() ? "gistId" : hooks.isDriveFilesSource() ? "driveId" : "path");
+    (hooks.isGistFilesSource()
+      ? "gistId"
+      : hooks.isDriveFilesSource()
+        ? "driveId"
+        : "path");
 
-  const li = document.createElement("li");
+  const li = document.createElement("div");
   li.className = "files-tree-item";
   li.setAttribute("role", "treeitem");
   li.dataset.kind = opts.kind;
@@ -62,7 +66,8 @@ export function createFilesTreeItem(opts) {
     twistie.classList.add("is-spacer");
     twistie.textContent = opts.twistieText || "•";
   } else {
-    twistie.textContent = opts.twistieText || (opts.kind === "directory" ? "▶" : "");
+    twistie.textContent =
+      opts.twistieText || (opts.kind === "directory" ? "▶" : "");
   }
 
   const label = document.createElement("span");
@@ -103,15 +108,22 @@ export function updateFilesChrome() {
   const driveMode = hooks.isDriveFilesSource();
   const gistMode = hooks.isGistFilesSource();
   const cloudMode = driveMode || gistMode;
-  const hasLocalRoot = Boolean(state.rootDirHandle) && !state.awaitingFsPermission;
+  const hasLocalRoot =
+    Boolean(state.rootDirHandle) && !state.awaitingFsPermission;
   const hasDriveRoot = state.driveConnected;
   const hasGistRoot = state.gistConnected;
-  const hasRoot = driveMode ? hasDriveRoot : gistMode ? hasGistRoot : hasLocalRoot;
+  const hasRoot = driveMode
+    ? hasDriveRoot
+    : gistMode
+      ? hasGistRoot
+      : hasLocalRoot;
   const online = isBrowserOnline();
   const needsOnlineToConnect =
     (state.driveConfigured && driveMode && !hasDriveRoot && !online) ||
     (state.gistConfigured && gistMode && !hasGistRoot && !online);
-  const cloudLoading = (driveMode && state.driveFilesLoading) || (gistMode && state.gistFilesLoading);
+  const cloudLoading =
+    (driveMode && state.driveFilesLoading) ||
+    (gistMode && state.gistFilesLoading);
 
   document.body.classList.toggle("files-source-drive", driveMode);
   document.body.classList.toggle("files-source-gist", gistMode);
@@ -119,27 +131,45 @@ export function updateFilesChrome() {
 
   if (filesSourceLocalBtn) {
     filesSourceLocalBtn.classList.toggle("is-active", !cloudMode);
-    filesSourceLocalBtn.setAttribute("aria-pressed", !cloudMode ? "true" : "false");
+    filesSourceLocalBtn.setAttribute(
+      "aria-pressed",
+      !cloudMode ? "true" : "false",
+    );
   }
   if (filesSourceDriveBtn) {
     filesSourceDriveBtn.classList.toggle("is-active", driveMode);
-    filesSourceDriveBtn.setAttribute("aria-pressed", driveMode ? "true" : "false");
+    filesSourceDriveBtn.setAttribute(
+      "aria-pressed",
+      driveMode ? "true" : "false",
+    );
   }
   if (filesSourceGistBtn) {
     filesSourceGistBtn.classList.toggle("is-active", gistMode);
-    filesSourceGistBtn.setAttribute("aria-pressed", gistMode ? "true" : "false");
+    filesSourceGistBtn.setAttribute(
+      "aria-pressed",
+      gistMode ? "true" : "false",
+    );
   }
 
   if (filesDrawerTitle) {
     if (gistMode) {
-      filesDrawerTitle.textContent = state.gistConnected ? "Gists" : "GitHub Gist";
+      filesDrawerTitle.textContent = state.gistConnected
+        ? "Gists"
+        : "GitHub Gist";
       filesDrawerTitle.title = filesDrawerTitle.textContent;
     } else if (driveMode) {
-      filesDrawerTitle.textContent = state.driveConnected ? drivePathLabel() : "Google Drive";
-      filesDrawerTitle.title = state.driveConnected ? drivePathLabel() : "Google Drive";
+      filesDrawerTitle.textContent = state.driveConnected
+        ? drivePathLabel()
+        : "Google Drive";
+      filesDrawerTitle.title = state.driveConnected
+        ? drivePathLabel()
+        : "Google Drive";
     } else {
-      filesDrawerTitle.textContent = state.rootDirHandle ? `/${state.rootDirHandle.name}` : "Files";
-      if (state.rootDirHandle) filesDrawerTitle.title = `/${state.rootDirHandle.name}`;
+      filesDrawerTitle.textContent = state.rootDirHandle
+        ? `/${state.rootDirHandle.name}`
+        : "Files";
+      if (state.rootDirHandle)
+        filesDrawerTitle.title = `/${state.rootDirHandle.name}`;
       else filesDrawerTitle.removeAttribute("title");
     }
   }
@@ -154,14 +184,17 @@ export function updateFilesChrome() {
         ? "You need to be online to connect GitHub Gist."
         : "Connect with a GitHub personal access token to browse your gists.";
     } else if (needsOnlineToConnect) {
-      filesEmptyCopy.textContent = "You need to be online to connect Google Drive.";
+      filesEmptyCopy.textContent =
+        "You need to be online to connect Google Drive.";
     } else {
       filesEmptyCopy.textContent = `Connect Google Drive to browse the ${DRIVE_ROOT_UI_NAME} folder.`;
     }
   }
 
   if (filesLoadingCopy) {
-    filesLoadingCopy.textContent = gistMode ? "Loading Gists…" : "Loading Google Drive…";
+    filesLoadingCopy.textContent = gistMode
+      ? "Loading Gists…"
+      : "Loading Google Drive…";
   }
   if (filesLoading) {
     filesLoading.hidden = !cloudLoading;
@@ -197,11 +230,14 @@ export function updateFilesChrome() {
   }
   if (filesConnectDriveBtn) {
     filesConnectDriveBtn.hidden =
-      !state.driveConfigured || !driveMode || (needsOnlineToConnect && driveMode && !hasDriveRoot);
+      !state.driveConfigured ||
+      !driveMode ||
+      (needsOnlineToConnect && driveMode && !hasDriveRoot);
     if (hasDriveRoot) {
       filesConnectDriveBtn.classList.add("svg-btn");
       filesConnectDriveBtn.innerHTML = DRIVE_DISCONNECT_ICON;
-      filesConnectDriveBtn.title = "Disconnect Google Drive and\nclear your saved sign-in";
+      filesConnectDriveBtn.title =
+        "Disconnect Google Drive and\nclear your saved sign-in";
       filesConnectDriveBtn.setAttribute("aria-label", "Disconnect");
     } else if (hasSealedDriveSession()) {
       filesConnectDriveBtn.classList.remove("svg-btn");
@@ -218,16 +254,19 @@ export function updateFilesChrome() {
   }
   if (filesConnectGistBtn) {
     const gistOfflineBlock = gistMode && !hasGistRoot && !online;
-    filesConnectGistBtn.hidden = !state.gistConfigured || !gistMode || gistOfflineBlock;
+    filesConnectGistBtn.hidden =
+      !state.gistConfigured || !gistMode || gistOfflineBlock;
     if (hasGistRoot) {
       filesConnectGistBtn.classList.add("svg-btn");
       filesConnectGistBtn.innerHTML = DRIVE_DISCONNECT_ICON;
-      filesConnectGistBtn.title = "Disconnect GitHub Gist and\nclear your saved token";
+      filesConnectGistBtn.title =
+        "Disconnect GitHub Gist and\nclear your saved token";
       filesConnectGistBtn.setAttribute("aria-label", "Disconnect Gist");
     } else if (hasSealedGistSession()) {
       filesConnectGistBtn.classList.remove("svg-btn");
       filesConnectGistBtn.textContent = "Unlock Gist";
-      filesConnectGistBtn.title = "Use your passkey to restore\nyour saved GitHub Gist token";
+      filesConnectGistBtn.title =
+        "Use your passkey to restore\nyour saved GitHub Gist token";
       filesConnectGistBtn.setAttribute("aria-label", "Unlock Gist");
     } else {
       filesConnectGistBtn.classList.add("svg-btn");
@@ -241,7 +280,10 @@ export function updateFilesChrome() {
   }
   if (filesEmptyConnectBtn) {
     filesEmptyConnectBtn.hidden =
-      !state.driveConfigured || !driveMode || hasDriveRoot || needsOnlineToConnect;
+      !state.driveConfigured ||
+      !driveMode ||
+      hasDriveRoot ||
+      needsOnlineToConnect;
   }
   if (filesEmptyConnectGistBtn) {
     filesEmptyConnectGistBtn.hidden =
@@ -261,7 +303,8 @@ export function updateFilesChrome() {
 export function getTargetDirForCreate(preferredPath = state.selectedPath) {
   if (!state.rootDirHandle) return null;
   const entry = preferredPath ? fsEntries.get(preferredPath) : null;
-  if (entry?.kind === "directory") return /** @type {FileSystemDirectoryHandle} */ (entry.handle);
+  if (entry?.kind === "directory")
+    return /** @type {FileSystemDirectoryHandle} */ (entry.handle);
   if (entry?.kind === "file" && entry.parent) return entry.parent;
   if (state.selectedDirHandle) return state.selectedDirHandle;
   return state.rootDirHandle;
@@ -271,7 +314,9 @@ export function selectFsPath(path) {
   state.selectedPath = path || "";
   const entry = state.selectedPath ? fsEntries.get(state.selectedPath) : null;
   if (entry?.kind === "directory") {
-    state.selectedDirHandle = /** @type {FileSystemDirectoryHandle} */ (entry.handle);
+    state.selectedDirHandle = /** @type {FileSystemDirectoryHandle} */ (
+      entry.handle
+    );
   } else if (entry?.kind === "file" && entry.parent) {
     state.selectedDirHandle = entry.parent;
   } else {
@@ -285,16 +330,23 @@ export function highlightSelectedInTree() {
     el.classList.remove("is-selected");
   });
   if (!state.selectedPath) return;
-  const row = filesTree?.querySelector(`.files-tree-row[data-path="${hooks.cssEscape(state.selectedPath)}"]`);
+  const row = filesTree?.querySelector(
+    `.files-tree-row[data-path="${hooks.cssEscape(state.selectedPath)}"]`,
+  );
   row?.classList.add("is-selected");
 }
 
 export function highlightActiveFileInTree() {
-  filesTree?.querySelectorAll(".files-tree-row.is-active-file").forEach((el) => {
-    el.classList.remove("is-active-file");
-  });
+  filesTree
+    ?.querySelectorAll(".files-tree-row.is-active-file")
+    .forEach((el) => {
+      el.classList.remove("is-active-file");
+    });
   if (hooks.isGistFilesSource() && state.currentGistFile?.gistId) {
-    const id = hooks.gistEntryId(state.currentGistFile.gistId, state.currentGistFile.filename);
+    const id = hooks.gistEntryId(
+      state.currentGistFile.gistId,
+      state.currentGistFile.filename,
+    );
     const row = filesTree?.querySelector(
       `.files-tree-row[data-gist-id="${hooks.cssEscape(id)}"]`,
     );
@@ -310,14 +362,18 @@ export function highlightActiveFileInTree() {
   }
   if (!state.currentFileName) return;
   if (state.currentFilePath) {
-    const row = filesTree?.querySelector(`.files-tree-row[data-path="${hooks.cssEscape(state.currentFilePath)}"]`);
+    const row = filesTree?.querySelector(
+      `.files-tree-row[data-path="${hooks.cssEscape(state.currentFilePath)}"]`,
+    );
     row?.classList.add("is-active-file");
     return;
   }
   if (!state.currentFileHandle) return;
   for (const [path, entry] of fsEntries) {
     if (entry.kind === "file" && entry.handle === state.currentFileHandle) {
-      const row = filesTree?.querySelector(`.files-tree-row[data-path="${hooks.cssEscape(path)}"]`);
+      const row = filesTree?.querySelector(
+        `.files-tree-row[data-path="${hooks.cssEscape(path)}"]`,
+      );
       row?.classList.add("is-active-file");
       return;
     }

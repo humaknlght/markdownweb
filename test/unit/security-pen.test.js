@@ -1,14 +1,15 @@
 /**
  * Adversarial checks for the hybrid vault, path resolution, and export sanitize.
  */
-import { describe, it, beforeEach, afterEach } from "node:test";
+
 import assert from "node:assert/strict";
+import { afterEach, beforeEach, describe, it } from "node:test";
 import { JSDOM } from "jsdom";
 import "fake-indexeddb/auto";
 import {
+  clearVaultStorage,
   DRIVE_TOKEN_STORAGE_KEY,
   DRIVE_VAULT_META_KEY,
-  clearVaultStorage,
   hasSealedDriveSession,
   migrateAwayFromIdbVault,
   sealToken,
@@ -16,12 +17,12 @@ import {
   unsealToken,
 } from "../../src/drive/drive-token-vault.js";
 import {
-  DRIVE_TOKEN_SESSION_KEY,
   clearDriveAccessToken,
+  DRIVE_TOKEN_SESSION_KEY,
   getDriveAccessToken,
   tryRestoreDriveAccessToken,
 } from "../../src/drive/google-drive.js";
-import { cleanPreviewHtml, buildHtmlDocument } from "../../src/lib/export.js";
+import { buildHtmlDocument, cleanPreviewHtml } from "../../src/lib/export.js";
 import { resolveFilePath } from "../../src/lib/fs.js";
 import {
   isSafeMediaUri,
@@ -95,10 +96,11 @@ describe("security pen: vault", () => {
   });
 
   it("does not treat PRF ciphertext as a silent boot token", async () => {
-    const key = await crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, false, [
-      "encrypt",
-      "decrypt",
-    ]);
+    const key = await crypto.subtle.generateKey(
+      { name: "AES-GCM", length: 256 },
+      false,
+      ["encrypt", "decrypt"],
+    );
     await sealToken("ya29.sealed", Date.now() + 60_000, key, {
       kind: "prf",
       credId: "Y3JlZA==",
@@ -176,7 +178,9 @@ describe("security pen: export XSS", () => {
   });
 
   it("neutralizes common XSS payloads in exported HTML", () => {
-    const { window: win } = new JSDOM("<!DOCTYPE html>", { url: "https://example.test/" });
+    const { window: win } = new JSDOM("<!DOCTYPE html>", {
+      url: "https://example.test/",
+    });
     previousWindow = globalThis.window;
     globalThis.window = /** @type {Window} */ (/** @type {unknown} */ (win));
     const el = win.document.createElement("article");
@@ -201,7 +205,9 @@ describe("security pen: export XSS", () => {
   });
 
   it("strips remote https images from exported HTML (no phone-home)", () => {
-    const { window: win } = new JSDOM("<!DOCTYPE html>", { url: "https://example.test/" });
+    const { window: win } = new JSDOM("<!DOCTYPE html>", {
+      url: "https://example.test/",
+    });
     previousWindow = globalThis.window;
     globalThis.window = /** @type {Window} */ (/** @type {unknown} */ (win));
     const el = win.document.createElement("article");

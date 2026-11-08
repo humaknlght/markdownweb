@@ -59,6 +59,13 @@ Open [https://127.0.0.1:3456](https://127.0.0.1:3456) (self-signed TLS so the se
 
 `npm run dev` and `npm run preview` use a small Node server that applies the same security headers as `public/.htaccess` (plain static servers like `serve` or Python’s `http.server` ignore `.htaccess`). When HTTP/2 is available it serves over HTTPS with HTTP/1.1 fallback; otherwise plain HTTP/1.1.
 
+## Lint
+
+```bash
+npm run lint        # Biome check (format + lint; same as CI)
+npm run lint:fix   # apply safe fixes + format
+```
+
 ## Tests
 
 ```bash
@@ -115,12 +122,12 @@ Markdown is compressed with **deflate-raw**, then encoded as base64url in the ha
 https://example.com/#mdz=<deflate-raw+base64url>&theme=fancy&view=edit
 ```
 
-| Param | Values | Notes |
-| --- | --- | --- |
-| `mdz` | deflate-raw → base64url Markdown | Preferred; used by new share links |
-| `md` | base64url Markdown (uncompressed) | Legacy; still decoded for older links |
-| `theme` | `github-light`, `github-dark`, `sepia`, `terminal`, `salesforce`, `fancy` | Optional; locks the look of the shared page |
-| `view` | `edit` (share links); also `reader`, `present`, `slides` for local navigation | Share button always writes `view=edit` |
+| Param   | Values                                                                        | Notes                                       |
+| ------- | ----------------------------------------------------------------------------- | ------------------------------------------- |
+| `mdz`   | deflate-raw → base64url Markdown                                              | Preferred; used by new share links          |
+| `md`    | base64url Markdown (uncompressed)                                             | Legacy; still decoded for older links       |
+| `theme` | `github-light`, `github-dark`, `sepia`, `terminal`, `salesforce`, `fancy`     | Optional; locks the look of the shared page |
+| `view`  | `edit` (share links); also `reader`, `present`, `slides` for local navigation | Share button always writes `view=edit`      |
 
 Query form also works (`?mdz=...` or legacy `?md=...`). On load, URL content takes priority over the saved draft and opens in **edit** so the recipient can read the source before Accepting. Very long documents can still produce URLs some apps truncate; the share toast warns when a link exceeds ~16KB.
 

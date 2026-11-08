@@ -1,23 +1,30 @@
-import { test, expect } from "playwright/test";
+import { expect, test } from "playwright/test";
 import {
-  openFreshApp,
-  waitForAppReady,
-  preparePage,
   headingText,
-  previewLocator
+  openFreshApp,
+  preparePage,
+  previewLocator,
+  waitForAppReady,
 } from "./helpers.js";
 
 async function compressToMdz(text) {
   const input = new TextEncoder().encode(text);
-  const stream = new Blob([input]).stream().pipeThrough(new CompressionStream("deflate-raw"));
+  const stream = new Blob([input])
+    .stream()
+    .pipeThrough(new CompressionStream("deflate-raw"));
   const bytes = new Uint8Array(await new Response(stream).arrayBuffer());
   let binary = "";
   for (const b of bytes) binary += String.fromCharCode(b);
-  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  return btoa(binary)
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
 }
 
 test.describe("share + trust modal", () => {
-  test("mdz share opens edit with blocking dialog and paused preview", async ({ page }) => {
+  test("mdz share opens edit with blocking dialog and paused preview", async ({
+    page,
+  }) => {
     await preparePage(page);
     const markdown = "# Shared Doc\n\nHello from a share link.";
     const mdz = await compressToMdz(markdown);
@@ -32,7 +39,9 @@ test.describe("share + trust modal", () => {
     await expect(page.locator("#editor")).toHaveValue(markdown);
   });
 
-  test("Accept persists content and strips mdz from the URL", async ({ page }) => {
+  test("Accept persists content and strips mdz from the URL", async ({
+    page,
+  }) => {
     await preparePage(page);
     const markdown = "# Accept Me\n\nBody.";
     const mdz = await compressToMdz(markdown);
@@ -63,7 +72,10 @@ test.describe("share + trust modal", () => {
     await expect(page).not.toHaveURL(/mdz=/);
   });
 
-  test("share button copies an edit-view mdz link", async ({ page, context }) => {
+  test("share button copies an edit-view mdz link", async ({
+    page,
+    context,
+  }) => {
     await context.grantPermissions(["clipboard-read", "clipboard-write"]);
     await openFreshApp(page);
 
@@ -76,7 +88,9 @@ test.describe("share + trust modal", () => {
     expect(clip).toMatch(/view=edit/);
   });
 
-  test("switching views does not rewrite mdz into the hash", async ({ page }) => {
+  test("switching views does not rewrite mdz into the hash", async ({
+    page,
+  }) => {
     await openFreshApp(page);
 
     await page.locator("#editor").fill("# A\n\n## B\n\nSlide body.");

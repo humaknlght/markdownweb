@@ -1,5 +1,5 @@
-import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { describe, it } from "node:test";
 import { escapePipesInTableCodeSpans } from "../../src/markdown/tablePipes.js";
 import { renderMarkdownHtml } from "../helpers/render.js";
 
@@ -13,7 +13,8 @@ describe("escapePipesInTableCodeSpans", () => {
   });
 
   it("leaves fenced code blocks alone", () => {
-    const fenced = "```\n| `a|b` |\n| --- |\n```\n| real | `x|y` |\n| --- | --- |";
+    const fenced =
+      "```\n| `a|b` |\n| --- |\n```\n| real | `x|y` |\n| --- | --- |";
     const result = escapePipesInTableCodeSpans(fenced);
     assert.equal(result.split("\n")[1], "| `a|b` |");
     assert.match(result, /`x\\\|y`/);

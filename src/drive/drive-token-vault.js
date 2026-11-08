@@ -61,7 +61,10 @@ function toUint8(value) {
 function asStandaloneArrayBuffer(value) {
   if (value instanceof ArrayBuffer) return value.slice(0);
   if (ArrayBuffer.isView(value)) {
-    return value.buffer.slice(value.byteOffset, value.byteOffset + value.byteLength);
+    return value.buffer.slice(
+      value.byteOffset,
+      value.byteOffset + value.byteLength,
+    );
   }
   return null;
 }
@@ -106,8 +109,10 @@ export function readVaultMeta() {
     const raw = localStorage.getItem(DRIVE_VAULT_META_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-    if (typeof parsed?.credId !== "string" || typeof parsed?.salt !== "string") return null;
-    const kind = parsed.kind === VAULT_KIND_IDB ? VAULT_KIND_IDB : VAULT_KIND_PRF;
+    if (typeof parsed?.credId !== "string" || typeof parsed?.salt !== "string")
+      return null;
+    const kind =
+      parsed.kind === VAULT_KIND_IDB ? VAULT_KIND_IDB : VAULT_KIND_PRF;
     return { kind, credId: parsed.credId, salt: parsed.salt };
   } catch {
     return null;
@@ -135,7 +140,8 @@ async function deleteIdbVaultKey() {
       await new Promise((resolve, reject) => {
         const tx = db.transaction(IDB_STORE, "readwrite");
         tx.oncomplete = () => resolve();
-        tx.onerror = () => reject(tx.error || new Error("IndexedDB delete failed"));
+        tx.onerror = () =>
+          reject(tx.error || new Error("IndexedDB delete failed"));
         tx.objectStore(IDB_STORE).delete(IDB_KEY_NAME);
       });
     } finally {
@@ -196,7 +202,11 @@ export function hasSealedDriveSession() {
     const raw = localStorage.getItem(DRIVE_TOKEN_STORAGE_KEY);
     if (!raw) return false;
     const parsed = JSON.parse(raw);
-    if (parsed?.v !== 1 || typeof parsed?.ct !== "string" || typeof parsed?.iv !== "string") {
+    if (
+      parsed?.v !== 1 ||
+      typeof parsed?.ct !== "string" ||
+      typeof parsed?.iv !== "string"
+    ) {
       return false;
     }
     if (parsed.kind === VAULT_KIND_IDB) return false;
@@ -243,7 +253,9 @@ export function purgeLegacyCleartextToken() {
  * @returns {Promise<CryptoKey>}
  */
 async function aesKeyFromPrf(prfBytes) {
-  const ikm = await crypto.subtle.importKey("raw", prfBytes, "HKDF", false, ["deriveKey"]);
+  const ikm = await crypto.subtle.importKey("raw", prfBytes, "HKDF", false, [
+    "deriveKey",
+  ]);
   return crypto.subtle.deriveKey(
     { name: "HKDF", hash: "SHA-256", salt: new Uint8Array(), info: HKDF_INFO },
     ikm,
@@ -261,7 +273,9 @@ function prfResultFromCredential(credential) {
   const ext =
     typeof credential.getClientExtensionResults === "function"
       ? credential.getClientExtensionResults()
-      : /** @type {{ prf?: { results?: { first?: BufferSource } } }} */ (credential).clientExtensionResults;
+      : /** @type {{ prf?: { results?: { first?: BufferSource } } }} */ (
+          credential
+        ).clientExtensionResults;
   return asStandaloneArrayBuffer(ext?.prf?.results?.first);
 }
 
@@ -274,7 +288,8 @@ function openIdb() {
     req.onerror = () => reject(req.error || new Error("IndexedDB open failed"));
     req.onupgradeneeded = () => {
       const db = req.result;
-      if (!db.objectStoreNames.contains(IDB_STORE)) db.createObjectStore(IDB_STORE);
+      if (!db.objectStoreNames.contains(IDB_STORE))
+        db.createObjectStore(IDB_STORE);
     };
     req.onsuccess = () => resolve(req.result);
   });
@@ -287,7 +302,9 @@ function openIdb() {
  */
 export async function createPrfVaultKey() {
   if (!isWebAuthnAvailable()) {
-    throw Object.assign(new Error("WebAuthn is not available"), { name: "NotSupportedError" });
+    throw Object.assign(new Error("WebAuthn is not available"), {
+      name: "NotSupportedError",
+    });
   }
 
   const capability = await getPrfCapability();
@@ -336,10 +353,12 @@ export async function createPrfVaultKey() {
   );
 
   if (!credential) {
-    throw Object.assign(new Error("Passkey registration was cancelled"), { name: "AbortError" });
+    throw Object.assign(new Error("Passkey registration was cancelled"), {
+      name: "AbortError",
+    });
   }
 
-  let prfBytes = prfResultFromCredential(credential);
+  const prfBytes = prfResultFromCredential(credential);
   const credIdB64 = b64(credential.rawId);
   const saltB64 = b64(salt);
 
@@ -421,14 +440,19 @@ export async function deriveVaultKey(credIdB64, saltB64) {
   );
 
   if (!assertion) {
-    throw Object.assign(new Error("Passkey unlock was cancelled"), { name: "AbortError" });
+    throw Object.assign(new Error("Passkey unlock was cancelled"), {
+      name: "AbortError",
+    });
   }
 
   const prfBytes = prfResultFromCredential(assertion);
   if (!prfBytes) {
-    throw Object.assign(new Error("This authenticator did not return a PRF result"), {
-      name: "NotSupportedError",
-    });
+    throw Object.assign(
+      new Error("This authenticator did not return a PRF result"),
+      {
+        name: "NotSupportedError",
+      },
+    );
   }
 
   return aesKeyFromPrf(prfBytes);
@@ -445,8 +469,14 @@ export async function sealToken(token, expiresAt, key, meta) {
     throw new Error("IndexedDB vault sealing is no longer supported");
   }
   const iv = crypto.getRandomValues(new Uint8Array(IV_BYTES));
-  const plaintext = new TextEncoder().encode(JSON.stringify({ token, expiresAt }));
-  const ct = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, plaintext);
+  const plaintext = new TextEncoder().encode(
+    JSON.stringify({ token, expiresAt }),
+  );
+  const ct = await crypto.subtle.encrypt(
+    { name: "AES-GCM", iv },
+    key,
+    plaintext,
+  );
   const blob = {
     v: 1,
     kind: VAULT_KIND_PRF,
@@ -469,7 +499,11 @@ export async function unsealToken(key) {
   const raw = localStorage.getItem(DRIVE_TOKEN_STORAGE_KEY);
   if (!raw) return null;
   const parsed = JSON.parse(raw);
-  if (parsed?.v !== 1 || typeof parsed.ct !== "string" || typeof parsed.iv !== "string") {
+  if (
+    parsed?.v !== 1 ||
+    typeof parsed.ct !== "string" ||
+    typeof parsed.iv !== "string"
+  ) {
     return null;
   }
   if (parsed.kind === VAULT_KIND_IDB) {
@@ -483,7 +517,11 @@ export async function unsealToken(key) {
   }
   const iv = unb64(parsed.iv);
   const ct = unb64(parsed.ct);
-  const plainBuf = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, ct);
+  const plainBuf = await crypto.subtle.decrypt(
+    { name: "AES-GCM", iv },
+    key,
+    ct,
+  );
   const payload = JSON.parse(new TextDecoder().decode(plainBuf));
   if (typeof payload?.token !== "string") return null;
   const tokenExpires = Number(payload.expiresAt);

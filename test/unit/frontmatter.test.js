@@ -1,5 +1,5 @@
-import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { describe, it } from "node:test";
 import {
   extractFrontmatter,
   formatFrontmatterValue,
@@ -32,7 +32,10 @@ describe("extractFrontmatter", () => {
   });
 
   it("marks invalid YAML and non-object roots as parse errors", () => {
-    assert.equal(extractFrontmatter("---\n[unterminated\n---\n").parseError, true);
+    assert.equal(
+      extractFrontmatter("---\n[unterminated\n---\n").parseError,
+      true,
+    );
     assert.equal(extractFrontmatter("---\n- list\n---\n").parseError, true);
   });
 });
@@ -48,13 +51,20 @@ describe("formatFrontmatterValue / renderFrontmatterHtml", () => {
   });
 
   it("renders an error panel for parse errors", () => {
-    const html = renderFrontmatterHtml({ data: null, parseError: true, rawYaml: "bad" });
+    const html = renderFrontmatterHtml({
+      data: null,
+      parseError: true,
+      rawYaml: "bad",
+    });
     assert.match(html, /markdown-frontmatter-error/);
     assert.match(html, /Invalid YAML/);
   });
 
   it("returns empty string for empty data", () => {
-    assert.equal(renderFrontmatterHtml({ data: {}, parseError: false, rawYaml: "" }), "");
+    assert.equal(
+      renderFrontmatterHtml({ data: {}, parseError: false, rawYaml: "" }),
+      "",
+    );
   });
 });
 

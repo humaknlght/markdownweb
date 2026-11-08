@@ -1,5 +1,5 @@
-import { describe, it, beforeEach } from "node:test";
 import assert from "node:assert/strict";
+import { describe, it } from "node:test";
 import {
   base64UrlToUtf8,
   bytesToBase64Url,
@@ -50,20 +50,26 @@ describe("share encoding", () => {
     assert.equal(result.theme, "fancy");
     assert.equal(result.view, "edit");
 
-    const bad = await readShareParams(new URLSearchParams({ theme: "nope", view: "nope" }), {
-      themes: ["fancy"],
-      views: ["edit"],
-    });
+    const bad = await readShareParams(
+      new URLSearchParams({ theme: "nope", view: "nope" }),
+      {
+        themes: ["fancy"],
+        views: ["edit"],
+      },
+    );
     assert.equal(bad.theme, null);
     assert.equal(bad.view, null);
   });
 
   it("falls back to md when mdz is corrupt", async () => {
     const md = bytesToBase64Url(new TextEncoder().encode("legacy"));
-    const result = await readShareParams(new URLSearchParams({ mdz: "!!!", md }), {
-      themes: [],
-      views: [],
-    });
+    const result = await readShareParams(
+      new URLSearchParams({ mdz: "!!!", md }),
+      {
+        themes: [],
+        views: [],
+      },
+    );
     assert.equal(result.markdown, "legacy");
   });
 });

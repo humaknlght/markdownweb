@@ -388,7 +388,8 @@ function getAudioCtx() {
   if (!AC) return null;
   if (!audioCtx) audioCtx = new AC();
   // Don't auto-resume while backgrounded — that undoes pauseZenWhileHidden.
-  if (audioCtx.state === "suspended" && zenPageIsForeground()) void audioCtx.resume();
+  if (audioCtx.state === "suspended" && zenPageIsForeground())
+    void audioCtx.resume();
   return audioCtx;
 }
 
@@ -508,7 +509,12 @@ function playWaterDrop(strength = 0.4, panX = 0.5) {
  * @param {number} [strength]
  * @param {{ sound?: boolean }} [opts]
  */
-function pushRipple(x = Math.random(), y = Math.random(), strength = 0.55, opts = {}) {
+function pushRipple(
+  x = Math.random(),
+  y = Math.random(),
+  strength = 0.55,
+  opts = {},
+) {
   if (!runtime || runtime.reduce) return;
   const nx = Math.min(1, Math.max(0, x));
   const ny = Math.min(1, Math.max(0, y));
@@ -530,7 +536,9 @@ function pushRipple(x = Math.random(), y = Math.random(), strength = 0.55, opts 
  * @param {{ x?: number, y?: number, strength?: number }} [opts]
  */
 export function addZenRipple(opts = {}) {
-  pushRipple(opts.x ?? 0.5, opts.y ?? 0.5, opts.strength ?? 0.22, { sound: false });
+  pushRipple(opts.x ?? 0.5, opts.y ?? 0.5, opts.strength ?? 0.22, {
+    sound: false,
+  });
 }
 
 /**
@@ -570,7 +578,9 @@ function sampleRippleField(ripples, x, y, t, aspect) {
       const ringAge = age - emitTime;
       const radius = ringAge * RIPPLE_SPEED;
       const energy =
-        Math.exp(-ringAge * 0.18) * Math.exp(-radius * RIPPLE_DAMP) * r.strength;
+        Math.exp(-ringAge * 0.18) *
+        Math.exp(-radius * RIPPLE_DAMP) *
+        r.strength;
       const u = (dist - radius) / crestWidth;
       const crest = Math.exp(-u * u) * energy * RIPPLE_CREST_AMP;
       h += crest;
@@ -731,7 +741,8 @@ function zenPageIsForeground() {
   if (typeof document === "undefined") return true;
   if (document.visibilityState === "hidden") return false;
   // visibilitychange alone misses “another window covering this one”.
-  if (typeof document.hasFocus === "function" && !document.hasFocus()) return false;
+  if (typeof document.hasFocus === "function" && !document.hasFocus())
+    return false;
   return true;
 }
 
@@ -854,8 +865,14 @@ export function startZenBackdrop(opts = {}) {
     uLeafGrad: gl.getUniformLocation(prog, "uLeafGrad"),
   };
   for (let i = 0; i < MAX_RIPPLES; i++) {
-    uniforms[`uRipplePos${i}`] = gl.getUniformLocation(prog, `uRipplePos[${i}]`);
-    uniforms[`uRippleData${i}`] = gl.getUniformLocation(prog, `uRippleData[${i}]`);
+    uniforms[`uRipplePos${i}`] = gl.getUniformLocation(
+      prog,
+      `uRipplePos[${i}]`,
+    );
+    uniforms[`uRippleData${i}`] = gl.getUniformLocation(
+      prog,
+      `uRippleData[${i}]`,
+    );
   }
 
   gl.clearColor(0.043, 0.11, 0.141, 1);
@@ -872,9 +889,12 @@ export function startZenBackdrop(opts = {}) {
   }
 
   function renderFrame(now) {
-    if (!runtime || !runtime.gl) return;
+    if (!runtime?.gl) return;
     const t = now * 0.001;
-    const dt = runtime.lastT > 0 ? Math.min(0.05, Math.max(0, t - runtime.lastT)) : 1 / 60;
+    const dt =
+      runtime.lastT > 0
+        ? Math.min(0.05, Math.max(0, t - runtime.lastT))
+        : 1 / 60;
     runtime.lastT = t;
     // Drop finished ripples (matches shader LIFE)
     runtime.ripples = runtime.ripples.filter((r) => t - r.t0 < RIPPLE_LIFE);
@@ -910,7 +930,12 @@ export function startZenBackdrop(opts = {}) {
       if (r) {
         // speed / damp stay in sync with RIPPLE_SPEED / RIPPLE_DAMP
         gl.uniform3f(uniforms[`uRipplePos${i}`], r.x, r.y, r.t0);
-        gl.uniform3f(uniforms[`uRippleData${i}`], r.strength, RIPPLE_SPEED, RIPPLE_DAMP);
+        gl.uniform3f(
+          uniforms[`uRippleData${i}`],
+          r.strength,
+          RIPPLE_SPEED,
+          RIPPLE_DAMP,
+        );
       } else {
         gl.uniform3f(uniforms[`uRipplePos${i}`], 0, 0, -10);
         gl.uniform3f(uniforms[`uRippleData${i}`], 0, 0, 0);

@@ -10,8 +10,7 @@ export function extractInlineScripts(html) {
   const scripts = [];
   // Closing `\b[^>]*` matches browser-tolerated forms like `</script >` / `</script foo>`.
   const re = /<script\b([^>]*)>([\s\S]*?)<\/script\b[^>]*>/gi;
-  let match;
-  while ((match = re.exec(html)) !== null) {
+  for (const match of html.matchAll(re)) {
     const attrs = match[1] || "";
     if (/\bsrc\s*=/i.test(attrs)) continue;
     scripts.push(match[2]);

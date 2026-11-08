@@ -1,9 +1,9 @@
 import { hooks } from "../hooks.js";
 import {
-  editor,
-  aiWriteDialog,
-  aiRewriteDialog,
   aiProofreadDialog,
+  aiRewriteDialog,
+  aiWriteDialog,
+  editor,
 } from "../state.js";
 
 /** Write, rewrite, and proofread runs against the lazy Chrome AI module. */
@@ -140,7 +140,11 @@ export function installAiActions(s, api) {
       };
       const result =
         backend === "prompt"
-          ? await runPromptWrite(session, prompt, { ...writeOpts, tone, length })
+          ? await runPromptWrite(session, prompt, {
+              ...writeOpts,
+              tone,
+              length,
+            })
           : await runWrite(session, prompt, writeOpts);
       s.pendingResult = result;
       s.showPreview(preview, result);
@@ -243,7 +247,11 @@ export function installAiActions(s, api) {
       };
       const result =
         backend === "prompt"
-          ? await runPromptRewrite(session, source, { ...rewriteOpts, tone, length })
+          ? await runPromptRewrite(session, source, {
+              ...rewriteOpts,
+              tone,
+              length,
+            })
           : await runRewrite(session, source, rewriteOpts);
       s.pendingResult = result;
       s.showPreview(preview, result);
@@ -287,7 +295,10 @@ export function installAiActions(s, api) {
     const stopBtn = document.getElementById("ai-proofread-stop");
     const cancelBtn = document.getElementById("ai-proofread-cancel");
     if (!s.pendingRange) return;
-    if (runBtn?.disabled || aiProofreadDialog?.getAttribute("aria-busy") === "true") {
+    if (
+      runBtn?.disabled ||
+      aiProofreadDialog?.getAttribute("aria-busy") === "true"
+    ) {
       return;
     }
 

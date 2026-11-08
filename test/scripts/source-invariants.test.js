@@ -1,15 +1,18 @@
-import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
+import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
-import { CDN_LAZY, CDN_PRECACHE } from "../../scripts/pwa.mjs";
 import {
   applyCdnIntegrity,
   loadCdnIntegrity,
 } from "../../scripts/cdn-integrity.mjs";
+import { CDN_LAZY, CDN_PRECACHE } from "../../scripts/pwa.mjs";
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+const root = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "../..",
+);
 const srcDir = path.join(root, "src");
 
 /** Strip line and block comments without touching string literals. */
@@ -56,7 +59,10 @@ function stripJsComments(source) {
     }
     if (c === "/" && n === "*") {
       i += 2;
-      while (i < source.length && !(source[i] === "*" && source[i + 1] === "/")) {
+      while (
+        i < source.length &&
+        !(source[i] === "*" && source[i + 1] === "/")
+      ) {
         i += 1;
       }
       i += 2;
@@ -71,7 +77,11 @@ function stripJsComments(source) {
 function isBareModuleSpecifier(spec) {
   if (!spec) return false;
   if (spec.startsWith("./") || spec.startsWith("../")) return false;
-  if (spec.startsWith("/") || spec.startsWith("http:") || spec.startsWith("https:")) {
+  if (
+    spec.startsWith("/") ||
+    spec.startsWith("http:") ||
+    spec.startsWith("https:")
+  ) {
     return false;
   }
   return true;
@@ -179,8 +189,14 @@ describe("static source invariants", () => {
     assert.match(html, /yaml@2\.9\.1/);
     assert.match(html, /@octokit\/rest@22\.0\.1/);
 
-    const constants = await fs.readFile(path.join(root, "src/app/constants.js"), "utf8");
-    const lazy = await fs.readFile(path.join(root, "src/app/lazy-modules.js"), "utf8");
+    const constants = await fs.readFile(
+      path.join(root, "src/app/constants.js"),
+      "utf8",
+    );
+    const lazy = await fs.readFile(
+      path.join(root, "src/app/lazy-modules.js"),
+      "utf8",
+    );
     assert.match(
       constants,
       /THEMES = \[\s*"github-light",\s*"github-dark",\s*"sepia",\s*"terminal",\s*"salesforce",\s*"fancy",\s*"zen",\s*\]/,
@@ -193,7 +209,10 @@ describe("static source invariants", () => {
     assert.doesNotMatch(lazy, /from ["']\.\.\/lib\/theme-zen\.js["']/);
     assert.match(lazy, /loadZenCss/);
     assert.match(lazy, /zen\.css/);
-    const zenCss = await fs.readFile(path.join(root, "src/styles/zen.css"), "utf8");
+    const zenCss = await fs.readFile(
+      path.join(root, "src/styles/zen.css"),
+      "utf8",
+    );
     assert.match(zenCss, /data-theme="zen"/);
     assert.doesNotMatch(
       await fs.readFile(path.join(root, "src/styles/styles.css"), "utf8"),
@@ -219,7 +238,10 @@ describe("static source invariants", () => {
   it("covers every CDN URL with an SRI hash", async () => {
     const integrity = await loadCdnIntegrity();
     const urls = Object.keys(integrity);
-    assert.ok(urls.length >= 100, `expected a full CDN graph, got ${urls.length}`);
+    assert.ok(
+      urls.length >= 100,
+      `expected a full CDN graph, got ${urls.length}`,
+    );
 
     for (const url of CDN_PRECACHE) {
       assert.equal(typeof integrity[url], "string", `missing SRI for ${url}`);
@@ -269,7 +291,10 @@ describe("static source invariants", () => {
     )?.[1];
     assert.ok(body, "import map missing after injection");
     const map = JSON.parse(body);
-    assert.equal(Object.keys(map.integrity).length, Object.keys(integrity).length);
+    assert.equal(
+      Object.keys(map.integrity).length,
+      Object.keys(integrity).length,
+    );
     assert.equal(
       map.integrity[
         "https://cdn.jsdelivr.net/npm/mermaid@12.2.0/dist/mermaid.esm.min.mjs"
@@ -281,11 +306,17 @@ describe("static source invariants", () => {
     assert.match(injected, /languages\/javascript\.min\.js":\s*"sha384-/);
 
     // App allowlist is derived from this same injected map at runtime.
-    assert.deepEqual(Object.keys(map.integrity).sort(), Object.keys(integrity).sort());
+    assert.deepEqual(
+      Object.keys(map.integrity).sort(),
+      Object.keys(integrity).sort(),
+    );
   });
 
   it("robots.txt and sitemap.xml list the production indexable URLs", async () => {
-    const robots = await fs.readFile(path.join(root, "public/robots.txt"), "utf8");
+    const robots = await fs.readFile(
+      path.join(root, "public/robots.txt"),
+      "utf8",
+    );
     assert.match(robots, /User-agent:\s*\*/);
     assert.match(robots, /Disallow:\s*\/drive-helper\//);
     assert.match(
@@ -294,7 +325,10 @@ describe("static source invariants", () => {
     );
     assert.doesNotMatch(robots, /dev\.ericperret\.org/);
 
-    const sitemap = await fs.readFile(path.join(root, "public/sitemap.xml"), "utf8");
+    const sitemap = await fs.readFile(
+      path.join(root, "public/sitemap.xml"),
+      "utf8",
+    );
     assert.match(sitemap, /https:\/\/markdown\.ericperret\.org\//);
     assert.match(sitemap, /https:\/\/markdown\.ericperret\.org\/privacy\.html/);
     assert.doesNotMatch(sitemap, /drive-helper/);

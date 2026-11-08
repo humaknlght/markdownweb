@@ -1,9 +1,9 @@
-import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { describe, it } from "node:test";
 import {
   buildPreviewFrameCsp,
-  previewFrameOriginSrc,
   PREVIEW_FRAME_CSP,
+  previewFrameOriginSrc,
 } from "../../src/app/constants.js";
 
 describe("preview frame CSP", () => {

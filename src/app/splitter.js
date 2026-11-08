@@ -1,26 +1,21 @@
+import { NARROW_MQ, STORAGE_KEYS } from "./constants.js";
 import { hooks } from "./hooks.js";
 import {
-  state,
+  collapseEditorBtn,
+  collapsePreviewBtn,
   panes,
   splitter,
-  collapseEditorBtn,
-  collapsePreviewBtn
+  state,
 } from "./state.js";
-import {
-  STORAGE_KEYS,
-  NARROW_MQ
-} from "./constants.js";
-import {
-  SPLIT_MAX,
-  SPLIT_MIN,
-  clampSplit
-} from "./vendor-deps.js";
+import { clampSplit, SPLIT_MAX, SPLIT_MIN } from "./vendor-deps.js";
 
 export function applyCollapseState() {
-  const editorCollapsed = localStorage.getItem(STORAGE_KEYS.editorCollapsed) === "1";
+  const editorCollapsed =
+    localStorage.getItem(STORAGE_KEYS.editorCollapsed) === "1";
   // Collapse is an authoring-layout preference. Reader / present hide the expand
   // control and must always show the preview.
-  const previewCollapsedPref = localStorage.getItem(STORAGE_KEYS.previewCollapsed) === "1";
+  const previewCollapsedPref =
+    localStorage.getItem(STORAGE_KEYS.previewCollapsed) === "1";
   const previewCollapsed = previewCollapsedPref && hooks.isAuthoringView();
 
   panes.classList.toggle("editor-collapsed", editorCollapsed);
@@ -30,11 +25,18 @@ export function applyCollapseState() {
 
   collapseEditorBtn.setAttribute("aria-pressed", String(editorCollapsed));
   collapsePreviewBtn.setAttribute("aria-pressed", String(previewCollapsed));
-  collapseEditorBtn.title = editorCollapsed ? "Expand editor" : "Collapse editor";
-  collapsePreviewBtn.title = previewCollapsed ? "Expand preview" : "Collapse preview";
+  collapseEditorBtn.title = editorCollapsed
+    ? "Expand editor"
+    : "Collapse editor";
+  collapsePreviewBtn.title = previewCollapsed
+    ? "Expand preview"
+    : "Collapse preview";
   collapseEditorBtn.setAttribute("aria-label", collapseEditorBtn.title);
   collapsePreviewBtn.setAttribute("aria-label", collapsePreviewBtn.title);
-  splitter.setAttribute("aria-hidden", String(editorCollapsed || previewCollapsed));
+  splitter.setAttribute(
+    "aria-hidden",
+    String(editorCollapsed || previewCollapsed),
+  );
   splitter.tabIndex = editorCollapsed || previewCollapsed ? -1 : 0;
   hooks.invalidateScrollAnchors();
 }
@@ -48,7 +50,10 @@ export function applySplit(percent, { persist = true } = {}) {
   panes.style.setProperty("--split", `${state.splitPercent}%`);
   // Head boot sets --split on <html>; drop it once panes owns the live value.
   document.documentElement.style.removeProperty("--split");
-  splitter.setAttribute("aria-valuenow", String(Math.round(state.splitPercent)));
+  splitter.setAttribute(
+    "aria-valuenow",
+    String(Math.round(state.splitPercent)),
+  );
   hooks.invalidateScrollAnchors();
   if (persist) {
     try {
@@ -103,7 +108,10 @@ export function setupSplitter() {
   };
 
   splitter.addEventListener("pointerdown", (e) => {
-    if (panes.classList.contains("editor-collapsed") || panes.classList.contains("preview-collapsed")) {
+    if (
+      panes.classList.contains("editor-collapsed") ||
+      panes.classList.contains("preview-collapsed")
+    ) {
       return;
     }
     dragging = true;
@@ -122,7 +130,10 @@ export function setupSplitter() {
   });
 
   splitter.addEventListener("keydown", (e) => {
-    if (panes.classList.contains("editor-collapsed") || panes.classList.contains("preview-collapsed")) {
+    if (
+      panes.classList.contains("editor-collapsed") ||
+      panes.classList.contains("preview-collapsed")
+    ) {
       return;
     }
     const step = e.shiftKey ? 5 : 2;
@@ -144,7 +155,7 @@ export function setupSplitter() {
   const syncOrientation = () => {
     splitter.setAttribute(
       "aria-orientation",
-      isStackedLayout() ? "horizontal" : "vertical"
+      isStackedLayout() ? "horizontal" : "vertical",
     );
   };
   syncOrientation();

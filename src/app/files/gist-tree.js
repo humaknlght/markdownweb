@@ -1,12 +1,12 @@
+import { STORAGE_KEYS } from "../constants.js";
 import { hooks } from "../hooks.js";
 import {
-  state,
   filesTree,
-  gistPatModal,
+  gistEntries,
   gistPatInput,
-  gistEntries
+  gistPatModal,
+  state,
 } from "../state.js";
-import { STORAGE_KEYS } from "../constants.js";
 import {
   clearGistAccessToken,
   editableGistFiles,
@@ -18,7 +18,7 @@ import {
   setGistPersonalAccessToken,
   tryRestoreGistAccessToken,
   unlockGistAccessToken,
-  verifyGistToken
+  verifyGistToken,
 } from "../vendor-deps.js";
 
 export function beginGistFilesLoading() {
@@ -82,7 +82,10 @@ export async function refreshGistTree() {
     await renderGistTree();
   } catch (err) {
     console.error(err);
-    if (err?.status === 401 || /401|auth|Bad credentials|token/i.test(String(err?.message || ""))) {
+    if (
+      err?.status === 401 ||
+      /401|auth|Bad credentials|token/i.test(String(err?.message || ""))
+    ) {
       clearGistAccessToken();
       state.gistConnected = false;
       gistEntries.clear();
@@ -133,7 +136,8 @@ export async function unlockGistAccessTokenSafe() {
     const token = await unlockGistAccessToken();
     return Boolean(token);
   } catch (err) {
-    if (err?.name === "AbortError" || err?.name === "NotAllowedError") return false;
+    if (err?.name === "AbortError" || err?.name === "NotAllowedError")
+      return false;
     throw err;
   }
 }
@@ -150,14 +154,17 @@ export async function connectGithubGist() {
       if (hasSealedGistSession()) {
         const unlocked = await unlockGistAccessTokenSafe();
         if (!unlocked) {
-          hooks.showToast("Unlock cancelled — connect again to paste a new token");
+          hooks.showToast(
+            "Unlock cancelled — connect again to paste a new token",
+          );
           return;
         }
       } else {
         try {
           await prepareGistTokenVault();
         } catch (err) {
-          if (err?.name === "AbortError" || err?.name === "NotAllowedError") throw err;
+          if (err?.name === "AbortError" || err?.name === "NotAllowedError")
+            throw err;
         }
         const pat = await promptGistPersonalAccessToken();
         if (!pat) return;
@@ -180,7 +187,9 @@ export async function connectGithubGist() {
       endGistFilesLoading();
     }
     if (isGistSessionMemoryOnly()) {
-      hooks.showToast("Connected — Gists (session won’t survive refresh or closing this tab)");
+      hooks.showToast(
+        "Connected — Gists (session won’t survive refresh or closing this tab)",
+      );
     } else {
       hooks.showToast("Connected — Gists");
     }
@@ -192,7 +201,9 @@ export async function connectGithubGist() {
     const offlineish =
       !hooks.isBrowserOnline() ||
       err?.name === "TypeError" ||
-      /Failed to fetch|NetworkError|ERR_INTERNET/i.test(String(err?.message || ""));
+      /Failed to fetch|NetworkError|ERR_INTERNET/i.test(
+        String(err?.message || ""),
+      );
     hooks.showToast(
       offlineish
         ? "You need to be online to connect GitHub Gist"

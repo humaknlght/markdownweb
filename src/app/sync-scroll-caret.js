@@ -1,11 +1,5 @@
 import { hooks } from "./hooks.js";
-import {
-  state,
-  editor,
-  preview,
-  panes,
-  previewPane
-} from "./state.js";
+import { editor, panes, preview, previewPane, state } from "./state.js";
 
 /**
  * 1-based source line of the editor caret (or selection start).
@@ -155,7 +149,10 @@ export function revealPreviewElement(el, pane) {
  */
 export function revealPreviewForEditorCaret() {
   if (!state.syncScrollEnabled) return;
-  if (panes.classList.contains("editor-collapsed") || panes.classList.contains("preview-collapsed")) {
+  if (
+    panes.classList.contains("editor-collapsed") ||
+    panes.classList.contains("preview-collapsed")
+  ) {
     return;
   }
   // Proofread right pane is plain text — caret reveal uses rendered blocks.
@@ -181,7 +178,10 @@ export function revealPreviewForEditorCaret() {
 
 /** 1-based source line nearest the top of the editor viewport. */
 export function editorLineNearViewportTop() {
-  const lineTops = state.editorLineTops || (state.editorLineTops = hooks.measureEditorLineTops());
+  if (!state.editorLineTops) {
+    state.editorLineTops = hooks.measureEditorLineTops();
+  }
+  const lineTops = state.editorLineTops;
   if (!lineTops.length) return 1;
   const y = editor.scrollTop + 4;
   let lo = 0;
@@ -196,7 +196,10 @@ export function editorLineNearViewportTop() {
 
 /** Whether a 1-based editor line intersects the visible editor viewport. */
 export function isEditorLineVisible(line) {
-  const lineTops = state.editorLineTops || (state.editorLineTops = hooks.measureEditorLineTops());
+  if (!state.editorLineTops) {
+    state.editorLineTops = hooks.measureEditorLineTops();
+  }
+  const lineTops = state.editorLineTops;
   if (!lineTops.length || line < 1 || line > lineTops.length) return false;
   const top = lineTops[line - 1];
   const bottom = line < lineTops.length ? lineTops[line] : top + 20;
@@ -286,7 +289,8 @@ export function scheduleRevealPreviewForCaret({ force = false } = {}) {
 export function previewLineNearViewportTop() {
   if (!previewPane || previewPane.clientHeight <= 0) return 0;
   // Same scroll-space rule as caret reveal: headings live in the iframe.
-  const marker = previewPane.scrollTop + Math.min(40, previewPane.clientHeight * 0.2);
+  const marker =
+    previewPane.scrollTop + Math.min(40, previewPane.clientHeight * 0.2);
   let line = 0;
   for (const h of preview.querySelectorAll("h1, h2, h3, h4, h5, h6")) {
     if (!hooks.previewNodeIsLaidOut(h)) continue;
@@ -306,7 +310,8 @@ export function outlineSourceLine() {
   // Editor caret/click wins while the editor is driving outline position.
   if (editorVisible && state.outlineScrollSource === "editor") {
     const caret = editorCaretLine();
-    if (document.activeElement === editor || isEditorLineVisible(caret)) return caret;
+    if (document.activeElement === editor || isEditorLineVisible(caret))
+      return caret;
     return editorLineNearViewportTop();
   }
 

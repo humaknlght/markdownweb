@@ -1,11 +1,11 @@
-import { test, expect } from "playwright/test";
+import { expect, test } from "playwright/test";
+import { buildPreviewFrameCsp } from "../../src/app/constants.js";
 import {
+  headingText,
   openFreshApp,
   openSettings,
   previewLocator,
-  headingText,
 } from "./helpers.js";
-import { buildPreviewFrameCsp } from "../../src/app/constants.js";
 
 test.describe("preview sandbox isolation", () => {
   test("preview frame is sandboxed without allow-scripts and carries a blocking CSP", async ({
@@ -39,7 +39,9 @@ test.describe("preview sandbox isolation", () => {
     await openFreshApp(page);
 
     const sheets = await page.evaluate(() => {
-      const parentMain = [...document.querySelectorAll('link[rel="stylesheet"]')].find(
+      const parentMain = [
+        ...document.querySelectorAll('link[rel="stylesheet"]'),
+      ].find(
         (link) =>
           link.id !== "zen-theme-css" &&
           link.media !== "print" &&
@@ -62,7 +64,10 @@ test.describe("preview sandbox isolation", () => {
 
     await openSettings(page);
     await page.locator("#theme-select").selectOption("terminal");
-    await expect(page.locator("html")).toHaveAttribute("data-theme", "terminal");
+    await expect(page.locator("html")).toHaveAttribute(
+      "data-theme",
+      "terminal",
+    );
 
     await expect
       .poll(async () =>
@@ -95,7 +100,9 @@ test.describe("preview sandbox isolation", () => {
       });
   });
 
-  test("remote https images do not load from accepted Markdown", async ({ page }) => {
+  test("remote https images do not load from accepted Markdown", async ({
+    page,
+  }) => {
     await openFreshApp(page);
 
     /** @type {string[]} */
@@ -106,7 +113,9 @@ test.describe("preview sandbox isolation", () => {
 
     const remote = "https://example.invalid/beacon.png";
     await page.locator("#editor").fill(`# Remote\n\n![x](${remote})\n`);
-    await expect.poll(async () => headingText(previewLocator(page, "h1"))).toBe("Remote");
+    await expect
+      .poll(async () => headingText(previewLocator(page, "h1")))
+      .toBe("Remote");
 
     // Give the browser a moment to attempt a subresource fetch if any path leaked.
     await page.waitForTimeout(500);
@@ -117,7 +126,8 @@ test.describe("preview sandbox isolation", () => {
         ?.contentDocument?.querySelector("#preview img");
       return {
         src: img?.getAttribute("src"),
-        blockedClass: img?.classList.contains("md-remote-media-blocked") ?? false,
+        blockedClass:
+          img?.classList.contains("md-remote-media-blocked") ?? false,
       };
     });
 

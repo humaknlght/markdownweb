@@ -1,19 +1,16 @@
+import { SPEECH_HIGHLIGHT, STORAGE_KEYS } from "../constants.js";
 import { hooks } from "../hooks.js";
 import {
-  state,
   preview,
-  voiceMenuBtn,
+  speechSupported,
+  state,
   voiceMenu,
-  speechSupported
+  voiceMenuBtn,
 } from "../state.js";
-import {
-  STORAGE_KEYS,
-  SPEECH_HIGHLIGHT
-} from "../constants.js";
 import {
   listVoicesFromList,
   voiceKey,
-  voiceQualityScore
+  voiceQualityScore,
 } from "../vendor-deps.js";
 
 export function listVoices() {
@@ -74,7 +71,11 @@ export function highlightSpeechOffsets(start, end) {
   if (!range) return;
 
   // CSS Custom Highlight does not mutate the DOM, so speechMap offsets stay valid.
-  if (typeof CSS !== "undefined" && CSS.highlights && typeof Highlight !== "undefined") {
+  if (
+    typeof CSS !== "undefined" &&
+    CSS.highlights &&
+    typeof Highlight !== "undefined"
+  ) {
     CSS.highlights.set(SPEECH_HIGHLIGHT, new Highlight(range));
   } else {
     clearSpeechHighlight();
@@ -105,7 +106,8 @@ export function preferredVoice() {
   const allVoices = window.speechSynthesis.getVoices();
   if (!voices.length && !allVoices.length) return null;
 
-  const saved = state.selectedVoiceURI || localStorage.getItem(STORAGE_KEYS.voice) || "";
+  const saved =
+    state.selectedVoiceURI || localStorage.getItem(STORAGE_KEYS.voice) || "";
   if (saved) {
     const match =
       voices.find((v) => voiceKey(v) === saved) ||
@@ -144,7 +146,7 @@ export function renderVoiceMenu() {
   voiceMenu.replaceChildren();
 
   if (!voices.length) {
-    const empty = document.createElement("li");
+    const empty = document.createElement("div");
     empty.className = "empty";
     empty.textContent = "No high-quality English voices found";
     voiceMenu.appendChild(empty);
@@ -152,7 +154,7 @@ export function renderVoiceMenu() {
   }
 
   for (const voice of voices) {
-    const li = document.createElement("li");
+    const li = document.createElement("div");
     const btn = document.createElement("button");
     btn.type = "button";
     btn.setAttribute("role", "option");

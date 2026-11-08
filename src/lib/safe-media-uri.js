@@ -87,7 +87,7 @@ function clearMediaAttr(node, attr) {
  * @param {Element} node
  */
 export function stripRemoteMediaAttributes(node) {
-  if (!node || node.nodeType !== 1) return;
+  if (node?.nodeType !== 1) return;
   const tag = node.tagName?.toLowerCase?.() || "";
   if (!REMOTE_MEDIA_TAGS.has(tag)) return;
 

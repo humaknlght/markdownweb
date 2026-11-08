@@ -1,15 +1,15 @@
-import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { describe, it } from "node:test";
 import { JSDOM } from "jsdom";
 import {
-  GENERATOR_URL,
+  buildDocxBlob,
   buildHtmlDocument,
   buildMarkdownFile,
   buildRtfDocument,
-  buildDocxBlob,
   cleanPreviewHtml,
   exportBasename,
   exportStyleOptionsFromPreview,
+  GENERATOR_URL,
 } from "../../src/lib/export.js";
 
 describe("exportBasename", () => {
@@ -112,7 +112,9 @@ describe("exportStyleOptionsFromPreview", () => {
     globalThis.getComputedStyle = win.getComputedStyle.bind(win);
     try {
       const preview = win.document.getElementById("preview");
-      const opts = exportStyleOptionsFromPreview(/** @type {HTMLElement} */ (preview));
+      const opts = exportStyleOptionsFromPreview(
+        /** @type {HTMLElement} */ (preview),
+      );
       assert.equal(opts.width, "full");
       assert.equal(opts.lineWrap, false);
       assert.equal(opts.vars["--preview-bg"], "#0d1117");
@@ -121,7 +123,8 @@ describe("exportStyleOptionsFromPreview", () => {
     } finally {
       if (previousWindow === undefined) delete globalThis.window;
       else globalThis.window = previousWindow;
-      if (previousGetComputedStyle === undefined) delete globalThis.getComputedStyle;
+      if (previousGetComputedStyle === undefined)
+        delete globalThis.getComputedStyle;
       else globalThis.getComputedStyle = previousGetComputedStyle;
     }
   });
@@ -132,9 +135,12 @@ describe("DOM exporters", () => {
   let previousWindow;
 
   function previewWith(html) {
-    const { window: win } = new JSDOM("<!DOCTYPE html><html><body></body></html>", {
-      url: "https://example.test/",
-    });
+    const { window: win } = new JSDOM(
+      "<!DOCTYPE html><html><body></body></html>",
+      {
+        url: "https://example.test/",
+      },
+    );
     previousWindow = globalThis.window;
     globalThis.window = /** @type {Window} */ (/** @type {unknown} */ (win));
     // export.js walks Node constants via numeric nodeType on the element tree.

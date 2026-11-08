@@ -1,12 +1,12 @@
-import hljs from "highlight.js";
 import hljsMarkdown from "https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.12.0/es/languages/markdown.min.js";
 import hljsXml from "https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.12.0/es/languages/xml.min.js";
+import hljs from "highlight.js";
+import { withMarkdownEscapes } from "../markdown/hljs-markdown.js";
 import {
-  HLJS_LANG_ALIASES,
   canonicalHljsLang,
   collectEditorLanguages,
+  HLJS_LANG_ALIASES,
 } from "../markdown/markdown-utils.js";
-import { withMarkdownEscapes } from "../markdown/hljs-markdown.js";
 import { CDN_INTEGRITY_URLS } from "./lazy-modules.js";
 
 const HLJS_LANG_CDN =
@@ -83,7 +83,7 @@ export async function ensureHljsLanguagesForSource(source) {
     langs.map(async (lang) => {
       const loaded = await ensureHljsLanguage(lang);
       return loaded ? canonicalHljsLang(lang) : null;
-    })
+    }),
   );
   return results.filter(Boolean);
 }

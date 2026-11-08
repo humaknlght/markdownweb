@@ -1,5 +1,5 @@
-import { describe, it, beforeEach } from "node:test";
 import assert from "node:assert/strict";
+import { beforeEach, describe, it } from "node:test";
 import {
   applyGithubGistConfig,
   isGithubGistConfigured,
@@ -23,7 +23,10 @@ describe("github-gist-config", () => {
 
 describe("gist + no-phone-home coexistence", () => {
   it("still blocks GitHub raw image hosts in media allowlist", () => {
-    assert.equal(isSafeMediaUri("https://gist.githubusercontent.com/u/1/raw/x.png"), false);
+    assert.equal(
+      isSafeMediaUri("https://gist.githubusercontent.com/u/1/raw/x.png"),
+      false,
+    );
     assert.equal(isSafeMediaUri("https://api.github.com/gists/1"), false);
   });
 });

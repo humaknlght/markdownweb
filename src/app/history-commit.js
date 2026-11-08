@@ -1,10 +1,10 @@
+import {
+  HISTORY_INDEX_VERSION,
+  HISTORY_LIMIT,
+  STORAGE_KEYS,
+} from "./constants.js";
 import { hooks } from "./hooks.js";
 import { state } from "./state.js";
-import {
-  STORAGE_KEYS,
-  HISTORY_LIMIT,
-  HISTORY_INDEX_VERSION
-} from "./constants.js";
 import {
   applyPatch,
   contentHash,
@@ -13,7 +13,7 @@ import {
   getTip,
   setHistoryIndex,
   setTip,
-  titleFromMarkdown
+  titleFromMarkdown,
 } from "./vendor-deps.js";
 
 export function newHistoryId() {
@@ -90,12 +90,20 @@ export async function hydrateHistoryIndexFromIdb() {
   }
   const tip = await getTip();
   const idbIndex = await getHistoryIndex();
-  if (idbIndex && tip && Number(idbIndex.generation) === Number(tip.generation)) {
+  if (
+    idbIndex &&
+    tip &&
+    Number(idbIndex.generation) === Number(tip.generation)
+  ) {
     saveHistoryIndex(idbIndex);
     return;
   }
   const ls = loadHistoryIndexFromLs();
-  if (tip && Number(ls.generation) === Number(tip.generation) && ls.entries.length) {
+  if (
+    tip &&
+    Number(ls.generation) === Number(tip.generation) &&
+    ls.entries.length
+  ) {
     state.historyIndexCache = {
       v: HISTORY_INDEX_VERSION,
       generation: ls.generation,
@@ -145,7 +153,11 @@ export async function materializeHistoryEntry(index) {
   if (index < 0 || index >= hist.entries.length) return null;
   const entry = hist.entries[index];
 
-  if (!state.historyIdbReady || hist.v < HISTORY_INDEX_VERSION || entry.content != null) {
+  if (
+    !state.historyIdbReady ||
+    hist.v < HISTORY_INDEX_VERSION ||
+    entry.content != null
+  ) {
     return typeof entry.content === "string" ? entry.content : null;
   }
 
@@ -176,9 +188,12 @@ export async function materializeHistoryEntry(index) {
 export async function migrateHistoryIfNeeded() {
   if (!state.historyIdbReady) return;
   const hist = loadHistoryIndex();
-  const legacyBodies = hist.entries.filter((e) => typeof e.content === "string");
+  const legacyBodies = hist.entries.filter(
+    (e) => typeof e.content === "string",
+  );
   const needsMigrate =
-    hist.v < HISTORY_INDEX_VERSION || (legacyBodies.length > 0 && hist.entries.some((e) => !e.body));
+    hist.v < HISTORY_INDEX_VERSION ||
+    (legacyBodies.length > 0 && hist.entries.some((e) => !e.body));
 
   if (!needsMigrate) {
     const tip = await getTip();
@@ -192,7 +207,10 @@ export async function migrateHistoryIfNeeded() {
   }
 
   if (!legacyBodies.length) {
-    saveHistoryIndex({ generation: hist.generation || 0, entries: hist.entries.filter((e) => e.body) });
+    saveHistoryIndex({
+      generation: hist.generation || 0,
+      entries: hist.entries.filter((e) => e.body),
+    });
     return;
   }
 
@@ -200,7 +218,11 @@ export async function migrateHistoryIfNeeded() {
     meta: e,
     content: e.content,
   }));
-  await hooks.rewriteHistoryChain(kept, Math.max(1, hist.generation || 0) + 1, []);
+  await hooks.rewriteHistoryChain(
+    kept,
+    Math.max(1, hist.generation || 0) + 1,
+    [],
+  );
 }
 
 hooks.newHistoryId = newHistoryId;

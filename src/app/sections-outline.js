@@ -1,12 +1,12 @@
 import { hooks } from "./hooks.js";
 import {
-  state,
   editor,
-  preview,
-  panes,
-  previewPane,
   outlineEmpty,
-  outlineList
+  outlineList,
+  panes,
+  preview,
+  previewPane,
+  state,
 } from "./state.js";
 
 export function updateDocOutline() {
@@ -84,8 +84,13 @@ export function scrollPreviewToSourceLine(line) {
 
   // Prefer "editor" as driver when the editor is open so preview scroll does not
   // reverse-sync the caret away from the outline target.
-  hooks.beginSyncDriver(panes.classList.contains("editor-collapsed") ? "preview" : "editor");
-  hooks.clampScrollTop(previewPane, hooks.offsetWithin(target, previewPane) - 8);
+  hooks.beginSyncDriver(
+    panes.classList.contains("editor-collapsed") ? "preview" : "editor",
+  );
+  hooks.clampScrollTop(
+    previewPane,
+    hooks.offsetWithin(target, previewPane) - 8,
+  );
 }
 
 /**
@@ -129,7 +134,9 @@ export function highlightActiveOutlineItem() {
     if (rowLine <= line) active = row;
     else break;
   }
-  rows.forEach((row) => row.classList.toggle("is-active", row === active));
+  for (const row of rows) {
+    row.classList.toggle("is-active", row === active);
+  }
 }
 
 export function setupDocOutline() {
@@ -164,7 +171,11 @@ export function setupDocOutline() {
       if (hooks.isSlideNavView()) {
         if (!state.presentSections.length) hooks.buildPresentSections();
         for (let i = 0; i < state.presentSections.length; i++) {
-          if (state.presentSections[i].some((n) => n === heading || n.contains(heading))) {
+          if (
+            state.presentSections[i].some(
+              (n) => n === heading || n.contains(heading),
+            )
+          ) {
             if (i !== state.presentIndex) {
               hooks.showPresentSection(i);
               hooks.invalidateScrollAnchors();
@@ -173,8 +184,13 @@ export function setupDocOutline() {
           }
         }
       }
-      hooks.beginSyncDriver(panes.classList.contains("editor-collapsed") ? "preview" : "editor");
-      hooks.clampScrollTop(previewPane, hooks.offsetWithin(heading, previewPane) - 8);
+      hooks.beginSyncDriver(
+        panes.classList.contains("editor-collapsed") ? "preview" : "editor",
+      );
+      hooks.clampScrollTop(
+        previewPane,
+        hooks.offsetWithin(heading, previewPane) - 8,
+      );
     }
     if (editorVisible) editor.focus();
   });

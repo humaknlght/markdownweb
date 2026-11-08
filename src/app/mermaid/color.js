@@ -1,10 +1,6 @@
+import { MERMAID_HAND_FONT } from "../constants.js";
 import { hooks } from "../hooks.js";
-import {
-  state
-} from "../state.js";
-import {
-  MERMAID_HAND_FONT
-} from "../constants.js";
+import { state } from "../state.js";
 
 export function parseCssColorRgb(raw) {
   if (!raw) return null;

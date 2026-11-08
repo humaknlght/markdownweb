@@ -1,15 +1,15 @@
-import { test, expect } from "playwright/test";
-import {
-  openFreshApp,
-  headingText,
-  previewLocator
-} from "./helpers.js";
+import { expect, test } from "playwright/test";
+import { headingText, openFreshApp, previewLocator } from "./helpers.js";
 
 test.describe("views / slides / present", () => {
   test.beforeEach(async ({ page }) => {
     await openFreshApp(page);
-    await page.locator("#editor").fill("# One\n\nFirst.\n\n## Two\n\nSecond.\n\n## Three\n\nThird.");
-    await expect.poll(async () => headingText(previewLocator(page, "h1").first())).toBe("One");
+    await page
+      .locator("#editor")
+      .fill("# One\n\nFirst.\n\n## Two\n\nSecond.\n\n## Three\n\nThird.");
+    await expect
+      .poll(async () => headingText(previewLocator(page, "h1").first()))
+      .toBe("One");
   });
 
   test("slides mode walks H1/H2 sections and keeps index when entering present", async ({
@@ -42,7 +42,9 @@ test.describe("views / slides / present", () => {
     await expect(page.locator("html")).toHaveAttribute("data-view", "edit");
   });
 
-  test("clicking the preview iframe closes an open toolbar dropdown", async ({ page }) => {
+  test("clicking the preview iframe closes an open toolbar dropdown", async ({
+    page,
+  }) => {
     await page.locator("#export-btn").click();
     await expect(page.locator("#export-menu")).toBeVisible();
 
@@ -55,9 +57,11 @@ test.describe("views / slides / present", () => {
   test("slide 2+ headings have zero top margin", async ({ page }) => {
     await page.locator("#view-mode-main-btn").click();
     await page.locator("#present-next-btn").click();
-    const margin = await previewLocator(page, "h2").first().evaluate((el) => {
-      return getComputedStyle(el).marginTop;
-    });
+    const margin = await previewLocator(page, "h2")
+      .first()
+      .evaluate((el) => {
+        return getComputedStyle(el).marginTop;
+      });
     expect(margin).toBe("0px");
   });
 

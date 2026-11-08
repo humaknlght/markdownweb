@@ -1,26 +1,26 @@
+import { NARROW_MQ } from "./constants.js";
 import { hooks } from "./hooks.js";
 import {
-  state,
   editor,
-  shareDropdown,
   exportDropdown,
-  writingToolsDropdown,
-  speakDropdown,
+  filesContextMenu,
   formatBar,
-  headingDropdown,
-  imageDropdown,
   formatImageInput,
   formatMoreDropdown,
+  headingDropdown,
   historyBtn,
   historyDropdown,
-  toolbarMenu,
-  toolbarActions,
-  overflowBtn,
-  viewModeDropdown,
+  imageDropdown,
   mermaidZoomDialog,
-  filesContextMenu
+  overflowBtn,
+  shareDropdown,
+  speakDropdown,
+  state,
+  toolbarActions,
+  toolbarMenu,
+  viewModeDropdown,
+  writingToolsDropdown,
 } from "./state.js";
-import { NARROW_MQ } from "./constants.js";
 
 /**
  * App-wide keyboard shortcuts. Also invoked from the preview iframe bridge —
@@ -45,7 +45,10 @@ export function handleAppKeydown(e) {
     return;
   }
 
-  if ((e.metaKey || e.ctrlKey) && (e.code === "KeyS" || e.key.toLowerCase() === "s")) {
+  if (
+    (e.metaKey || e.ctrlKey) &&
+    (e.code === "KeyS" || e.key.toLowerCase() === "s")
+  ) {
     if (hooks.canSaveDocument() && hooks.isAuthoringView()) {
       e.preventDefault();
       void hooks.saveCurrentDocument();
@@ -109,7 +112,12 @@ export function handleAppKeydown(e) {
     }
     // Don't steal Space/arrows from buttons, menus, selects, tree, splitter, etc.
     if (hooks.isSlideNavTypingOrControl(document.activeElement)) return;
-    if (e.key === "ArrowRight" || e.key === "ArrowDown" || e.key === " " || e.key === "PageDown") {
+    if (
+      e.key === "ArrowRight" ||
+      e.key === "ArrowDown" ||
+      e.key === " " ||
+      e.key === "PageDown"
+    ) {
       hooks.presentNext();
       e.preventDefault();
       return;
@@ -211,7 +219,11 @@ export function setupBootUiListeners() {
     if (!file) return;
     const start = range?.start ?? editor.selectionStart;
     const end = range?.end ?? editor.selectionEnd;
-    void hooks.insertImageFromFile(file, { start, end, toast: "Image inserted" });
+    void hooks.insertImageFromFile(file, {
+      start,
+      end,
+      toast: "Image inserted",
+    });
   });
 
   // Dismiss the overflow panel after choosing an action. Nested dropdown
@@ -224,22 +236,33 @@ export function setupBootUiListeners() {
 
   document.addEventListener("click", (e) => {
     if (!historyDropdown.contains(e.target)) hooks.closeHistory();
-    if (speakDropdown && !speakDropdown.contains(e.target)) hooks.closeVoiceMenu();
-    if (shareDropdown && !shareDropdown.contains(e.target)) hooks.closeShareMenu();
-    if (exportDropdown && !exportDropdown.contains(e.target)) hooks.closeExportMenu();
+    if (speakDropdown && !speakDropdown.contains(e.target))
+      hooks.closeVoiceMenu();
+    if (shareDropdown && !shareDropdown.contains(e.target))
+      hooks.closeShareMenu();
+    if (exportDropdown && !exportDropdown.contains(e.target))
+      hooks.closeExportMenu();
     if (writingToolsDropdown && !writingToolsDropdown.contains(e.target)) {
       hooks.closeWritingToolsMenu();
     }
-    if (viewModeDropdown && !viewModeDropdown.contains(e.target)) hooks.closeViewModeMenu();
-    if (headingDropdown && !headingDropdown.contains(e.target)) hooks.closeHeadingMenu();
-    if (imageDropdown && !imageDropdown.contains(e.target)) hooks.closeImageMenu();
-    if (formatMoreDropdown && !formatMoreDropdown.contains(e.target)) hooks.closeFormatMoreMenu();
+    if (viewModeDropdown && !viewModeDropdown.contains(e.target))
+      hooks.closeViewModeMenu();
+    if (headingDropdown && !headingDropdown.contains(e.target))
+      hooks.closeHeadingMenu();
+    if (imageDropdown && !imageDropdown.contains(e.target))
+      hooks.closeImageMenu();
+    if (formatMoreDropdown && !formatMoreDropdown.contains(e.target))
+      hooks.closeFormatMoreMenu();
     // Native <select> option picks can click body after the OS menu closes; keep
     // the kebab open while focus remains on a control inside it.
-    if (!toolbarMenu.contains(e.target) && !toolbarMenu.contains(document.activeElement)) {
+    if (
+      !toolbarMenu.contains(e.target) &&
+      !toolbarMenu.contains(document.activeElement)
+    ) {
       hooks.closeOverflowMenu();
     }
-    if (filesContextMenu && !filesContextMenu.contains(e.target)) hooks.closeFilesContextMenu();
+    if (filesContextMenu && !filesContextMenu.contains(e.target))
+      hooks.closeFilesContextMenu();
   });
 
   document.addEventListener("keydown", (e) => {

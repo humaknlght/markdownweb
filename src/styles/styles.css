@@ -4,9 +4,9 @@
   font-family: "Excalifont";
   src:
     url("https://cdn.jsdelivr.net/npm/excalifont@1.0.0/fonts/Excalifont-Regular.woff2")
-      format("woff2"),
+    format("woff2"),
     url("https://cdn.jsdelivr.net/npm/excalifont@1.0.0/fonts/Excalifont-Regular.woff")
-      format("woff");
+    format("woff");
   font-style: normal;
   font-weight: 400;
   font-display: swap;
@@ -211,7 +211,8 @@ html[data-theme="sepia"] {
   --preview-pre-bg: #ebe0c8;
   --preview-pre-border: #d4c4a8;
   --preview-quote: #93846c;
-  --preview-font: "Palatino Linotype", "Book Antiqua", Palatino, "Georgia", serif;
+  --preview-font:
+    "Palatino Linotype", "Book Antiqua", Palatino, "Georgia", serif;
   --preview-size: 1rem;
   --heading-color: inherit;
   --alert-note: #0966d5;
@@ -352,7 +353,8 @@ html[data-theme="salesforce"] {
   --chrome-focus: #0159e4;
   --chrome-pressed-border: #014486;
   --chrome-on-focus: #ffffff;
-  --chrome-shadow: 0 2px 8px rgba(8, 7, 7, 0.08), 0 8px 24px rgba(1, 118, 211, 0.12);
+  --chrome-shadow:
+    0 2px 8px rgba(8, 7, 7, 0.08), 0 8px 24px rgba(1, 118, 211, 0.12);
   --editor-bg: #ffffff;
   --editor-text: #080707;
   --preview-bg: #f4f4f4;
@@ -365,7 +367,8 @@ html[data-theme="salesforce"] {
   --preview-pre-bg: #032d60;
   --preview-pre-border: #014486;
   --preview-quote: #1a8ff2;
-  --preview-font: "Salesforce Sans", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --preview-font:
+    "Salesforce Sans", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
   --preview-size: 1rem;
   --heading-color: #032d60;
   --alert-warning: #966400;
@@ -462,8 +465,14 @@ html[data-theme="salesforce"] .split-btn-group .split-btn-main {
   box-shadow: none;
 }
 
-html[data-theme="salesforce"] .split-btn-group .split-btn-prev[hidden] + .split-btn-main,
-html[data-theme="salesforce"] .format-bar .split-btn-group > .split-btn-main:first-child {
+html[data-theme="salesforce"]
+  .split-btn-group
+  .split-btn-prev[hidden]
+  + .split-btn-main,
+html[data-theme="salesforce"]
+  .format-bar
+  .split-btn-group
+  > .split-btn-main:first-child {
   border-radius: var(--radius-sm) 0 0 var(--radius-sm);
   box-shadow: 0 1px 2px rgba(8, 7, 7, 0.06);
 }
@@ -698,7 +707,7 @@ html[data-theme="fancy"] .dropdown-menu {
 
 html[data-theme="fancy"] .btn:hover,
 html[data-theme="fancy"] .select-label select:hover,
-html[data-theme="fancy"] .dropdown-menu li button:hover {
+html[data-theme="fancy"] .dropdown-menu > div > button:hover {
   background: rgba(255, 255, 255, 0.22);
 }
 
@@ -867,7 +876,6 @@ html[data-theme="fancy"] .outline-row.is-active {
     margin-block: 0;
     margin-inline: 0.35rem;
   }
-
 }
 
 /* Overflow panel needs denser glass than panes — light labels over the photo. */
@@ -1059,7 +1067,10 @@ html.site-intro-seen .site-intro {
   min-width: 17rem;
   max-width: min(22rem, calc(100vw - 1.5rem));
   max-height: min(24rem, calc(100vh - var(--toolbar-h) - 16px));
-  max-height: min(24rem, calc(100dvh - var(--toolbar-h) - 16px - env(safe-area-inset-bottom, 0px)));
+  max-height: min(
+    24rem,
+    calc(100dvh - var(--toolbar-h) - 16px - env(safe-area-inset-bottom, 0px))
+  );
   padding: 0.4rem;
   overflow-x: hidden;
   overflow-y: auto;
@@ -1403,11 +1414,11 @@ a.btn {
   height: 0.85rem;
 }
 
-.dropdown-menu li button.is-selected {
+.dropdown-menu > div > button.is-selected {
   background: var(--chrome-hover);
 }
 
-.dropdown-menu li button.is-selected .item-title::before {
+.dropdown-menu > div > button.is-selected .item-title::before {
   content: "✓ ";
 }
 
@@ -1471,7 +1482,7 @@ a.btn {
   -webkit-backdrop-filter: blur(18px) saturate(1.25);
 }
 
-.dropdown-menu li button {
+.dropdown-menu > div > button {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -1488,8 +1499,8 @@ a.btn {
   color: var(--chrome-text);
 }
 
-.dropdown-menu li button:hover,
-.dropdown-menu li button:focus-visible {
+.dropdown-menu > div > button:hover,
+.dropdown-menu > div > button:focus-visible {
   background: var(--chrome-hover);
   outline: none;
 }
@@ -1604,7 +1615,9 @@ html[data-theme="fancy"] .external-modal .btn.external-modal-accept {
 }
 
 html[data-theme="fancy"] .external-modal .btn.external-modal-accept:hover,
-html[data-theme="fancy"] .external-modal .btn.external-modal-accept:focus-visible {
+html[data-theme="fancy"]
+  .external-modal
+  .btn.external-modal-accept:focus-visible {
   background: #ffffff;
   color: #062436;
   border-color: #ffffff;
@@ -1702,7 +1715,8 @@ html[data-theme="fancy"] .external-modal .btn.external-modal-accept:focus-visibl
   width: 0.9rem;
   height: 0.9rem;
   margin-top: 0.15em;
-  border: 2px solid color-mix(in srgb, var(--chrome-muted, var(--chrome-text)) 35%, transparent);
+  border: 2px solid
+    color-mix(in srgb, var(--chrome-muted, var(--chrome-text)) 35%, transparent);
   border-top-color: var(--chrome-accent, var(--chrome-text));
   border-radius: 50%;
   animation: ai-spin 0.7s linear infinite;
@@ -1733,7 +1747,16 @@ html[data-theme="fancy"] .external-modal .btn.external-modal-accept:focus-visibl
   background: var(--chrome-bg, var(--chrome-surface));
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  font: 0.875rem / 1.45 var(--preview-font, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+  font:
+    0.875rem / 1.45
+    var(
+      --preview-font,
+      ui-monospace,
+      SFMono-Regular,
+      Menlo,
+      Consolas,
+      monospace
+    );
   color: var(--chrome-text);
 }
 
@@ -2068,7 +2091,10 @@ body.files-source-drive .gist-only:not(.cloud-only):not(.files-source-btn) {
   width: 1.35rem;
   height: 1.35rem;
   border: 2px solid color-mix(in srgb, var(--chrome-muted) 35%, transparent);
-  border-top-color: var(--chrome-accent, var(--chrome-focus, var(--chrome-text)));
+  border-top-color: var(
+    --chrome-accent,
+    var(--chrome-focus, var(--chrome-text))
+  );
   border-radius: 50%;
   animation: files-spin 0.7s linear infinite;
 }
@@ -2100,7 +2126,7 @@ body.files-source-drive .gist-only:not(.cloud-only):not(.files-source-btn) {
   padding: 0;
 }
 
-.files-tree ul {
+.files-tree [role="group"] {
   list-style: none;
   margin: 0;
   padding: 0 0 0 0.85rem;
@@ -2239,23 +2265,37 @@ body.files-source-drive .gist-only:not(.cloud-only):not(.files-source-btn) {
   font-weight: 600;
 }
 
-.outline-row[data-level="2"] { padding-left: 0.9rem; }
-.outline-row[data-level="3"] { padding-left: 1.4rem; }
-.outline-row[data-level="4"] { padding-left: 1.9rem; }
-.outline-row[data-level="5"] { padding-left: 2.4rem; }
-.outline-row[data-level="6"] { padding-left: 2.9rem; }
+.outline-row[data-level="2"] {
+  padding-left: 0.9rem;
+}
+.outline-row[data-level="3"] {
+  padding-left: 1.4rem;
+}
+.outline-row[data-level="4"] {
+  padding-left: 1.9rem;
+}
+.outline-row[data-level="5"] {
+  padding-left: 2.4rem;
+}
+.outline-row[data-level="6"] {
+  padding-left: 2.9rem;
+}
 
 .panes {
-  --collapse-duration: .5s;
+  --collapse-duration: 0.5s;
   --splitter-track: 6px;
   --editor-track: var(--split, 50%);
   --preview-track: calc(100% - var(--split, 50%));
   display: grid;
-  grid-template-columns: minmax(0, var(--editor-track)) var(--splitter-track) minmax(0, var(--preview-track));
+  grid-template-columns: minmax(0, var(--editor-track)) var(--splitter-track) minmax(
+      0,
+      var(--preview-track)
+    );
   flex: 1;
   min-width: 0;
   min-height: 0;
-  transition: grid-template-columns var(--collapse-duration) ease,
+  transition:
+    grid-template-columns var(--collapse-duration) ease,
     grid-template-rows var(--collapse-duration) ease,
     column-gap var(--collapse-duration) ease,
     row-gap var(--collapse-duration) ease;
@@ -2609,7 +2649,8 @@ html[data-line-wrap="off"] #ai-proof-editor {
 .render-loading-spinner {
   width: 2rem;
   height: 2rem;
-  border: 3px solid color-mix(in srgb, var(--preview-muted, #656d76) 35%, transparent);
+  border: 3px solid
+    color-mix(in srgb, var(--preview-muted, #656d76) 35%, transparent);
   border-top-color: var(--preview-link, #0969da);
   border-radius: 50%;
   animation: render-spin 0.7s linear infinite;
@@ -2624,7 +2665,11 @@ html[data-line-wrap="off"] #ai-proof-editor {
 @media (prefers-reduced-motion: reduce) {
   .render-loading-spinner {
     animation: none;
-    border-top-color: color-mix(in srgb, var(--preview-muted, #656d76) 35%, transparent);
+    border-top-color: color-mix(
+      in srgb,
+      var(--preview-muted, #656d76) 35%,
+      transparent
+    );
     border-color: var(--preview-link, #0969da);
   }
 }
@@ -2753,16 +2798,17 @@ mark.speech-word {
   }
 }
 
-.preview .md-section-folded {
-  display: none !important;
-  overflow-anchor: none;
-}
-
 .preview .md-section-anim {
   display: grid;
   grid-template-rows: 1fr;
   transition: grid-template-rows 0.22s ease;
   /* Collapsing tall sections must not scroll-anchor sibling titles away. */
+  overflow-anchor: none;
+}
+
+/* After .md-section-anim so display:none wins if both classes ever coexist. */
+.preview .md-section-folded {
+  display: none;
   overflow-anchor: none;
 }
 
@@ -2956,11 +3002,17 @@ html[data-mermaid-look="handDrawn"] {
   padding: 0;
   border: 1px solid var(--chrome-border, rgba(127, 127, 127, 0.35));
   border-radius: 0.4rem;
-  background: color-mix(in srgb, var(--mermaid-bg) 88%, var(--chrome-surface, #fff));
+  background: color-mix(
+    in srgb,
+    var(--mermaid-bg) 88%,
+    var(--chrome-surface, #fff)
+  );
   color: var(--mermaid-fg, var(--preview-fg, inherit));
   cursor: pointer;
   opacity: 0.55;
-  transition: opacity 0.15s ease, background 0.15s ease;
+  transition:
+    opacity 0.15s ease,
+    background 0.15s ease;
 }
 
 .preview .mermaid:hover .mermaid-zoom-btn,
@@ -3699,12 +3751,12 @@ html[data-theme] .preview .markdown-frontmatter-error pre {
   background:
     linear-gradient(var(--install-fill), var(--install-fill)) padding-box,
     conic-gradient(
-        from var(--install-angle),
-        var(--install-grad-a),
-        var(--install-grad-b),
-        var(--install-grad-a)
-      )
-      border-box;
+      from var(--install-angle),
+      var(--install-grad-a),
+      var(--install-grad-b),
+      var(--install-grad-a)
+    )
+    border-box;
   animation: install-border-spin 2.5s linear infinite;
 }
 
@@ -3712,14 +3764,15 @@ html[data-theme] .preview .markdown-frontmatter-error pre {
 #install-btn:not([hidden]):hover {
   color: var(--install-fg);
   background:
-    linear-gradient(var(--install-fill-hover), var(--install-fill-hover)) padding-box,
+    linear-gradient(var(--install-fill-hover), var(--install-fill-hover))
+    padding-box,
     conic-gradient(
-        from var(--install-angle),
-        var(--install-grad-a),
-        var(--install-grad-b),
-        var(--install-grad-a)
-      )
-      border-box;
+      from var(--install-angle),
+      var(--install-grad-a),
+      var(--install-grad-b),
+      var(--install-grad-a)
+    )
+    border-box;
 }
 
 /* Beat .update-toast .btn chrome fills so Allow keeps the spinning border. */
@@ -3730,24 +3783,25 @@ html[data-theme] .preview .markdown-frontmatter-error pre {
   background:
     linear-gradient(var(--install-fill), var(--install-fill)) padding-box,
     conic-gradient(
-        from var(--install-angle),
-        var(--install-grad-a),
-        var(--install-grad-b),
-        var(--install-grad-a)
-      )
-      border-box;
+      from var(--install-angle),
+      var(--install-grad-a),
+      var(--install-grad-b),
+      var(--install-grad-a)
+    )
+    border-box;
 }
 
 .update-toast .btn.btn-spin-border:hover {
   background:
-    linear-gradient(var(--install-fill-hover), var(--install-fill-hover)) padding-box,
+    linear-gradient(var(--install-fill-hover), var(--install-fill-hover))
+    padding-box,
     conic-gradient(
-        from var(--install-angle),
-        var(--install-grad-a),
-        var(--install-grad-b),
-        var(--install-grad-a)
-      )
-      border-box;
+      from var(--install-angle),
+      var(--install-grad-a),
+      var(--install-grad-b),
+      var(--install-grad-a)
+    )
+    border-box;
 }
 
 html[data-theme="salesforce"] .btn-spin-border,
@@ -3772,26 +3826,27 @@ html[data-theme="fancy"] #install-btn:not([hidden]) {
   background:
     linear-gradient(var(--install-fill), var(--install-fill)) padding-box,
     conic-gradient(
-        from var(--install-angle),
-        var(--install-grad-a),
-        var(--install-grad-b),
-        var(--install-grad-a)
-      )
-      border-box;
+      from var(--install-angle),
+      var(--install-grad-a),
+      var(--install-grad-b),
+      var(--install-grad-a)
+    )
+    border-box;
 }
 
 html[data-theme="fancy"] .btn.btn-spin-border:hover,
 html[data-theme="fancy"] #install-btn:not([hidden]):hover {
   color: var(--install-fg);
   background:
-    linear-gradient(var(--install-fill-hover), var(--install-fill-hover)) padding-box,
+    linear-gradient(var(--install-fill-hover), var(--install-fill-hover))
+    padding-box,
     conic-gradient(
-        from var(--install-angle),
-        var(--install-grad-a),
-        var(--install-grad-b),
-        var(--install-grad-a)
-      )
-      border-box;
+      from var(--install-angle),
+      var(--install-grad-a),
+      var(--install-grad-b),
+      var(--install-grad-a)
+    )
+    border-box;
 }
 
 @keyframes install-border-spin {
@@ -3900,7 +3955,12 @@ html[data-theme="fancy"] .photo-credit:not([hidden]) {
     min-width: min(18rem, calc(100vw - 1.5rem));
     max-width: min(22rem, calc(100vw - 1.5rem));
     max-height: calc(100vh - var(--toolbar-h) - 12px);
-    max-height: calc(100dvh - var(--toolbar-h) - 12px - env(safe-area-inset-bottom, 0px));
+    max-height: calc(
+      100dvh -
+      var(--toolbar-h) -
+      12px -
+      env(safe-area-inset-bottom, 0px)
+    );
     gap: 0.1rem;
     padding: 0.35rem;
   }
@@ -3996,20 +4056,34 @@ html[data-theme="fancy"] .photo-credit:not([hidden]) {
 
   .toolbar-actions #sync-scroll-btn[aria-pressed="true"],
   .toolbar-actions #line-wrap-btn[aria-pressed="true"],
-  html[data-theme="fancy"] .toolbar-actions #sync-scroll-btn[aria-pressed="true"],
+  html[data-theme="fancy"]
+    .toolbar-actions
+    #sync-scroll-btn[aria-pressed="true"],
   html[data-theme="fancy"] .toolbar-actions #line-wrap-btn[aria-pressed="true"],
-  html[data-theme="salesforce"] .toolbar-actions #sync-scroll-btn[aria-pressed="true"],
-  html[data-theme="salesforce"] .toolbar-actions #line-wrap-btn[aria-pressed="true"] {
+  html[data-theme="salesforce"]
+    .toolbar-actions
+    #sync-scroll-btn[aria-pressed="true"],
+  html[data-theme="salesforce"]
+    .toolbar-actions
+    #line-wrap-btn[aria-pressed="true"] {
     background: var(--chrome-focus);
     color: var(--chrome-on-focus);
   }
 
   .toolbar-actions #sync-scroll-btn[aria-pressed="true"]:hover,
   .toolbar-actions #line-wrap-btn[aria-pressed="true"]:hover,
-  html[data-theme="fancy"] .toolbar-actions #sync-scroll-btn[aria-pressed="true"]:hover,
-  html[data-theme="fancy"] .toolbar-actions #line-wrap-btn[aria-pressed="true"]:hover,
-  html[data-theme="salesforce"] .toolbar-actions #sync-scroll-btn[aria-pressed="true"]:hover,
-  html[data-theme="salesforce"] .toolbar-actions #line-wrap-btn[aria-pressed="true"]:hover {
+  html[data-theme="fancy"]
+    .toolbar-actions
+    #sync-scroll-btn[aria-pressed="true"]:hover,
+  html[data-theme="fancy"]
+    .toolbar-actions
+    #line-wrap-btn[aria-pressed="true"]:hover,
+  html[data-theme="salesforce"]
+    .toolbar-actions
+    #sync-scroll-btn[aria-pressed="true"]:hover,
+  html[data-theme="salesforce"]
+    .toolbar-actions
+    #line-wrap-btn[aria-pressed="true"]:hover {
     background: var(--chrome-focus);
     color: var(--chrome-on-focus);
     filter: brightness(1.08);
@@ -4124,9 +4198,18 @@ html[data-theme="fancy"] .photo-credit:not([hidden]) {
   .toolbar-actions .split-btn-group .split-btn-next,
   .toolbar-actions .split-btn-group .split-btn-toggle,
   html[data-theme="salesforce"] .toolbar-actions .split-btn-group .btn,
-  html[data-theme="salesforce"] .toolbar-actions .split-btn-group .split-btn-prev,
-  html[data-theme="salesforce"] .toolbar-actions .split-btn-group .split-btn-main,
-  html[data-theme="salesforce"] .toolbar-actions .split-btn-group .split-btn-toggle {
+  html[data-theme="salesforce"]
+    .toolbar-actions
+    .split-btn-group
+    .split-btn-prev,
+  html[data-theme="salesforce"]
+    .toolbar-actions
+    .split-btn-group
+    .split-btn-main,
+  html[data-theme="salesforce"]
+    .toolbar-actions
+    .split-btn-group
+    .split-btn-toggle {
     flex: none;
     width: 100%;
     border: 0;
@@ -4218,7 +4301,10 @@ html[data-theme="fancy"] .photo-credit:not([hidden]) {
   .panes {
     --splitter-track: 10px;
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: minmax(0, var(--editor-track)) var(--splitter-track) minmax(0, var(--preview-track));
+    grid-template-rows: minmax(0, var(--editor-track)) var(--splitter-track) minmax(
+        0,
+        var(--preview-track)
+      );
     /* Keep full viewport width; the drawer pushes this off-screen instead of shrinking it. */
     flex: 0 0 100%;
     width: 100%;
@@ -4447,7 +4533,7 @@ html[data-view="present"] .present-chrome.is-active {
 }
 
 #share-menu li button,
-#export-menu li button {
+#export-menu > div > button {
   display: block;
   width: 100%;
   padding: 0.45rem 0.55rem;
@@ -4463,8 +4549,8 @@ html[data-view="present"] .present-chrome.is-active {
 
 #share-menu li button:hover,
 #share-menu li button:focus-visible,
-#export-menu li button:hover,
-#export-menu li button:focus-visible {
+#export-menu > div > button:hover,
+#export-menu > div > button:focus-visible {
   background: var(--chrome-hover);
   outline: none;
 }
@@ -4516,7 +4602,19 @@ html[data-wco] .toolbar {
   app-region: drag;
 }
 
-html[data-wco] .toolbar :is(a, button, input, select, textarea, label, .brand, .dropdown-menu, .toolbar-actions) {
+html[data-wco]
+  .toolbar
+  :is(
+    a,
+    button,
+    input,
+    select,
+    textarea,
+    label,
+    .brand,
+    .dropdown-menu,
+    .toolbar-actions
+  ) {
   -webkit-app-region: no-drag;
   app-region: no-drag;
 }

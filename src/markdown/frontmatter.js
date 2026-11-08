@@ -9,8 +9,7 @@ import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 const FRONTMATTER_RE =
   /^\uFEFF?---[ \t]*\r?\n(?:([\s\S]*?)\r?\n)?---[ \t]*(?:\r?\n|$)/;
 
-const TOKENIZER_RE =
-  /^---[ \t]*\r?\n(?:([\s\S]*?)\r?\n)?---[ \t]*(?:\r?\n|$)/;
+const TOKENIZER_RE = /^---[ \t]*\r?\n(?:([\s\S]*?)\r?\n)?---[ \t]*(?:\r?\n|$)/;
 
 function escapeHtml(text) {
   return String(text)
@@ -28,7 +27,11 @@ function escapeHtml(text) {
 function parseFrontmatterData(rawYaml) {
   try {
     const parsed = parseYaml(rawYaml);
-    if (parsed != null && typeof parsed === "object" && !Array.isArray(parsed)) {
+    if (
+      parsed != null &&
+      typeof parsed === "object" &&
+      !Array.isArray(parsed)
+    ) {
       return { data: parsed, parseError: false };
     }
     if (String(rawYaml).trim() === "") {

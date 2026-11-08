@@ -1,21 +1,9 @@
+import { RENDER_DEBOUNCE_MS, RENDER_LOADING_EAGER_CHARS } from "./constants.js";
+import { ensureHljsLanguagesForSource } from "./hljs-setup.js";
 import { hooks } from "./hooks.js";
-import {
-  state,
-  preview,
-  mermaidSources
-} from "./state.js";
 import { morphPreviewHtml } from "./preview-morph.js";
-import {
-  RENDER_DEBOUNCE_MS,
-  RENDER_LOADING_EAGER_CHARS
-} from "./constants.js";
-import {
-  marked,
-  DOMPurify
-} from "./vendor-deps.js";
-import {
-  ensureHljsLanguagesForSource
-} from "./hljs-setup.js";
+import { mermaidSources, preview, state } from "./state.js";
+import { DOMPurify, marked } from "./vendor-deps.js";
 
 /**
  * @param {string} source

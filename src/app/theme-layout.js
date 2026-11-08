@@ -1,25 +1,25 @@
+import {
+  MERMAID_LOOKS,
+  STORAGE_KEYS,
+  THEME_COLORS,
+  THEMES,
+  WIDTHS,
+} from "./constants.js";
 import { hooks } from "./hooks.js";
 import {
-  state,
+  getZenModulePromise,
+  loadZenCss,
+  loadZenModule,
+} from "./lazy-modules.js";
+import {
   editor,
+  mermaidLookSelect,
+  photoCredit,
   preview,
+  state,
   themeSelect,
   widthSelect,
-  mermaidLookSelect,
-  photoCredit
 } from "./state.js";
-import {
-  STORAGE_KEYS,
-  THEMES,
-  THEME_COLORS,
-  WIDTHS,
-  MERMAID_LOOKS
-} from "./constants.js";
-import {
-  loadZenModule,
-  loadZenCss,
-  getZenModulePromise,
-} from "./lazy-modules.js";
 
 export function preferredGithubTheme() {
   return window.matchMedia("(prefers-color-scheme: dark)").matches
@@ -31,7 +31,10 @@ export function preferredGithubTheme() {
 export function syncThemeColorMeta(theme) {
   const meta = document.querySelector('meta[name="theme-color"]');
   if (!meta) return;
-  meta.setAttribute("content", THEME_COLORS[theme] || THEME_COLORS["github-dark"]);
+  meta.setAttribute(
+    "content",
+    THEME_COLORS[theme] || THEME_COLORS["github-dark"],
+  );
 }
 
 export function setTheme(theme, { persist = true } = {}) {

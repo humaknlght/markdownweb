@@ -116,7 +116,11 @@ async function loadHandoffKey() {
 function oauthRedirectUri() {
   const { origin, pathname } = window.location;
   const m = pathname.match(/^(.*\/drive-helper)(?:\/(?:index\.html)?)?\/?$/);
-  const basePath = m ? `${m[1]}/` : pathname.endsWith("/") ? pathname : `${pathname}/`;
+  const basePath = m
+    ? `${m[1]}/`
+    : pathname.endsWith("/")
+      ? pathname
+      : `${pathname}/`;
   return `${origin}${basePath}`;
 }
 
@@ -219,7 +223,11 @@ async function tryHandleOAuthCallback() {
   if (!error && !accessToken) return false;
 
   // Drop the token from the URL / history before doing anything else.
-  history.replaceState(null, "", window.location.pathname + window.location.search);
+  history.replaceState(
+    null,
+    "",
+    window.location.pathname + window.location.search,
+  );
   if (window.location.hash) {
     // replaceState failed to clear the fragment — refuse to proceed with a live hash.
     clearHandoffKey();

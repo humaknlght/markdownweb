@@ -1,5 +1,5 @@
-import { describe, it, before } from "node:test";
 import assert from "node:assert/strict";
+import { before, describe, it } from "node:test";
 import hljsMermaid from "../../src/markdown/hljs-mermaid.js";
 
 /** @type {import("highlight.js").HLJSApi} */
@@ -34,12 +34,14 @@ describe("hljs-mermaid grammar", () => {
   });
 
   it("highlights flowchart nodes, edges, and subgraphs", () => {
-    const out = marked(highlight(`flowchart LR
+    const out = marked(
+      highlight(`flowchart LR
   A[Start] --> B{OK?}
   B -->|Yes| C[Done]
   subgraph id [My Sub]
     D --> E
-  end`));
+  end`),
+    );
     assert.match(out, /‹hljs-keyword›flowchart‹\/›/);
     assert.match(out, /‹hljs-string›\[Start\]‹\/›/);
     assert.match(out, /‹hljs-built_in›-->‹\/›/);
@@ -50,12 +52,14 @@ describe("hljs-mermaid grammar", () => {
   });
 
   it("does not swallow ER attribute blocks as one string", () => {
-    const out = marked(highlight(`erDiagram
+    const out = marked(
+      highlight(`erDiagram
   CUSTOMER ||--o{ ORDER : places
   ORDER {
     int orderId PK
     string name
-  }`));
+  }`),
+    );
     assert.match(out, /‹hljs-built_in›\|\|--o\{‹\/›/);
     assert.match(out, /‹hljs-type›int‹\/›/);
     assert.match(out, /‹hljs-keyword›PK‹\/›/);
@@ -66,14 +70,16 @@ describe("hljs-mermaid grammar", () => {
   });
 
   it("highlights class members without stringifying the class body", () => {
-    const out = marked(highlight(`classDiagram
+    const out = marked(
+      highlight(`classDiagram
   class Animal {
     +String name
     +eat()
   }
   Animal <|-- Duck
   Animal --> Cat
-  Animal --!> Dog`));
+  Animal --!> Dog`),
+    );
     assert.match(out, /‹hljs-keyword›class‹\/›/);
     assert.match(out, /‹hljs-title class_›Animal‹\/›/);
     assert.match(out, /‹hljs-type›String‹\/›/);
@@ -85,13 +91,15 @@ describe("hljs-mermaid grammar", () => {
   });
 
   it("highlights sequence arrows and Note directions", () => {
-    const out = marked(highlight(`sequenceDiagram
+    const out = marked(
+      highlight(`sequenceDiagram
   participant Alice
   Note right of Alice: Hello
   Alice->>Bob: Hi
   alt ok
     Bob-->>Alice: OK
-  end`));
+  end`),
+    );
     assert.match(out, /‹hljs-keyword›participant‹\/›/);
     assert.match(out, /‹hljs-keyword›right of‹\/›/);
     assert.match(out, /‹hljs-built_in›->>‹\/›/);
@@ -100,9 +108,11 @@ describe("hljs-mermaid grammar", () => {
   });
 
   it("highlights C4 calls without treating parentheses as strings", () => {
-    const out = marked(highlight(`C4Context
+    const out = marked(
+      highlight(`C4Context
   Person(customer, "Customer", "A user")
-  Rel(customer, sys, "Uses")`));
+  Rel(customer, sys, "Uses")`),
+    );
     assert.match(out, /‹hljs-keyword›Person‹\/›/);
     assert.match(out, /‹hljs-string›"Customer"‹\/›/);
     assert.match(out, /‹hljs-keyword›Rel‹\/›/);
@@ -110,11 +120,13 @@ describe("hljs-mermaid grammar", () => {
   });
 
   it("highlights gitGraph commands", () => {
-    const out = marked(highlight(`gitGraph
+    const out = marked(
+      highlight(`gitGraph
   commit
   branch develop
   checkout develop
-  merge main`));
+  merge main`),
+    );
     assert.match(out, /‹hljs-keyword›commit‹\/›/);
     assert.match(out, /‹hljs-keyword›branch‹\/›/);
     assert.match(out, /‹hljs-keyword›checkout‹\/›/);
@@ -122,10 +134,12 @@ describe("hljs-mermaid grammar", () => {
   });
 
   it("does not keyword-highlight ordinary gantt title words", () => {
-    const out = marked(highlight(`gantt
+    const out = marked(
+      highlight(`gantt
   title A Gantt Diagram
   section Section One
-  Task :a1, 2014-01-01, 30d`));
+  Task :a1, 2014-01-01, 30d`),
+    );
     assert.match(out, /‹hljs-keyword›title‹\/›/);
     assert.match(out, /‹hljs-string›A Gantt Diagram‹\/›/);
     assert.match(out, /‹hljs-keyword›section‹\/›/);
@@ -136,10 +150,12 @@ describe("hljs-mermaid grammar", () => {
   });
 
   it("highlights state diagram terminators and stereotypes", () => {
-    const out = marked(highlight(`stateDiagram-v2
+    const out = marked(
+      highlight(`stateDiagram-v2
   [*] --> Still
   state fork_state <<fork>>
-  Still --> [*]`));
+  Still --> [*]`),
+    );
     assert.match(out, /‹hljs-keyword›\[\*\]‹\/›/);
     assert.match(out, /‹hljs-keyword›state‹\/›/);
     assert.match(out, /‹hljs-keyword›<<fork>>‹\/›/);

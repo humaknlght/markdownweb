@@ -1,26 +1,26 @@
 import { hooks } from "../hooks.js";
 import {
-  state,
   driveEntries,
-  gistEntries,
-  filesTree,
-  fsEntries,
   expandedPaths,
+  filesTree,
   fsAccessSupported,
+  fsEntries,
+  gistEntries,
+  state,
 } from "../state.js";
 import {
   ensureDriveAccessToken,
-  readDriveFileWithMeta,
   ensureGistAccessToken,
-  readGistFileWithMeta,
-  moveDraft,
   ensureHandlePermission,
+  joinFsPath,
   listDirectory,
+  moveDraft,
   openDirectory,
+  parentPathOf,
+  readDriveFileWithMeta,
+  readGistFileWithMeta,
   readTextFileMeta,
   resolveFilePath,
-  joinFsPath,
-  parentPathOf,
 } from "../vendor-deps.js";
 
 export async function finishOpenDocument(name, seq = state.openDocumentSeq) {
@@ -38,7 +38,7 @@ export async function finishOpenDocument(name, seq = state.openDocumentSeq) {
 
 export async function openDriveTreeFile(fileId) {
   const entry = driveEntries.get(fileId);
-  if (!entry || entry.kind !== "file") return;
+  if (entry?.kind !== "file") return;
   if (state.currentDriveFile?.id === fileId && !hooks.isDirty()) {
     hooks.highlightActiveFileInTree();
     return;
@@ -79,7 +79,7 @@ export async function openDriveTreeFile(fileId) {
 
 export async function openGistTreeFile(entryId) {
   const entry = gistEntries.get(entryId);
-  if (!entry || entry.kind !== "file") return;
+  if (entry?.kind !== "file") return;
   if (
     state.currentGistFile?.gistId === entry.gistId &&
     state.currentGistFile?.filename === entry.filename &&
@@ -103,7 +103,11 @@ export async function openGistTreeFile(entryId) {
     if (seq !== state.openDocumentSeq) return;
     hooks.setEditorValue(content);
     const fromKey = hooks.currentDocKey();
-    hooks.bindCurrentGistFile({ gistId: entry.gistId, filename: entry.filename, updatedAt });
+    hooks.bindCurrentGistFile({
+      gistId: entry.gistId,
+      filename: entry.filename,
+      updatedAt,
+    });
     const toKey = hooks.currentDocKey();
     if (fromKey !== toKey) {
       void moveDraft(fromKey, toKey);
@@ -135,7 +139,8 @@ export async function activateFilesTreeEntry(id, kind) {
 }
 
 export function cssEscape(value) {
-  if (typeof CSS !== "undefined" && typeof CSS.escape === "function") return CSS.escape(value);
+  if (typeof CSS !== "undefined" && typeof CSS.escape === "function")
+    return CSS.escape(value);
   return String(value).replace(/["\\]/g, "\\$&");
 }
 
@@ -168,7 +173,7 @@ export async function renderDirectoryChildren(dirHandle, path, listEl) {
     if (isDir) li.setAttribute("aria-expanded", "false");
 
     if (isDir) {
-      const childList = document.createElement("ul");
+      const childList = document.createElement("div");
       childList.setAttribute("role", "group");
       childList.hidden = !expandedPaths.has(childPath);
       li.append(childList);
@@ -242,7 +247,10 @@ export async function pickOpenFolder() {
 export async function regrantFolderPermission() {
   if (!state.rootDirHandle) return;
   try {
-    const permission = await ensureHandlePermission(state.rootDirHandle, "readwrite");
+    const permission = await ensureHandlePermission(
+      state.rootDirHandle,
+      "readwrite",
+    );
     if (permission !== "granted") {
       hooks.showToast("Permission denied");
       return;
@@ -251,13 +259,24 @@ export async function regrantFolderPermission() {
     hooks.updateFilesChrome();
     await refreshFilesTree();
     if (state.currentFilePath) {
-      for (let p = parentPathOf(state.currentFilePath); p; p = parentPathOf(p)) {
+      for (
+        let p = parentPathOf(state.currentFilePath);
+        p;
+        p = parentPathOf(p)
+      ) {
         expandedPaths.add(p);
       }
       await refreshFilesTree();
-      const resolved = await resolveFilePath(state.rootDirHandle, state.currentFilePath);
+      const resolved = await resolveFilePath(
+        state.rootDirHandle,
+        state.currentFilePath,
+      );
       if (resolved) {
-        hooks.bindCurrentFile(resolved, resolved.name || state.currentFileName, state.currentFilePath);
+        hooks.bindCurrentFile(
+          resolved,
+          resolved.name || state.currentFileName,
+          state.currentFilePath,
+        );
         hooks.selectFsPath(state.currentFilePath);
       }
     }
@@ -270,7 +289,7 @@ export async function regrantFolderPermission() {
 
 export async function openFsFile(path) {
   const entry = fsEntries.get(path);
-  if (!entry || entry.kind !== "file") return;
+  if (entry?.kind !== "file") return;
   if (state.currentFileHandle === entry.handle && !hooks.isDirty()) {
     hooks.selectFsPath(path);
     return;
@@ -286,7 +305,11 @@ export async function openFsFile(path) {
     );
     if (seq !== state.openDocumentSeq) return;
     hooks.setEditorValue(text);
-    hooks.bindCurrentFile(/** @type {FileSystemFileHandle} */ (entry.handle), entry.handle.name, path);
+    hooks.bindCurrentFile(
+      /** @type {FileSystemFileHandle} */ (entry.handle),
+      entry.handle.name,
+      path,
+    );
     hooks.setCurrentFileRevision("fs", lastModified);
     hooks.selectFsPath(path);
     hooks.markCleanFromEditor();
@@ -300,10 +323,12 @@ export async function openFsFile(path) {
 
 export async function toggleFsDirectory(path) {
   const entry = fsEntries.get(path);
-  if (!entry || entry.kind !== "directory") return;
+  if (entry?.kind !== "directory") return;
   hooks.selectFsPath(path);
-  const li = filesTree?.querySelector(`.files-tree-item[data-path="${cssEscape(path)}"]`);
-  const childList = li?.querySelector(":scope > ul");
+  const li = filesTree?.querySelector(
+    `.files-tree-item[data-path="${cssEscape(path)}"]`,
+  );
+  const childList = li?.querySelector(':scope > [role="group"]');
   if (!li || !childList) return;
 
   if (expandedPaths.has(path)) {

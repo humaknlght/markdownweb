@@ -98,7 +98,8 @@ async function idbDelete(key) {
   return new Promise((resolve, reject) => {
     const tx = db.transaction(IDB_STORE, "readwrite");
     const req = tx.objectStore(IDB_STORE).delete(key);
-    req.onerror = () => reject(req.error || new Error("IndexedDB delete failed"));
+    req.onerror = () =>
+      reject(req.error || new Error("IndexedDB delete failed"));
     req.onsuccess = () => resolve();
   });
 }
@@ -115,7 +116,8 @@ async function idbDeleteMany(keys) {
     const store = tx.objectStore(IDB_STORE);
     for (const key of keys) store.delete(key);
     tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error || new Error("IndexedDB deleteMany failed"));
+    tx.onerror = () =>
+      reject(tx.error || new Error("IndexedDB deleteMany failed"));
   });
 }
 
@@ -133,7 +135,8 @@ async function idbMutateMany(puts, deletes = []) {
     for (const [key, value] of puts) store.put(value, key);
     for (const key of deletes) store.delete(key);
     tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error || new Error("IndexedDB mutateMany failed"));
+    tx.onerror = () =>
+      reject(tx.error || new Error("IndexedDB mutateMany failed"));
   });
 }
 
@@ -141,7 +144,7 @@ async function idbMutateMany(puts, deletes = []) {
  * @param {Array<[string, unknown]>} entries
  * @returns {Promise<void>}
  */
-async function idbSetMany(entries) {
+async function _idbSetMany(entries) {
   return idbMutateMany(entries, []);
 }
 
@@ -168,7 +171,7 @@ async function loadDraftMap() {
       typeof raw === "object" &&
       /** @type {{ v?: unknown }} */ (raw).v === DRAFTS_VERSION &&
       /** @type {{ byKey?: unknown }} */ (raw).byKey &&
-      typeof /** @type {{ byKey?: unknown }} */ (raw).byKey === "object"
+      typeof (/** @type {{ byKey?: unknown }} */ (raw).byKey) === "object"
     ) {
       return /** @type {DraftMap} */ (raw);
     }
@@ -185,7 +188,9 @@ async function loadDraftMap() {
       if (typeof content === "string") {
         byKey.untitled = {
           content,
-          updatedAt: Number(/** @type {{ updatedAt?: unknown }} */ (legacy).updatedAt) || Date.now(),
+          updatedAt:
+            Number(/** @type {{ updatedAt?: unknown }} */ (legacy).updatedAt) ||
+            Date.now(),
         };
       }
     }
@@ -204,7 +209,9 @@ function pruneDraftMap(map, keepKey) {
   if (keys.length <= DRAFTS_MAX_KEYS) return;
   const sorted = keys
     .slice()
-    .sort((a, b) => (map.byKey[a]?.updatedAt || 0) - (map.byKey[b]?.updatedAt || 0));
+    .sort(
+      (a, b) => (map.byKey[a]?.updatedAt || 0) - (map.byKey[b]?.updatedAt || 0),
+    );
   for (const key of sorted) {
     if (Object.keys(map.byKey).length <= DRAFTS_MAX_KEYS) break;
     if (key === keepKey || key === "untitled") continue;
@@ -286,7 +293,8 @@ export async function getTip() {
     if (!raw || typeof raw !== "object") return null;
     const content = /** @type {{ content?: unknown }} */ (raw).content;
     if (typeof content !== "string") return null;
-    const generation = Number(/** @type {{ generation?: unknown }} */ (raw).generation) || 0;
+    const generation =
+      Number(/** @type {{ generation?: unknown }} */ (raw).generation) || 0;
     return { generation, content };
   } catch {
     return null;
@@ -352,7 +360,10 @@ export async function commitHistoryBodies(payload) {
   try {
     /** @type {Array<[string, unknown]>} */
     const puts = [
-      [KEY_TIP, { generation: payload.generation, content: payload.tipContent }],
+      [
+        KEY_TIP,
+        { generation: payload.generation, content: payload.tipContent },
+      ],
       [
         KEY_INDEX,
         {
@@ -380,7 +391,10 @@ export async function getHistoryIndex() {
   try {
     const raw = await idbGet(KEY_INDEX);
     if (!raw || typeof raw !== "object") return null;
-    const parsed = /** @type {{ v?: unknown, generation?: unknown, entries?: unknown }} */ (raw);
+    const parsed =
+      /** @type {{ v?: unknown, generation?: unknown, entries?: unknown }} */ (
+        raw
+      );
     if (!Array.isArray(parsed.entries)) return null;
     return {
       v: Number(parsed.v) || 3,
@@ -430,9 +444,11 @@ export async function clearHistoryBodies(revIds = []) {
  */
 export async function storageBudgetOk(headroomRatio = 0.85) {
   try {
-    if (!navigator.storage?.estimate) return { ok: true, usage: 0, quota: Infinity };
+    if (!navigator.storage?.estimate)
+      return { ok: true, usage: 0, quota: Infinity };
     const { usage = 0, quota = Infinity } = await navigator.storage.estimate();
-    if (!Number.isFinite(quota) || quota <= 0) return { ok: true, usage, quota };
+    if (!Number.isFinite(quota) || quota <= 0)
+      return { ok: true, usage, quota };
     return { ok: usage / quota < headroomRatio, usage, quota };
   } catch {
     return { ok: true, usage: 0, quota: Infinity };

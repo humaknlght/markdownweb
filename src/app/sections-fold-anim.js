@@ -1,10 +1,5 @@
 import { hooks } from "./hooks.js";
-import {
-  state,
-  preview,
-  previewPane,
-  collapsedSections
-} from "./state.js";
+import { collapsedSections, preview, previewPane, state } from "./state.js";
 
 export function animateSectionFold(heading, collapsing) {
   hooks.unwrapSectionAnims();
@@ -18,7 +13,8 @@ export function animateSectionFold(heading, collapsing) {
   const stayFolded = new Set();
   if (!collapsing) {
     for (const node of els) {
-      if (hooks.coveredByOtherCollapsedHeading(node, heading)) stayFolded.add(node);
+      if (hooks.coveredByOtherCollapsedHeading(node, heading))
+        stayFolded.add(node);
     }
     // Expanding under a still-collapsed parent would build an empty
     // `.md-section-anim.is-expanded` (all children stay display:none) that can
@@ -134,7 +130,6 @@ export function setSectionCollapsed(heading, collapsed) {
   applySectionCollapse();
   hooks.invalidateScrollAnchors();
 }
-
 
 export function toggleSectionCollapse(heading) {
   const key = hooks.sectionCollapseKey(heading);

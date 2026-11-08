@@ -1,23 +1,21 @@
+import { STORAGE_KEYS } from "../constants.js";
 import { hooks } from "../hooks.js";
 import {
-  state,
+  DRIVE_ROOT_UI_NAME,
+  driveCurrentFolderId,
+  driveEntries,
+  drivePathLabel,
   filesDrawerTitle,
   filesTree,
-  DRIVE_ROOT_UI_NAME,
-  driveEntries,
-  driveCurrentFolderId,
-  drivePathLabel
+  state,
 } from "../state.js";
-import {
-  STORAGE_KEYS
-} from "../constants.js";
 import {
   clearDriveAccessToken,
   ensureDriveAccessToken,
   ensureDriveAppFolder,
   getDriveAccessToken,
   isDriveSessionMemoryOnly,
-  listDriveFolderChildren
+  listDriveFolderChildren,
 } from "../vendor-deps.js";
 
 export async function ensureDriveNavRoot(token) {
@@ -79,7 +77,7 @@ export async function renderDriveTree() {
 
 export async function enterDriveFolder(folderId) {
   const entry = driveEntries.get(folderId);
-  if (!entry || entry.kind !== "directory") return;
+  if (entry?.kind !== "directory") return;
   state.driveNavStack.push({ id: entry.id, name: entry.name });
   await refreshDriveTree();
 }
@@ -104,7 +102,10 @@ export async function resolveDriveCreateParentId(target = null) {
     }
     return target.id;
   }
-  return driveCurrentFolderId() || (await ensureDriveAppFolder(await ensureDriveAccessToken()));
+  return (
+    driveCurrentFolderId() ||
+    (await ensureDriveAppFolder(await ensureDriveAccessToken()))
+  );
 }
 
 export function beginDriveFilesLoading() {
@@ -128,7 +129,10 @@ export async function refreshDriveTree() {
     await renderDriveTree();
   } catch (err) {
     console.error(err);
-    if (err?.status === 401 || /401|auth|token/i.test(String(err?.message || ""))) {
+    if (
+      err?.status === 401 ||
+      /401|auth|token/i.test(String(err?.message || ""))
+    ) {
       clearDriveAccessToken();
       state.driveConnected = false;
       state.driveNavStack = [];
@@ -179,7 +183,9 @@ export async function connectGoogleDrive() {
     const offlineish =
       !hooks.isBrowserOnline() ||
       err?.name === "TypeError" ||
-      /Failed to fetch|NetworkError|ERR_INTERNET/i.test(String(err?.message || ""));
+      /Failed to fetch|NetworkError|ERR_INTERNET/i.test(
+        String(err?.message || ""),
+      );
     hooks.showToast(
       offlineish
         ? "You need to be online to connect Google Drive"

@@ -2,9 +2,9 @@ import { hooks } from "./hooks.js";
 import {
   canonicalHljsLang,
   escapeHtml,
+  hljs,
   marked,
   Renderer,
-  hljs,
   wrapHighlightedLines,
 } from "./vendor-deps.js";
 
@@ -35,7 +35,9 @@ export function annotateSourceLines(tokens) {
 export function withSourceLine(html, line, lineEnd) {
   if (line == null || line < 1 || !html) return html;
   const endAttr =
-    lineEnd != null && lineEnd > line ? ` data-source-line-end="${lineEnd}"` : "";
+    lineEnd != null && lineEnd > line
+      ? ` data-source-line-end="${lineEnd}"`
+      : "";
   return html.replace(
     /^(\s*<[a-zA-Z][a-zA-Z0-9-]*)/,
     `$1 data-source-line="${line}"${endAttr}`,

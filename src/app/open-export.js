@@ -1,16 +1,16 @@
+import { SHARE_URL_WARN_CHARS } from "./constants.js";
 import { hooks } from "./hooks.js";
+import { loadExportModule } from "./lazy-modules.js";
 import {
+  exportBtn,
+  exportMenu,
   preview,
   shareBtn,
   shareMenu,
-  exportBtn,
-  exportMenu,
   writingToolsBtn,
-  writingToolsMenu
+  writingToolsMenu,
 } from "./state.js";
-import { SHARE_URL_WARN_CHARS } from "./constants.js";
 import { titleFromMarkdown } from "./vendor-deps.js";
-import { loadExportModule } from "./lazy-modules.js";
 
 export async function copyText(url, toastMessage) {
   try {
@@ -128,7 +128,11 @@ export async function exportDocument(format) {
 
   try {
     if (format === "markdown") {
-      downloadBlob(buildMarkdownFile(markdown, title), `${base}.md`, "text/markdown;charset=utf-8");
+      downloadBlob(
+        buildMarkdownFile(markdown, title),
+        `${base}.md`,
+        "text/markdown;charset=utf-8",
+      );
       hooks.showToast("Markdown downloaded");
     } else if (format === "html") {
       // Inline Mermaid SVG computed paints (same as PDF) so chart text/fills
@@ -147,7 +151,11 @@ export async function exportDocument(format) {
       downloadBlob(buildDocxBlob(preview, title), `${base}.docx`);
       hooks.showToast("DOCX downloaded");
     } else if (format === "rtf") {
-      downloadBlob(buildRtfDocument(preview, title), `${base}.rtf`, "application/rtf;charset=utf-8");
+      downloadBlob(
+        buildRtfDocument(preview, title),
+        `${base}.rtf`,
+        "application/rtf;charset=utf-8",
+      );
       hooks.showToast("RTF downloaded");
     }
   } catch {
@@ -175,10 +183,8 @@ export async function printPreviewDocument() {
 
   await hooks.renderMermaidDiagrams({ force: true });
 
-  const {
-    exportStyleOptionsFromPreview,
-    printPreviewAsPdf,
-  } = await loadExportModule();
+  const { exportStyleOptionsFromPreview, printPreviewAsPdf } =
+    await loadExportModule();
 
   const title = titleFromMarkdown(markdown);
   const styleOptions = exportStyleOptionsFromPreview(preview);

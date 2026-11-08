@@ -1,15 +1,26 @@
-import { describe, it, beforeEach } from "node:test";
 import assert from "node:assert/strict";
+import { beforeEach, describe, it } from "node:test";
 import { JSDOM } from "jsdom";
 import {
-  SPEECH_CHUNK_MAX,
   chunkSpeechText,
   isEnglishVoice,
   isHighQualityVoice,
   listVoices,
+  SPEECH_CHUNK_MAX,
   voiceQualityScore,
   wordEndOffset,
 } from "../../src/lib/speech-text.js";
+import {
+  clearEmbeds,
+  collapseDataUris,
+  collapseDataUrisPreservingSelection,
+  collapsedEmbedUriTouched,
+  expandEmbeds,
+  findCollapsedEmbeds,
+  formatEmbedMarkdown,
+  rememberEmbed,
+} from "../../src/markdown/embeds.js";
+import hljsMermaid from "../../src/markdown/hljs-mermaid.js";
 import {
   canonicalHljsLang,
   clampSplit,
@@ -22,22 +33,11 @@ import {
   joinFsPath,
   parentPathOf,
   parseDraftMirror,
+  SPLIT_MAX,
+  SPLIT_MIN,
   titleFromMarkdown,
   wrapHighlightedLines,
-  SPLIT_MIN,
-  SPLIT_MAX,
 } from "../../src/markdown/markdown-utils.js";
-import hljsMermaid from "../../src/markdown/hljs-mermaid.js";
-import {
-  clearEmbeds,
-  collapseDataUris,
-  collapseDataUrisPreservingSelection,
-  collapsedEmbedUriTouched,
-  expandEmbeds,
-  findCollapsedEmbeds,
-  formatEmbedMarkdown,
-  rememberEmbed,
-} from "../../src/markdown/embeds.js";
 
 /** Recover plaintext from highlight.js HTML for overlay alignment asserts. */
 function plaintextFromHighlight(html) {
@@ -48,12 +48,16 @@ function plaintextFromHighlight(html) {
 
 describe("speech-text", () => {
   it("chunks long text at sentence boundaries under the max", () => {
-    const text = "A".repeat(50) + ". " + "B".repeat(50) + "! " + "C".repeat(200);
+    const text =
+      "A".repeat(50) + ". " + "B".repeat(50) + "! " + "C".repeat(200);
     const chunks = chunkSpeechText(text);
     assert.ok(chunks.length >= 2);
     for (const chunk of chunks) {
       assert.ok(chunk.text.length <= SPEECH_CHUNK_MAX);
-      assert.equal(text.slice(chunk.start, chunk.start + chunk.text.length), chunk.text);
+      assert.equal(
+        text.slice(chunk.start, chunk.start + chunk.text.length),
+        chunk.text,
+      );
     }
   });
 
@@ -62,18 +66,36 @@ describe("speech-text", () => {
   });
 
   it("scores Siri/Google high and novelty voices low", () => {
-    assert.ok(voiceQualityScore({ name: "Samantha (Siri)", localService: true }) >= 100);
-    assert.ok(voiceQualityScore({ name: "Google US English", localService: false }) >= 60);
+    assert.ok(
+      voiceQualityScore({ name: "Samantha (Siri)", localService: true }) >= 100,
+    );
+    assert.ok(
+      voiceQualityScore({ name: "Google US English", localService: false }) >=
+        60,
+    );
     assert.ok(voiceQualityScore({ name: "Fred", localService: true }) < 0);
     assert.equal(isEnglishVoice({ lang: "en-US" }), true);
     assert.equal(isEnglishVoice({ lang: "fr-FR" }), false);
-    assert.equal(isHighQualityVoice({ name: "Zarvox", lang: "en-US", localService: true }), false);
+    assert.equal(
+      isHighQualityVoice({ name: "Zarvox", lang: "en-US", localService: true }),
+      false,
+    );
   });
 
   it("dedupes voices preferring local copies", () => {
     const voices = listVoices([
-      { name: "Samantha", lang: "en-US", localService: false, voiceURI: "cloud" },
-      { name: "Samantha", lang: "en-US", localService: true, voiceURI: "local" },
+      {
+        name: "Samantha",
+        lang: "en-US",
+        localService: false,
+        voiceURI: "cloud",
+      },
+      {
+        name: "Samantha",
+        lang: "en-US",
+        localService: true,
+        voiceURI: "local",
+      },
       { name: "Fred", lang: "en-US", localService: true, voiceURI: "fred" },
     ]);
     assert.equal(voices.length, 1);
@@ -82,8 +104,18 @@ describe("speech-text", () => {
 
   it("lists local voices ahead of higher-scored cloud voices", () => {
     const voices = listVoices([
-      { name: "Google US English", lang: "en-US", localService: false, voiceURI: "google" },
-      { name: "Samantha", lang: "en-US", localService: true, voiceURI: "samantha" },
+      {
+        name: "Google US English",
+        lang: "en-US",
+        localService: false,
+        voiceURI: "google",
+      },
+      {
+        name: "Samantha",
+        lang: "en-US",
+        localService: true,
+        voiceURI: "samantha",
+      },
     ]);
     assert.equal(voices.length, 2);
     assert.equal(voices[0].voiceURI, "samantha");
@@ -111,7 +143,9 @@ describe("markdown-utils", () => {
   });
 
   it("collects fence languages and skips mermaid by default", () => {
-    const langs = collectFenceLanguages("```js\nx\n```\n\n```mermaid\ngraph\n```\n\n~~~python\ny\n~~~");
+    const langs = collectFenceLanguages(
+      "```js\nx\n```\n\n```mermaid\ngraph\n```\n\n~~~python\ny\n~~~",
+    );
     assert.deepEqual(langs, ["js", "python"]);
     assert.deepEqual(
       collectFenceLanguages("```js\nx\n```\n\n```mermaid\ngraph\n```", {
@@ -122,12 +156,18 @@ describe("markdown-utils", () => {
   });
 
   it("does not fetch a yaml grammar just for front matter", () => {
-    assert.deepEqual(collectEditorLanguages("---\ntitle: Hi\n---\n\n# Body"), []);
+    assert.deepEqual(
+      collectEditorLanguages("---\ntitle: Hi\n---\n\n# Body"),
+      [],
+    );
     assert.deepEqual(
       collectEditorLanguages("---\nx: 1\n---\n\n```js\n1\n```"),
       ["js"],
     );
-    assert.deepEqual(collectEditorLanguages("# No front matter\n```py\n1\n```"), ["py"]);
+    assert.deepEqual(
+      collectEditorLanguages("# No front matter\n```py\n1\n```"),
+      ["py"],
+    );
     assert.deepEqual(
       collectEditorLanguages("```mermaid\nflowchart LR\n  A-->B\n```"),
       ["mermaid"],
@@ -233,7 +273,10 @@ describe("markdown-utils", () => {
   });
 
   it("derives titles from front matter then headings", () => {
-    assert.equal(titleFromMarkdown("---\ntitle: From FM\n---\n\n# Heading"), "From FM");
+    assert.equal(
+      titleFromMarkdown("---\ntitle: From FM\n---\n\n# Heading"),
+      "From FM",
+    );
     assert.equal(titleFromMarkdown("# Heading only"), "Heading only");
     assert.equal(titleFromMarkdown("plain line"), "plain line");
     assert.equal(titleFromMarkdown("   "), "Untitled");
@@ -267,7 +310,9 @@ describe("markdown-utils", () => {
       content: "legacy",
     });
     assert.deepEqual(
-      parseDraftMirror(JSON.stringify({ v: 1, docKey: "path:x", content: "c" })),
+      parseDraftMirror(
+        JSON.stringify({ v: 1, docKey: "path:x", content: "c" }),
+      ),
       { v: 1, docKey: "path:x", content: "c" },
     );
   });
@@ -312,9 +357,22 @@ describe("embeds", () => {
     const embeds = findCollapsedEmbeds(collapsed);
     assert.equal(embeds.length, 1);
     const emb = embeds[0];
-    assert.equal(collapsedEmbedUriTouched(emb, emb.uriStart + 1, emb.uriStart + 1, "insertText"), true);
     assert.equal(
-      collapsedEmbedUriTouched(emb, emb.uriEnd, emb.uriEnd, "deleteContentBackward"),
+      collapsedEmbedUriTouched(
+        emb,
+        emb.uriStart + 1,
+        emb.uriStart + 1,
+        "insertText",
+      ),
+      true,
+    );
+    assert.equal(
+      collapsedEmbedUriTouched(
+        emb,
+        emb.uriEnd,
+        emb.uriEnd,
+        "deleteContentBackward",
+      ),
       true,
     );
     assert.equal(collapsedEmbedUriTouched(emb, 0, 0, "insertText"), false);
@@ -330,13 +388,18 @@ describe("embeds", () => {
       "",
     ].join("\n");
     const collapsed = collapseDataUris(md);
-    assert.match(collapsed, /\[transparent-pixel\]: data:image\/png;base64,iVBORw0KGgoA…#\d+/);
+    assert.match(
+      collapsed,
+      /\[transparent-pixel\]: data:image\/png;base64,iVBORw0KGgoA…#\d+/,
+    );
     assert.doesNotMatch(collapsed, /AAAAASUVORK5CYII=/);
     assert.equal(expandEmbeds(collapsed), md);
 
     const embeds = findCollapsedEmbeds(collapsed);
     assert.equal(embeds.length, 1);
-    const def = collapsed.match(/\[transparent-pixel\]: data:image\/png;base64,[^\n]+/)?.[0];
+    const def = collapsed.match(
+      /\[transparent-pixel\]: data:image\/png;base64,[^\n]+/,
+    )?.[0];
     assert.equal(collapsed.slice(embeds[0].fullStart, embeds[0].fullEnd), def);
   });
 

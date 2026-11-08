@@ -33,7 +33,7 @@ export function shouldOpenLinkInNewTab(href) {
  * @param {Element} node
  */
 export function applyLinkTargetAttributes(node) {
-  if (!node || node.nodeType !== 1) return;
+  if (node?.nodeType !== 1) return;
   const tag = node.tagName?.toLowerCase?.() || "";
   if (tag !== "a" && tag !== "area") return;
   if (!node.hasAttribute("href")) return;

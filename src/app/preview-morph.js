@@ -8,7 +8,8 @@
 const TEXT_NODE = 3;
 const ELEMENT_NODE = 1;
 const MEDIA = new Set(["IMG", "VIDEO", "AUDIO", "SOURCE", "IFRAME"]);
-const RUNTIME_CLASS = /^(?:is-collapsed|md-section-folded|md-section-anim|is-expanded)$/;
+const RUNTIME_CLASS =
+  /^(?:is-collapsed|md-section-folded|md-section-anim|is-expanded)$/;
 /** Skip LCS when sibling lists are huge; fall back to a full replace. */
 const LCS_CELL_LIMIT = 250_000;
 
@@ -18,7 +19,11 @@ const LCS_CELL_LIMIT = 250_000;
  * @param {(el: Element) => string | undefined} [mermaidSource]
  *   Live Mermaid hosts store their fence text outside the DOM once an SVG is mounted.
  */
-export function morphPreviewHtml(preview, html, mermaidSource = () => undefined) {
+export function morphPreviewHtml(
+  preview,
+  html,
+  mermaidSource = () => undefined,
+) {
   const pool = collectMedia(preview);
   const doc = preview.ownerDocument;
   const tpl = doc.createElement("template");
@@ -62,10 +67,12 @@ function alignNodes(oldKids, newKids, mermaidSource) {
   /** @type {Node[]} */
   const newLeft = [];
   oldKids.forEach((node, index) => {
-    if (!matchedOld.has(index) && node.nodeType === ELEMENT_NODE) oldLeft.push(node);
+    if (!matchedOld.has(index) && node.nodeType === ELEMENT_NODE)
+      oldLeft.push(node);
   });
   newKids.forEach((node, index) => {
-    if (!matchedNew.has(index) && node.nodeType === ELEMENT_NODE) newLeft.push(node);
+    if (!matchedNew.has(index) && node.nodeType === ELEMENT_NODE)
+      newLeft.push(node);
   });
   const structPairs = lcsPairs(
     oldLeft.map((node) => structKey(node)),
@@ -86,7 +93,11 @@ function alignNodes(oldKids, newKids, mermaidSource) {
     }
     const host = similar.get(fresh);
     if (host && host.nodeName === fresh.nodeName) {
-      patchElement(/** @type {Element} */ (host), /** @type {Element} */ (fresh), mermaidSource);
+      patchElement(
+        /** @type {Element} */ (host),
+        /** @type {Element} */ (fresh),
+        mermaidSource,
+      );
       next.push(host);
       continue;
     }
@@ -113,10 +124,14 @@ function structKey(node) {
  * @param {(el: Element) => string | undefined} mermaidSource
  */
 function patchElement(live, fresh, mermaidSource) {
-  const runtime = [...live.classList].filter((name) => RUNTIME_CLASS.test(name));
+  const runtime = [...live.classList].filter((name) =>
+    RUNTIME_CLASS.test(name),
+  );
   copyAttrs(fresh, live);
   for (const name of runtime) live.classList.add(name);
-  live.replaceChildren(...alignNodes([...live.childNodes], [...fresh.childNodes], mermaidSource));
+  live.replaceChildren(
+    ...alignNodes([...live.childNodes], [...fresh.childNodes], mermaidSource),
+  );
 }
 
 /**
@@ -162,7 +177,11 @@ function fingerprint(node, live, mermaidSource) {
   if (node.nodeType === TEXT_NODE) return node.data;
   if (node.nodeType !== ELEMENT_NODE) return "";
   const el = /** @type {Element} */ (node);
-  if (el.classList.contains("line-num") || el.classList.contains("md-section-toggle")) return "";
+  if (
+    el.classList.contains("line-num") ||
+    el.classList.contains("md-section-toggle")
+  )
+    return "";
   if (el.classList.contains("md-section-label")) return el.textContent ?? "";
   if (el.classList.contains("mermaid")) {
     if (live) {
@@ -177,7 +196,8 @@ function fingerprint(node, live, mermaidSource) {
   let out = "";
   const cls = stableClass(el, live);
   if (cls) out += `c\0${cls}\0`;
-  for (const child of el.childNodes) out += fingerprint(child, live, mermaidSource);
+  for (const child of el.childNodes)
+    out += fingerprint(child, live, mermaidSource);
   return out;
 }
 
@@ -188,11 +208,13 @@ function fingerprint(node, live, mermaidSource) {
  * @param {Node} tmpl
  */
 function syncSourceLines(live, tmpl) {
-  if (live.nodeType !== ELEMENT_NODE || tmpl.nodeType !== ELEMENT_NODE) return true;
+  if (live.nodeType !== ELEMENT_NODE || tmpl.nodeType !== ELEMENT_NODE)
+    return true;
   const liveEls = sourceLineEls(/** @type {Element} */ (live));
   const tmplEls = sourceLineEls(/** @type {Element} */ (tmpl));
   if (liveEls.length !== tmplEls.length) return false;
-  for (let i = 0; i < liveEls.length; i++) copySourceAttrs(liveEls[i], tmplEls[i]);
+  for (let i = 0; i < liveEls.length; i++)
+    copySourceAttrs(liveEls[i], tmplEls[i]);
   return true;
 }
 
@@ -204,7 +226,11 @@ function sourceLineEls(node) {
   /** @type {Element[]} */
   const list = [];
   const walk = (el) => {
-    if (el.hasAttribute("data-source-line") || el.hasAttribute("data-source-line-end")) list.push(el);
+    if (
+      el.hasAttribute("data-source-line") ||
+      el.hasAttribute("data-source-line-end")
+    )
+      list.push(el);
     for (const child of el.children) walk(child);
   };
   walk(node);
@@ -293,7 +319,9 @@ function mediaKey(el) {
  * @param {Map<string, Element[]>} pool
  */
 function adoptMedia(root, pool) {
-  for (const el of [...root.querySelectorAll("img, video, audio, source, iframe")]) {
+  for (const el of [
+    ...root.querySelectorAll("img, video, audio, source, iframe"),
+  ]) {
     const key = mediaKey(el);
     const list = key ? pool.get(key) : undefined;
     if (!list?.length) continue;
@@ -314,7 +342,8 @@ function copyAttrs(from, to) {
   const seen = new Set();
   for (const attr of from.attributes) {
     seen.add(attr.name);
-    if (to.getAttribute(attr.name) !== attr.value) to.setAttribute(attr.name, attr.value);
+    if (to.getAttribute(attr.name) !== attr.value)
+      to.setAttribute(attr.name, attr.value);
   }
   for (const attr of [...to.attributes]) {
     if (!seen.has(attr.name)) to.removeAttribute(attr.name);

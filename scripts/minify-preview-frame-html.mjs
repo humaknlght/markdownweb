@@ -34,7 +34,9 @@ const HTML_MINIFY_OPTIONS = {
 export async function minifyPreviewFrameDocWrite(source) {
   const match = source.match(DOC_WRITE_RE);
   if (!match || match.index === undefined) {
-    throw new Error("preview-frame.js: expected doc.write(`...`) HTML template");
+    throw new Error(
+      "preview-frame.js: expected doc.write(`...`) HTML template",
+    );
   }
 
   /** @type {string[]} */

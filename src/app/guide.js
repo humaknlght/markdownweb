@@ -1,13 +1,6 @@
 import { hooks } from "./hooks.js";
-import {
-  state,
-  editor,
-  previewPane,
-  helpBtn
-} from "./state.js";
-import {
-  getDraft
-} from "./vendor-deps.js";
+import { editor, helpBtn, previewPane, state } from "./state.js";
+import { getDraft } from "./vendor-deps.js";
 
 export function buildHelpGuideUrl() {
   const url = new URL(window.location.href);

@@ -1,6 +1,6 @@
-import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { parseAbbrDef, applyAbbreviations } from "../../src/markdown/abbr.js";
+import { describe, it } from "node:test";
+import { applyAbbreviations, parseAbbrDef } from "../../src/markdown/abbr.js";
 import {
   findFootnoteDefStart,
   parseFootnoteDef,
@@ -10,7 +10,9 @@ import { parseMarkdown, renderMarkdownHtml } from "../helpers/render.js";
 
 describe("task lists", () => {
   it("renders disabled checkbox spans instead of <input>", () => {
-    const html = renderMarkdownHtml("- [x] Write the press release\n- [ ] Update the website\n");
+    const html = renderMarkdownHtml(
+      "- [x] Write the press release\n- [ ] Update the website\n",
+    );
     assert.match(html, /task-list-item-checkbox/);
     assert.match(html, /aria-checked="true"/);
     assert.match(html, /aria-checked="false"/);
@@ -25,7 +27,13 @@ describe("heading IDs", () => {
     const token = {
       type: "heading",
       text: "My Great Heading {#custom-id}",
-      tokens: [{ type: "text", text: "My Great Heading {#custom-id}", raw: "My Great Heading {#custom-id}" }],
+      tokens: [
+        {
+          type: "text",
+          text: "My Great Heading {#custom-id}",
+          raw: "My Great Heading {#custom-id}",
+        },
+      ],
     };
     assert.equal(applyHeadingId(token), true);
     assert.equal(token.customId, "custom-id");
@@ -81,10 +89,7 @@ describe("abbreviations", () => {
     const html = renderMarkdownHtml(
       "*[HTML]: Hyper Text Markup Language\n\nThe HTML specification is maintained by the W3C.\n",
     );
-    assert.match(
-      html,
-      /<abbr title="Hyper Text Markup Language">HTML<\/abbr>/,
-    );
+    assert.match(html, /<abbr title="Hyper Text Markup Language">HTML<\/abbr>/);
     assert.doesNotMatch(html, /\*\[HTML\]:/);
   });
 

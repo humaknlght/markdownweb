@@ -1,25 +1,23 @@
+import { NARROW_MQ } from "./constants.js";
 import { hooks } from "./hooks.js";
 import {
-  state,
-  shareMenu,
   exportMenu,
-  writingToolsMenu,
-  voiceMenu,
-  headingMenu,
-  imageMenu,
+  filesContextMenu,
   formatMoreMenu,
+  headingMenu,
   historyMenu,
-  toolbarMenu,
-  toolbarBar,
-  toolbarActions,
-  overflowBtn,
-  viewModeMenu,
+  imageMenu,
   mermaidZoomDialog,
-  filesContextMenu
+  overflowBtn,
+  shareMenu,
+  state,
+  toolbarActions,
+  toolbarBar,
+  toolbarMenu,
+  viewModeMenu,
+  voiceMenu,
+  writingToolsMenu,
 } from "./state.js";
-import {
-  NARROW_MQ
-} from "./constants.js";
 
 export function openOverflowMenu() {
   toolbarMenu.classList.add("is-open");

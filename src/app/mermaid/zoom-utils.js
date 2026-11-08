@@ -1,7 +1,4 @@
-import {
-  MERMAID_ZOOM_MIN,
-  MERMAID_ZOOM_MAX,
-} from "../constants.js";
+import { MERMAID_ZOOM_MAX, MERMAID_ZOOM_MIN } from "../constants.js";
 
 export function clampMermaidZoom(factor) {
   return Math.min(MERMAID_ZOOM_MAX, Math.max(MERMAID_ZOOM_MIN, factor));

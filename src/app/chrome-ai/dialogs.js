@@ -1,22 +1,23 @@
 import { hooks } from "../hooks.js";
 import {
-  state,
-  editor,
-  previewFrame,
-  writingToolsMenu,
-  aiWriteDialog,
-  aiRewriteDialog,
-  aiProofreadDialog,
-  aiProofEditorWrap,
   aiProofEditor,
+  aiProofEditorWrap,
   aiProofHighlight,
   aiProofHighlightCode,
+  aiProofreadDialog,
+  aiRewriteDialog,
+  aiWriteDialog,
+  editor,
+  previewFrame,
   previewPane,
+  state,
+  writingToolsMenu,
 } from "../state.js";
 
 /** Dialog open/close, selection hold, and proofread preview. */
 export function installAiDialogs(s, api) {
-  const { renderCorrectedDiffHtml, resolveInsertRange, resolveTargetRange } = api;
+  const { renderCorrectedDiffHtml, resolveInsertRange, resolveTargetRange } =
+    api;
 
   function isAiDialogOpen() {
     return Boolean(
@@ -27,7 +28,8 @@ export function installAiDialogs(s, api) {
   function isHoldingEditorSelection() {
     return Boolean(
       s.heldEditorRange &&
-        ((writingToolsMenu && !writingToolsMenu.hidden) || aiProofreadDialog?.open),
+        ((writingToolsMenu && !writingToolsMenu.hidden) ||
+          aiProofreadDialog?.open),
     );
   }
 
@@ -95,7 +97,15 @@ export function installAiDialogs(s, api) {
   }
 
   function setBusy(ui, busy) {
-    const { runBtn, stopBtn, applyBtn, cancelBtn, status, dialog, hideRunWhenBusy } = ui;
+    const {
+      runBtn,
+      stopBtn,
+      applyBtn,
+      cancelBtn,
+      status,
+      dialog,
+      hideRunWhenBusy,
+    } = ui;
     if (runBtn) {
       runBtn.disabled = busy;
       // Hide while working; callers decide whether to show it again on idle/error.
@@ -228,7 +238,9 @@ export function installAiDialogs(s, api) {
   function syncProofDockClearance() {
     const dialog = aiProofreadDialog;
     if (!dialog?.open) {
-      document.documentElement.style.removeProperty("--ai-proof-dock-clearance");
+      document.documentElement.style.removeProperty(
+        "--ai-proof-dock-clearance",
+      );
       return;
     }
     const height = Math.ceil(dialog.getBoundingClientRect().height);
@@ -291,14 +303,19 @@ export function installAiDialogs(s, api) {
   function onProofEditorScroll() {
     hooks.syncProofEditorHighlightScroll();
     // Right-pane scroll drives the left editor when Sync scroll is on.
-    if (state.syncScrollDriver !== "editor") state.outlineScrollSource = "preview";
+    if (state.syncScrollDriver !== "editor")
+      state.outlineScrollSource = "preview";
     hooks.syncEditorFromPreview();
   }
 
   function applyPendingResult(dialog) {
     if (!s.pendingRange || s.pendingResult == null) return;
     const isProof = dialog === aiProofreadDialog;
-    hooks.replaceEditorRange(s.pendingRange.start, s.pendingRange.end, s.pendingResult);
+    hooks.replaceEditorRange(
+      s.pendingRange.start,
+      s.pendingRange.end,
+      s.pendingResult,
+    );
     s.pendingRange = null;
     s.pendingResult = "";
     clearHeldEditorSelection();

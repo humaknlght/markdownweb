@@ -1,18 +1,13 @@
-import { hooks } from "../hooks.js";
 import {
-  state,
-  mermaidSources
-} from "../state.js";
-import {
-  MERMAID_HAND_FONT,
   MERMAID_CDN,
-  SVG2ROUGH_CDN,
+  MERMAID_HAND_FONT,
+  MERMAID_MIN_GANTT_HOST_WIDTH,
   MERMAID_MIN_HOST_WIDTH,
-  MERMAID_MIN_GANTT_HOST_WIDTH
+  SVG2ROUGH_CDN,
 } from "../constants.js";
-import {
-  CDN_INTEGRITY_URLS
-} from "../lazy-modules.js";
+import { hooks } from "../hooks.js";
+import { CDN_INTEGRITY_URLS } from "../lazy-modules.js";
+import { mermaidSources, state } from "../state.js";
 
 export function mermaidConfig() {
   return {
@@ -41,7 +36,9 @@ export function loadMermaid() {
   // ESM entry + lazy chunks from jsDelivr (relative imports under dist/chunks/).
   // Import-map integrity covers the entry and every nested chunk URL.
   if (!CDN_INTEGRITY_URLS.has(MERMAID_CDN)) {
-    return Promise.reject(new Error("Mermaid CDN URL missing SRI allowlist entry"));
+    return Promise.reject(
+      new Error("Mermaid CDN URL missing SRI allowlist entry"),
+    );
   }
   state.mermaidModule ??= import(MERMAID_CDN).then((mod) => {
     const mermaid = mod.default;
@@ -55,7 +52,9 @@ export function loadMermaid() {
 
 export function loadSvg2Rough() {
   if (!CDN_INTEGRITY_URLS.has(SVG2ROUGH_CDN)) {
-    return Promise.reject(new Error("svg2roughjs CDN URL missing SRI allowlist entry"));
+    return Promise.reject(
+      new Error("svg2roughjs CDN URL missing SRI allowlist entry"),
+    );
   }
   state.svg2roughModule ??= import(SVG2ROUGH_CDN).then((mod) => {
     const Svg2Roughjs = mod.Svg2Roughjs;
@@ -105,7 +104,9 @@ export async function sketchMermaidSvg(svg) {
     document.body.appendChild(el);
   }
   try {
-    const source = /** @type {SVGSVGElement} */ (document.importNode(svg, true));
+    const source = /** @type {SVGSVGElement} */ (
+      document.importNode(svg, true)
+    );
     if (preBox.width > 0) source.style.width = `${preBox.width}px`;
     if (preBox.height > 0) source.style.height = `${preBox.height}px`;
     staging.appendChild(source);
@@ -128,7 +129,9 @@ export async function sketchMermaidSvg(svg) {
     const sketchedParent = scratch.querySelector(":scope > svg");
     if (!(sketchedParent instanceof SVGElement)) return null;
 
-    const sketched = /** @type {SVGElement} */ (ownerDoc.importNode(sketchedParent, true));
+    const sketched = /** @type {SVGElement} */ (
+      ownerDoc.importNode(sketchedParent, true)
+    );
     sketched.dataset.mermaidSketched = "1";
     // Keep class for theming. Size from the classic SVG's rendered CSS box —
     // copying width="100%" would upscale tall viewBoxes and cause vertical scroll.
@@ -141,7 +144,10 @@ export async function sketchMermaidSvg(svg) {
     // svg2roughjs drops Mermaid's <style> (themeCSS, p{margin:0}) — copy it back
     // so labels/theme rules still apply after sketch (and in the zoom dialog).
     if (srcStyle && !sketched.querySelector("style")) {
-      sketched.insertBefore(ownerDoc.importNode(srcStyle, true), sketched.firstChild);
+      sketched.insertBefore(
+        ownerDoc.importNode(srcStyle, true),
+        sketched.firstChild,
+      );
     }
     // Hachure strokes often reuse fill pastels — remap to WCAG theme ink.
     hooks.normalizeMermaidHandDrawnColors(sketched);
@@ -179,7 +185,8 @@ export function mermaidHostWideEnough(el) {
   const w = el.clientWidth;
   if (!(w >= MERMAID_MIN_HOST_WIDTH)) return false;
   const src = mermaidSources.get(el) ?? el.textContent ?? "";
-  if (mermaidSourceIsGantt(src) && w < MERMAID_MIN_GANTT_HOST_WIDTH) return false;
+  if (mermaidSourceIsGantt(src) && w < MERMAID_MIN_GANTT_HOST_WIDTH)
+    return false;
   return true;
 }
 

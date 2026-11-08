@@ -122,7 +122,11 @@ export function parseDefList(src) {
         if (isBlank(line)) {
           // Blank + indented continuation stays in this definition; blank before
           // another `: ` or the next term group ends this definition.
-          if (i + 1 < lines.length && /^[ \t]/.test(lines[i + 1]) && !parseDdLine(lines[i + 1])) {
+          if (
+            i + 1 < lines.length &&
+            /^[ \t]/.test(lines[i + 1]) &&
+            !parseDdLine(lines[i + 1])
+          ) {
             text += "\n" + line;
             i += 1;
             continue;

@@ -1,18 +1,18 @@
 import {
   abbrExtension,
   alertExtension,
+  applyLinkTargetAttributes,
+  DOMPurify,
   defListExtension,
   emojiExtension,
   footnoteExtension,
   frontmatterExtension,
   headingIdExtension,
+  marked,
   markHighlightExtension,
+  stripRemoteMediaAttributes,
   subSupExtension,
   tablePipesExtension,
-  applyLinkTargetAttributes,
-  stripRemoteMediaAttributes,
-  marked,
-  DOMPurify
 } from "./vendor-deps.js";
 
 marked.setOptions({
@@ -37,5 +37,3 @@ DOMPurify.addHook("afterSanitizeAttributes", (node) => {
   applyLinkTargetAttributes(/** @type {Element} */ (node));
   stripRemoteMediaAttributes(/** @type {Element} */ (node));
 });
-
-

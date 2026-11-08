@@ -1,16 +1,16 @@
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { test, expect } from "playwright/test";
+import { expect, test } from "playwright/test";
 import {
-  openFreshApp,
-  preparePage,
+  clickHelp,
+  closeSettings,
   fillEditor,
   headingText,
+  openFreshApp,
   openSettings,
-  closeSettings,
-  clickHelp,
-  previewLocator
+  preparePage,
+  previewLocator,
 } from "./helpers.js";
 
 const mermaidFixture = readFileSync(
@@ -23,7 +23,9 @@ test.describe("editor + render", () => {
     await openFreshApp(page);
 
     await page.locator("#editor").fill("# Hello\n\n- one\n- two");
-    await expect.poll(async () => headingText(previewLocator(page, "h1"))).toBe("Hello");
+    await expect
+      .poll(async () => headingText(previewLocator(page, "h1")))
+      .toBe("Hello");
     await expect(previewLocator(page, "li")).toHaveCount(2);
   });
 
@@ -73,7 +75,9 @@ test.describe("editor + render", () => {
     await expect(editor).toHaveValue(/!\[photo\]\(data:image\/png;base64,/);
   });
 
-  test("format bar uses kebab overflow when the editor pane is narrow", async ({ page }) => {
+  test("format bar uses kebab overflow when the editor pane is narrow", async ({
+    page,
+  }) => {
     await openFreshApp(page);
     // Shrink only the editor column (viewport stays wide) — same as dragging the splitter.
     await page.locator("#panes").evaluate((el) => {
@@ -81,7 +85,9 @@ test.describe("editor + render", () => {
     });
     await expect(page.locator("#format-bar")).toHaveClass(/is-compact/);
     await expect(page.locator("#format-more-btn")).toBeVisible();
-    await expect(page.locator('.format-bar-wide [data-format="table"]')).toBeHidden();
+    await expect(
+      page.locator('.format-bar-wide [data-format="table"]'),
+    ).toBeHidden();
 
     const editor = page.locator("#editor");
     await editor.fill("");
@@ -101,7 +107,9 @@ test.describe("editor + render", () => {
     await expect(openFile).toBeFocused();
   });
 
-  test("open file via picker accepts clean and Save writes back", async ({ page }) => {
+  test("open file via picker accepts clean and Save writes back", async ({
+    page,
+  }) => {
     await page.addInitScript(() => {
       window.__mdOpenWrites = [];
       window.showOpenFilePicker = async () => {
@@ -111,7 +119,9 @@ test.describe("editor + render", () => {
           queryPermission: async () => "granted",
           requestPermission: async () => "granted",
           getFile: async () => {
-            const blob = new Blob(["# Opened\n\nFrom disk."], { type: "text/markdown" });
+            const blob = new Blob(["# Opened\n\nFrom disk."], {
+              type: "text/markdown",
+            });
             return new File([blob], "opened.md", {
               type: "text/markdown",
               lastModified: 1_700_000_000_000,
@@ -149,7 +159,9 @@ test.describe("editor + render", () => {
     await expect(page.locator("#save-btn")).not.toHaveClass(/is-dirty/);
   });
 
-  test("Cmd/Ctrl+O opens a file even when the preview iframe is focused", async ({ page }) => {
+  test("Cmd/Ctrl+O opens a file even when the preview iframe is focused", async ({
+    page,
+  }) => {
     await page.addInitScript(() => {
       window.__mdShortcutOpens = 0;
       window.showOpenFilePicker = async () => {
@@ -160,7 +172,9 @@ test.describe("editor + render", () => {
           queryPermission: async () => "granted",
           requestPermission: async () => "granted",
           getFile: async () => {
-            const blob = new Blob(["# Shortcut open\n"], { type: "text/markdown" });
+            const blob = new Blob(["# Shortcut open\n"], {
+              type: "text/markdown",
+            });
             return new File([blob], "shortcut.md", {
               type: "text/markdown",
               lastModified: 1_700_000_000_000,
@@ -175,7 +189,9 @@ test.describe("editor + render", () => {
 
     await openFreshApp(page);
     await page.locator("#editor").fill("# Preview focus\n\nClick me.");
-    await expect.poll(async () => headingText(previewLocator(page, "h1"))).toBe("Preview focus");
+    await expect
+      .poll(async () => headingText(previewLocator(page, "h1")))
+      .toBe("Preview focus");
 
     // Gesture window is the iframe; mirror the mock so we do not hit the native
     // headless picker (which aborts and looks like a no-op).
@@ -189,7 +205,9 @@ test.describe("editor + render", () => {
     // Clicking rendered preview focuses the sandboxed iframe; parent keydown
     // alone would miss the shortcut without the input bridge.
     await previewLocator(page, "h1").click();
-    await page.keyboard.press(process.platform === "darwin" ? "Meta+o" : "Control+o");
+    await page.keyboard.press(
+      process.platform === "darwin" ? "Meta+o" : "Control+o",
+    );
 
     await expect
       .poll(async () => page.evaluate(() => window.__mdShortcutOpens))
@@ -197,7 +215,9 @@ test.describe("editor + render", () => {
     await expect(page.locator("#editor")).toHaveValue(/# Shortcut open/);
   });
 
-  test("Save prompts when the on-disk file changed and cancel skips write", async ({ page }) => {
+  test("Save prompts when the on-disk file changed and cancel skips write", async ({
+    page,
+  }) => {
     await page.addInitScript(() => {
       window.__mdConflictWrites = 0;
       window.__mdBumpDiskMtime = false;
@@ -211,7 +231,9 @@ test.describe("editor + render", () => {
           requestPermission: async () => "granted",
           getFile: async () => {
             if (window.__mdBumpDiskMtime) lastModified = 1_700_000_000_999;
-            const blob = new Blob(["# Conflict\n\nBase."], { type: "text/markdown" });
+            const blob = new Blob(["# Conflict\n\nBase."], {
+              type: "text/markdown",
+            });
             return new File([blob], "conflict.md", {
               type: "text/markdown",
               lastModified,
@@ -250,7 +272,9 @@ test.describe("editor + render", () => {
     await expect
       .poll(async () => page.evaluate(() => window.__mdConflictPrompt))
       .toMatch(/changed since it was opened/i);
-    await expect.poll(async () => page.evaluate(() => window.__mdConflictWrites)).toBe(0);
+    await expect
+      .poll(async () => page.evaluate(() => window.__mdConflictWrites))
+      .toBe(0);
     await expect(page.locator("#save-btn")).toHaveClass(/is-dirty/);
   });
 
@@ -264,9 +288,13 @@ test.describe("editor + render", () => {
       }
     });
     await page.goto("/");
-    await page.waitForFunction(() => !document.documentElement.classList.contains("is-booting"));
+    await page.waitForFunction(
+      () => !document.documentElement.classList.contains("is-booting"),
+    );
     await expect
-      .poll(async () => page.locator("#editor").inputValue(), { timeout: 10_000 })
+      .poll(async () => page.locator("#editor").inputValue(), {
+        timeout: 10_000,
+      })
       .toMatch(/Markdown|# /);
     // GUIDE is starter content — not an unsaved user document.
     await expect(page.locator("#save-btn")).not.toHaveClass(/is-dirty/);
@@ -277,20 +305,29 @@ test.describe("editor + render", () => {
     await openFreshApp(page);
 
     await page.locator("#editor").fill("# Draft\n\nNot the guide.");
-    await expect.poll(async () => headingText(previewLocator(page, "h1"))).toBe("Draft");
+    await expect
+      .poll(async () => headingText(previewLocator(page, "h1")))
+      .toBe("Draft");
 
     await clickHelp(page);
     await expect
-      .poll(async () => page.locator("#editor").inputValue(), { timeout: 10_000 })
+      .poll(async () => page.locator("#editor").inputValue(), {
+        timeout: 10_000,
+      })
       .toMatch(/How to use Markdown Editor/);
     await expect(page.locator("#save-btn")).not.toHaveClass(/is-dirty/);
   });
 
-  test("help link opens a reader preview of the GUIDE", async ({ page, context }) => {
+  test("help link opens a reader preview of the GUIDE", async ({
+    page,
+    context,
+  }) => {
     await openFreshApp(page);
 
     await page.locator("#editor").fill("# Keep working\n\nDo not clobber me.");
-    await expect.poll(async () => headingText(previewLocator(page, "h1"))).toBe("Keep working");
+    await expect
+      .poll(async () => headingText(previewLocator(page, "h1")))
+      .toBe("Keep working");
 
     const href = await page.locator("#help-btn").getAttribute("href");
     expect(href).toMatch(/guide=1/);
@@ -298,42 +335,63 @@ test.describe("editor + render", () => {
 
     const helpPage = await context.newPage();
     await helpPage.goto(new URL(href, page.url()).toString());
-    await helpPage.waitForFunction(() => !document.documentElement.classList.contains("is-booting"));
-    await expect(helpPage.locator("html")).toHaveAttribute("data-view", "reader");
+    await helpPage.waitForFunction(
+      () => !document.documentElement.classList.contains("is-booting"),
+    );
+    await expect(helpPage.locator("html")).toHaveAttribute(
+      "data-view",
+      "reader",
+    );
     await expect
-      .poll(async () => headingText(previewLocator(helpPage, "h1")), { timeout: 10_000 })
+      .poll(async () => headingText(previewLocator(helpPage, "h1")), {
+        timeout: 10_000,
+      })
       .toMatch(/How to use Markdown Editor/);
 
     // Original tab draft is unchanged.
     await expect(page.locator("#editor")).toHaveValue(/Keep working/);
   });
 
-  test("unsaved edits swap the favicon to a badged data URL", async ({ page }) => {
+  test("unsaved edits swap the favicon to a badged data URL", async ({
+    page,
+  }) => {
     await openFreshApp(page);
     page.on("dialog", (dialog) => dialog.accept());
 
     // Establish a clean baseline (empty untitled can be dirty vs a prior GUIDE snapshot).
     await clickHelp(page);
     await expect
-      .poll(async () => page.locator("#editor").inputValue(), { timeout: 10_000 })
+      .poll(async () => page.locator("#editor").inputValue(), {
+        timeout: 10_000,
+      })
       .toMatch(/How to use Markdown Editor/);
     await expect
-      .poll(async () => page.locator('link[rel="icon"]').first().getAttribute("href"))
+      .poll(async () =>
+        page.locator('link[rel="icon"]').first().getAttribute("href"),
+      )
       .not.toMatch(/^data:/);
 
     await page.locator("#editor").fill("# Draft\n\nUnsaved.");
     await expect
-      .poll(async () => page.locator('link[rel="icon"]').first().getAttribute("href"), {
-        timeout: 5_000,
-      })
+      .poll(
+        async () =>
+          page.locator('link[rel="icon"]').first().getAttribute("href"),
+        {
+          timeout: 5_000,
+        },
+      )
       .toMatch(/^data:image\/png/);
 
     await clickHelp(page);
     await expect
-      .poll(async () => page.locator("#editor").inputValue(), { timeout: 10_000 })
+      .poll(async () => page.locator("#editor").inputValue(), {
+        timeout: 10_000,
+      })
       .toMatch(/How to use Markdown Editor/);
     await expect
-      .poll(async () => page.locator('link[rel="icon"]').first().getAttribute("href"))
+      .poll(async () =>
+        page.locator('link[rel="icon"]').first().getAttribute("href"),
+      )
       .not.toMatch(/^data:/);
   });
 
@@ -390,12 +448,16 @@ test.describe("editor + render", () => {
 
     await clickHelp(page);
     await expect
-      .poll(async () => page.locator("#editor").inputValue(), { timeout: 10_000 })
+      .poll(async () => page.locator("#editor").inputValue(), {
+        timeout: 10_000,
+      })
       .toMatch(/How to use Markdown Editor/);
 
     await page.locator("#editor").fill("# Draft\n\nUnsaved.");
     await expect
-      .poll(async () => page.evaluate(() => window.__badgeCalls.includes("flag")))
+      .poll(async () =>
+        page.evaluate(() => window.__badgeCalls.includes("flag")),
+      )
       .toBe(true);
     await expect
       .poll(async () => page.evaluate(() => window.__permissionRequests))
@@ -403,14 +465,20 @@ test.describe("editor + render", () => {
 
     await clickHelp(page);
     await expect
-      .poll(async () => page.locator("#editor").inputValue(), { timeout: 10_000 })
+      .poll(async () => page.locator("#editor").inputValue(), {
+        timeout: 10_000,
+      })
       .toMatch(/How to use Markdown Editor/);
     await expect
-      .poll(async () => page.evaluate(() => window.__badgeCalls.at(-1) === "clear"))
+      .poll(async () =>
+        page.evaluate(() => window.__badgeCalls.at(-1) === "clear"),
+      )
       .toBe(true);
   });
 
-  test("document without diagrams does not request Mermaid after load", async ({ page }) => {
+  test("document without diagrams does not request Mermaid after load", async ({
+    page,
+  }) => {
     // Run before Mermaid-loading tests. Drop any SW (it precaches mermaid.esm)
     // and ignore in-flight CDN work from earlier navigations before measuring.
     await openFreshApp(page);
@@ -430,7 +498,9 @@ test.describe("editor + render", () => {
     page.on("request", onReq);
     try {
       await page.locator("#editor").fill("# No diagrams\n\nJust text.");
-      await expect.poll(async () => headingText(previewLocator(page, "h1"))).toBe("No diagrams");
+      await expect
+        .poll(async () => headingText(previewLocator(page, "h1")))
+        .toBe("No diagrams");
       await expect(previewLocator(page, ".mermaid")).toHaveCount(0);
       await page.waitForTimeout(400);
 
@@ -443,9 +513,13 @@ test.describe("editor + render", () => {
   test("mermaid fence renders an SVG", async ({ page }) => {
     await openFreshApp(page);
 
-    await page.locator("#editor").fill("```mermaid\nflowchart LR\n  A-->B\n```");
+    await page
+      .locator("#editor")
+      .fill("```mermaid\nflowchart LR\n  A-->B\n```");
     // Direct child only — zoom-button icons are nested SVGs inside .mermaid.
-    await expect(previewLocator(page, ".mermaid > svg")).toBeVisible({ timeout: 20_000 });
+    await expect(previewLocator(page, ".mermaid > svg")).toBeVisible({
+      timeout: 20_000,
+    });
   });
 
   test("mermaid gantt click href becomes a real SVG link", async ({ page }) => {
@@ -465,14 +539,20 @@ test.describe("editor + render", () => {
 
     const diagram = previewLocator(page, ".mermaid").first();
     await expect(diagram.locator("> svg")).toBeVisible({ timeout: 20_000 });
-    const link = diagram.locator('svg a[href="https://example.com/gantt-task"]');
+    const link = diagram.locator(
+      'svg a[href="https://example.com/gantt-task"]',
+    );
     await expect(link).toHaveCount(2, { timeout: 10_000 }); // bar + label
     await expect(link.first()).toHaveAttribute("target", "_blank");
     await expect(link.first()).toHaveAttribute("rel", "noopener noreferrer");
-    await expect(diagram.locator("svg a rect.task, svg a .task").first()).toBeVisible();
+    await expect(
+      diagram.locator("svg a rect.task, svg a .task").first(),
+    ).toBeVisible();
   });
 
-  test("mermaid gantt defers render when the preview host is too narrow", async ({ page }) => {
+  test("mermaid gantt defers render when the preview host is too narrow", async ({
+    page,
+  }) => {
     await openFreshApp(page);
 
     const rectErrors = [];
@@ -514,7 +594,9 @@ test.describe("editor + render", () => {
     ].join("\n");
     await page.locator("#editor").fill(gantt);
 
-    await expect(previewLocator(page, ".mermaid")).toHaveCount(1, { timeout: 10_000 });
+    await expect(previewLocator(page, ".mermaid")).toHaveCount(1, {
+      timeout: 10_000,
+    });
     // Stay pending — do not call Mermaid.run into a tiny host.
     await expect(previewLocator(page, ".mermaid[data-pending]")).toHaveCount(1);
     await expect(previewLocator(page, ".mermaid > svg")).toHaveCount(0);
@@ -523,41 +605,57 @@ test.describe("editor + render", () => {
 
     // Drop the narrow override so layout observers retry Mermaid at a safe width.
     await page.evaluate(() => {
-      for (const s of document.querySelectorAll("style[data-mermaid-narrow-test]")) {
+      for (const s of document.querySelectorAll(
+        "style[data-mermaid-narrow-test]",
+      )) {
         s.remove();
       }
       const doc = document.getElementById("preview-frame")?.contentDocument;
       if (doc) {
-        for (const s of doc.querySelectorAll("style[data-mermaid-narrow-test]")) {
+        for (const s of doc.querySelectorAll(
+          "style[data-mermaid-narrow-test]",
+        )) {
           s.remove();
         }
       }
-      document.getElementById("panes")?.classList.remove("preview-collapsed", "editor-collapsed");
+      document
+        .getElementById("panes")
+        ?.classList.remove("preview-collapsed", "editor-collapsed");
     });
     // Re-paint at the recovered width (headless layout observers are not always
     // delivered after removing injected width constraints on the iframe).
     const source = await page.locator("#editor").inputValue();
     await page.locator("#editor").fill(source);
-    await expect(previewLocator(page, ".mermaid > svg")).toBeVisible({ timeout: 20_000 });
+    await expect(previewLocator(page, ".mermaid > svg")).toBeVisible({
+      timeout: 20_000,
+    });
     await expect(previewLocator(page, ".mermaid[data-pending]")).toHaveCount(0);
     expect(rectErrors, rectErrors.join("\n")).toEqual([]);
   });
 
-  test("mermaid diagram style switches between classic and Excalidraw", async ({ page }) => {
+  test("mermaid diagram style switches between classic and Excalidraw", async ({
+    page,
+  }) => {
     await openFreshApp(page);
 
-    await page.locator("#editor").fill("```mermaid\nflowchart LR\n  A-->B\n```");
+    await page
+      .locator("#editor")
+      .fill("```mermaid\nflowchart LR\n  A-->B\n```");
     const svg = previewLocator(page, ".mermaid > svg");
     await expect(svg).toBeVisible({ timeout: 20_000 });
-    const classicPathCount = await svg.locator("path").count();
+    const _classicPathCount = await svg.locator("path").count();
 
     await openSettings(page);
     await page.locator("#mermaid-look-select").selectOption("handDrawn");
     // Excalidraw look always goes through svg2roughjs (solid fills) for WCAG.
-    await expect(svg).toHaveAttribute("data-mermaid-sketched", "1", { timeout: 20_000 });
+    await expect(svg).toHaveAttribute("data-mermaid-sketched", "1", {
+      timeout: 20_000,
+    });
     await expect(page.locator("#mermaid-look-select")).toHaveValue("handDrawn");
     await expect
-      .poll(() => page.evaluate(() => localStorage.getItem("md-editor:mermaidLook")))
+      .poll(() =>
+        page.evaluate(() => localStorage.getItem("md-editor:mermaidLook")),
+      )
       .toBe("handDrawn");
 
     await page.locator("#mermaid-look-select").selectOption("classic");
@@ -567,7 +665,9 @@ test.describe("editor + render", () => {
     });
   });
 
-  test("mermaid Excalidraw look sketches sequence diagrams via svg2roughjs", async ({ page }) => {
+  test("mermaid Excalidraw look sketches sequence diagrams via svg2roughjs", async ({
+    page,
+  }) => {
     await openFreshApp(page);
 
     const sequence = [
@@ -596,28 +696,32 @@ test.describe("editor + render", () => {
     await openFreshApp(page);
     await openSettings(page);
     await page.locator("#theme-select").selectOption("github-light");
-    await page.locator("#editor").fill(
-      [
-        "```mermaid",
-        "graph TB",
-        "    sq[Square shape] --> ci((Circle shape))",
-        "    subgraph A",
-        "        od>Odd shape] --> ro(Rounded square shape)",
-        "        di{Diamond} ==> ro2(Rounded square shape)",
-        "    end",
-        "    e((Inner circle)) --> f(ok)",
-        "    classDef green fill:#9f6,stroke:#333,stroke-width:2px;",
-        "    classDef orange fill:#f96,stroke:#333,stroke-width:4px;",
-        "    class sq,e green",
-        "    class di orange",
-        "```",
-      ].join("\n"),
-    );
+    await page
+      .locator("#editor")
+      .fill(
+        [
+          "```mermaid",
+          "graph TB",
+          "    sq[Square shape] --> ci((Circle shape))",
+          "    subgraph A",
+          "        od>Odd shape] --> ro(Rounded square shape)",
+          "        di{Diamond} ==> ro2(Rounded square shape)",
+          "    end",
+          "    e((Inner circle)) --> f(ok)",
+          "    classDef green fill:#9f6,stroke:#333,stroke-width:2px;",
+          "    classDef orange fill:#f96,stroke:#333,stroke-width:4px;",
+          "    class sq,e green",
+          "    class di orange",
+          "```",
+        ].join("\n"),
+      );
     const svg = previewLocator(page, ".mermaid > svg");
     await expect(svg).toBeVisible({ timeout: 20_000 });
     await openSettings(page);
     await page.locator("#mermaid-look-select").selectOption("handDrawn");
-    await expect(svg).toHaveAttribute("data-mermaid-sketched", "1", { timeout: 20_000 });
+    await expect(svg).toHaveAttribute("data-mermaid-sketched", "1", {
+      timeout: 20_000,
+    });
 
     const report = await page.evaluate(() => {
       const parse = (s) => {
@@ -651,7 +755,11 @@ test.describe("editor + render", () => {
         return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
       };
       const near = (a, b, tol = 45) =>
-        a && b && Math.abs(a.r - b.r) < tol && Math.abs(a.g - b.g) < tol && Math.abs(a.b - b.b) < tol;
+        a &&
+        b &&
+        Math.abs(a.r - b.r) < tol &&
+        Math.abs(a.g - b.g) < tol &&
+        Math.abs(a.b - b.b) < tol;
 
       const green = { r: 153, g: 255, b: 102 }; // #9f6
       const orange = { r: 255, g: 153, b: 102 }; // #f96
@@ -661,14 +769,18 @@ test.describe("editor + render", () => {
       const svgEl = document
         .getElementById("preview-frame")
         ?.contentDocument?.querySelector("#preview .mermaid svg");
-      for (const el of svgEl.querySelectorAll("path, rect, polygon, circle, ellipse")) {
+      for (const el of svgEl.querySelectorAll(
+        "path, rect, polygon, circle, ellipse",
+      )) {
         const fill = parse(getComputedStyle(el).fill);
         if (near(fill, green)) sawGreen = true;
         if (near(fill, orange)) sawOrange = true;
       }
       for (const g of svgEl.querySelectorAll("g.node")) {
         let fillRgb = null;
-        for (const shape of g.querySelectorAll("path, rect, polygon, circle, ellipse")) {
+        for (const shape of g.querySelectorAll(
+          "path, rect, polygon, circle, ellipse",
+        )) {
           const f = parse(getComputedStyle(shape).fill);
           if (f && getComputedStyle(shape).fill !== "none") {
             fillRgb = f;
@@ -680,7 +792,9 @@ test.describe("editor + render", () => {
           const ink = parse(getComputedStyle(t).fill);
           if (ink && contrast(ink, fillRgb) < 4.5) textFails += 1;
         }
-        for (const t of g.querySelectorAll(".nodeLabel, foreignObject div, foreignObject span")) {
+        for (const t of g.querySelectorAll(
+          ".nodeLabel, foreignObject div, foreignObject span",
+        )) {
           const ink = parse(getComputedStyle(t).color);
           if (ink && contrast(ink, fillRgb) < 4.5) textFails += 1;
         }
@@ -692,23 +806,27 @@ test.describe("editor + render", () => {
     expect(report.textFails, "node labels must meet 4.5:1 vs fill").toBe(0);
   });
 
-  test("mermaid Excalidraw paints use theme CSS variables for WCAG contrast", async ({ page }) => {
+  test("mermaid Excalidraw paints use theme CSS variables for WCAG contrast", async ({
+    page,
+  }) => {
     await openFreshApp(page);
 
-    await page.locator("#editor").fill(
-      [
-        "```mermaid",
-        "sequenceDiagram",
-        "    Alice->>Bob: Hello",
-        "    Note right of Bob: hi",
-        "```",
-        "",
-        "```mermaid",
-        "graph TD",
-        "    A[Start] --> B{OK?}",
-        "```",
-      ].join("\n"),
-    );
+    await page
+      .locator("#editor")
+      .fill(
+        [
+          "```mermaid",
+          "sequenceDiagram",
+          "    Alice->>Bob: Hello",
+          "    Note right of Bob: hi",
+          "```",
+          "",
+          "```mermaid",
+          "graph TD",
+          "    A[Start] --> B{OK?}",
+          "```",
+        ].join("\n"),
+      );
     await expect(previewLocator(page, ".mermaid > svg").first()).toBeVisible({
       timeout: 20_000,
     });
@@ -720,7 +838,10 @@ test.describe("editor + render", () => {
     await expect
       .poll(
         async () =>
-          previewLocator(page, '.mermaid svg [stroke^="var(--mermaid-"]').count(),
+          previewLocator(
+            page,
+            '.mermaid svg [stroke^="var(--mermaid-"]',
+          ).count(),
         { timeout: 20_000 },
       )
       .toBeGreaterThan(0);
@@ -750,7 +871,8 @@ test.describe("editor + render", () => {
         const bg = parse(root.getPropertyValue("--mermaid-bg"));
         const nodeBg = parse(root.getPropertyValue("--mermaid-node-bg"));
         let bad = 0;
-        const previewDoc = document.getElementById("preview-frame")?.contentDocument;
+        const previewDoc =
+          document.getElementById("preview-frame")?.contentDocument;
         for (const el of previewDoc?.querySelectorAll(
           "#preview .mermaid svg path, #preview .mermaid svg line",
         ) || []) {
@@ -770,9 +892,9 @@ test.describe("editor + render", () => {
   test("mermaid zoom enlarges only the diagram", async ({ page }) => {
     await openFreshApp(page);
 
-    await page.locator("#editor").fill(
-      "# Before\n\n```mermaid\nflowchart LR\n  A-->B\n```\n\n# After",
-    );
+    await page
+      .locator("#editor")
+      .fill("# Before\n\n```mermaid\nflowchart LR\n  A-->B\n```\n\n# After");
     const diagram = previewLocator(page, ".mermaid").first();
     await expect(diagram.locator("> svg")).toBeVisible({ timeout: 20_000 });
     await expect(diagram.locator(".mermaid-zoom-btn")).toBeVisible();
@@ -787,7 +909,9 @@ test.describe("editor + render", () => {
 
     // Preview content stays put; only the dialog shows the enlarged diagram.
     await expect(previewHeading).toBeVisible();
-    await expect(previewLocator(page, "h1", { hasText: "After" })).toBeVisible();
+    await expect(
+      previewLocator(page, "h1", { hasText: "After" }),
+    ).toBeVisible();
 
     const zoomSvg = zoomDialog.locator(".mermaid-zoom-stage svg");
     const before = await zoomSvg.evaluate((svg) => ({
@@ -818,25 +942,33 @@ test.describe("editor + render", () => {
     await expect(zoomDialog).toBeHidden();
   });
 
-  test("mermaid Excalidraw zoom keeps foreignObject labels unclipped", async ({ page }) => {
+  test("mermaid Excalidraw zoom keeps foreignObject labels unclipped", async ({
+    page,
+  }) => {
     await openFreshApp(page);
-    await page.locator("#editor").fill(
-      [
-        "```mermaid",
-        "graph TB",
-        "    sq[Square shape] --> ci((Circle shape))",
-        "    classDef green fill:#9f6,stroke:#333,stroke-width:2px;",
-        "    class sq green",
-        "```",
-      ].join("\n"),
-    );
+    await page
+      .locator("#editor")
+      .fill(
+        [
+          "```mermaid",
+          "graph TB",
+          "    sq[Square shape] --> ci((Circle shape))",
+          "    classDef green fill:#9f6,stroke:#333,stroke-width:2px;",
+          "    class sq green",
+          "```",
+        ].join("\n"),
+      );
     const diagram = previewLocator(page, ".mermaid").first();
     await expect(diagram.locator("> svg")).toBeVisible({ timeout: 20_000 });
     await openSettings(page);
     await page.locator("#mermaid-look-select").selectOption("handDrawn");
-    await expect(diagram.locator("> svg")).toHaveAttribute("data-mermaid-sketched", "1", {
-      timeout: 20_000,
-    });
+    await expect(diagram.locator("> svg")).toHaveAttribute(
+      "data-mermaid-sketched",
+      "1",
+      {
+        timeout: 20_000,
+      },
+    );
     // Overflow panel sits over the preview; close it so zoom is clickable.
     await closeSettings(page);
 
@@ -845,9 +977,9 @@ test.describe("editor + render", () => {
     await expect(zoomDialog).toBeVisible();
 
     const report = await page.evaluate(() => {
-      const span = [...document.querySelectorAll("#mermaid-zoom-stage span")].find((s) =>
-        s.textContent?.includes("Square shape"),
-      );
+      const span = [
+        ...document.querySelectorAll("#mermaid-zoom-stage span"),
+      ].find((s) => s.textContent?.includes("Square shape"));
       const fo = span?.closest("foreignObject");
       if (!span || !fo) return { ok: false, reason: "missing label" };
       const sr = span.getBoundingClientRect();
@@ -861,13 +993,16 @@ test.describe("editor + render", () => {
         label: span.textContent?.trim(),
       };
     });
-    expect(report.ok, `label clipped (dy=${report.dy}, marginTop=${report.marginTop})`).toBe(
-      true,
-    );
+    expect(
+      report.ok,
+      `label clipped (dy=${report.dy}, marginTop=${report.marginTop})`,
+    ).toBe(true);
     await zoomDialog.locator("#mermaid-zoom-close").click();
   });
 
-  test("gantt chart relayouts at full preview width without CSS zoom", async ({ page }) => {
+  test("gantt chart relayouts at full preview width without CSS zoom", async ({
+    page,
+  }) => {
     await openFreshApp(page);
     await page.setViewportSize({ width: 1400, height: 900 });
     // Wide preview so readable (52rem) and full differ clearly.
@@ -890,13 +1025,16 @@ test.describe("editor + render", () => {
     const diagram = previewLocator(page, ".mermaid").first();
     await expect(diagram.locator("> svg")).toBeVisible({ timeout: 20_000 });
     await expect
-      .poll(async () => {
-        return diagram.evaluate((host) => {
-          const el = host.querySelector(":scope > svg");
-          if (!el) return Number.POSITIVE_INFINITY;
-          return Math.abs(host.clientWidth - el.clientWidth);
-        });
-      }, { timeout: 20_000 })
+      .poll(
+        async () => {
+          return diagram.evaluate((host) => {
+            const el = host.querySelector(":scope > svg");
+            if (!el) return Number.POSITIVE_INFINITY;
+            return Math.abs(host.clientWidth - el.clientWidth);
+          });
+        },
+        { timeout: 20_000 },
+      )
       .toBeLessThan(4);
 
     const readable = await diagram.evaluate((host) => {
@@ -917,54 +1055,83 @@ test.describe("editor + render", () => {
 
     // Mermaid must re-run so viewBox width tracks the host (not a CSS zoom of the old viewBox).
     await expect
-      .poll(async () => {
-        return diagram.evaluate((host, prevViewBoxW) => {
-          const el = host.querySelector(":scope > svg");
-          if (!el || host.hasAttribute("data-pending")) return false;
-          const vb = el.getAttribute("viewBox")?.split(/\s+/).map(Number) ?? [];
-          const viewBoxW = vb[2] ?? 0;
-          const gap = Math.abs(host.clientWidth - el.clientWidth);
-          return (
-            host.clientWidth > 0 &&
-            gap < 4 &&
-            viewBoxW > prevViewBoxW + 80 &&
-            Math.abs(viewBoxW - host.clientWidth) < 20
-          );
-        }, readable.viewBoxW);
-      }, { timeout: 20_000 })
+      .poll(
+        async () => {
+          return diagram.evaluate((host, prevViewBoxW) => {
+            const el = host.querySelector(":scope > svg");
+            if (!el || host.hasAttribute("data-pending")) return false;
+            const vb =
+              el.getAttribute("viewBox")?.split(/\s+/).map(Number) ?? [];
+            const viewBoxW = vb[2] ?? 0;
+            const gap = Math.abs(host.clientWidth - el.clientWidth);
+            return (
+              host.clientWidth > 0 &&
+              gap < 4 &&
+              viewBoxW > prevViewBoxW + 80 &&
+              Math.abs(viewBoxW - host.clientWidth) < 20
+            );
+          }, readable.viewBoxW);
+        },
+        { timeout: 20_000 },
+      )
       .toBe(true);
   });
 
-  test("fancy theme Mermaid edge labels meet WCAG AA contrast", async ({ page }) => {
+  test("fancy theme Mermaid edge labels meet WCAG AA contrast", async ({
+    page,
+  }) => {
     await openFreshApp(page);
 
     await openSettings(page);
     await page.locator("#theme-select").selectOption("fancy");
     await expect(page.locator("html")).toHaveAttribute("data-theme", "fancy");
 
-    await page.locator("#editor").fill(
-      "```mermaid\ngraph TD\n  A[Start] --> B{OK?}\n  B -->|Yes| C[Done]\n  B -->|No| A\n```",
-    );
-    await expect(previewLocator(page, ".mermaid > svg")).toBeVisible({ timeout: 20_000 });
+    await page
+      .locator("#editor")
+      .fill(
+        "```mermaid\ngraph TD\n  A[Start] --> B{OK?}\n  B -->|Yes| C[Done]\n  B -->|No| A\n```",
+      );
+    await expect(previewLocator(page, ".mermaid > svg")).toBeVisible({
+      timeout: 20_000,
+    });
     await expect(previewLocator(page, ".mermaid .edgeLabel p")).toHaveCount(2, {
       timeout: 20_000,
     });
 
-    const labels = await previewLocator(page, ".mermaid .edgeLabel p").evaluateAll((nodes) => {
+    const labels = await previewLocator(
+      page,
+      ".mermaid .edgeLabel p",
+    ).evaluateAll((nodes) => {
       function parseColor(str) {
-        if (!str || str === "transparent" || str === "rgba(0, 0, 0, 0)" || str === "none") {
+        if (
+          !str ||
+          str === "transparent" ||
+          str === "rgba(0, 0, 0, 0)" ||
+          str === "none"
+        ) {
           return null;
         }
-        const m = str.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/);
+        const m = str.match(
+          /rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/,
+        );
         if (!m) return null;
-        return { r: +m[1], g: +m[2], b: +m[3], a: m[4] === undefined ? 1 : +m[4] };
+        return {
+          r: +m[1],
+          g: +m[2],
+          b: +m[3],
+          a: m[4] === undefined ? 1 : +m[4],
+        };
       }
       function srgbToLinear(c) {
         c /= 255;
         return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
       }
       function relL({ r, g, b }) {
-        return 0.2126 * srgbToLinear(r) + 0.7152 * srgbToLinear(g) + 0.0722 * srgbToLinear(b);
+        return (
+          0.2126 * srgbToLinear(r) +
+          0.7152 * srgbToLinear(g) +
+          0.0722 * srgbToLinear(b)
+        );
       }
       function contrast(a, b) {
         const L1 = relL(a);
@@ -990,15 +1157,18 @@ test.describe("editor + render", () => {
         // Measure the <p> chip itself — Mermaid paints yellow there even when
         // parent .labelBkg / span.edgeLabel are already themed.
         let bg = parseColor(cs.backgroundColor);
-        if (!bg || bg.a === 0) bg = parseColor(getComputedStyle(span || p).backgroundColor);
-        if (!bg || bg.a === 0) bg = parseColor(getComputedStyle(labelBkg || p).backgroundColor);
-        const mermaidBg =
-          parseColor(getComputedStyle(p.closest(".mermaid")).backgroundColor) || {
-            r: 6,
-            g: 36,
-            b: 54,
-            a: 1,
-          };
+        if (!bg || bg.a === 0)
+          bg = parseColor(getComputedStyle(span || p).backgroundColor);
+        if (!bg || bg.a === 0)
+          bg = parseColor(getComputedStyle(labelBkg || p).backgroundColor);
+        const mermaidBg = parseColor(
+          getComputedStyle(p.closest(".mermaid")).backgroundColor,
+        ) || {
+          r: 6,
+          g: 36,
+          b: 54,
+          a: 1,
+        };
         if (bg && bg.a < 1) bg = blend(bg, mermaidBg);
         const ratio = fg && bg ? contrast(fg, bg) : 0;
         return {
@@ -1023,14 +1193,20 @@ test.describe("editor + render", () => {
     }
   });
 
-  test("editor highlight tracks textarea scroll after a find-style jump", async ({ page }) => {
+  test("editor highlight tracks textarea scroll after a find-style jump", async ({
+    page,
+  }) => {
     await openFreshApp(page);
 
     // Long wrapped lines so the editor scrolls far past the first screen.
     const line = `${"word ".repeat(40)}UNIQUE_FIND_TOKEN_${"x".repeat(20)}\n`;
     await page.locator("#editor").fill(`${"# Title\n\n"}${line.repeat(80)}`);
     await expect
-      .poll(async () => page.locator("#editor").evaluate((el) => el.scrollHeight - el.clientHeight))
+      .poll(async () =>
+        page
+          .locator("#editor")
+          .evaluate((el) => el.scrollHeight - el.clientHeight),
+      )
       .toBeGreaterThan(2000);
 
     // Simulate browser Find: select a late match and jump the textarea there.
@@ -1048,12 +1224,17 @@ test.describe("editor + render", () => {
     const readSync = () =>
       page.evaluate(() => {
         const editor = document.getElementById("editor");
-        const transform = document.querySelector("#editor-highlight code")?.style.transform || "";
-        const match = /translate\(([-0-9.]+)px,\s*([-0-9.]+)px\)/.exec(transform);
+        const transform =
+          document.querySelector("#editor-highlight code")?.style.transform ||
+          "";
+        const match = /translate\(([-0-9.]+)px,\s*([-0-9.]+)px\)/.exec(
+          transform,
+        );
         return {
           editor: editor.scrollTop,
           translateY: match ? Number(match[2]) : null,
-          highlightScrollTop: document.getElementById("editor-highlight").scrollTop,
+          highlightScrollTop:
+            document.getElementById("editor-highlight").scrollTop,
         };
       });
 
@@ -1080,7 +1261,9 @@ test.describe("editor + render", () => {
     await openFreshApp(page);
     await page.setViewportSize({ width: 1400, height: 900 });
 
-    await page.locator("#editor").fill(`${mermaidFixture.replace(/\s+$/, "")}\n\n`);
+    await page
+      .locator("#editor")
+      .fill(`${mermaidFixture.replace(/\s+$/, "")}\n\n`);
     // Diagram SVGs use id="mermaid-…"; zoom-button icons do not. Some fences in
     // the fixture can fail to paint, so do not require hostCount === svgCount.
     const diagramSvg = previewLocator(page, 'svg[id^="mermaid-"]');
@@ -1097,7 +1280,10 @@ test.describe("editor + render", () => {
     const svgCountBefore = await diagramSvg.count();
 
     await page.locator("#sync-scroll-btn").click();
-    await expect(page.locator("#sync-scroll-btn")).toHaveAttribute("aria-pressed", "true");
+    await expect(page.locator("#sync-scroll-btn")).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
 
     await page.locator("#editor").evaluate((editor) => {
       editor.focus();
@@ -1121,10 +1307,14 @@ test.describe("editor + render", () => {
             pH: preview.scrollHeight,
             pending: document
               .getElementById("preview-frame")
-              ?.contentDocument?.querySelectorAll("#preview .mermaid[data-pending]").length,
+              ?.contentDocument?.querySelectorAll(
+                "#preview .mermaid[data-pending]",
+              ).length,
             svgs: document
               .getElementById("preview-frame")
-              ?.contentDocument?.querySelectorAll('#preview .mermaid svg[id^="mermaid-"]').length,
+              ?.contentDocument?.querySelectorAll(
+                '#preview .mermaid svg[id^="mermaid-"]',
+              ).length,
           };
         }),
       );
@@ -1133,23 +1323,38 @@ test.describe("editor + render", () => {
     // Unchanged diagrams must be reused — not wiped on each keystroke.
     // Count may rise if a late success lands; it must not fall (wipe/re-render).
     expect(Math.max(...samples.map((s) => s.pending))).toBe(0);
-    expect(Math.min(...samples.map((s) => s.svgs))).toBeGreaterThanOrEqual(svgCountBefore);
+    expect(Math.min(...samples.map((s) => s.svgs))).toBeGreaterThanOrEqual(
+      svgCountBefore,
+    );
 
-    const editorRange = Math.max(...samples.map((s) => s.editor)) - Math.min(...samples.map((s) => s.editor));
+    const editorRange =
+      Math.max(...samples.map((s) => s.editor)) -
+      Math.min(...samples.map((s) => s.editor));
     const previewRange =
-      Math.max(...samples.map((s) => s.preview)) - Math.min(...samples.map((s) => s.preview));
-    const heightRange = Math.max(...samples.map((s) => s.pH)) - Math.min(...samples.map((s) => s.pH));
+      Math.max(...samples.map((s) => s.preview)) -
+      Math.min(...samples.map((s) => s.preview));
+    const heightRange =
+      Math.max(...samples.map((s) => s.pH)) -
+      Math.min(...samples.map((s) => s.pH));
     let editorFlips = 0;
     let previewFlips = 0;
     for (let i = 2; i < samples.length; i++) {
       const de1 = samples[i - 1].editor - samples[i - 2].editor;
       const de2 = samples[i].editor - samples[i - 1].editor;
-      if (Math.abs(de1) > 20 && Math.abs(de2) > 20 && Math.sign(de1) !== Math.sign(de2)) {
+      if (
+        Math.abs(de1) > 20 &&
+        Math.abs(de2) > 20 &&
+        Math.sign(de1) !== Math.sign(de2)
+      ) {
         editorFlips += 1;
       }
       const dp1 = samples[i - 1].preview - samples[i - 2].preview;
       const dp2 = samples[i].preview - samples[i - 1].preview;
-      if (Math.abs(dp1) > 20 && Math.abs(dp2) > 20 && Math.sign(dp1) !== Math.sign(dp2)) {
+      if (
+        Math.abs(dp1) > 20 &&
+        Math.abs(dp2) > 20 &&
+        Math.sign(dp1) !== Math.sign(dp2)
+      ) {
         previewFlips += 1;
       }
     }
@@ -1166,7 +1371,7 @@ test.describe("editor + render", () => {
 
     // Newly added text must remain in the preview viewport after paints settle.
     await expect
-      .poll(async () => previewLocator(page).innerText(), { timeout: 10_000 })
+      .poll(async () => previewLocator(page).textContent(), { timeout: 10_000 })
       .toContain(marker);
     const markerVisible = await page.evaluate((text) => {
       const pane = document.getElementById("preview-pane");
@@ -1207,18 +1412,13 @@ test.describe("editor + render", () => {
       join(dirname(fileURLToPath(import.meta.url)), "fixtures/tall-sync.jpg"),
     );
     const dataUri = `data:image/jpeg;base64,${tallJpeg.toString("base64")}`;
-    const md = [
-      "# Top",
-      "",
-      `![tall](${dataUri})`,
-      "",
-      "> eric 4",
-      "",
-    ].join("\n");
+    const md = ["# Top", "", `![tall](${dataUri})`, "", "> eric 4", ""].join(
+      "\n",
+    );
 
     await page.locator("#editor").fill(md);
     await expect
-      .poll(async () => previewLocator(page).innerText(), { timeout: 15_000 })
+      .poll(async () => previewLocator(page).textContent(), { timeout: 15_000 })
       .toContain("eric 4");
 
     // Wait until the JPEG has intrinsic height (decode), not just a broken box.
@@ -1257,7 +1457,7 @@ test.describe("editor + render", () => {
 
     await page.keyboard.type("5");
     await expect
-      .poll(async () => previewLocator(page).innerText(), { timeout: 10_000 })
+      .poll(async () => previewLocator(page).textContent(), { timeout: 10_000 })
       .toContain("eric 45");
 
     // After re-paint + image re-decode, the caret block must be in the pane.

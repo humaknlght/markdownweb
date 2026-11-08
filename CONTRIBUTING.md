@@ -16,6 +16,15 @@ npm run dev
 
 Open [https://127.0.0.1:3456](https://127.0.0.1:3456) (self-signed TLS; accept the browser warning once). Edit under `src/`. More detail is in the [README](README.md).
 
+## Lint
+
+Biome formats and lints JS/CSS/HTML/JSON. CI runs `npm run lint` on every pull request.
+
+```bash
+npm run lint             # check (same as CI)
+npm run lint:fix        # apply safe fixes + format
+```
+
 ## Tests
 
 CI runs the full suite on every pull request. Locally:
@@ -42,9 +51,9 @@ Examples: `feat: add export`, `fix(drive): handle token refresh`, `docs: update 
 
 1. Branch from `main`.
 2. Keep the diff scoped to one concern.
-3. Ensure `npm run test:all` passes.
+3. Ensure `npm run lint` and `npm run test:all` pass.
 4. If you add or bump a package used from `src/` (including CDN-only ones like Mermaid), add it to the import map when it is a bare specifier, list its URL in `CDN_PRECACHE` (`scripts/pwa.mjs`), run `npm run update:cdn-sri`, and commit `src/cdn-integrity.json`. Unit invariants reject bare imports that are missing from the import map.
-5. Open a PR against `main`. The **commitlint** and **test** status checks must pass before merge.
+5. Open a PR against `main`. The **commitlint**, **lint**, and **test** status checks must pass before merge.
 
 ## Code notes
 
@@ -75,8 +84,8 @@ cp src/google-drive-config.example.json src/google-drive-config.json
 5. Dev: `npm run dev` serves `src/`, so the JSON is picked up immediately.  
    Production: `npm run build` copies `src/google-drive-config.json` into `dist/` when present. You can also place `google-drive-config.json` next to `index.html` on the server after deploy (no rebuild required).
 
-| Key | Meaning |
-| --- | --- |
+| Key        | Meaning                            |
+| ---------- | ---------------------------------- |
 | `clientId` | OAuth 2.0 Web client ID (required) |
 
 If the file is missing or `clientId` is empty, Drive buttons stay hidden. Do not commit `google-drive-config.json`.
@@ -99,8 +108,8 @@ cp src/github-gist-config.example.json src/github-gist-config.json
 2. Dev: `npm run dev` serves `src/`, so the JSON is picked up immediately.  
    Production: `npm run build` copies `src/github-gist-config.json` into `dist/` when present. You can also place `github-gist-config.json` next to `index.html` on the server after deploy.
 
-| Key | Meaning |
-| --- | --- |
+| Key       | Meaning                                                 |
+| --------- | ------------------------------------------------------- |
 | `enabled` | When `true`, shows the Gist files-source and Connect UI |
 
 If the file is missing or `enabled` is not true, Gist buttons stay hidden. Do not commit `github-gist-config.json`.

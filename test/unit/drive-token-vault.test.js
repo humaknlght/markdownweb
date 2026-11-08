@@ -1,10 +1,10 @@
-import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
+import { afterEach, beforeEach, describe, it } from "node:test";
 import "fake-indexeddb/auto";
 import {
+  clearVaultStorage,
   DRIVE_TOKEN_STORAGE_KEY,
   DRIVE_VAULT_META_KEY,
-  clearVaultStorage,
   ensureVaultKey,
   hasSealedDriveSession,
   migrateAwayFromIdbVault,
@@ -128,7 +128,10 @@ describe("drive-token-vault", () => {
       value: { isSecureContext: false },
     });
     try {
-      await assert.rejects(() => ensureVaultKey(), (err) => err?.name === "NotSupportedError");
+      await assert.rejects(
+        () => ensureVaultKey(),
+        (err) => err?.name === "NotSupportedError",
+      );
       assert.equal(readVaultMeta(), null);
       assert.equal(storage.getItem(DRIVE_VAULT_META_KEY), null);
     } finally {

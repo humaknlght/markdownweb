@@ -1,8 +1,5 @@
 import { hooks } from "./hooks.js";
-import {
-  state,
-  externalModal
-} from "./state.js";
+import { externalModal, state } from "./state.js";
 
 export function isExternalModalOpen() {
   return Boolean(externalModal?.open);

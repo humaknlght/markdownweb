@@ -1,6 +1,7 @@
-import { marked, Renderer } from "marked";
-import { JSDOM } from "jsdom";
 import createDOMPurify from "dompurify";
+import { JSDOM } from "jsdom";
+import { marked, Renderer } from "marked";
+import { applyLinkTargetAttributes } from "../../src/lib/link-targets.js";
 import { abbrExtension } from "../../src/markdown/abbr.js";
 import { alertExtension } from "../../src/markdown/alert.js";
 import { defListExtension } from "../../src/markdown/deflist.js";
@@ -9,10 +10,9 @@ import { footnoteExtension } from "../../src/markdown/footnotes.js";
 import { frontmatterExtension } from "../../src/markdown/frontmatter.js";
 import { headingIdExtension } from "../../src/markdown/heading-ids.js";
 import { markHighlightExtension } from "../../src/markdown/mark-highlight.js";
+import { escapeHtml } from "../../src/markdown/markdown-utils.js";
 import { subSupExtension } from "../../src/markdown/subsup.js";
 import { tablePipesExtension } from "../../src/markdown/tablePipes.js";
-import { escapeHtml } from "../../src/markdown/markdown-utils.js";
-import { applyLinkTargetAttributes } from "../../src/lib/link-targets.js";
 
 const { window } = new JSDOM("<!DOCTYPE html><html><body></body></html>");
 const DOMPurify = createDOMPurify(window);
@@ -100,4 +100,4 @@ export function renderMarkdownHtml(source) {
   });
 }
 
-export { marked, DOMPurify, window };
+export { DOMPurify, marked, window };

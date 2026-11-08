@@ -4,7 +4,10 @@
  * @param {Element} root
  * @param {{ standalone?: boolean, wcoVisible?: boolean }} [flags]
  */
-export function applyPwaDisplayAttrs(root, { standalone = false, wcoVisible = false } = {}) {
+export function applyPwaDisplayAttrs(
+  root,
+  { standalone = false, wcoVisible = false } = {},
+) {
   root.toggleAttribute("data-pwa", Boolean(standalone));
   root.toggleAttribute("data-wco", Boolean(wcoVisible));
 }

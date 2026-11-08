@@ -93,7 +93,9 @@ async function listHljsLanguageUrls() {
   const html = await (await fetch(HLJS_LANG_DIR)).text();
   const hrefs = [...html.matchAll(/href="([^"]+\.min\.js)"/g)].map((m) => m[1]);
   if (!hrefs.length) {
-    throw new Error(`No highlight.js language files listed at ${HLJS_LANG_DIR}`);
+    throw new Error(
+      `No highlight.js language files listed at ${HLJS_LANG_DIR}`,
+    );
   }
   return hrefs.map((href) =>
     href.startsWith("http")
@@ -183,7 +185,7 @@ export function applyCdnIntegrity(html, integrity) {
   const importMapRe =
     /(<script\b[^>]*\btype=["']importmap["'][^>]*>)([\s\S]*?)(<\/script>)/i;
   if (!importMapRe.test(html)) {
-    throw new Error("HTML is missing a <script type=\"importmap\"> block");
+    throw new Error('HTML is missing a <script type="importmap"> block');
   }
 
   let next = html.replace(importMapRe, (_, open, body, close) => {

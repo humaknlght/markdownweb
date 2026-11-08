@@ -41,7 +41,9 @@ export async function listGists(token) {
   const octokit = await createGistOctokit(token);
   /** @type {GistListItem[]} */
   const out = [];
-  const iterator = octokit.paginate.iterator(octokit.gists.list, { per_page: 100 });
+  const iterator = octokit.paginate.iterator(octokit.gists.list, {
+    per_page: 100,
+  });
   for await (const { data } of iterator) {
     for (const gist of data) {
       const files = Object.keys(gist.files || {}).map((filename) => {

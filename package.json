@@ -13,9 +13,12 @@
     "test:e2e": "playwright test",
     "test:build": "RUN_BUILD_TESTS=1 node --test 'test/build/*.test.js'",
     "test:all": "npm test && npm run test:e2e && npm run test:build",
+    "lint": "biome check --error-on-warnings .",
+    "lint:fix": "biome check --write --error-on-warnings .",
     "prepare": "husky"
   },
   "devDependencies": {
+    "@biomejs/biome": "2.6.6",
     "@commitlint/cli": "^21.2.4",
     "@commitlint/config-conventional": "^21.2.4",
     "@gfx/zopfli": "^1.0.15",

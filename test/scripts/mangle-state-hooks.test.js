@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
-import { describe, it } from "node:test";
 import path from "node:path";
+import { describe, it } from "node:test";
 import {
   buildPropMangleMap,
   mangleStateHooksSource,
-  stripUnreferencedExports,
   rewriteHooksToDirectImports,
+  stripUnreferencedExports,
 } from "../../scripts/mangle-state-hooks.mjs";
 
 describe("mangle-state-hooks", () => {
@@ -18,7 +18,7 @@ describe("mangle-state-hooks", () => {
         "const re = /state.splitPercent/;",
         'const s = "state.splitPercent";',
       ].join("\n"),
-      map
+      map,
     );
     assert.match(out, /\bs\.\w+ = 50/);
     assert.doesNotMatch(out, /\bs\.splitPercent\b/);
@@ -31,7 +31,7 @@ describe("mangle-state-hooks", () => {
     const out = mangleStateHooksSource(
       "export const state = {\n  splitPercent: 50,\n  lineWrapEnabled: true,\n};\n",
       map,
-      { mangleStateObjectKeys: true }
+      { mangleStateObjectKeys: true },
     );
     assert.match(out, /export const s = \{/);
     assert.doesNotMatch(out, /splitPercent:/);
@@ -43,7 +43,7 @@ describe("mangle-state-hooks", () => {
     const keep = new Set(["keepMe"]);
     const out = stripUnreferencedExports(
       "export function keepMe() {}\nexport function dropMe() {}\nexport async function dropAsync() {}\n",
-      keep
+      keep,
     );
     assert.match(out, /export function keepMe/);
     assert.match(out, /^function dropMe/m);
@@ -59,7 +59,7 @@ describe("mangle-state-hooks", () => {
         "hooks.paintGen;",
         "const cfg = { state: true, hooks: false };",
       ].join("\n"),
-      map
+      map,
     );
     assert.match(out, /marked\.use\(\{\s*hooks:\s*\{/);
     assert.match(out, /const cfg = \{\s*state:\s*true,\s*hooks:\s*false/);
@@ -73,13 +73,13 @@ describe("mangle-state-hooks", () => {
       [
         'import { state } from "./state.js";',
         'import { hooks } from "./hooks.js";',
-        "if (worker.state === \"installed\") offerUpdate(worker);",
-        "if (audioCtx.state === \"suspended\") audioCtx.resume();",
+        'if (worker.state === "installed") offerUpdate(worker);',
+        'if (audioCtx.state === "suspended") audioCtx.resume();',
         "const apiHooks = marked.hooks;",
         "state.deferredInstallPrompt = null;",
         "hooks.paintGen;",
       ].join("\n"),
-      map
+      map,
     );
     assert.match(out, /worker\.state === "installed"/);
     assert.match(out, /audioCtx\.state === "suspended"/);
@@ -98,7 +98,7 @@ describe("mangle-state-hooks", () => {
       other,
       'import { hooks } from "./hooks.js";\nhooks.showToast("hi");\n',
       registry,
-      path.resolve("src/app")
+      path.resolve("src/app"),
     );
     assert.match(out, /import \{ showToast \} from "\.\/ui-feedback\.js"/);
     assert.match(out, /showToast\("hi"\)/);

@@ -1,18 +1,12 @@
+import { SAVED_SNAPSHOT_MAX_KEYS, STORAGE_KEYS } from "./constants.js";
 import { hooks } from "./hooks.js";
 import {
-  state,
   currentFileNameEl,
   fsAccessSupported,
-  fsEntries
+  fsEntries,
+  state,
 } from "./state.js";
-import {
-  STORAGE_KEYS,
-  SAVED_SNAPSHOT_MAX_KEYS
-} from "./constants.js";
-import {
-  revisionStampChanged,
-  storeCurrentFileHandle
-} from "./vendor-deps.js";
+import { revisionStampChanged, storeCurrentFileHandle } from "./vendor-deps.js";
 
 export function isDirty() {
   // Clean only after a disk save/load or Accept of URL md/mdz content.
@@ -27,7 +21,9 @@ export function confirmDiscardIfDirty() {
 
 export function updateDocumentTitle() {
   const base = "Markdown Editor";
-  document.title = state.currentFileName ? `${state.currentFileName} · ${base}` : base;
+  document.title = state.currentFileName
+    ? `${state.currentFileName} · ${base}`
+    : base;
   if (currentFileNameEl) {
     if (state.currentFileName) {
       currentFileNameEl.textContent = state.currentFileName;
@@ -49,7 +45,13 @@ export function loadSavedSnapshotMap() {
     if (raw == null) return {};
     try {
       const parsed = JSON.parse(raw);
-      if (parsed && typeof parsed === "object" && parsed.v === 1 && parsed.byKey && typeof parsed.byKey === "object") {
+      if (
+        parsed &&
+        typeof parsed === "object" &&
+        parsed.v === 1 &&
+        parsed.byKey &&
+        typeof parsed.byKey === "object"
+      ) {
         /** @type {Record<string, string>} */
         const out = {};
         for (const [key, value] of Object.entries(parsed.byKey)) {
@@ -72,7 +74,7 @@ export function loadSavedSnapshotMap() {
  */
 export function readSavedSnapshot(docKey = hooks.currentDocKey()) {
   const map = loadSavedSnapshotMap();
-  return Object.prototype.hasOwnProperty.call(map, docKey) ? map[docKey] : null;
+  return Object.hasOwn(map, docKey) ? map[docKey] : null;
 }
 
 /**
@@ -107,7 +109,7 @@ export function moveSavedSnapshot(fromKey, toKey) {
   if (!fromKey || !toKey || fromKey === toKey) return;
   try {
     const map = loadSavedSnapshotMap();
-    if (Object.prototype.hasOwnProperty.call(map, fromKey)) {
+    if (Object.hasOwn(map, fromKey)) {
       map[toKey] = map[fromKey];
       delete map[fromKey];
       localStorage.setItem(
@@ -154,7 +156,8 @@ export function clearCurrentFileRevision() {
  */
 export function confirmOverwriteIfRemoteChanged(label, remoteValue) {
   if (!state.currentFileRevision) return true;
-  if (!revisionStampChanged(state.currentFileRevision.value, remoteValue)) return true;
+  if (!revisionStampChanged(state.currentFileRevision.value, remoteValue))
+    return true;
   return window.confirm(
     `${label} changed since it was opened. Overwrite with your version?`,
   );
@@ -170,9 +173,11 @@ export function pathForHandle(fileHandle) {
 
 export function persistCurrentFileBinding() {
   try {
-    if (state.currentFileName) localStorage.setItem(STORAGE_KEYS.currentFile, state.currentFileName);
+    if (state.currentFileName)
+      localStorage.setItem(STORAGE_KEYS.currentFile, state.currentFileName);
     else localStorage.removeItem(STORAGE_KEYS.currentFile);
-    if (state.currentFilePath) localStorage.setItem(STORAGE_KEYS.currentFilePath, state.currentFilePath);
+    if (state.currentFilePath)
+      localStorage.setItem(STORAGE_KEYS.currentFilePath, state.currentFilePath);
     else localStorage.removeItem(STORAGE_KEYS.currentFilePath);
   } catch {
     /* ignore */
@@ -208,7 +213,8 @@ export function bindCurrentFile(fileHandle, name, path = "") {
   state.currentFilePath = path || pathForHandle(fileHandle) || "";
   // Revision stamp is set by the open/save caller (needs lastModified from getFile).
   if (!fileHandle) clearCurrentFileRevision();
-  else if (state.currentFileRevision?.source !== "fs") clearCurrentFileRevision();
+  else if (state.currentFileRevision?.source !== "fs")
+    clearCurrentFileRevision();
   // Do not reload savedSnapshot here — open/create paths set the editor first and
   // markClean afterward. Restoring a stale snap made rapid switches (and disconnect)
   // look dirty via the same confirmDiscardIfDirty() check.
@@ -225,10 +231,15 @@ export function bindCurrentDriveFile(file) {
   state.currentFileHandle = null;
   state.currentFilePath = "";
   state.currentGistFile = null;
-  state.currentDriveFile = { id: file.id, name: file.name, mimeType: file.mimeType };
+  state.currentDriveFile = {
+    id: file.id,
+    name: file.name,
+    mimeType: file.mimeType,
+  };
   state.currentFileName = file.name || "";
   if (file.modifiedTime) setCurrentFileRevision("drive", file.modifiedTime);
-  else if (state.currentFileRevision?.source !== "drive") clearCurrentFileRevision();
+  else if (state.currentFileRevision?.source !== "drive")
+    clearCurrentFileRevision();
   updateDocumentTitle();
   hooks.updateSaveButton();
   hooks.highlightActiveFileInTree();
@@ -245,7 +256,8 @@ export function bindCurrentGistFile(file) {
   state.currentGistFile = { gistId: file.gistId, filename: file.filename };
   state.currentFileName = file.filename || "";
   if (file.updatedAt) setCurrentFileRevision("gist", file.updatedAt);
-  else if (state.currentFileRevision?.source !== "gist") clearCurrentFileRevision();
+  else if (state.currentFileRevision?.source !== "gist")
+    clearCurrentFileRevision();
   updateDocumentTitle();
   hooks.updateSaveButton();
   hooks.highlightActiveFileInTree();

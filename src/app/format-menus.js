@@ -1,20 +1,17 @@
+import { IMAGE_MIME_RE, IMAGE_PASTE_MAX_BYTES } from "./constants.js";
 import { hooks } from "./hooks.js";
 import {
-  state,
   editor,
   formatBar,
-  headingMenuBtn,
-  headingMenu,
-  imageMenuBtn,
-  imageMenu,
   formatImageInput,
   formatMoreBtn,
-  formatMoreMenu
+  formatMoreMenu,
+  headingMenu,
+  headingMenuBtn,
+  imageMenu,
+  imageMenuBtn,
+  state,
 } from "./state.js";
-import {
-  IMAGE_MIME_RE,
-  IMAGE_PASTE_MAX_BYTES
-} from "./constants.js";
 import { formatEmbedMarkdown } from "./vendor-deps.js";
 
 export function closeHeadingMenu() {
@@ -138,7 +135,9 @@ export async function insertImageFromFile(file, opts = {}) {
     }
     editor.focus();
     editor.setSelectionRange(start, end);
-    hooks.insertAtCursor(formatEmbedMarkdown(imageAltFromSelection(selected, file), dataUrl));
+    hooks.insertAtCursor(
+      formatEmbedMarkdown(imageAltFromSelection(selected, file), dataUrl),
+    );
     hooks.showToast(opts.toast || "Image inserted");
   } catch {
     hooks.showToast("Could not insert image");
@@ -195,9 +194,9 @@ export function clipboardImageFile(clipboardData) {
 
 export function imageAltFromSelection(selected, file) {
   const fromSelection = selected.trim();
-  if (fromSelection) return fromSelection.replace(/[\[\]]/g, "");
+  if (fromSelection) return fromSelection.replace(/[[\]]/g, "");
   const name = (file.name || "").replace(/\.[^.]+$/, "").trim();
-  if (name && !/^image$/i.test(name)) return name.replace(/[\[\]]/g, "");
+  if (name && !/^image$/i.test(name)) return name.replace(/[[\]]/g, "");
   return "image";
 }
 

@@ -1,10 +1,5 @@
 import { hooks } from "../hooks.js";
-import {
-  state,
-  driveEntries,
-  gistEntries,
-  fsEntries
-} from "../state.js";
+import { driveEntries, fsEntries, gistEntries, state } from "../state.js";
 
 export function isDriveFilesSource() {
   return state.driveConfigured && state.filesSource === "drive";
@@ -47,7 +42,9 @@ export function getActiveTreeEntry(id) {
     return { id: "", name: "Gists", kind: "directory" };
   }
   if (!id && !isDriveFilesSource()) {
-    return state.rootDirHandle ? { id: "", name: state.rootDirHandle.name, kind: "directory" } : null;
+    return state.rootDirHandle
+      ? { id: "", name: state.rootDirHandle.name, kind: "directory" }
+      : null;
   }
   if (isGistFilesSource()) {
     const entry = gistEntries.get(id);

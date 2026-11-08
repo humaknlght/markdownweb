@@ -50,17 +50,17 @@ Drafts and “unsaved” snapshots are scoped per open file (and a shared **unti
 
 **Save** writes back to the bound local file, Drive file, or Gist. If that remote copy changed since you opened it (or since your last save in this tab)—for example another app edited the file on disk—you get a confirm before overwrite.
 
-| Action | What it does |
-|--------|----------------|
-| **Local / Drive / Gist** | Switch the drawer between a local folder, Google Drive `/markdown-editor`, or your GitHub gists (when configured) |
-| **Open folder** | Pick a local folder to browse (handle remembered for next visits; Chromium) |
-| **Connect Drive** | Sign in with Google (popup), then list the `/markdown-editor` folder (and its subfolders) |
-| **Connect Gist** | Paste a GitHub PAT with Gists access, then list editable files in your gists |
-| **New** | Create a new untitled document |
-| **New folder** | Create a subfolder in the current Local folder or the current Drive folder |
-| **Refresh** | Reload the current source’s tree |
-| **Save** / `Ctrl`/`Cmd`+`S` | Write the current local, Drive, or Gist file |
-| **Outline** | Heading list for the open document; click to jump in editor and preview |
+| Action                      | What it does                                                                                                      |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| **Local / Drive / Gist**    | Switch the drawer between a local folder, Google Drive `/markdown-editor`, or your GitHub gists (when configured) |
+| **Open folder**             | Pick a local folder to browse (handle remembered for next visits; Chromium)                                       |
+| **Connect Drive**           | Sign in with Google (popup), then list the `/markdown-editor` folder (and its subfolders)                         |
+| **Connect Gist**            | Paste a GitHub PAT with Gists access, then list editable files in your gists                                      |
+| **New**                     | Create a new untitled document                                                                                    |
+| **New folder**              | Create a subfolder in the current Local folder or the current Drive folder                                        |
+| **Refresh**                 | Reload the current source’s tree                                                                                  |
+| **Save** / `Ctrl`/`Cmd`+`S` | Write the current local, Drive, or Gist file                                                                      |
+| **Outline**                 | Heading list for the open document; click to jump in editor and preview                                           |
 
 Right-click (or long-press) a file or folder for a context menu: **New file**, **New folder**, **Rename**, **Delete** (Local and Drive). Gist supports **New file** and **Delete** (deletes the whole gist). Drive deletes move items to Google Drive trash.
 
@@ -90,23 +90,23 @@ The editor overlays a highlighted view of your Markdown source (same highlightin
 
 Pick a theme from the dropdown. Your choice is remembered:
 
-| Theme | Look |
-|-------|------|
-| GitHub Light | Default light |
-| GitHub Dark | Default dark |
-| Sepia | Warm parchment, serif |
-| Terminal | Green on black, monospace |
-| Salesforce Cosmos | SLDS-inspired palette |
-| Fancy | Decorative headings and background photo |
+| Theme             | Look                                     |
+| ----------------- | ---------------------------------------- |
+| GitHub Light      | Default light                            |
+| GitHub Dark       | Default dark                             |
+| Sepia             | Warm parchment, serif                    |
+| Terminal          | Green on black, monospace                |
+| Salesforce Cosmos | SLDS-inspired palette                    |
+| Fancy             | Decorative headings and background photo |
 
 ### Views
 
-| Mode | What it does |
-|------|----------------|
-| **Edit** | Split editor + live preview (default) |
-| **Reader** | Preview only — good for reading shared links |
+| Mode        | What it does                                  |
+| ----------- | --------------------------------------------- |
+| **Edit**    | Split editor + live preview (default)         |
+| **Reader**  | Preview only — good for reading shared links  |
 | **Present** | Full-screen walk through `h1` / `h2` sections |
-| **Slides** | Same section walk, but the editor stays open |
+| **Slides**  | Same section walk, but the editor stays open  |
 
 **Present / Slides navigation:** `←` `→` `↑` `↓`, `Space`, `PageUp` / `PageDown`, `Home` / `End`, or swipe. Exit with **Exit** or `Escape`.
 
@@ -131,13 +131,13 @@ This is separate from **Export → PDF**, which builds a dedicated print documen
 
 From **Export**, choose:
 
-| Format | Notes |
-|--------|--------|
-| **HTML** | Self-contained document with styles |
-| **PDF** | Browser print engine via a hidden frame (“Save as PDF”) |
-| **Markdown** | Source plus YAML front matter (`title`, `generator`) |
-| **DOCX** | Basic Word document (images become `[Image: alt]` placeholders) |
-| **RTF** | Rich Text Format export |
+| Format       | Notes                                                           |
+| ------------ | --------------------------------------------------------------- |
+| **HTML**     | Self-contained document with styles                             |
+| **PDF**      | Browser print engine via a hidden frame (“Save as PDF”)         |
+| **Markdown** | Source plus YAML front matter (`title`, `generator`)            |
+| **DOCX**     | Basic Word document (images become `[Image: alt]` placeholders) |
+| **RTF**      | Rich Text Format export                                         |
 
 ### Share links
 
@@ -155,17 +155,17 @@ The speak controls are hidden if the browser has no speech synthesis support.
 
 ### Keyboard shortcuts
 
-| Shortcut | Context | Action |
-|----------|---------|--------|
-| `Ctrl`/`Cmd`+`S` | Edit view, file open | Save current file |
-| `Ctrl`/`Cmd`+`V` | Editor focused, image on clipboard | Paste image as Markdown |
-| `→` `↓` `Space` `PageDown` | Present / Slides | Next section |
-| `←` `↑` `PageUp` | Present / Slides | Previous section |
-| `Home` | Present / Slides | First section |
-| `End` | Present / Slides | Last section |
-| `Escape` | Present / Slides or open menus | Exit present / close menus |
-| `←` `→` `↑` `↓` | Splitter focused | Resize panes |
-| `Home` / `End` | Splitter focused | Snap splitter to extremes |
+| Shortcut                   | Context                            | Action                     |
+| -------------------------- | ---------------------------------- | -------------------------- |
+| `Ctrl`/`Cmd`+`S`           | Edit view, file open               | Save current file          |
+| `Ctrl`/`Cmd`+`V`           | Editor focused, image on clipboard | Paste image as Markdown    |
+| `→` `↓` `Space` `PageDown` | Present / Slides                   | Next section               |
+| `←` `↑` `PageUp`           | Present / Slides                   | Previous section           |
+| `Home`                     | Present / Slides                   | First section              |
+| `End`                      | Present / Slides                   | Last section               |
+| `Escape`                   | Present / Slides or open menus     | Exit present / close menus |
+| `←` `→` `↑` `↓`            | Splitter focused                   | Resize panes               |
+| `Home` / `End`             | Splitter focused                   | Snap splitter to extremes  |
 
 ### Install / offline
 
@@ -184,21 +184,24 @@ The preview uses **GitHub Flavored Markdown** (GFM), plus Mermaid diagrams, GitH
 
 ```markdown
 # Heading 1
+
 ## Heading 2
+
 ### Heading 3
+
 #### Heading 4
+
 ##### Heading 5
+
 ###### Heading 6
 ```
 
 Setext-style headings also work:
 
 ```markdown
-Heading 1
-=========
+# Heading 1
 
-Heading 2
----------
+## Heading 2
 ```
 
 `h1` and `h2` headings define sections for Present and Slides mode.
@@ -206,9 +209,9 @@ Heading 2
 ### Emphasis
 
 ```markdown
-*italic* or _italic_
-**bold** or __bold__
-***bold italic***
+_italic_ or _italic_
+**bold** or **bold**
+_**bold italic**_
 ~~strikethrough~~
 ```
 
@@ -266,8 +269,10 @@ Unordered:
 
 ```markdown
 - Item
+
 * Item
-+ Item
+
+- Item
   - Nested item
 ```
 
@@ -298,8 +303,10 @@ Task lists:
 
 ```markdown
 ---
-***
-___
+
+---
+
+---
 ```
 
 ### Code
@@ -326,9 +333,9 @@ Tilde fences and indented code blocks (4 spaces or a tab) are also supported. Pr
 
 ```markdown
 | Left | Center | Right |
-|:-----|:------:|------:|
-| a    | b      | c     |
-| d    | e      | f     |
+| :--- | :----: | ----: |
+| a    |   b    |     c |
+| d    |   e    |     f |
 ```
 
 Pipes inside inline code in a table cell stay in that cell, for example `` `|` `` does not split the column.
@@ -441,10 +448,11 @@ Docs-oriented fields such as `intro`, `permissions`, or `versions` are shown as 
 
 ```markdown
 ---
+
 title: About your personal dashboard
 versions:
-  fpt: '*'
-  ghes: '>=3.11'
+fpt: '*'
+ghes: '>=3.11'
 ---
 
 # Heading
@@ -512,51 +520,51 @@ Renders as: :wink: :heart: :rocket: :tada: :+1: :warning:
 
 Common ASCII faces convert to emoji when surrounded by whitespace or punctuation (not letters/digits), and are skipped inside URLs so `http://` and paths like `C:\Users` stay safe. Use `:sunglasses:` for the sunglasses emoji.
 
-| Type this | Get |
-|-----------|-----|
-| `:-)` `:)` `=)` `=]` | 🙂 |
-| `:-D` `:D` `=D` | 😀 |
-| `;-)` `;)` | 😉 |
-| `:-(` `:(` | 😦 |
-| `:'(` | 😢 |
-| `:')` and related joy faces | 😂 |
-| `<3` | ❤️ |
-| `</3` | 💔 |
-| `:-P` `:P` | 😛 |
-| `>:(` | 😠 |
-| `o:-)` `O:)` | 😇 |
-| `:/` `:-/` | 😕 |
-| `:*` `:-*` | 😘 |
-| `:|` `:-|` | 😐 |
-| `:o` `:O` | 😮 |
-| `:@` | 😡 |
+| Type this                   | Get   |
+| --------------------------- | ----- |
+| `:-)` `:)` `=)` `=]`        | 🙂    |
+| `:-D` `:D` `=D`             | 😀    |
+| `;-)` `;)`                  | 😉    |
+| `:-(` `:(`                  | 😦    |
+| `:'(`                       | 😢    |
+| `:')` and related joy faces | 😂    |
+| `<3`                        | ❤️    |
+| `</3`                       | 💔    |
+| `:-P` `:P`                  | 😛    |
+| `>:(`                       | 😠    |
+| `o:-)` `O:)`                | 😇    |
+| `:/` `:-/`                  | 😕    |
+| `:*` `:-*`                  | 😘    |
+| `:                          | ` `:- | `   | 😐  |
+| `:o` `:O`                   | 😮    |
+| `:@`                        | 😡    |
 
 ---
 
 ## Quick reference
 
-| Feature | Supported |
-|---------|-----------|
-| Headings `#` … `######`, Setext | Yes |
-| Bold, italic, strikethrough | Yes |
-| Links, images, paste image (data URI) | Yes |
-| Lists, nested lists, task lists | Yes |
-| Tables (including `` `|` `` in cells) | Yes |
-| Fenced / indented code + highlighting | Yes |
-| Blockquotes | Yes |
-| Mermaid diagrams | Yes |
-| GitHub alerts (`NOTE`, `TIP`, …) | Yes |
-| YAML front matter (metadata table) | Yes |
-| Emoji shortcodes and emoticons | Yes |
-| Definition lists | Yes |
-| Footnotes | Yes |
-| Heading IDs `{#id}` | Yes |
-| Highlight `==…==` / `::…::` | Yes |
-| Subscript `~…~` / superscript `^…^` | Yes |
-| Abbreviations `*[HTML]: …` | Yes |
-| Inline HTML (sanitized) | Yes |
+| Feature                               | Supported                    |
+| ------------------------------------- | ---------------------------- |
+| Headings `#` … `######`, Setext       | Yes                          |
+| Bold, italic, strikethrough           | Yes                          |
+| Links, images, paste image (data URI) | Yes                          |
+| Lists, nested lists, task lists       | Yes                          |
+| Tables (including `` `                | ` `` in cells)               | Yes |
+| Fenced / indented code + highlighting | Yes                          |
+| Blockquotes                           | Yes                          |
+| Mermaid diagrams                      | Yes                          |
+| GitHub alerts (`NOTE`, `TIP`, …)      | Yes                          |
+| YAML front matter (metadata table)    | Yes                          |
+| Emoji shortcodes and emoticons        | Yes                          |
+| Definition lists                      | Yes                          |
+| Footnotes                             | Yes                          |
+| Heading IDs `{#id}`                   | Yes                          |
+| Highlight `==…==` / `::…::`           | Yes                          |
+| Subscript `~…~` / superscript `^…^`   | Yes                          |
+| Abbreviations `*[HTML]: …`            | Yes                          |
+| Inline HTML (sanitized)               | Yes                          |
 | Soft breaks (single newline → `<br>`) | No — use two trailing spaces |
-| Math / LaTeX | No |
+| Math / LaTeX                          | No                           |
 
 ---
 

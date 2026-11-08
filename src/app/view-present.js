@@ -1,24 +1,23 @@
+import { THEMES, VIEWS } from "./constants.js";
 import { hooks } from "./hooks.js";
 import {
-  state,
   editor,
-  preview,
-  viewModeMainBtn,
-  viewModeMenuBtn,
-  viewModeMenu,
   presentChrome,
   presentExitBtn,
-  presentProgress
+  presentProgress,
+  preview,
+  state,
+  viewModeMainBtn,
+  viewModeMenu,
+  viewModeMenuBtn,
 } from "./state.js";
-import {
-  THEMES,
-  VIEWS
-} from "./constants.js";
 
 export function syncHashForView(view) {
   const url = new URL(window.location.href);
   const hashParams =
-    url.hash.length > 1 ? new URLSearchParams(url.hash.slice(1)) : new URLSearchParams();
+    url.hash.length > 1
+      ? new URLSearchParams(url.hash.slice(1))
+      : new URLSearchParams();
   const searchParams = new URLSearchParams(url.search);
   const existing =
     hashParams.has("mdz") ||
@@ -33,7 +32,8 @@ export function syncHashForView(view) {
   const md = existing.get("md");
   if (mdz) params.set("mdz", mdz);
   else if (md) params.set("md", md);
-  if (state.guideSession || existing.get("guide") === "1") params.set("guide", "1");
+  if (state.guideSession || existing.get("guide") === "1")
+    params.set("guide", "1");
 
   const theme = document.documentElement.dataset.theme;
   if (THEMES.includes(theme)) params.set("theme", theme);
@@ -94,7 +94,10 @@ export function showPresentSection(index) {
     return;
   }
 
-  state.presentIndex = Math.max(0, Math.min(index, state.presentSections.length - 1));
+  state.presentIndex = Math.max(
+    0,
+    Math.min(index, state.presentSections.length - 1),
+  );
   const active = state.presentSections[state.presentIndex];
   for (const child of preview.children) {
     child.hidden = !active.includes(child);
@@ -249,7 +252,8 @@ export function onViewModeMainClick() {
 
 export function setView(view, { syncUrl = true } = {}) {
   const next = VIEWS.includes(view) ? view : "edit";
-  const wasSlideNav = state.currentView === "present" || state.currentView === "slides";
+  const wasSlideNav =
+    state.currentView === "present" || state.currentView === "slides";
   const nextIsSlideNav = next === "present" || next === "slides";
   const leavingPresent = state.currentView === "present" && next !== "present";
   if (wasSlideNav && !nextIsSlideNav) {
@@ -270,7 +274,8 @@ export function setView(view, { syncUrl = true } = {}) {
     presentChrome.hidden = !nextIsSlideNav;
   }
   if (presentExitBtn) {
-    presentExitBtn.title = next === "slides" ? "Exit slides mode" : "Exit present mode";
+    presentExitBtn.title =
+      next === "slides" ? "Exit slides mode" : "Exit present mode";
   }
   hooks.syncPresentChromeAutohide();
 

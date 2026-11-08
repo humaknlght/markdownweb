@@ -1,26 +1,28 @@
-import { hooks } from "./hooks.js";
-import { state } from "./state.js";
 import {
+  HISTORY_INDEX_VERSION,
   HISTORY_LIMIT,
   HISTORY_MAX_CHARS,
   HISTORY_TIP_MAX,
-  HISTORY_INDEX_VERSION,
-  PATCH_MAX_CHARS
+  PATCH_MAX_CHARS,
 } from "./constants.js";
+import { hooks } from "./hooks.js";
+import { state } from "./state.js";
 import {
-  contentHash,
-  makeRevisionBody,
   clearHistoryBodies,
   commitHistoryBodies,
+  contentHash,
   getTip,
+  makeRevisionBody,
   setTip,
   storageBudgetOk,
-  titleFromMarkdown
+  titleFromMarkdown,
 } from "./vendor-deps.js";
 
 export function pushHistoryLegacy(content) {
   if (content.length > HISTORY_MAX_CHARS) return;
-  const entries = hooks.loadHistoryIndexEntries().filter((e) => e.content !== content);
+  const entries = hooks
+    .loadHistoryIndexEntries()
+    .filter((e) => e.content !== content);
   if (entries[0]?.content === content) {
     state.lastHistoryContent = content;
     return;
@@ -115,12 +117,19 @@ export async function pushHistory(markdown) {
   const revWrites = [];
   let convertedOldTip = false;
 
-  if (hist.entries[0] && oldContent !== "" && contentHash(oldContent) !== hash) {
+  if (
+    hist.entries[0] &&
+    oldContent !== "" &&
+    contentHash(oldContent) !== hash
+  ) {
     const oldMeta = hist.entries[0];
     const made = makeRevisionBody(content, oldContent, PATCH_MAX_CHARS);
     revWrites.push({
       id: oldMeta.id,
-      body: made.kind === "patch" ? { patch: made.patch } : { content: made.content },
+      body:
+        made.kind === "patch"
+          ? { patch: made.patch }
+          : { content: made.content },
     });
     entries.push({
       id: oldMeta.id,
@@ -144,7 +153,9 @@ export async function pushHistory(markdown) {
   entries = entries.slice(0, maxEntries);
 
   const keepRev = new Set(entries.slice(1).map((e) => e.id));
-  const pruneIds = hist.entries.map((e) => e.id).filter((id) => id !== newId && !keepRev.has(id));
+  const pruneIds = hist.entries
+    .map((e) => e.id)
+    .filter((id) => id !== newId && !keepRev.has(id));
   // Drop revWrites for pruned ids
   const filteredWrites = revWrites.filter((r) => keepRev.has(r.id));
 

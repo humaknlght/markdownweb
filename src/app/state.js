@@ -1,5 +1,5 @@
-import { isFsAccessSupported } from "../lib/fs.js";
 import { DRIVE_DEFAULT_FOLDER_NAME } from "../drive/google-drive.js";
+import { isFsAccessSupported } from "../lib/fs.js";
 
 export const editor = document.getElementById("editor");
 export const editorHighlight = document.getElementById("editor-highlight");
@@ -29,19 +29,26 @@ export const shareMenu = document.getElementById("share-menu");
 export const exportDropdown = document.getElementById("export-dropdown");
 export const exportBtn = document.getElementById("export-btn");
 export const exportMenu = document.getElementById("export-menu");
-export const writingToolsDropdown = document.getElementById("writing-tools-dropdown");
+export const writingToolsDropdown = document.getElementById(
+  "writing-tools-dropdown",
+);
 export const writingToolsBtn = document.getElementById("writing-tools-btn");
 export const writingToolsMenu = document.getElementById("writing-tools-menu");
 export const aiWriteMenuBtn = document.getElementById("ai-write-menu-btn");
 export const aiRewriteMenuBtn = document.getElementById("ai-rewrite-menu-btn");
-export const aiProofreadMenuBtn = document.getElementById("ai-proofread-menu-btn");
+export const aiProofreadMenuBtn = document.getElementById(
+  "ai-proofread-menu-btn",
+);
 export const aiWriteDialog = document.getElementById("ai-write-dialog");
 export const aiRewriteDialog = document.getElementById("ai-rewrite-dialog");
 export const aiProofreadDialog = document.getElementById("ai-proofread-dialog");
-export const aiProofEditorWrap = document.getElementById("ai-proof-editor-wrap");
+export const aiProofEditorWrap = document.getElementById(
+  "ai-proof-editor-wrap",
+);
 export const aiProofEditor = document.getElementById("ai-proof-editor");
 export const aiProofHighlight = document.getElementById("ai-proof-highlight");
-export const aiProofHighlightCode = aiProofHighlight?.querySelector("code") ?? null;
+export const aiProofHighlightCode =
+  aiProofHighlight?.querySelector("code") ?? null;
 export const speakDropdown = document.getElementById("speak-dropdown");
 export const speakBtn = document.getElementById("speak-btn");
 export const speakPauseBtn = document.getElementById("speak-pause-btn");
@@ -61,7 +68,9 @@ export const imageDropdown = document.getElementById("image-dropdown");
 export const imageMenuBtn = document.getElementById("image-menu-btn");
 export const imageMenu = document.getElementById("image-menu");
 export const formatImageInput = document.getElementById("format-image-input");
-export const formatMoreDropdown = document.getElementById("format-more-dropdown");
+export const formatMoreDropdown = document.getElementById(
+  "format-more-dropdown",
+);
 export const formatMoreBtn = document.getElementById("format-more-btn");
 export const formatMoreMenu = document.getElementById("format-more-menu");
 export const previewPane = document.getElementById("preview-pane");
@@ -96,35 +105,63 @@ export const mermaidZoomStage = document.getElementById("mermaid-zoom-stage");
 export const mermaidZoomLevel = document.getElementById("mermaid-zoom-level");
 export const mermaidZoomInBtn = document.getElementById("mermaid-zoom-in");
 export const mermaidZoomOutBtn = document.getElementById("mermaid-zoom-out");
-export const mermaidZoomResetBtn = document.getElementById("mermaid-zoom-reset");
-export const mermaidZoomCloseBtn = document.getElementById("mermaid-zoom-close");
+export const mermaidZoomResetBtn =
+  document.getElementById("mermaid-zoom-reset");
+export const mermaidZoomCloseBtn =
+  document.getElementById("mermaid-zoom-close");
 export const installBtn = document.getElementById("install-btn");
 export const updateToast = document.getElementById("update-toast");
 export const updateReloadBtn = document.getElementById("update-reload-btn");
 export const fsPermissionToast = document.getElementById("fs-permission-toast");
-export const fsPermissionAllowBtn = document.getElementById("fs-permission-allow-btn");
-export const fsPermissionDismissBtn = document.getElementById("fs-permission-dismiss-btn");
+export const fsPermissionAllowBtn = document.getElementById(
+  "fs-permission-allow-btn",
+);
+export const fsPermissionDismissBtn = document.getElementById(
+  "fs-permission-dismiss-btn",
+);
 export const filesToggleBtn = document.getElementById("files-toggle-btn");
 export const saveBtn = document.getElementById("save-btn");
 export const filesDrawer = document.getElementById("files-drawer");
 export const filesBackdrop = document.getElementById("files-backdrop");
 export const filesDrawerTitle = document.getElementById("files-drawer-title");
-export const filesOpenFolderBtn = document.getElementById("files-open-folder-btn");
+export const filesOpenFolderBtn = document.getElementById(
+  "files-open-folder-btn",
+);
 export const filesSourceToggle = document.getElementById("files-source-toggle");
-export const filesSourceLocalBtn = document.getElementById("files-source-local-btn");
-export const filesSourceDriveBtn = document.getElementById("files-source-drive-btn");
-export const filesSourceGistBtn = document.getElementById("files-source-gist-btn");
-export const filesConnectDriveBtn = document.getElementById("files-connect-drive-btn");
-export const filesConnectGistBtn = document.getElementById("files-connect-gist-btn");
-export const filesDriveOfflineHint = document.getElementById("files-drive-offline-hint");
-export const filesEmptyConnectBtn = document.getElementById("files-empty-connect-btn");
-export const filesEmptyConnectGistBtn = document.getElementById("files-empty-connect-gist-btn");
+export const filesSourceLocalBtn = document.getElementById(
+  "files-source-local-btn",
+);
+export const filesSourceDriveBtn = document.getElementById(
+  "files-source-drive-btn",
+);
+export const filesSourceGistBtn = document.getElementById(
+  "files-source-gist-btn",
+);
+export const filesConnectDriveBtn = document.getElementById(
+  "files-connect-drive-btn",
+);
+export const filesConnectGistBtn = document.getElementById(
+  "files-connect-gist-btn",
+);
+export const filesDriveOfflineHint = document.getElementById(
+  "files-drive-offline-hint",
+);
+export const filesEmptyConnectBtn = document.getElementById(
+  "files-empty-connect-btn",
+);
+export const filesEmptyConnectGistBtn = document.getElementById(
+  "files-empty-connect-gist-btn",
+);
 export const filesEmptyCopy = document.getElementById("files-empty-copy");
 export const filesNewFileBtn = document.getElementById("files-new-file-btn");
-export const filesNewFolderBtn = document.getElementById("files-new-folder-btn");
+export const filesNewFolderBtn = document.getElementById(
+  "files-new-folder-btn",
+);
 export const filesRefreshBtn = document.getElementById("files-refresh-btn");
 export const filesEmpty = document.getElementById("files-empty");
-export const filesEmptyOpenBtn = document.getElementById("files-empty-open-btn");
+export const filesEmptyOpenBtn = document.getElementById(
+  "files-empty-open-btn",
+);
 export const filesLoading = document.getElementById("files-loading");
 export const filesLoadingCopy = document.getElementById("files-loading-copy");
 export const filesPermission = document.getElementById("files-permission");
@@ -138,7 +175,8 @@ export const currentFileNameEl = document.getElementById("current-file-name");
 export const outlineEmpty = document.getElementById("outline-empty");
 export const outlineList = document.getElementById("outline-list");
 
-export const speechSupported = typeof window.SpeechSynthesisUtterance !== "undefined";
+export const speechSupported =
+  typeof window.SpeechSynthesisUtterance !== "undefined";
 export const fsAccessSupported = isFsAccessSupported();
 
 /** UI label for the Drive app root (leading slash marks it as a directory). */

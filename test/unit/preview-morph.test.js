@@ -1,5 +1,5 @@
-import { describe, it, beforeEach } from "node:test";
 import assert from "node:assert/strict";
+import { beforeEach, describe, it } from "node:test";
 import { JSDOM } from "jsdom";
 import { morphPreviewHtml } from "../../src/app/preview-morph.js";
 
@@ -32,7 +32,8 @@ describe("morphPreviewHtml", () => {
   });
 
   it("keeps an image when a block is inserted above it", () => {
-    preview.innerHTML = '<p data-source-line="1"><img alt="pic" src="pixel.png"></p>';
+    preview.innerHTML =
+      '<p data-source-line="1"><img alt="pic" src="pixel.png"></p>';
     const img = preview.querySelector("img");
 
     morphPreviewHtml(
@@ -48,7 +49,10 @@ describe("morphPreviewHtml", () => {
     preview.innerHTML = '<p data-source-line="4">Stay</p>';
     const p = preview.querySelector("p");
 
-    morphPreviewHtml(preview, '<p data-source-line="9" data-source-line-end="10">Stay</p>');
+    morphPreviewHtml(
+      preview,
+      '<p data-source-line="9" data-source-line-end="10">Stay</p>',
+    );
 
     assert.equal(preview.querySelector("p"), p);
     assert.equal(p.getAttribute("data-source-line"), "9");
@@ -63,7 +67,10 @@ describe("morphPreviewHtml", () => {
     morphPreviewHtml(preview, '<h2 data-source-line="3">Title</h2>');
 
     assert.equal(preview.querySelector("button"), button);
-    assert.equal(preview.querySelector("h2").getAttribute("data-source-line"), "3");
+    assert.equal(
+      preview.querySelector("h2").getAttribute("data-source-line"),
+      "3",
+    );
   });
 
   it("keeps code line numbers when the code text is unchanged", () => {
@@ -189,7 +196,8 @@ describe("morphPreviewHtml", () => {
   });
 
   it("keeps a rendered mermaid host when the fence text is unchanged", () => {
-    preview.innerHTML = '<div class="mermaid" data-source-line="1"><svg></svg></div>';
+    preview.innerHTML =
+      '<div class="mermaid" data-source-line="1"><svg></svg></div>';
     const host = preview.querySelector(".mermaid");
     const svg = preview.querySelector("svg");
     const sources = new WeakMap([[host, "graph TD; A-->B"]]);
@@ -206,7 +214,8 @@ describe("morphPreviewHtml", () => {
   });
 
   it("drops a stale mermaid SVG when the fence text changes", () => {
-    preview.innerHTML = '<div class="mermaid" data-source-line="1"><svg></svg></div>';
+    preview.innerHTML =
+      '<div class="mermaid" data-source-line="1"><svg></svg></div>';
     const host = preview.querySelector(".mermaid");
     const sources = new WeakMap([[host, "graph TD; A-->B"]]);
 

@@ -1,13 +1,16 @@
-import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
-import { gunzipSync, brotliDecompressSync } from "node:zlib";
+import { brotliDecompressSync, gunzipSync } from "node:zlib";
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+const root = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "../..",
+);
 
 function run(cmd, args, opts = {}) {
   return new Promise((resolve, reject) => {
@@ -26,7 +29,10 @@ function run(cmd, args, opts = {}) {
     });
     child.on("error", reject);
     child.on("close", (code) => {
-      if (code !== 0) reject(new Error(`${cmd} ${args.join(" ")} failed (${code}): ${stderr}`));
+      if (code !== 0)
+        reject(
+          new Error(`${cmd} ${args.join(" ")} failed (${code}): ${stderr}`),
+        );
       else resolve({ stdout, stderr });
     });
   });
@@ -82,7 +88,9 @@ describe("production build invariants", { timeout: 180_000 }, () => {
       assert.match(helperHt, /Cross-Origin-Embedder-Policy "unsafe-none"/);
       assert.match(helperHt, /accounts\.google\.com/);
 
-      const csp = JSON.parse(await fs.readFile(path.join(dist, "csp.json"), "utf8"));
+      const csp = JSON.parse(
+        await fs.readFile(path.join(dist, "csp.json"), "utf8"),
+      );
       assert.match(csp.guideUrl, /^\.\/GUIDE\.[a-f0-9]{8}\.md$/);
       assert.match(csp.driveHelperCsp, /accounts\.google\.com/);
       assert.doesNotMatch(csp.driveHelperCsp, /apis\.google\.com/);
@@ -111,7 +119,10 @@ describe("production build invariants", { timeout: 180_000 }, () => {
         /Sitemap:\s*https:\/\/markdown\.ericperret\.org\/sitemap\.xml/,
       );
       const sitemap = await fs.readFile(path.join(dist, "sitemap.xml"), "utf8");
-      assert.match(sitemap, /https:\/\/markdown\.ericperret\.org\/privacy\.html/);
+      assert.match(
+        sitemap,
+        /https:\/\/markdown\.ericperret\.org\/privacy\.html/,
+      );
 
       const appFile = files.find((f) => /^app\.[a-f0-9]{8}\.js$/.test(f));
       const original = await fs.readFile(path.join(dist, appFile));
@@ -119,13 +130,19 @@ describe("production build invariants", { timeout: 180_000 }, () => {
       // state-bag mangling must not rewrite ServiceWorker.state (update toast).
       assert.match(appJs, /\.state==="installed"/);
       assert.doesNotMatch(appJs, /\.s==="installed"/);
-      const gz = gunzipSync(await fs.readFile(path.join(dist, `${appFile}.gz`)));
-      const br = brotliDecompressSync(await fs.readFile(path.join(dist, `${appFile}.br`)));
+      const gz = gunzipSync(
+        await fs.readFile(path.join(dist, `${appFile}.gz`)),
+      );
+      const br = brotliDecompressSync(
+        await fs.readFile(path.join(dist, `${appFile}.br`)),
+      );
       assert.deepEqual(gz, original);
       assert.deepEqual(br, original);
 
       // Source icons must be untouched by the build
-      const icon = await fs.readFile(path.join(root, "src/assets/icon-192.png"));
+      const icon = await fs.readFile(
+        path.join(root, "src/assets/icon-192.png"),
+      );
       assert.ok(icon.byteLength > 0);
     } finally {
       // leave dist as built (useful); backup kept in tmp for debugging
