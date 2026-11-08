@@ -1,5 +1,6 @@
 import createDOMPurify from "dompurify";
 import { extractFrontmatter } from "../markdown/frontmatter.js";
+import { installMarkdownLinkHooks } from "./link-targets.js";
 import { installSafeMediaHooks } from "./safe-media-uri.js";
 
 /** Generator / provenance stamped into every export. */
@@ -85,6 +86,7 @@ function sanitizeExportHtml(html) {
   const root = typeof window !== "undefined" ? window : globalThis;
   const purify = createDOMPurify(/** @type {Window} */ (root));
   if (!purifyMediaHooksInstalled.has(purify)) {
+    installMarkdownLinkHooks(purify);
     installSafeMediaHooks(purify);
     purifyMediaHooksInstalled.add(purify);
   }

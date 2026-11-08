@@ -8,6 +8,14 @@ import {
   wrapHighlightedLines,
 } from "./vendor-deps.js";
 
+/** Disabled checkbox chrome without <input> (DOMPurify forbids form controls). */
+function taskCheckboxHtml(checked) {
+  return (
+    `<span class="task-list-item-checkbox" role="checkbox" ` +
+    `aria-checked="${checked ? "true" : "false"}" aria-disabled="true"></span> `
+  );
+}
+
 /** Assign 1-based source line numbers to top-level block tokens. */
 export function annotateSourceLines(tokens) {
   let line = 1;
@@ -74,9 +82,25 @@ marked.use({
     },
   },
   renderer: {
+    checkbox({ checked }) {
+      return taskCheckboxHtml(checked);
+    },
+    listitem(token) {
+      let html = rendererProto.listitem.call(this, token);
+      if (token.task) {
+        html = html.replace(/^<li>/, '<li class="task-list-item">');
+      }
+      return html;
+    },
     heading(token) {
+      const text = this.parser.parseInline(token.tokens);
+      const level = token.depth;
+      const id =
+        typeof token.customId === "string" && token.customId
+          ? ` id="${escapeHtml(token.customId)}"`
+          : "";
       return withSourceLine(
-        rendererProto.heading.call(this, token),
+        `<h${level}${id}>${text}</h${level}>\n`,
         token._sourceLine,
         token._sourceLineEnd,
       );

@@ -2,9 +2,14 @@
  * Re-export third-party and shared lib/markdown/drive/gist symbols used by app
  * domain modules so each file can use a short import header.
  */
+export { abbrExtension } from "../markdown/abbr.js";
 export { alertExtension } from "../markdown/alert.js";
 export { defListExtension } from "../markdown/deflist.js";
 export { emojiExtension } from "../markdown/emoji.js";
+export { footnoteExtension } from "../markdown/footnotes.js";
+export { headingIdExtension } from "../markdown/heading-ids.js";
+export { markHighlightExtension } from "../markdown/mark-highlight.js";
+export { subSupExtension } from "../markdown/subsup.js";
 export {
   collapseDataUris,
   collapseDataUrisPreservingSelection,
@@ -48,6 +53,12 @@ export {
   writeTextFile,
 } from "../lib/fs.js";
 export { stripRemoteMediaAttributes } from "../lib/safe-media-uri.js";
+export {
+  applyLinkTargetAttributes,
+  installMarkdownLinkHooks,
+  isSameDocumentHref,
+  shouldOpenLinkInNewTab,
+} from "../lib/link-targets.js";
 export { loadGoogleDriveConfig } from "../drive/google-drive-config.js";
 export {
   DRIVE_DEFAULT_FOLDER_NAME,

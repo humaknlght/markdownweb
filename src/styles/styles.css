@@ -3522,6 +3522,81 @@ html[data-theme] .preview .markdown-frontmatter-error pre {
   padding-left: 1.5em;
 }
 
+.preview ul:has(> .task-list-item) {
+  list-style: none;
+  padding-left: 0.25em;
+}
+
+.preview li.task-list-item {
+  list-style: none;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.45em;
+}
+
+.preview .task-list-item-checkbox {
+  flex: 0 0 auto;
+  display: inline-block;
+  width: 0.95em;
+  height: 0.95em;
+  margin-top: 0.3em;
+  border: 1.5px solid var(--preview-muted, #6a737d);
+  border-radius: 3px;
+  background: var(--preview-bg, transparent);
+  box-sizing: border-box;
+}
+
+.preview .task-list-item-checkbox[aria-checked="true"] {
+  background: var(--chrome-focus, #0969da);
+  border-color: var(--chrome-focus, #0969da);
+  box-shadow: inset 0 0 0 1px var(--preview-bg, #fff);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='none' stroke='%23fff' stroke-width='2' d='M3.5 8.5l3 3 6-6'/%3E%3C/svg%3E");
+  background-size: 0.75em 0.75em;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+.preview mark {
+  padding: 0.1em 0.25em;
+  border-radius: 0.2em;
+  background: color-mix(in srgb, var(--chrome-focus, #0969da) 22%, transparent);
+  color: inherit;
+}
+
+.preview abbr[title] {
+  text-decoration: underline dotted;
+  cursor: help;
+}
+
+.preview .footnote-ref {
+  font-size: 0.75em;
+  line-height: 0;
+}
+
+.preview .footnote-ref a {
+  text-decoration: none;
+}
+
+.preview section.footnotes {
+  margin-top: 2em;
+  padding-top: 0.25em;
+  font-size: 0.92em;
+  color: var(--preview-muted, #57606a);
+}
+
+.preview section.footnotes > hr {
+  margin: 0 0 1em;
+}
+
+.preview section.footnotes > ol {
+  padding-left: 1.25em;
+}
+
+.preview .footnote-backref {
+  margin-left: 0.25em;
+  text-decoration: none;
+}
+
 .drop-overlay {
   position: fixed;
   inset: 0;

@@ -1,9 +1,15 @@
 import {
+  abbrExtension,
   alertExtension,
   defListExtension,
   emojiExtension,
+  footnoteExtension,
   frontmatterExtension,
+  headingIdExtension,
+  markHighlightExtension,
+  subSupExtension,
   tablePipesExtension,
+  applyLinkTargetAttributes,
   stripRemoteMediaAttributes,
   marked,
   DOMPurify
@@ -19,14 +25,16 @@ marked.use(frontmatterExtension());
 marked.use(emojiExtension());
 marked.use(alertExtension());
 marked.use(defListExtension());
+marked.use(footnoteExtension());
+marked.use(headingIdExtension());
+marked.use(markHighlightExtension());
+marked.use(subSupExtension());
+marked.use(abbrExtension());
 
-// Open all markdown links in a new tab; noopener/noreferrer blocks window.opener abuse.
+// External sites / other pages → new tab (noopener). Same-document `#…` stays in-page.
 // Strip remote media URLs so Accepted Markdown cannot phone home (CSP img-src is the backstop).
 DOMPurify.addHook("afterSanitizeAttributes", (node) => {
-  if ("target" in node) {
-    node.setAttribute("target", "_blank");
-    node.setAttribute("rel", "noopener noreferrer");
-  }
+  applyLinkTargetAttributes(/** @type {Element} */ (node));
   stripRemoteMediaAttributes(/** @type {Element} */ (node));
 });
 
