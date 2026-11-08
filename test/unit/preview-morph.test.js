@@ -81,6 +81,53 @@ describe("morphPreviewHtml", () => {
     assert.equal(pre.getAttribute("data-source-line"), "2");
   });
 
+  it("upgrades plain fenced code when HLJS token spans arrive", () => {
+    // First paint often runs before a lazy grammar loads, so the preview has
+    // escaped text only. The quiet re-paint after load must replace that DOM
+    // even though the visible text is unchanged.
+    preview.innerHTML = [
+      '<pre data-source-line="1"><code class="hljs language-json">',
+      '<span class="code-line"><span class="line-num">1</span>',
+      '<span class="line-src">{"a":1}</span></span>',
+      "</code></pre>",
+    ].join("");
+    const pre = preview.querySelector("pre");
+
+    morphPreviewHtml(
+      preview,
+      [
+        '<pre data-source-line="1"><code class="hljs language-json">',
+        '<span class="code-line"><span class="line-src">',
+        '<span class="hljs-punctuation">{</span>',
+        '<span class="hljs-attr">"a"</span>',
+        '<span class="hljs-punctuation">:</span>',
+        '<span class="hljs-number">1</span>',
+        '<span class="hljs-punctuation">}</span>',
+        "</span></span>",
+        "</code></pre>",
+      ].join(""),
+    );
+
+    assert.equal(preview.querySelector("pre"), pre);
+    assert.ok(preview.querySelector(".hljs-attr"));
+    assert.ok(preview.querySelector(".hljs-number"));
+    assert.equal(preview.querySelector(".hljs-attr").textContent, '"a"');
+  });
+
+  it("updates code language class when a fence tag is added", () => {
+    preview.innerHTML =
+      '<pre data-source-line="1"><code class="hljs"><span class="code-line"><span class="line-num">1</span><span class="line-src">x = 1</span></span></code></pre>';
+
+    morphPreviewHtml(
+      preview,
+      '<pre data-source-line="1"><code class="hljs language-python"><span class="code-line"><span class="line-src"><span class="hljs-title">x</span> = <span class="hljs-number">1</span></span></span></code></pre>',
+    );
+
+    const code = preview.querySelector("code");
+    assert.equal(code.className, "hljs language-python");
+    assert.ok(preview.querySelector(".hljs-number"));
+  });
+
   it("reuses a decoded image inside a paragraph whose text changed", () => {
     preview.innerHTML =
       '<p data-source-line="1">before <img alt="pic" src="pixel.png"> after</p>';
