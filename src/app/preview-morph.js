@@ -150,6 +150,10 @@ function stableClass(el, live) {
 /**
  * Text identity, ignoring editor chrome that is not part of the Markdown HTML
  * (section twisties, code line numbers).
+ *
+ * Stable classes are part of the fingerprint so a quiet re-paint after an HLJS
+ * grammar loads (plain escaped code → `.hljs-*` token spans, or a new
+ * `language-*` class on `<code>`) is not treated as "unchanged" and skipped.
  * @param {Node} node
  * @param {boolean} live
  * @param {(el: Element) => string | undefined} mermaidSource
@@ -171,6 +175,8 @@ function fingerprint(node, live, mermaidSource) {
     return `${el.getAttribute("alt") || ""}\0${el.getAttribute("src") || ""}\0${el.getAttribute("title") || ""}`;
   }
   let out = "";
+  const cls = stableClass(el, live);
+  if (cls) out += `c\0${cls}\0`;
   for (const child of el.childNodes) out += fingerprint(child, live, mermaidSource);
   return out;
 }
