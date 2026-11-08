@@ -131,6 +131,8 @@ export function updateUnsavedFavicon(dirty = hooks.isDirty()) {
 export function canSaveDocument() {
   return (
     fsAccessSupported ||
+    // Opened via showOpenFilePicker — directory picker is not required to Save.
+    Boolean(state.currentFileHandle) ||
     Boolean(state.currentDriveFile) ||
     Boolean(state.currentGistFile) ||
     state.driveConfigured ||

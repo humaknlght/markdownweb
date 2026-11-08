@@ -4,6 +4,8 @@ import { fileURLToPath } from "node:url";
 import { test, expect } from "playwright/test";
 import {
   openFreshApp,
+  preparePage,
+  fillEditor,
   headingText,
   openSettings,
   closeSettings,
@@ -138,7 +140,7 @@ test.describe("editor + render", () => {
     await expect(page.locator("#external-modal")).toBeHidden();
     await expect(page.locator("#save-btn")).not.toHaveClass(/is-dirty/);
 
-    await page.locator("#editor").fill("# Opened\n\nEdited.");
+    await fillEditor(page, "# Opened\n\nEdited.");
     await expect(page.locator("#save-btn")).toHaveClass(/is-dirty/);
     await page.locator("#save-btn").click();
     await expect
@@ -235,7 +237,7 @@ test.describe("editor + render", () => {
     await page.locator("#external-modal .external-modal-accept").click();
     await expect(page.locator("#save-btn")).not.toHaveClass(/is-dirty/);
 
-    await page.locator("#editor").fill("# Conflict\n\nMine.");
+    await fillEditor(page, "# Conflict\n\nMine.");
     await expect(page.locator("#save-btn")).toHaveClass(/is-dirty/);
     await page.evaluate(() => {
       window.__mdBumpDiskMtime = true;
@@ -253,17 +255,12 @@ test.describe("editor + render", () => {
   });
 
   test("first visit loads the GUIDE into the editor", async ({ page }) => {
+    await preparePage(page);
     await page.addInitScript(() => {
       try {
         localStorage.clear();
       } catch {
         /* ignore */
-      }
-      // Headless Chromium lacks File System Access; stub so save-btn dirty styling runs.
-      if (typeof window.showDirectoryPicker !== "function") {
-        window.showDirectoryPicker = async () => {
-          throw new Error("stub");
-        };
       }
     });
     await page.goto("/");
