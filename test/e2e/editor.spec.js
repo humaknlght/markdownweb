@@ -792,11 +792,30 @@ test.describe("editor + render", () => {
     await expect(previewHeading).toBeVisible();
     await expect(previewLocator(page, "h1", { hasText: "After" })).toBeVisible();
 
-    const beforeIn = await zoomDialog.locator("#mermaid-zoom-level").textContent();
+    const zoomSvg = zoomDialog.locator(".mermaid-zoom-stage svg");
+    const before = await zoomSvg.evaluate((svg) => ({
+      level: document.querySelector("#mermaid-zoom-level")?.textContent ?? "",
+      width: svg.getBoundingClientRect().width,
+      transform: getComputedStyle(svg).transform,
+      parentTransform: getComputedStyle(svg.parentElement).transform,
+    }));
+
     await zoomDialog.locator("#mermaid-zoom-in").click();
     await expect
       .poll(async () => zoomDialog.locator("#mermaid-zoom-level").textContent())
-      .not.toBe(beforeIn);
+      .not.toBe(before.level);
+
+    // Viewport resize (not CSS scale) — width grows, no transform blur path.
+    const after = await zoomSvg.evaluate((svg) => ({
+      width: svg.getBoundingClientRect().width,
+      transform: getComputedStyle(svg).transform,
+      parentTransform: getComputedStyle(svg.parentElement).transform,
+      viewBox: svg.getAttribute("viewBox") || "",
+    }));
+    expect(after.viewBox.trim().length).toBeGreaterThan(0);
+    expect(after.width).toBeGreaterThan(before.width + 1);
+    expect(after.transform).toBe("none");
+    expect(after.parentTransform).toBe("none");
 
     await zoomDialog.locator("#mermaid-zoom-close").click();
     await expect(zoomDialog).toBeHidden();

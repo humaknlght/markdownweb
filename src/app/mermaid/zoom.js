@@ -11,11 +11,12 @@ import {
   mermaidZoomCloseBtn
 } from "../state.js";
 import {
-  MERMAID_ZOOM_MIN,
-  MERMAID_ZOOM_MAX,
   MERMAID_ZOOM_STEP,
   MERMAID_ZOOM_BTN_SVG
 } from "../constants.js";
+import { clampMermaidZoom, mermaidZoomViewBox } from "./zoom-utils.js";
+
+export { clampMermaidZoom, mermaidZoomViewBox };
 
 export function ensureMermaidZoomControls(host) {
   if (!host.querySelector(":scope > svg")) {
@@ -32,31 +33,23 @@ export function ensureMermaidZoomControls(host) {
   host.appendChild(btn);
 }
 
-export function clampMermaidZoom(factor) {
-  return Math.min(MERMAID_ZOOM_MAX, Math.max(MERMAID_ZOOM_MIN, factor));
-}
-
 /**
- * Scale via CSS transform (not SVG width). Mermaid labels live in foreignObject
- * HTML — resizing the SVG with style.width leaves font-size at 16px so text
- * looks like dots inside huge shapes (especially Excalidraw sketches).
+ * Scale by SVG viewport width (keep viewBox; height:auto). Avoid CSS
+ * transform: scale — browsers often rasterize that layer and the diagram
+ * looks blurry when zoomed.
  */
 export function applyMermaidZoom() {
-  const scaler = mermaidZoomStage?.querySelector(".mermaid-zoom-scaler");
-  const inner = scaler?.querySelector(".mermaid-zoom-scaler-inner");
-  if (!(scaler instanceof HTMLElement) || !(inner instanceof HTMLElement)) return;
+  const svg = mermaidZoomStage?.querySelector(".mermaid-zoom-scaler > svg");
+  // Don't use instanceof — the node may have been imported from the preview iframe.
+  if (!svg || svg.namespaceURI !== "http://www.w3.org/2000/svg") return;
   if (!(state.mermaidZoomBaseW > 0)) return;
   state.mermaidZoomFactor = clampMermaidZoom(state.mermaidZoomFactor);
   const w = state.mermaidZoomBaseW * state.mermaidZoomFactor;
-  const h =
-    state.mermaidZoomBaseH > 0
-      ? state.mermaidZoomBaseH * state.mermaidZoomFactor
-      : state.mermaidZoomBaseW * state.mermaidZoomFactor;
-  scaler.style.width = `${w}px`;
-  scaler.style.height = `${h}px`;
-  inner.style.width = `${state.mermaidZoomBaseW}px`;
-  inner.style.height = state.mermaidZoomBaseH > 0 ? `${state.mermaidZoomBaseH}px` : "auto";
-  inner.style.transform = `scale(${state.mermaidZoomFactor})`;
+  svg.style.maxWidth = "none";
+  svg.style.width = `${w}px`;
+  svg.style.height = "auto";
+  svg.setAttribute("width", String(Math.round(w)));
+  svg.removeAttribute("height");
   if (mermaidZoomLevel) {
     mermaidZoomLevel.textContent = `${Math.round(state.mermaidZoomFactor * 100)}%`;
   }
@@ -89,32 +82,37 @@ export function openMermaidZoom(host) {
   state.mermaidZoomBaseH = pre.height > 0 ? pre.height : 0;
   state.mermaidZoomFactor = 1;
 
-  const clone = /** @type {SVGElement} */ (srcSvg.cloneNode(true));
-  // Keep viewBox + width; height:auto preserves aspect for foreignObject labels.
-  // Scaling is done on a wrapper via transform (CSS width alone leaves HTML
-  // labels at 16px — tiny "dots" inside enlarged shapes).
+  // Preview lives in a sandboxed iframe — import into the parent document so
+  // the dialog owns the node (cloneNode alone keeps the iframe realm).
+  const clone = /** @type {SVGElement} */ (
+    srcSvg.ownerDocument === document
+      ? srcSvg.cloneNode(true)
+      : document.importNode(srcSvg, true)
+  );
+  // Keep (or synthesize) viewBox; zoom changes display width/height so the
+  // browser re-rasters vectors + foreignObject labels crisply together.
+  clone.setAttribute(
+    "viewBox",
+    mermaidZoomViewBox(srcSvg, state.mermaidZoomBaseW, state.mermaidZoomBaseH),
+  );
   clone.style.maxWidth = "none";
   clone.style.width = `${state.mermaidZoomBaseW}px`;
   clone.style.height = "auto";
   clone.setAttribute("width", String(Math.round(state.mermaidZoomBaseW)));
   clone.removeAttribute("height");
 
-  const inner = document.createElement("div");
-  inner.className = "mermaid-zoom-scaler-inner";
-  inner.appendChild(clone);
-
   const scaler = document.createElement("div");
   scaler.className = "mermaid-zoom-scaler";
-  scaler.appendChild(inner);
+  scaler.appendChild(clone);
 
   mermaidZoomStage.replaceChildren(scaler);
   applyMermaidZoom();
   mermaidZoomDialog.showModal();
 
-  // After layout, remeasure height (height:auto + viewBox) then fit to stage.
+  // After layout, fit to stage width (viewBox keeps aspect via height:auto).
   requestAnimationFrame(() => {
     if (!mermaidZoomDialog?.open) return;
-    const laidOut = inner.querySelector("svg")?.getBoundingClientRect().height;
+    const laidOut = scaler.querySelector("svg")?.getBoundingClientRect().height;
     if (laidOut > 0) state.mermaidZoomBaseH = laidOut;
     fitMermaidZoom();
     mermaidZoomStage.focus({ preventScroll: true });
@@ -185,6 +183,7 @@ export function setupMermaidZoom() {
 
 hooks.ensureMermaidZoomControls = ensureMermaidZoomControls;
 hooks.clampMermaidZoom = clampMermaidZoom;
+hooks.mermaidZoomViewBox = mermaidZoomViewBox;
 hooks.applyMermaidZoom = applyMermaidZoom;
 hooks.fitMermaidZoom = fitMermaidZoom;
 hooks.openMermaidZoom = openMermaidZoom;
