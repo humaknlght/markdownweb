@@ -175,7 +175,7 @@ Install as a PWA when the browser offers it. After install, the app and its libr
 
 ## Supported Markdown
 
-The preview uses **GitHub Flavored Markdown** (GFM), plus Mermaid diagrams, GitHub alert callouts, definition lists, emoji shortcodes / emoticons, and YAML front matter as a metadata table.
+The preview uses **GitHub Flavored Markdown** (GFM), plus Mermaid diagrams, GitHub alert callouts, definition lists, footnotes, heading IDs, highlight / sub / superscript, abbreviations, emoji shortcodes / emoticons, and YAML front matter as a metadata table.
 
 > [!NOTE]
 > Soft line breaks are off: a single newline does **not** become a `<br>`. End a line with two spaces for a hard break, or use a blank line for a new paragraph.
@@ -211,6 +211,16 @@ Heading 2
 ***bold italic***
 ~~strikethrough~~
 ```
+
+Highlight, subscript, and superscript:
+
+```markdown
+==highlighted== or ::highlighted::
+H~2~O
+X^2^
+```
+
+Single-tilde `~word~` (no spaces) is subscript. Use `~~strike~~` for strikethrough; spaced `~like this~` still strikes through.
 
 ### Paragraphs and line breaks
 
@@ -358,6 +368,41 @@ Second Term
 : This is one definition of the second term.
 : This is another definition of the second term.
 
+### Footnotes
+
+```markdown
+Here's a simple footnote,[^1] and here's a longer one.[^bignote]
+
+[^1]: This is the first footnote.
+
+[^bignote]: Here's one with multiple paragraphs and code.
+
+    Indent paragraphs to include them in the footnote.
+```
+
+### Heading IDs
+
+```markdown
+### My Great Heading {#custom-id}
+```
+
+### Abbreviations
+
+```markdown
+*[HTML]: Hyper Text Markup Language
+
+The HTML specification is maintained by the W3C.
+```
+
+### Task lists
+
+```markdown
+- [x] Write the press release
+- [ ] Update the website
+```
+
+Checkboxes are display-only in the preview (not interactive).
+
 ---
 
 ## Mermaid diagrams
@@ -504,10 +549,14 @@ Common ASCII faces convert to emoji when surrounded by whitespace or punctuation
 | YAML front matter (metadata table) | Yes |
 | Emoji shortcodes and emoticons | Yes |
 | Definition lists | Yes |
+| Footnotes | Yes |
+| Heading IDs `{#id}` | Yes |
+| Highlight `==…==` / `::…::` | Yes |
+| Subscript `~…~` / superscript `^…^` | Yes |
+| Abbreviations `*[HTML]: …` | Yes |
 | Inline HTML (sanitized) | Yes |
 | Soft breaks (single newline → `<br>`) | No — use two trailing spaces |
 | Math / LaTeX | No |
-| Footnotes | No |
 
 ---
 
