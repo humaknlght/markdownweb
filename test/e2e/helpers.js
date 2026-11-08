@@ -1,3 +1,5 @@
+import { expect } from "playwright/test";
+
 /**
  * Shared Playwright helpers for Markdown Editor e2e tests.
  * @param {import('playwright/test').Page} page
@@ -11,7 +13,27 @@ export async function preparePage(page, speechOptions = {}) {
         for (const reg of regs) reg.unregister();
       });
     }
+    // Headless Chromium may lack File System Access; stub so `.fs-only` chrome
+    // (Save dirty styling) matches desktop where showDirectoryPicker exists.
+    if (typeof window.showDirectoryPicker !== "function") {
+      window.showDirectoryPicker = async () => {
+        throw new Error("stub");
+      };
+    }
   });
+}
+
+/**
+ * Fill the editor and ensure dirty chrome updates (CI has occasionally dropped
+ * the synthetic `input` event from locator.fill()).
+ * @param {import('playwright/test').Page} page
+ * @param {string} text
+ */
+export async function fillEditor(page, text) {
+  const editor = page.locator("#editor");
+  await editor.fill(text);
+  await expect(editor).toHaveValue(text);
+  await editor.dispatchEvent("input");
 }
 
 /**

@@ -41,6 +41,8 @@ export function setupBootCoreListeners() {
     hooks.renderHistoryMenu();
   });
   editor.addEventListener("input", hooks.onEditorInput);
+  // Some automation paths set .value without a reliable `input` event.
+  editor.addEventListener("change", hooks.onEditorInput);
   editor.addEventListener("beforeinput", hooks.onEditorBeforeInput);
   editor.addEventListener("paste", hooks.onEditorPaste);
   editor.addEventListener("copy", hooks.onEditorCopyOrCut);
