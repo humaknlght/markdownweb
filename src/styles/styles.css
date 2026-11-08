@@ -3079,12 +3079,8 @@ html[data-mermaid-look="handDrawn"] {
 
 .mermaid-zoom-scaler {
   margin: 0 auto;
-  overflow: hidden;
-}
-
-.mermaid-zoom-scaler-inner {
-  transform-origin: top left;
-  will-change: transform;
+  width: max-content;
+  max-width: none;
 }
 
 .mermaid-zoom-stage svg {
