@@ -1,5 +1,6 @@
 import { buildPreviewFrameCsp, PREVIEW_FRAME_CSP } from "./constants.js";
 import { hooks } from "./hooks.js";
+import { measurePreviewFrameContentHeight } from "./preview-frame-height.js";
 import {
   preview,
   previewFrame,
@@ -9,6 +10,7 @@ import {
 } from "./state.js";
 
 export { buildPreviewFrameCsp, PREVIEW_FRAME_CSP };
+export { measurePreviewFrameContentHeight };
 
 const PREVIEW_FRAME_SANDBOX = "allow-same-origin allow-popups";
 
@@ -130,18 +132,11 @@ export function syncPreviewFrameHeight() {
   const frame = previewFrame;
   const doc = frame?.contentDocument;
   if (!frame || !doc?.documentElement) return;
-  const root = doc.documentElement;
-  const body = doc.body;
-  const article = doc.getElementById("preview");
-  const height = Math.max(
-    root?.scrollHeight || 0,
-    body?.scrollHeight || 0,
-    article?.scrollHeight || 0,
-    1,
-  );
+  const height = measurePreviewFrameContentHeight(doc);
   const prevWidth = Number(frame.dataset.mdFrameWidth || 0);
   const nextWidth = frame.getBoundingClientRect().width;
-  frame.style.height = `${height}px`;
+  const nextHeight = `${height}px`;
+  if (frame.style.height !== nextHeight) frame.style.height = nextHeight;
   frame.dataset.mdFrameWidth = String(nextWidth);
   // Width recovery (narrow → readable) must retry Mermaid hosts left pending.
   if (
@@ -377,6 +372,7 @@ function bindPreviewFrameInputBridge(doc) {
 
 hooks.initPreviewFrame = initPreviewFrame;
 hooks.syncPreviewFrameChrome = syncPreviewFrameChrome;
+hooks.measurePreviewFrameContentHeight = measurePreviewFrameContentHeight;
 hooks.syncPreviewFrameHeight = syncPreviewFrameHeight;
 hooks.schedulePreviewFrameHeight = schedulePreviewFrameHeight;
 hooks.bindPreviewMediaHeightSettle = bindPreviewMediaHeightSettle;
