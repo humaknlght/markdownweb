@@ -1,24 +1,22 @@
+import { EDITOR_HIGHLIGHT_MAX } from "./constants.js";
 import { hooks } from "./hooks.js";
 import {
-  state,
+  collapsedSections,
   editor,
   editorHighlight,
   editorHighlightCode,
-  collapsedSections
+  state,
 } from "./state.js";
-import {
-  EDITOR_HIGHLIGHT_MAX
-} from "./constants.js";
 import {
   collapseDataUris,
   collapseDataUrisPreservingSelection,
   collapsedEmbedUriTouched,
+  DOMPurify,
+  escapeHtml,
   expandEmbeds,
   findCollapsedEmbeds,
-  escapeHtml,
   highlightEditorMarkdown,
-  DOMPurify,
-  hljs
+  hljs,
 } from "./vendor-deps.js";
 
 export function updateEditorHighlight() {
@@ -83,7 +81,8 @@ export function syncEditorHighlightScroll({ insets = false } = {}) {
   }
   const left = editor.scrollLeft;
   const top = editor.scrollTop;
-  if (left === state.highlightSyncLeft && top === state.highlightSyncTop) return;
+  if (left === state.highlightSyncLeft && top === state.highlightSyncTop)
+    return;
   state.highlightSyncLeft = left;
   state.highlightSyncTop = top;
   // Translate the highlight content instead of scrolling the layer — keeps
@@ -134,7 +133,8 @@ export function onEditorCopyOrCut(e) {
 
   const selected = editor.value.slice(start, end);
   const expanded = expandEmbeds(selected);
-  const rangeChanged = start !== editor.selectionStart || end !== editor.selectionEnd;
+  const rangeChanged =
+    start !== editor.selectionStart || end !== editor.selectionEnd;
   if (expanded === selected && !rangeChanged) return;
 
   e.clipboardData.setData("text/plain", expanded);
@@ -178,7 +178,8 @@ export function replaceEditorRange(start, end, text, { notify = true } = {}) {
     if (typeof editor.setRangeText === "function") {
       editor.setRangeText(text, from, to, "end");
     } else {
-      editor.value = editor.value.slice(0, from) + text + editor.value.slice(to);
+      editor.value =
+        editor.value.slice(0, from) + text + editor.value.slice(to);
       editor.selectionStart = editor.selectionEnd = from + text.length;
     }
   }

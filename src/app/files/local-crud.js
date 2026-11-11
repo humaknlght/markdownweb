@@ -1,26 +1,21 @@
 import { hooks } from "../hooks.js";
+import { expandedPaths, fsEntries, gistEntries, state } from "../state.js";
 import {
-  state,
-  gistEntries,
-  fsEntries,
-  expandedPaths
-} from "../state.js";
-import {
-  ensureGistAccessToken,
-  moveDraft,
-  createFile,
-  createFolder,
-  readTextFileMeta,
-  removeEntry,
-  renameEntry,
   createDriveFileWithToken,
   createDriveFolderWithToken,
-  renameDriveItemWithToken,
-  trashDriveItemWithToken,
+  createFile,
+  createFolder,
   createPrivateGist,
   deleteGist,
+  ensureGistAccessToken,
   joinFsPath,
-  parentPathOf
+  moveDraft,
+  parentPathOf,
+  readTextFileMeta,
+  removeEntry,
+  renameDriveItemWithToken,
+  renameEntry,
+  trashDriveItemWithToken,
 } from "../vendor-deps.js";
 
 export async function createUntitledDocument() {
@@ -83,7 +78,10 @@ export async function promptCreateFile(target = null) {
       if (!state.gistConnected) return;
       if (!hooks.confirmDiscardIfDirty()) return;
       const token = await ensureGistAccessToken();
-      const created = await createPrivateGist(token, { filename: name, content: "" });
+      const created = await createPrivateGist(token, {
+        filename: name,
+        content: "",
+      });
       await openCreatedEmptyDocument(() =>
         hooks.bindCurrentGistFile({
           gistId: created.id,
@@ -99,7 +97,11 @@ export async function promptCreateFile(target = null) {
       if (!state.driveConnected) return;
       if (!hooks.confirmDiscardIfDirty()) return;
       const parentId = await hooks.resolveDriveCreateParentId(dest);
-      const file = await createDriveFileWithToken({ name, content: "", parentId });
+      const file = await createDriveFileWithToken({
+        name,
+        content: "",
+        parentId,
+      });
       await openCreatedEmptyDocument(() => hooks.bindCurrentDriveFile(file));
       await hooks.refreshActiveFilesTree();
       hooks.showToast(`Created ${name}`);
@@ -114,7 +116,10 @@ export async function promptCreateFile(target = null) {
     const handle = await createFile(dir, name, "");
     const createdMeta = await readTextFileMeta(handle);
     const basePath =
-      dir === state.rootDirHandle ? "" : ([...fsEntries.entries()].find(([, e]) => e.handle === dir)?.[0] ?? "");
+      dir === state.rootDirHandle
+        ? ""
+        : ([...fsEntries.entries()].find(([, e]) => e.handle === dir)?.[0] ??
+          "");
     if (basePath) expandedPaths.add(basePath);
     await hooks.refreshActiveFilesTree();
     const createdPath = joinFsPath(basePath, name);
@@ -140,7 +145,10 @@ export async function promptCreateFolder(target = null) {
     return;
   }
   const dest = normalizeFilesTarget(target);
-  const raw = window.prompt("New folder name", hooks.isDriveFilesSource() ? "untitled" : "");
+  const raw = window.prompt(
+    "New folder name",
+    hooks.isDriveFilesSource() ? "untitled" : "",
+  );
   if (raw == null) return;
   const name = hooks.normalizeEntryName(raw, "directory");
   if (!name) {
@@ -165,7 +173,10 @@ export async function promptCreateFolder(target = null) {
     }
     await createFolder(dir, name);
     const basePath =
-      dir === state.rootDirHandle ? "" : ([...fsEntries.entries()].find(([, e]) => e.handle === dir)?.[0] ?? "");
+      dir === state.rootDirHandle
+        ? ""
+        : ([...fsEntries.entries()].find(([, e]) => e.handle === dir)?.[0] ??
+          "");
     if (basePath) expandedPaths.add(basePath);
     await hooks.refreshActiveFilesTree();
     hooks.showToast(`Created folder ${name}`);
@@ -184,7 +195,8 @@ export async function promptRenameEntry(id) {
   if (next == null) return;
   const finalName = hooks.normalizeEntryName(next, entry.kind);
   if (!finalName) {
-    if (entry.kind === "file") hooks.showToast("Use a .md, .txt, or .html name");
+    if (entry.kind === "file")
+      hooks.showToast("Use a .md, .txt, or .html name");
     return;
   }
   if (finalName === entry.name) return;
@@ -211,9 +223,13 @@ export async function promptRenameEntry(id) {
     }
 
     const fsEntry = fsEntries.get(id);
-    if (!fsEntry || !fsEntry.parent) return;
+    if (!fsEntry?.parent) return;
     const wasCurrent = state.currentFileHandle === fsEntry.handle;
-    const renamed = await renameEntry(fsEntry.parent, fsEntry.handle, finalName);
+    const renamed = await renameEntry(
+      fsEntry.parent,
+      fsEntry.handle,
+      finalName,
+    );
     if (id && expandedPaths.has(id)) {
       expandedPaths.delete(id);
       expandedPaths.add(joinFsPath(parentPathOf(id), finalName));
@@ -222,9 +238,15 @@ export async function promptRenameEntry(id) {
     if (wasCurrent) {
       const renamedPath = joinFsPath(parentPathOf(id), finalName);
       const fromKey = hooks.currentDocKey();
-      hooks.bindCurrentFile(/** @type {FileSystemFileHandle} */ (renamed), finalName, renamedPath);
+      hooks.bindCurrentFile(
+        /** @type {FileSystemFileHandle} */ (renamed),
+        finalName,
+        renamedPath,
+      );
       try {
-        const meta = await readTextFileMeta(/** @type {FileSystemFileHandle} */ (renamed));
+        const meta = await readTextFileMeta(
+          /** @type {FileSystemFileHandle} */ (renamed),
+        );
         hooks.setCurrentFileRevision("fs", meta.lastModified);
       } catch {
         /* keep prior stamp if re-read fails */
@@ -247,7 +269,8 @@ export async function promptRenameEntry(id) {
 export async function promptDeleteEntry(id) {
   const entry = hooks.getActiveTreeEntry(id);
   if (!entry) return;
-  const label = entry.kind === "directory" ? `folder "${entry.name}"` : `"${entry.name}"`;
+  const label =
+    entry.kind === "directory" ? `folder "${entry.name}"` : `"${entry.name}"`;
   const detail = hooks.isGistFilesSource()
     ? "The entire gist will be deleted on GitHub."
     : hooks.isDriveFilesSource()
@@ -261,7 +284,8 @@ export async function promptDeleteEntry(id) {
       if (!entry) return;
       const token = await ensureGistAccessToken();
       await deleteGist(token, entry.gistId);
-      if (state.currentGistFile?.gistId === entry.gistId) hooks.clearCurrentFileBinding();
+      if (state.currentGistFile?.gistId === entry.gistId)
+        hooks.clearCurrentFileBinding();
       await hooks.refreshActiveFilesTree();
       hooks.showToast("Deleted");
       return;
@@ -275,11 +299,15 @@ export async function promptDeleteEntry(id) {
     }
 
     const fsEntry = fsEntries.get(id);
-    if (!fsEntry || !fsEntry.parent) return;
+    if (!fsEntry?.parent) return;
     const currentPath =
-      state.currentFilePath || [...fsEntries.entries()].find(([, e]) => e.handle === state.currentFileHandle)?.[0];
+      state.currentFilePath ||
+      [...fsEntries.entries()].find(
+        ([, e]) => e.handle === state.currentFileHandle,
+      )?.[0];
     const affectsCurrent =
-      Boolean(currentPath) && (currentPath === id || currentPath.startsWith(`${id}/`));
+      Boolean(currentPath) &&
+      (currentPath === id || currentPath.startsWith(`${id}/`));
     await removeEntry(fsEntry.parent, fsEntry.handle.name, true);
     expandedPaths.delete(id);
     for (const p of [...expandedPaths]) {
@@ -287,7 +315,8 @@ export async function promptDeleteEntry(id) {
     }
     await hooks.refreshActiveFilesTree();
     if (affectsCurrent) hooks.clearCurrentFileBinding();
-    if (state.selectedPath === id || state.selectedPath.startsWith(`${id}/`)) hooks.selectFsPath("");
+    if (state.selectedPath === id || state.selectedPath.startsWith(`${id}/`))
+      hooks.selectFsPath("");
     hooks.showToast("Deleted");
   } catch (err) {
     if (err?.name === "AbortError") return;

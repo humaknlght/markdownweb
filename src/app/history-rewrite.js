@@ -1,19 +1,17 @@
-import { hooks } from "./hooks.js";
 import {
-  state
-} from "./state.js";
-import {
-  HISTORY_LIMIT,
   HISTORY_INDEX_VERSION,
-  PATCH_MAX_CHARS
+  HISTORY_LIMIT,
+  PATCH_MAX_CHARS,
 } from "./constants.js";
+import { hooks } from "./hooks.js";
+import { state } from "./state.js";
 import {
-  contentHash,
-  makeRevisionBody,
   clearHistoryBodies,
   commitHistoryBodies,
+  contentHash,
+  makeRevisionBody,
   setHistoryIndex,
-  titleFromMarkdown
+  titleFromMarkdown,
 } from "./vendor-deps.js";
 
 export async function removeHistoryMatching(content) {
@@ -21,9 +19,9 @@ export async function removeHistoryMatching(content) {
   const hash = contentHash(content);
 
   if (!state.historyIdbReady) {
-    const entries = hooks.loadHistoryIndexEntries().filter(
-      (e) => e.content !== content && e.hash !== hash,
-    );
+    const entries = hooks
+      .loadHistoryIndexEntries()
+      .filter((e) => e.content !== content && e.hash !== hash);
     hooks.saveLegacyHistory(entries);
     if (state.lastHistoryContent === content) state.lastHistoryContent = "";
     hooks.renderHistoryMenu();
@@ -104,7 +102,10 @@ export async function rewriteHistoryChain(kept, generation, pruneCandidateIds) {
     const made = makeRevisionBody(prev, c, PATCH_MAX_CHARS);
     revWrites.push({
       id,
-      body: made.kind === "patch" ? { patch: made.patch } : { content: made.content },
+      body:
+        made.kind === "patch"
+          ? { patch: made.patch }
+          : { content: made.content },
     });
     entries.push({
       id,

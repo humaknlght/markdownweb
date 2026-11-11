@@ -1,10 +1,6 @@
-import { hooks } from "./hooks.js";
-import {
-  state,
-  editor,
-  panes
-} from "./state.js";
 import { HISTORY_DEBOUNCE_MS } from "./constants.js";
+import { hooks } from "./hooks.js";
+import { editor, panes, state } from "./state.js";
 import {
   insertCodeBlock,
   insertHorizontalRule,
@@ -12,7 +8,7 @@ import {
   insertLink,
   insertTable,
   prefixLines,
-  wrapInline
+  wrapInline,
 } from "./vendor-deps.js";
 
 export function onEditorInput() {
@@ -32,7 +28,10 @@ export function onEditorInput() {
   hooks.scheduleRevealPreviewForCaret?.({ force: true });
   hooks.updateSaveButton();
   window.clearTimeout(state.historyTimer);
-  state.historyTimer = window.setTimeout(() => void hooks.pushHistory(source), HISTORY_DEBOUNCE_MS);
+  state.historyTimer = window.setTimeout(
+    () => void hooks.pushHistory(source),
+    HISTORY_DEBOUNCE_MS,
+  );
 }
 
 /** Insert text at the caret (replacing any selection). Prefer execCommand so Undo works. */
@@ -54,7 +53,8 @@ export function applyFormatEdit(edit) {
 
 /** @param {string} action @param {{ level?: number }} [opts] */
 export function runFormatAction(action, opts = {}) {
-  if (!hooks.isAuthoringView() || panes.classList.contains("editor-collapsed")) return;
+  if (!hooks.isAuthoringView() || panes.classList.contains("editor-collapsed"))
+    return;
   const value = editor.value;
   const start = editor.selectionStart;
   const end = editor.selectionEnd;
@@ -82,7 +82,9 @@ export function runFormatAction(action, opts = {}) {
       edit = prefixLines(value, start, end, "ordered");
       break;
     case "heading":
-      edit = prefixLines(value, start, end, "heading", { level: opts.level || 2 });
+      edit = prefixLines(value, start, end, "heading", {
+        level: opts.level || 2,
+      });
       break;
     case "image":
     case "image-url":

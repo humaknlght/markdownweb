@@ -1,37 +1,37 @@
-import * as esbuild from "esbuild";
-import { minify as minifyHtml } from "html-minifier-terser";
-import sharp from "sharp";
 import { createHash } from "node:crypto";
-import { gzip as zopfliGzip } from "@gfx/zopfli";
-import { brotliCompressSync, constants as zlibConstants } from "node:zlib";
 import {
-  mkdir,
-  readFile,
-  writeFile,
   copyFile,
+  mkdir,
+  readdir,
+  readFile,
   rm,
   stat,
-  readdir,
+  writeFile,
 } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
-import {
-  inlineScriptHashes,
-  buildScriptSrc,
-  buildDriveHelperScriptSrc,
-  buildDriveHelperContentSecurityPolicy,
-} from "./csp.mjs";
-import {
-  CDN_PRECACHE,
-  buildManifest,
-  buildServiceWorker,
-  precacheVersion,
-} from "./pwa.mjs";
+import { brotliCompressSync, constants as zlibConstants } from "node:zlib";
+import { gzip as zopfliGzip } from "@gfx/zopfli";
+import * as esbuild from "esbuild";
+import { minify as minifyHtml } from "html-minifier-terser";
+import sharp from "sharp";
 import { applyCdnIntegrity, loadCdnIntegrity } from "./cdn-integrity.mjs";
-import { copyGuideTo } from "./sync-guide.mjs";
+import {
+  buildDriveHelperContentSecurityPolicy,
+  buildDriveHelperScriptSrc,
+  buildScriptSrc,
+  inlineScriptHashes,
+} from "./csp.mjs";
 import { createStateHooksManglePlugin } from "./mangle-state-hooks.mjs";
 import { minifyPreviewFrameDocWrite } from "./minify-preview-frame-html.mjs";
+import {
+  buildManifest,
+  buildServiceWorker,
+  CDN_PRECACHE,
+  precacheVersion,
+} from "./pwa.mjs";
+import { copyGuideTo } from "./sync-guide.mjs";
 
 const zopfliGzipAsync = promisify(zopfliGzip);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -39,7 +39,13 @@ const root = path.resolve(__dirname, "..");
 const srcDir = path.join(root, "src");
 const distDir = path.join(root, "dist");
 
-const COMPRESS_EXTENSIONS = new Set([".html", ".css", ".js", ".webmanifest", ".md"]);
+const COMPRESS_EXTENSIONS = new Set([
+  ".html",
+  ".css",
+  ".js",
+  ".webmanifest",
+  ".md",
+]);
 const SCRIPT_SRC_PLACEHOLDER = "__SCRIPT_SRC__";
 const GUIDE_URL_PLACEHOLDER = "__GUIDE_URL__";
 const SW_URL_PLACEHOLDER = "__SW_URL__";
@@ -152,8 +158,14 @@ async function minifyCssFile(fileName, { rewriteFancy } = {}) {
       "url('fancy.avif')",
       "url(fancy.avif)",
     ]) {
-      const quote = pattern.includes('"') ? '"' : pattern.includes("'") ? "'" : "";
-      const next = quote ? `url(${quote}${rewriteFancy}${quote})` : `url(${rewriteFancy})`;
+      const quote = pattern.includes('"')
+        ? '"'
+        : pattern.includes("'")
+          ? "'"
+          : "";
+      const next = quote
+        ? `url(${quote}${rewriteFancy}${quote})`
+        : `url(${rewriteFancy})`;
       css = css.replaceAll(pattern, next);
     }
   }
@@ -173,7 +185,9 @@ async function minifyCssFile(fileName, { rewriteFancy } = {}) {
 }
 
 async function buildCss(fancyFileName) {
-  const styles = await minifyCssFile("styles.css", { rewriteFancy: fancyFileName });
+  const styles = await minifyCssFile("styles.css", {
+    rewriteFancy: fancyFileName,
+  });
   const print = await minifyCssFile("print.css");
   const zen = await minifyCssFile("zen.css");
   return { styles, print, zen };
@@ -221,7 +235,9 @@ async function buildJs(guideUrl, dropsUrl, zenCssUrl) {
   /** @type {Set<string>} */
   const lazyChunkNames = new Set();
 
-  for (const [outPath, meta] of Object.entries(result.metafile?.outputs || {})) {
+  for (const [outPath, meta] of Object.entries(
+    result.metafile?.outputs || {},
+  )) {
     const inputs = Object.keys(meta.inputs || {});
     if (inputs.some((input) => input.includes("theme-zen"))) {
       lazyChunkNames.add(path.basename(outPath));
@@ -345,7 +361,10 @@ async function minifyStaticHtml(html) {
 }
 
 async function buildDriveHelperHtml({ jsName }) {
-  let html = await readFile(path.join(srcDir, "drive-helper", "index.html"), "utf8");
+  let html = await readFile(
+    path.join(srcDir, "drive-helper", "index.html"),
+    "utf8",
+  );
   html = html.replace(
     /src="\.\.\/drive\/drive-helper\.js"/,
     `src="../${jsName}"`,
@@ -483,10 +502,14 @@ async function precompressAssets() {
 async function writeApacheConfig(scriptSrc, guideUrl, driveHelperCsp) {
   let htaccess = await readFile(path.join(root, "public", ".htaccess"), "utf8");
   if (!htaccess.includes(SCRIPT_SRC_PLACEHOLDER)) {
-    throw new Error(`public/.htaccess missing ${SCRIPT_SRC_PLACEHOLDER} placeholder`);
+    throw new Error(
+      `public/.htaccess missing ${SCRIPT_SRC_PLACEHOLDER} placeholder`,
+    );
   }
   if (!htaccess.includes(GUIDE_URL_PLACEHOLDER)) {
-    throw new Error(`public/.htaccess missing ${GUIDE_URL_PLACEHOLDER} placeholder`);
+    throw new Error(
+      `public/.htaccess missing ${GUIDE_URL_PLACEHOLDER} placeholder`,
+    );
   }
   htaccess = htaccess.replaceAll(SCRIPT_SRC_PLACEHOLDER, scriptSrc);
   htaccess = htaccess.replaceAll(GUIDE_URL_PLACEHOLDER, guideUrl);
@@ -507,7 +530,7 @@ async function writeApacheConfig(scriptSrc, guideUrl, driveHelperCsp) {
 
   await writeFile(
     path.join(distDir, "csp.json"),
-    JSON.stringify({ scriptSrc, guideUrl, driveHelperCsp }, null, 2) + "\n"
+    `${JSON.stringify({ scriptSrc, guideUrl, driveHelperCsp }, null, 2)}\n`,
   );
 
   await copyFile(
@@ -553,7 +576,9 @@ async function main() {
     icon512Name: icon512.name,
     swUrl: pwa.swUrl,
   });
-  const driveHelperHtml = await buildDriveHelperHtml({ jsName: js.driveHelper.name });
+  const driveHelperHtml = await buildDriveHelperHtml({
+    jsName: js.driveHelper.name,
+  });
   const privacyHtml = await buildPrivacyHtml();
   await writeApacheConfig(html.scriptSrc, guide.url, driveHelperHtml.csp);
   // Optional host credentials — never required; gitignored when present under src/.
@@ -579,49 +604,53 @@ async function main() {
   console.log(`  index.html     ${formatBytes(html.bytes)}`);
   console.log(`  drive-helper/     ${formatBytes(driveHelperHtml.bytes)}`);
   console.log(`  privacy.html  ${formatBytes(privacyHtml.bytes)}`);
-  console.log(`  ${css.styles.name.padEnd(22)} ${formatBytes(css.styles.bytes)}`);
+  console.log(
+    `  ${css.styles.name.padEnd(22)} ${formatBytes(css.styles.bytes)}`,
+  );
   console.log(`  ${css.print.name.padEnd(22)} ${formatBytes(css.print.bytes)}`);
   console.log(
-    `  ${css.zen.name.padEnd(22)} ${formatBytes(css.zen.bytes)}  (lazy Zen theme)`
+    `  ${css.zen.name.padEnd(22)} ${formatBytes(css.zen.bytes)}  (lazy Zen theme)`,
   );
   console.log(
-    `  ${js.name.padEnd(22)} ${formatBytes(js.bytes)}  (${js.bundledInputs} modules bundled)`
+    `  ${js.name.padEnd(22)} ${formatBytes(js.bytes)}  (${js.bundledInputs} modules bundled)`,
   );
   console.log(
-    `  ${js.driveHelper.name.padEnd(22)} ${formatBytes(js.driveHelper.bytes)}  (Drive helper)`
+    `  ${js.driveHelper.name.padEnd(22)} ${formatBytes(js.driveHelper.bytes)}  (Drive helper)`,
   );
   for (const chunk of js.chunks || []) {
     const tag = chunk.lazy ? "lazy Zen chunk" : "lazy chunk";
-    console.log(`  ${chunk.name.padEnd(22)} ${formatBytes(chunk.bytes)}  (${tag})`);
+    console.log(
+      `  ${chunk.name.padEnd(22)} ${formatBytes(chunk.bytes)}  (${tag})`,
+    );
   }
+  console.log(`  ${guide.name.padEnd(22)} ${formatBytes(guide.bytes)}`);
   console.log(
-    `  ${guide.name.padEnd(22)} ${formatBytes(guide.bytes)}`
-  );
-  console.log(
-    `  ${image.name.padEnd(22)} ${formatBytes(image.after)}  (from ${formatBytes(image.before)})`
+    `  ${image.name.padEnd(22)} ${formatBytes(image.after)}  (from ${formatBytes(image.before)})`,
   );
   console.log(`  ${drops.name.padEnd(22)} ${formatBytes(drops.bytes)}`);
   console.log(
-    `  ${ogImage.name.padEnd(22)} ${formatBytes(ogImage.after)}  (from ${formatBytes(ogImage.before)})`
+    `  ${ogImage.name.padEnd(22)} ${formatBytes(ogImage.after)}  (from ${formatBytes(ogImage.before)})`,
   );
   for (const icon of icons) {
     console.log(
-      `  ${icon.name.padEnd(22)} ${formatBytes(icon.bytes)}  (from ${formatBytes(icon.before)})`
+      `  ${icon.name.padEnd(22)} ${formatBytes(icon.bytes)}  (from ${formatBytes(icon.before)})`,
     );
   }
   console.log(`  manifest.webmanifest`);
   console.log(
-    `  ${pwa.swName.padEnd(22)} cache ${pwa.version} (${pwa.precacheCount} urls)`
+    `  ${pwa.swName.padEnd(22)} cache ${pwa.version} (${pwa.precacheCount} urls)`,
   );
   console.log(`\nCSP script-src: ${html.scriptSrc}`);
   console.log("\nPrecompressed (zopfli gzip + brotli)");
   for (const item of compressed) {
     console.log(
-      `  ${item.name.padEnd(22)} raw ${formatBytes(item.raw)} → gzip ${formatBytes(item.gzip)} / br ${formatBytes(item.brotli)}`
+      `  ${item.name.padEnd(22)} raw ${formatBytes(item.raw)} → gzip ${formatBytes(item.gzip)} / br ${formatBytes(item.brotli)}`,
     );
   }
   console.log("  .htaccess              written with script hash");
-  console.log("\nDone. Deploy the contents of dist/ to your Apache document root.");
+  console.log(
+    "\nDone. Deploy the contents of dist/ to your Apache document root.",
+  );
 }
 
 main().catch((err) => {

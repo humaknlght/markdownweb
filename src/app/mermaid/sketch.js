@@ -68,7 +68,8 @@ export function normalizeMermaidHandDrawnColors(svg) {
         const painted = computed[attr];
         if (!painted || painted === "none") continue;
         if (attr === "fill") {
-          const hadAttr = el.hasAttribute("fill") && el.getAttribute("fill") !== "none";
+          const hadAttr =
+            el.hasAttribute("fill") && el.getAttribute("fill") !== "none";
           if (!hadAttr || raw === "none") continue;
           raw = painted;
         } else {
@@ -83,7 +84,12 @@ export function normalizeMermaidHandDrawnColors(svg) {
       // Unknown low-contrast strokes against the canvas → theme ink. Do NOT remap
       // unknown fills: classDef pastels (#9f6, #f96) are intentionally light and
       // would otherwise be replaced with node-bg (contrast vs canvas is often <3).
-      if (!role && attr === "stroke" && bgRgb && hooks.contrastRatioRgb(rgb, bgRgb) < 3) {
+      if (
+        !role &&
+        attr === "stroke" &&
+        bgRgb &&
+        hooks.contrastRatioRgb(rgb, bgRgb) < 3
+      ) {
         role = "line";
       }
       if (!role) continue;
@@ -135,7 +141,8 @@ export function normalizeMermaidHandDrawnColors(svg) {
   for (const label of svg.querySelectorAll(
     ".nodeLabel, .edgeLabel, .label, .cluster-label, foreignObject div, foreignObject span, foreignObject p",
   )) {
-    if (!(label instanceof HTMLElement) && !(label instanceof SVGElement)) continue;
+    if (!(label instanceof HTMLElement) && !(label instanceof SVGElement))
+      continue;
     const note = Boolean(label.closest?.(".noteText, .note"));
     if (note) {
       label.style.setProperty("color", `var(${varByRole.noteFg})`, "important");
@@ -162,7 +169,10 @@ export function normalizeMermaidHandDrawnColors(svg) {
  */
 export function fitMermaidSvgViewBox(svg, { pad = 8, tighten = false } = {}) {
   if (!(svg instanceof SVGSVGElement)) return;
-  const rawVb = (svg.getAttribute("viewBox") || "").trim().split(/[\s,]+/).map(Number);
+  const rawVb = (svg.getAttribute("viewBox") || "")
+    .trim()
+    .split(/[\s,]+/)
+    .map(Number);
   const hasVb = rawVb.length === 4 && rawVb.every((n) => Number.isFinite(n));
   const vx = hasVb ? rawVb[0] : 0;
   const vy = hasVb ? rawVb[1] : 0;

@@ -1,10 +1,13 @@
-import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
+import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+const root = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "../..",
+);
 
 /** Main + lazy Zen theme CSS (zen Mermaid tokens live in src/styles/zen.css). */
 async function readThemeCss() {
@@ -147,7 +150,11 @@ function parseMermaidTokens(css, theme) {
           /:root\s*,\s*html\[data-theme="github-light"\]\s*\{([\s\S]*?)\n\}/,
           /html\[data-theme="github-light"\]\s*\{([\s\S]*?)\n\}/,
         ]
-      : [new RegExp(`html\\[data-theme="${theme}"\\]\\s*\\{([\\s\\S]*?)\\n\\}`)];
+      : [
+          new RegExp(
+            `html\\[data-theme="${theme}"\\]\\s*\\{([\\s\\S]*?)\\n\\}`,
+          ),
+        ];
 
   let body = null;
   for (const re of patterns) {
@@ -162,7 +169,9 @@ function parseMermaidTokens(css, theme) {
   /** @type {Record<string, string>} */
   const tokens = {};
   for (const name of MERMAID_VARS) {
-    const re = new RegExp(`${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*:\\s*([^;]+);`);
+    const re = new RegExp(
+      `${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*:\\s*([^;]+);`,
+    );
     const m = body.match(re);
     assert.ok(m, `${theme} missing ${name}`);
     tokens[name] = m[1].trim();
@@ -207,16 +216,31 @@ describe("Mermaid theme contrast (WCAG 2.2 AA)", () => {
   });
 
   it("binds Excalidraw/handDrawn paints to theme tokens for WCAG contrast", async () => {
-    const color = await fs.readFile(path.join(root, "src/app/mermaid/color.js"), "utf8");
-    const sketch = await fs.readFile(path.join(root, "src/app/mermaid/sketch.js"), "utf8");
-    const load = await fs.readFile(path.join(root, "src/app/mermaid/load.js"), "utf8");
+    const color = await fs.readFile(
+      path.join(root, "src/app/mermaid/color.js"),
+      "utf8",
+    );
+    const sketch = await fs.readFile(
+      path.join(root, "src/app/mermaid/sketch.js"),
+      "utf8",
+    );
+    const load = await fs.readFile(
+      path.join(root, "src/app/mermaid/load.js"),
+      "utf8",
+    );
     const themeCss = await fs.readFile(
       path.join(root, "src/app/mermaid/theme-css.js"),
       "utf8",
     );
-    const constants = await fs.readFile(path.join(root, "src/app/constants.js"), "utf8");
+    const constants = await fs.readFile(
+      path.join(root, "src/app/constants.js"),
+      "utf8",
+    );
     const mermaid = [color, sketch, load, themeCss, constants].join("\n");
-    const css = await fs.readFile(path.join(root, "src/styles/styles.css"), "utf8");
+    const css = await fs.readFile(
+      path.join(root, "src/styles/styles.css"),
+      "utf8",
+    );
     assert.match(mermaid, /function mermaidThemeVariablesFromCss/);
     assert.match(mermaid, /function normalizeMermaidHandDrawnColors/);
     assert.match(mermaid, /function mermaidTextInkVarForFill/);
@@ -254,14 +278,49 @@ describe("Mermaid theme contrast (WCAG 2.2 AA)", () => {
         ["fg/cluster", c("--mermaid-fg"), c("--mermaid-cluster-bg"), 4.5],
         ["fg/label", c("--mermaid-fg"), c("--mermaid-label-bg"), 4.5],
         ["note-fg/note", c("--mermaid-note-fg"), c("--mermaid-note-bg"), 4.5],
-        ["series-fg/s1", c("--mermaid-series-fg"), c("--mermaid-series-1"), 4.5],
-        ["series-fg/s2", c("--mermaid-series-fg"), c("--mermaid-series-2"), 4.5],
-        ["series-fg/s3", c("--mermaid-series-fg"), c("--mermaid-series-3"), 4.5],
-        ["series-fg/s4", c("--mermaid-series-fg"), c("--mermaid-series-4"), 4.5],
+        [
+          "series-fg/s1",
+          c("--mermaid-series-fg"),
+          c("--mermaid-series-1"),
+          4.5,
+        ],
+        [
+          "series-fg/s2",
+          c("--mermaid-series-fg"),
+          c("--mermaid-series-2"),
+          4.5,
+        ],
+        [
+          "series-fg/s3",
+          c("--mermaid-series-fg"),
+          c("--mermaid-series-3"),
+          4.5,
+        ],
+        [
+          "series-fg/s4",
+          c("--mermaid-series-fg"),
+          c("--mermaid-series-4"),
+          4.5,
+        ],
         // Active gantt bars use border fills; on-bar ink must stay AA.
-        ["active-fg/node-border", c("--mermaid-active-on-node-fg"), c("--mermaid-node-border"), 4.5],
-        ["active-fg/cluster-border", c("--mermaid-active-on-cluster-fg"), c("--mermaid-cluster-border"), 4.5],
-        ["active-fg/line", c("--mermaid-active-on-line-fg"), c("--mermaid-line"), 4.5],
+        [
+          "active-fg/node-border",
+          c("--mermaid-active-on-node-fg"),
+          c("--mermaid-node-border"),
+          4.5,
+        ],
+        [
+          "active-fg/cluster-border",
+          c("--mermaid-active-on-cluster-fg"),
+          c("--mermaid-cluster-border"),
+          4.5,
+        ],
+        [
+          "active-fg/line",
+          c("--mermaid-active-on-line-fg"),
+          c("--mermaid-line"),
+          4.5,
+        ],
         // Outside gantt labels sit on exclude/weekend bands.
         ["fg/exclude", c("--mermaid-fg"), c("--mermaid-exclude"), 4.5],
       ];
@@ -269,7 +328,12 @@ describe("Mermaid theme contrast (WCAG 2.2 AA)", () => {
       // Note stroke uses note-fg (AA vs note-bg), not node-border.
       const uiPairs = [
         ["border/node", c("--mermaid-node-border"), c("--mermaid-node-bg"), 3],
-        ["border/cluster", c("--mermaid-cluster-border"), c("--mermaid-cluster-bg"), 3],
+        [
+          "border/cluster",
+          c("--mermaid-cluster-border"),
+          c("--mermaid-cluster-bg"),
+          3,
+        ],
         ["border/bg", c("--mermaid-node-border"), c("--mermaid-bg"), 3],
         ["line/bg", c("--mermaid-line"), c("--mermaid-bg"), 3],
         ["note-stroke/note", c("--mermaid-note-fg"), c("--mermaid-note-bg"), 3],
@@ -297,7 +361,11 @@ describe("Mermaid theme contrast (WCAG 2.2 AA)", () => {
       fancy["--mermaid-series-3"],
       fancy["--mermaid-series-4"],
     ];
-    assert.equal(new Set(series).size, 4, "fancy series fills must be distinct");
+    assert.equal(
+      new Set(series).size,
+      4,
+      "fancy series fills must be distinct",
+    );
     assert.equal(fancy["--mermaid-gantt-0"], "var(--mermaid-series-1)");
     assert.equal(fancy["--mermaid-gantt-section-opacity"], "0.22");
   });
@@ -310,7 +378,11 @@ describe("Mermaid theme contrast (WCAG 2.2 AA)", () => {
       const op = Number.parseFloat(t["--mermaid-gantt-section-opacity"]);
       assert.ok(op > 0 && op <= 1, `${theme} gantt opacity`);
       const bands = [0, 1, 2, 3].map((i) => c(`--mermaid-gantt-${i}`));
-      assert.equal(new Set(bands).size, 4, `${theme} gantt fills must be distinct`);
+      assert.equal(
+        new Set(bands).size,
+        4,
+        `${theme} gantt fills must be distinct`,
+      );
       const bg = c("--mermaid-bg");
       const fg = c("--mermaid-fg");
       const blends = bands.map((fill) => blendOver(fill, bg, op));
@@ -332,15 +404,23 @@ describe("Mermaid theme contrast (WCAG 2.2 AA)", () => {
   });
 
   it("keeps print/export Mermaid tokens in sync with github-light", async () => {
-    const css = await fs.readFile(path.join(root, "src/styles/styles.css"), "utf8");
+    const css = await fs.readFile(
+      path.join(root, "src/styles/styles.css"),
+      "utf8",
+    );
     const light = parseMermaidTokens(css, "github-light");
-    const print = await fs.readFile(path.join(root, "src/styles/print.css"), "utf8");
+    const print = await fs.readFile(
+      path.join(root, "src/styles/print.css"),
+      "utf8",
+    );
     const exp = await fs.readFile(path.join(root, "src/lib/export.js"), "utf8");
     for (const name of MERMAID_VARS) {
       const esc = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
       const printRe = new RegExp(`${esc}\\s*:\\s*([^;]+);`);
       // export.js keeps defaults in DEFAULT_EXPORT_STYLE_VARS (JS object keys).
-      const exportRe = new RegExp(`"${esc}"\\s*:\\s*("(?:\\\\.|[^"])*"|'(?:\\\\.|[^'])*')`);
+      const exportRe = new RegExp(
+        `"${esc}"\\s*:\\s*("(?:\\\\.|[^"])*"|'(?:\\\\.|[^'])*')`,
+      );
       const p = print.match(printRe);
       const e = exp.match(exportRe);
       assert.ok(p, `print.css missing ${name}`);

@@ -93,12 +93,7 @@ export default function hljsMermaid(hljs) {
       };
     }
     return {
-      match: [
-        /^\s*/m,
-        new RegExp(`(?:${alt})\\b`),
-        /\s+/,
-        /.+$/,
-      ],
+      match: [/^\s*/m, new RegExp(`(?:${alt})\\b`), /\s+/, /.+$/],
       scope: {
         2: "keyword",
         4: "string",
@@ -241,7 +236,7 @@ export default function hljsMermaid(hljs) {
   const FLOWCHART = diagram(/^\s*(?:flowchart|graph)\b/, [
     // Keywords before NODE_SHAPE / IDENT so `subgraph` is not treated as a node id.
     keywords(
-      "subgraph end direction LR RL TB BT TD classDef class click style linkStyle"
+      "subgraph end direction LR RL TB BT TD classDef class click style linkStyle",
     ),
     EDGE_LABEL,
     FLOW_ARROWS,
@@ -273,7 +268,7 @@ export default function hljsMermaid(hljs) {
       ],
     },
     keywords(
-      "loop alt else opt par and critical break rect activate deactivate autonumber box end"
+      "loop alt else opt par and critical break rect activate deactivate autonumber box end",
     ),
     SEQ_ARROWS,
     COLON_STRING,
@@ -347,7 +342,7 @@ export default function hljsMermaid(hljs) {
     lineKeyword("title section", { restAsString: true }),
     lineKeyword(
       "dateFormat axisFormat excludes includes todayMarker tickInterval",
-      { restAsString: true }
+      { restAsString: true },
     ),
     keywords("crit done active after milestone"),
     {
@@ -431,7 +426,7 @@ export default function hljsMermaid(hljs) {
   const QUADRANT = diagram(/^\s*quadrantChart\b/, [
     lineKeyword(
       "title x-axis y-axis quadrant-1 quadrant-2 quadrant-3 quadrant-4",
-      { restAsString: true }
+      { restAsString: true },
     ),
     { className: "number", begin: /\b\d+(?:\.\d+)?\b/ },
   ]);
@@ -442,7 +437,7 @@ export default function hljsMermaid(hljs) {
 
   const REQUIREMENT = diagram(/^\s*requirementDiagram\b/, [
     keywords(
-      "requirement functionalRequirement interfaceRequirement performanceRequirement physicalRequirement designConstraint element id text risk verifymethod type docRef contains copies derives satisfies verifies refines traces"
+      "requirement functionalRequirement interfaceRequirement performanceRequirement physicalRequirement designConstraint element id text risk verifymethod type docRef contains copies derives satisfies verifies refines traces",
     ),
   ]);
 
@@ -450,7 +445,7 @@ export default function hljsMermaid(hljs) {
     /^\s*(?:C4Context|C4Container|C4Component|C4Dynamic|C4Deployment)\b/,
     [
       lineKeyword(
-        "title UpdateElementStyle UpdateRelStyle AddElementTag UpdateLayoutConfig SHOW_LEGEND HIDE_STEREOTYPE LAYOUT_TOP_DOWN LAYOUT_LEFT_RIGHT LAYOUT_LANDSCAPE LAYOUT_WITH_LEGEND"
+        "title UpdateElementStyle UpdateRelStyle AddElementTag UpdateLayoutConfig SHOW_LEGEND HIDE_STEREOTYPE LAYOUT_TOP_DOWN LAYOUT_LEFT_RIGHT LAYOUT_LANDSCAPE LAYOUT_WITH_LEGEND",
       ),
       {
         className: "keyword",
@@ -458,7 +453,7 @@ export default function hljsMermaid(hljs) {
           /\b(?:Person_Ext|Person|SystemDb_Ext|SystemQueue_Ext|System_Ext|SystemDb|SystemQueue|System|ContainerDb_Ext|ContainerQueue_Ext|Container_Ext|ContainerDb|ContainerQueue|Container|ComponentDb_Ext|ComponentQueue_Ext|Component_Ext|ComponentDb|ComponentQueue|Component|Boundary|Enterprise_Boundary|System_Boundary|Container_Boundary|Deployment_Node|Node_L|Node_R|Node|Rel_U|Rel_D|Rel_L|Rel_R|Rel_Up|Rel_Down|Rel_Left|Rel_Right|BiRel|Rel)\b/,
       },
       IDENT,
-    ]
+    ],
   );
 
   const ARCHITECTURE = diagram(/^\s*architecture(?:-beta)?\b/, [

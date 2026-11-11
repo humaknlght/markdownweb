@@ -4,12 +4,8 @@
 import "./constants.js";
 import "./lazy-modules.js";
 import "./hljs-setup.js";
-import {
-  state,
-  installBtn,
-  isStandaloneDisplay,
-} from "./state.js";
 import { hooks } from "./hooks.js";
+import { installBtn, isStandaloneDisplay, state } from "./state.js";
 
 import "./marked-setup.js";
 import "./editor.js";

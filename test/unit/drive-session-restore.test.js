@@ -1,9 +1,9 @@
-import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
+import { afterEach, beforeEach, describe, it } from "node:test";
 import "fake-indexeddb/auto";
 import {
-  DRIVE_TOKEN_SESSION_KEY,
   clearDriveAccessToken,
+  DRIVE_TOKEN_SESSION_KEY,
   getDriveAccessToken,
   setDriveAccessToken,
   tryRestoreDriveAccessToken,

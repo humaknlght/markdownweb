@@ -20,7 +20,11 @@ export function chunkSpeechText(text, maxChars = SPEECH_CHUNK_MAX) {
     if (end < src.length) {
       const window = src.slice(i, end);
       let breakAt = -1;
-      for (let k = window.length - 1; k > Math.floor(window.length * 0.4); k -= 1) {
+      for (
+        let k = window.length - 1;
+        k > Math.floor(window.length * 0.4);
+        k -= 1
+      ) {
         if (/[.!?…]/.test(window[k])) {
           breakAt = k + 1;
           break;
@@ -86,7 +90,8 @@ export function voiceQualityScore(voice) {
 
   if (/\bsiri\b/.test(name)) score += 100;
   if (/\bgoogle\b/.test(name)) score += 90;
-  if (/\b(neural|natural|online|wavenet|studio|superstar)\b/.test(name)) score += 85;
+  if (/\b(neural|natural|online|wavenet|studio|superstar)\b/.test(name))
+    score += 85;
   if (/\b(enhanced|premium|mature)\b/.test(name)) score += 75;
 
   if (
@@ -149,8 +154,12 @@ export function listVoices(voices) {
     }
     const scoreCmp = voiceQualityScore(b) - voiceQualityScore(a);
     if (scoreCmp) return scoreCmp;
-    const langCmp = (a.lang || "").localeCompare(b.lang || "", undefined, { sensitivity: "base" });
+    const langCmp = (a.lang || "").localeCompare(b.lang || "", undefined, {
+      sensitivity: "base",
+    });
     if (langCmp) return langCmp;
-    return (a.name || "").localeCompare(b.name || "", undefined, { sensitivity: "base" });
+    return (a.name || "").localeCompare(b.name || "", undefined, {
+      sensitivity: "base",
+    });
   });
 }

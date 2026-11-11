@@ -74,10 +74,10 @@
   <link rel="icon" type="image/png" sizes="512x512" href="assets/icon-512.png" />
   <script>window.__MD_SW__="__SW_URL__";</script>
   <script>
-    (function () {
-      var root = document.documentElement;
+    (() => {
+      const root = document.documentElement;
       try {
-        var THEMES = {
+        const THEMES = {
           "github-light": 1,
           "github-dark": 1,
           sepia: 1,
@@ -86,9 +86,9 @@
           fancy: 1,
           zen: 1,
         };
-        var params = null;
+        let params = null;
         try {
-          var hash = window.location.hash.slice(1);
+          const hash = window.location.hash.slice(1);
           params = hash
             ? new URLSearchParams(hash)
             : new URLSearchParams(window.location.search);
@@ -102,12 +102,12 @@
           ) {
             params = new URLSearchParams(window.location.search);
           }
-        } catch (e) {
+        } catch (_e) {
           params = new URLSearchParams();
         }
-        var urlTheme = params.get("theme");
-        var saved = localStorage.getItem("md-editor:theme");
-        var theme =
+        const urlTheme = params.get("theme");
+        const saved = localStorage.getItem("md-editor:theme");
+        const theme =
           urlTheme && THEMES[urlTheme]
             ? urlTheme
             : saved && THEMES[saved]
@@ -116,11 +116,11 @@
                 ? "github-dark"
                 : "github-light";
         root.setAttribute("data-theme", theme);
-        var wrap = localStorage.getItem("md-editor:line-wrap");
+        const wrap = localStorage.getItem("md-editor:line-wrap");
         root.setAttribute("data-line-wrap", wrap === "0" ? "off" : "on");
 
-        var urlView = params.get("view");
-        var view =
+        const urlView = params.get("view");
+        const view =
           urlView === "edit" ||
           urlView === "reader" ||
           urlView === "present" ||
@@ -131,14 +131,14 @@
               : "edit";
         root.setAttribute("data-view", view);
 
-        var splitRaw = localStorage.getItem("md-editor:split");
-        var split = splitRaw == null ? 50 : Number(splitRaw);
+        const splitRaw = localStorage.getItem("md-editor:split");
+        let split = splitRaw == null ? 50 : Number(splitRaw);
         if (!Number.isFinite(split)) split = 50;
         if (split < 15) split = 15;
         if (split > 85) split = 85;
-        root.style.setProperty("--split", split + "%");
+        root.style.setProperty("--split", `${split}%`);
 
-        var authoring = view === "edit" || view === "slides";
+        const authoring = view === "edit" || view === "slides";
         if (localStorage.getItem("md-editor:editor-collapsed") === "1") {
           root.setAttribute("data-boot-editor-collapsed", "1");
         }
@@ -149,11 +149,11 @@
           root.setAttribute("data-boot-preview-collapsed", "1");
         }
 
-        var width = localStorage.getItem("md-editor:width");
+        const width = localStorage.getItem("md-editor:width");
         if (width === "readable" || width === "full") {
           root.setAttribute("data-boot-width", width);
         }
-      } catch (e) {
+      } catch (_e) {
         root.setAttribute("data-theme", "github-light");
         root.setAttribute("data-view", "edit");
         root.setAttribute("data-line-wrap", "on");
@@ -165,7 +165,7 @@
         } else {
           localStorage.setItem("md-editor:site-intro-seen", "1");
         }
-      } catch (e) {
+      } catch (_e) {
         /* private mode / blocked storage — leave intro visible */
       }
       // Layout attrs are on <html> before CSS/first paint — safe to show panes.
@@ -283,7 +283,7 @@
                 <path d="M12 7v5l4 2" />
               </svg>
             </button>
-            <ul class="dropdown-menu" id="history-menu" role="listbox" hidden></ul>
+            <div class="dropdown-menu" id="history-menu" role="listbox" hidden></div>
           </div>
         </div>
         <div class="toolbar-cluster toolbar-primary">
@@ -303,23 +303,23 @@
                 <line x1="12" x2="12" y1="15" y2="3" />
               </svg>
             </button>
-            <ul class="dropdown-menu" id="export-menu" role="menu" hidden>
-              <li>
+            <div class="dropdown-menu" id="export-menu" role="menu" hidden>
+              <div>
                 <button type="button" role="menuitem" data-export="html">Export as HTML</button>
-              </li>
-              <li>
+              </div>
+              <div>
                 <button type="button" role="menuitem" data-export="pdf">Export as PDF…</button>
-              </li>
-              <li>
+              </div>
+              <div>
                 <button type="button" role="menuitem" data-export="markdown">Export as Markdown</button>
-              </li>
-              <li>
+              </div>
+              <div>
                 <button type="button" role="menuitem" data-export="docx">Export as DOCX</button>
-              </li>
-              <li>
+              </div>
+              <div>
                 <button type="button" role="menuitem" data-export="rtf">Export as RTF</button>
-              </li>
-            </ul>
+              </div>
+            </div>
           </div>
           <div class="dropdown authoring-only" id="writing-tools-dropdown" hidden>
             <button
@@ -343,17 +343,17 @@
                 <path d="M11 3H9" />
               </svg>
             </button>
-            <ul class="dropdown-menu" id="writing-tools-menu" role="menu" hidden>
-              <li>
+            <div class="dropdown-menu" id="writing-tools-menu" role="menu" hidden>
+              <div>
                 <button type="button" role="menuitem" id="ai-write-menu-btn" data-ai="write">Write…</button>
-              </li>
-              <li>
+              </div>
+              <div>
                 <button type="button" role="menuitem" id="ai-rewrite-menu-btn" data-ai="rewrite">Rewrite…</button>
-              </li>
-              <li>
+              </div>
+              <div>
                 <button type="button" role="menuitem" id="ai-proofread-menu-btn" data-ai="proofread">Proofread…</button>
-              </li>
-            </ul>
+              </div>
+            </div>
           </div>
           <div class="dropdown split-btn" id="speak-dropdown" hidden>
             <div class="split-btn-group" role="group" aria-label="Read aloud">
@@ -403,7 +403,7 @@
                 </svg>
               </button>
             </div>
-            <ul class="dropdown-menu" id="voice-menu" role="listbox" hidden></ul>
+            <div class="dropdown-menu" id="voice-menu" role="listbox" hidden></div>
           </div>
           <button type="button" class="btn reader-only" id="edit-view-btn" title="Open in editor">
             <svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
@@ -441,23 +441,23 @@
                 </svg>
               </button>
             </div>
-            <ul class="dropdown-menu" id="view-mode-menu" role="menu" hidden>
-              <li class="view-mode-overflow-only">
+            <div class="dropdown-menu" id="view-mode-menu" role="menu" hidden>
+              <div class="view-mode-overflow-only">
                 <button type="button" role="menuitem" data-view="edit" id="edit-mode-menu-btn">
                   <span class="item-title">Edit</span>
                 </button>
-              </li>
-              <li class="view-mode-overflow-only">
+              </div>
+              <div class="view-mode-overflow-only">
                 <button type="button" role="menuitem" data-view="slides" id="slides-mode-menu-btn">
                   <span class="item-title">Slides</span>
                 </button>
-              </li>
-              <li>
+              </div>
+              <div>
                 <button type="button" role="menuitem" data-view="present" id="present-menu-btn">
                   <span class="item-title">Present</span>
                 </button>
-              </li>
-            </ul>
+              </div>
+            </div>
           </div>
           <button type="button" class="btn reader-only" id="present-view-btn" title="Present">
             <svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
@@ -715,7 +715,7 @@
             <button type="button" class="btn btn-spin-border" id="files-regrant-btn">Allow access</button>
             <button type="button" class="btn" id="files-reopen-btn">Choose folder</button>
           </div>
-          <ul class="files-tree" id="files-tree" role="tree" hidden></ul>
+          <div class="files-tree" id="files-tree" role="tree" hidden></div>
         </div>
       </section>
       <section class="files-drawer-section outline-section" data-drawer-section="outline" aria-labelledby="outline-title">
@@ -760,14 +760,14 @@
                   </svg>
                 </button>
               </div>
-              <ul class="dropdown-menu" id="heading-menu" role="menu" hidden>
-                <li><button type="button" role="menuitem" data-format="heading" data-heading-level="1"><span class="item-title">Heading 1</span></button></li>
-                <li><button type="button" role="menuitem" data-format="heading" data-heading-level="2"><span class="item-title">Heading 2</span></button></li>
-                <li><button type="button" role="menuitem" data-format="heading" data-heading-level="3"><span class="item-title">Heading 3</span></button></li>
-                <li><button type="button" role="menuitem" data-format="heading" data-heading-level="4"><span class="item-title">Heading 4</span></button></li>
-                <li><button type="button" role="menuitem" data-format="heading" data-heading-level="5"><span class="item-title">Heading 5</span></button></li>
-                <li><button type="button" role="menuitem" data-format="heading" data-heading-level="6"><span class="item-title">Heading 6</span></button></li>
-              </ul>
+              <div class="dropdown-menu" id="heading-menu" role="menu" hidden>
+                <div><button type="button" role="menuitem" data-format="heading" data-heading-level="1"><span class="item-title">Heading 1</span></button></div>
+                <div><button type="button" role="menuitem" data-format="heading" data-heading-level="2"><span class="item-title">Heading 2</span></button></div>
+                <div><button type="button" role="menuitem" data-format="heading" data-heading-level="3"><span class="item-title">Heading 3</span></button></div>
+                <div><button type="button" role="menuitem" data-format="heading" data-heading-level="4"><span class="item-title">Heading 4</span></button></div>
+                <div><button type="button" role="menuitem" data-format="heading" data-heading-level="5"><span class="item-title">Heading 5</span></button></div>
+                <div><button type="button" role="menuitem" data-format="heading" data-heading-level="6"><span class="item-title">Heading 6</span></button></div>
+              </div>
             </div>
           </div>
           <div class="format-bar-sep" aria-hidden="true"></div>
@@ -834,9 +834,9 @@
                   </svg>
                 </button>
               </div>
-              <ul class="dropdown-menu" id="image-menu" role="menu" hidden>
-                <li><button type="button" role="menuitem" data-format="image-url"><span class="item-title">From URL…</span></button></li>
-              </ul>
+              <div class="dropdown-menu" id="image-menu" role="menu" hidden>
+                <div><button type="button" role="menuitem" data-format="image-url"><span class="item-title">From URL…</span></button></div>
+              </div>
             </div>
             <button type="button" class="btn svg-btn format-btn" data-format="code-block" title="Code block" aria-label="Code block">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
@@ -878,13 +878,13 @@
                 <span class="circle"></span>
               </span>
             </button>
-            <ul class="dropdown-menu" id="format-more-menu" role="menu" hidden>
-              <li><button type="button" role="menuitem" data-format="image-file"><span class="item-title">Image from file…</span></button></li>
-              <li><button type="button" role="menuitem" data-format="image-url"><span class="item-title">Image URL…</span></button></li>
-              <li><button type="button" role="menuitem" data-format="code-block"><span class="item-title">Code block</span></button></li>
-              <li><button type="button" role="menuitem" data-format="table"><span class="item-title">Table</span></button></li>
-              <li><button type="button" role="menuitem" data-format="hr"><span class="item-title">Horizontal rule</span></button></li>
-            </ul>
+            <div class="dropdown-menu" id="format-more-menu" role="menu" hidden>
+              <div><button type="button" role="menuitem" data-format="image-file"><span class="item-title">Image from file…</span></button></div>
+              <div><button type="button" role="menuitem" data-format="image-url"><span class="item-title">Image URL…</span></button></div>
+              <div><button type="button" role="menuitem" data-format="code-block"><span class="item-title">Code block</span></button></div>
+              <div><button type="button" role="menuitem" data-format="table"><span class="item-title">Table</span></button></div>
+              <div><button type="button" role="menuitem" data-format="hr"><span class="item-title">Horizontal rule</span></button></div>
+            </div>
           </div>
           <input
             type="file"
@@ -909,6 +909,9 @@
         id="splitter"
         role="separator"
         aria-orientation="vertical"
+        aria-valuemin="15"
+        aria-valuemax="85"
+        aria-valuenow="50"
         aria-label="Resize editor and preview"
         tabindex="0"
       ></div>
@@ -941,12 +944,12 @@
     </main>
   </div>
 
-  <ul class="files-context-menu dropdown-menu" id="files-context-menu" role="menu" hidden>
-    <li><button type="button" role="menuitem" data-fs-action="new-file">New file</button></li>
-    <li><button type="button" role="menuitem" data-fs-action="new-folder">New folder</button></li>
-    <li><button type="button" role="menuitem" data-fs-action="rename">Rename</button></li>
-    <li><button type="button" role="menuitem" data-fs-action="delete">Delete</button></li>
-  </ul>
+  <div class="files-context-menu dropdown-menu" id="files-context-menu" role="menu" hidden>
+    <div><button type="button" role="menuitem" data-fs-action="new-file">New file</button></div>
+    <div><button type="button" role="menuitem" data-fs-action="new-folder">New folder</button></div>
+    <div><button type="button" role="menuitem" data-fs-action="rename">Rename</button></div>
+    <div><button type="button" role="menuitem" data-fs-action="delete">Delete</button></div>
+  </div>
 
   <div class="drop-overlay" id="drop-overlay" hidden aria-hidden="true">
     <p class="drop-overlay-card">Drop a Markdown file to load it</p>
@@ -1151,7 +1154,15 @@
       <button type="button" class="btn" id="mermaid-zoom-reset" title="Reset zoom" aria-label="Reset zoom">Reset</button>
       <button type="button" class="btn" id="mermaid-zoom-close" title="Close" aria-label="Close">Close</button>
     </div>
-    <div class="mermaid-zoom-stage" id="mermaid-zoom-stage" tabindex="0"></div>
+    <!-- biome-ignore-start lint/a11y/noNoninteractiveTabindex: role=application zoom surface; focused on open -->
+    <div
+      class="mermaid-zoom-stage"
+      id="mermaid-zoom-stage"
+      role="application"
+      aria-label="Diagram zoom view"
+      tabindex="0"
+    ></div>
+    <!-- biome-ignore-end lint/a11y/noNoninteractiveTabindex: role=application zoom surface; focused on open -->
   </dialog>
 
   <div class="toast" id="toast" hidden role="status"></div>

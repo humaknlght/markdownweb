@@ -68,77 +68,110 @@ export async function clearAppStorage(page) {
  * @param {{ cloudOnly?: boolean }} [options]
  */
 export async function stubSpeechSynthesis(page, options = {}) {
-  await page.addInitScript((opts) => {
-    const voices = opts.cloudOnly
-      ? [
-          {
-            name: "Google US English",
-            lang: "en-US",
-            localService: false,
-            voiceURI: "test-google",
-            default: true,
-          },
-        ]
-      : [
-          {
-            name: "Samantha",
-            lang: "en-US",
-            localService: true,
-            voiceURI: "test-samantha",
-            default: true,
-          },
-        ];
-    /** @type {any} */
-    let currentUtterance = null;
-    const synth = {
-      speaking: false,
-      pending: false,
-      paused: false,
-      getVoices: () => voices,
-      speak(utterance) {
-        currentUtterance = utterance;
-        this.speaking = true;
-        this.paused = false;
-        queueMicrotask(() => utterance.onstart?.(new Event("start")));
-        queueMicrotask(() => {
-          utterance.onboundary?.(
-            Object.assign(new Event("boundary"), {
+  await page.addInitScript(
+    (opts) => {
+      const voices = opts.cloudOnly
+        ? [
+            {
+              name: "Google US English",
+              lang: "en-US",
+              localService: false,
+              voiceURI: "test-google",
+              default: true,
+            },
+          ]
+        : [
+            {
+              name: "Samantha",
+              lang: "en-US",
+              localService: true,
+              voiceURI: "test-samantha",
+              default: true,
+            },
+          ];
+      /** @type {any} */
+      let currentUtterance = null;
+      const synth = {
+        speaking: false,
+        pending: false,
+        paused: false,
+        getVoices: () => voices,
+        speak(utterance) {
+          currentUtterance = utterance;
+          this.speaking = true;
+          this.paused = false;
+          queueMicrotask(() => {
+            utterance.onstart?.(new Event("start"));
+            utterance.dispatchEvent?.(new Event("start"));
+          });
+          queueMicrotask(() => {
+            const boundary = Object.assign(new Event("boundary"), {
               name: "word",
               charIndex: 0,
               charLength: 4,
-            }),
-          );
-        });
-        // Stay "speaking" until cancel — matches a long utterance for aria-pressed checks.
-      },
-      cancel() {
-        this.speaking = false;
-        this.paused = false;
-        if (currentUtterance?.onend) currentUtterance.onend(new Event("end"));
-        currentUtterance = null;
-      },
-      pause() {
-        this.paused = true;
-      },
-      resume() {
-        this.paused = false;
-      },
-      addEventListener() {},
-      removeEventListener() {},
-    };
-    Object.defineProperty(window, "speechSynthesis", {
-      configurable: true,
-      value: synth,
-    });
-    window.SpeechSynthesisUtterance = function SpeechSynthesisUtterance(text) {
-      this.text = text;
-      this.voice = null;
-      this.onstart = null;
-      this.onend = null;
-      this.onerror = null;
-      this.onboundary = null;
-    };
-  }, { cloudOnly: Boolean(options.cloudOnly) });
+            });
+            utterance.onboundary?.(boundary);
+            utterance.dispatchEvent?.(boundary);
+          });
+          // Stay "speaking" until cancel — matches a long utterance for aria-pressed checks.
+        },
+        cancel() {
+          this.speaking = false;
+          this.paused = false;
+          // Prefer canceled/interrupted error (app ignores those) over onend,
+          // which would advance the queue and clear aria-pressed immediately.
+          const u = currentUtterance;
+          currentUtterance = null;
+          if (!u) return;
+          const err = Object.assign(new Event("error"), {
+            error: "canceled",
+          });
+          u.onerror?.(err);
+          u.dispatchEvent?.(err);
+        },
+        pause() {
+          this.paused = true;
+        },
+        resume() {
+          this.paused = false;
+        },
+        addEventListener() {},
+        removeEventListener() {},
+      };
+      Object.defineProperty(window, "speechSynthesis", {
+        configurable: true,
+        value: synth,
+      });
+      window.SpeechSynthesisUtterance = function SpeechSynthesisUtterance(
+        text,
+      ) {
+        this.text = text;
+        this.voice = null;
+        this.onstart = null;
+        this.onend = null;
+        this.onerror = null;
+        this.onboundary = null;
+        // App code uses addEventListener("boundary", …); mirror EventTarget.
+        this._listeners = Object.create(null);
+        this.addEventListener = (type, fn) => {
+          if (!this._listeners[type]) this._listeners[type] = [];
+          this._listeners[type].push(fn);
+        };
+        this.removeEventListener = (type, fn) => {
+          const list = this._listeners[type];
+          if (!list) return;
+          const i = list.indexOf(fn);
+          if (i >= 0) list.splice(i, 1);
+        };
+        this.dispatchEvent = (event) => {
+          for (const fn of this._listeners[event?.type] || [])
+            fn.call(this, event);
+          return true;
+        };
+      };
+    },
+    { cloudOnly: Boolean(options.cloudOnly) },
+  );
 }
 
 /**
@@ -172,7 +205,9 @@ export async function openFreshApp(page, path = "/", speechOptions = {}) {
  * @param {import('playwright/test').Page} page
  */
 export async function waitForAppReady(page) {
-  await page.waitForFunction(() => !document.documentElement.classList.contains("is-booting"));
+  await page.waitForFunction(
+    () => !document.documentElement.classList.contains("is-booting"),
+  );
   await page.locator("#editor").waitFor({ state: "attached" });
   // Sandboxed preview article is created in initPreviewFrame().
   await page.waitForFunction(() => {
@@ -182,7 +217,7 @@ export async function waitForAppReady(page) {
   // Initial markdown paint is async (yield + marked); wait until it settles.
   await page.waitForFunction(() => {
     const pane = document.getElementById("preview-pane");
-    return !pane || pane.getAttribute("aria-busy") !== "true";
+    return pane?.getAttribute("aria-busy") !== "true";
   });
 }
 
@@ -205,7 +240,6 @@ export function previewLocator(page, selector = "", options) {
   if (!selector) return root;
   return options ? root.locator(selector, options) : root.locator(selector);
 }
-
 
 /**
  * Accept the external-content dialog if it is open.
@@ -237,9 +271,9 @@ export async function headingText(locator) {
  */
 export async function openSettings(page) {
   const overflowBtn = page.locator("#overflow-btn");
-  const open = await page.locator("#toolbar-menu").evaluate((el) =>
-    el.classList.contains("is-open"),
-  );
+  const open = await page
+    .locator("#toolbar-menu")
+    .evaluate((el) => el.classList.contains("is-open"));
   if (!open) await overflowBtn.click();
   await page.locator("#theme-select").waitFor({ state: "visible" });
 }
@@ -249,9 +283,9 @@ export async function openSettings(page) {
  * @param {import('playwright/test').Page} page
  */
 export async function closeSettings(page) {
-  const open = await page.locator("#toolbar-menu").evaluate((el) =>
-    el.classList.contains("is-open"),
-  );
+  const open = await page
+    .locator("#toolbar-menu")
+    .evaluate((el) => el.classList.contains("is-open"));
   if (!open) return;
   await page.locator("#overflow-btn").click();
   await page.locator("#theme-select").waitFor({ state: "hidden" });

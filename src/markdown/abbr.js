@@ -36,7 +36,7 @@ export function findAbbrDefStart(src) {
   const lines = src.split(/\r?\n/);
   let offset = 0;
   for (let i = 0; i < lines.length; i++) {
-    if (DEF_RE.test(lines[i] + "\n") || /^\*\[[^\]]+\]:\s+\S/.test(lines[i])) {
+    if (DEF_RE.test(`${lines[i]}\n`) || /^\*\[[^\]]+\]:\s+\S/.test(lines[i])) {
       return offset;
     }
     offset += lines[i].length;
@@ -62,7 +62,7 @@ export function applyAbbreviations(html, map = abbrs) {
   }));
 
   let skipDepth = 0;
-  return html.replace(/(<[^>]+>)|([^<]+)/g, (whole, tag, text) => {
+  return html.replace(/(<[^>]+>)|([^<]+)/g, (_whole, tag, text) => {
     if (tag) {
       if (/^<\/(?:code|pre|kbd|samp|abbr)\b/i.test(tag)) {
         skipDepth = Math.max(0, skipDepth - 1);

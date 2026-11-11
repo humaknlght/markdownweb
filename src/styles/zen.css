@@ -172,7 +172,7 @@ html[data-theme="zen"] .toolbar-actions {
 
 html[data-theme="zen"] .btn:hover,
 html[data-theme="zen"] .select-label select:hover,
-html[data-theme="zen"] .dropdown-menu li button:hover {
+html[data-theme="zen"] .dropdown-menu > div > button:hover {
   background: rgba(255, 255, 255, 0.2);
 }
 
@@ -302,26 +302,27 @@ html[data-theme="zen"] #install-btn:not([hidden]) {
   background:
     linear-gradient(var(--install-fill), var(--install-fill)) padding-box,
     conic-gradient(
-        from var(--install-angle),
-        var(--install-grad-a),
-        var(--install-grad-b),
-        var(--install-grad-a)
-      )
-      border-box;
+      from var(--install-angle),
+      var(--install-grad-a),
+      var(--install-grad-b),
+      var(--install-grad-a)
+    )
+    border-box;
 }
 
 html[data-theme="zen"] .btn.btn-spin-border:hover,
 html[data-theme="zen"] #install-btn:not([hidden]):hover {
   color: var(--install-fg);
   background:
-    linear-gradient(var(--install-fill-hover), var(--install-fill-hover)) padding-box,
+    linear-gradient(var(--install-fill-hover), var(--install-fill-hover))
+    padding-box,
     conic-gradient(
-        from var(--install-angle),
-        var(--install-grad-a),
-        var(--install-grad-b),
-        var(--install-grad-a)
-      )
-      border-box;
+      from var(--install-angle),
+      var(--install-grad-a),
+      var(--install-grad-b),
+      var(--install-grad-a)
+    )
+    border-box;
 }
 
 html[data-theme="zen"] .files-drawer {
@@ -412,7 +413,19 @@ html[data-wco][data-theme="zen"] .toolbar {
   app-region: drag;
 }
 
-html[data-wco][data-theme="zen"] .toolbar :is(a, button, input, select, textarea, label, .brand, .dropdown-menu, .toolbar-actions) {
+html[data-wco][data-theme="zen"]
+  .toolbar
+  :is(
+    a,
+    button,
+    input,
+    select,
+    textarea,
+    label,
+    .brand,
+    .dropdown-menu,
+    .toolbar-actions
+  ) {
   -webkit-app-region: no-drag;
   app-region: no-drag;
 }

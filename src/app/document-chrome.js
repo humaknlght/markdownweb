@@ -1,9 +1,9 @@
 import { hooks } from "./hooks.js";
 import {
-  state,
-  saveBtn,
   fsAccessSupported,
-  isStandaloneDisplay
+  isStandaloneDisplay,
+  saveBtn,
+  state,
 } from "./state.js";
 
 export function appBadgeNeedsNotificationPermission() {

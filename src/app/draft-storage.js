@@ -1,17 +1,15 @@
-import { hooks } from "./hooks.js";
 import {
-  state
-} from "./state.js";
-import {
-  STORAGE_KEYS,
   EMERGENCY_LS_MAX,
-  STORAGE_CHANNEL
+  STORAGE_CHANNEL,
+  STORAGE_KEYS,
 } from "./constants.js";
+import { hooks } from "./hooks.js";
+import { state } from "./state.js";
 import {
   getDraft,
+  parseDraftMirror,
   requestPersistentStorage,
   setDraft,
-  parseDraftMirror
 } from "./vendor-deps.js";
 
 export function currentDocKey() {
@@ -114,7 +112,12 @@ export function setupStorageSync() {
 }
 
 export function flushStorageBestEffort() {
-  if (state.contentIsExternal || state.applyingRemoteStorage || state.guideSession) return;
+  if (
+    state.contentIsExternal ||
+    state.applyingRemoteStorage ||
+    state.guideSession
+  )
+    return;
   const source = hooks.getMarkdownSource();
   const docKey = currentDocKey();
   mirrorDraftToLocalStorage(source, docKey);
@@ -126,7 +129,8 @@ export async function onRemoteStorageChange(mirrorRaw) {
   state.applyingRemoteStorage = true;
   try {
     hooks.renderHistoryMenu();
-    if (state.contentIsExternal || state.guideSession || hooks.isDirty()) return;
+    if (state.contentIsExternal || state.guideSession || hooks.isDirty())
+      return;
     const myKey = currentDocKey();
     let remote = null;
     let remoteKey = null;

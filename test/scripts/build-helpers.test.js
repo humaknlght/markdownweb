@@ -1,5 +1,10 @@
-import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { describe, it } from "node:test";
+import { fileURLToPath } from "node:url";
+import { applyCdnIntegrity } from "../../scripts/cdn-integrity.mjs";
 import {
   buildContentSecurityPolicy,
   buildDriveHelperContentSecurityPolicy,
@@ -9,19 +14,18 @@ import {
   inlineScriptHashes,
   sha256Base64,
 } from "../../scripts/csp.mjs";
+import { minifyPreviewFrameDocWrite } from "../../scripts/minify-preview-frame-html.mjs";
 import {
-  CDN_PRECACHE,
-  DEV_PRECACHE,
-  ICON_FILES,
   buildDevServiceWorker,
   buildManifest,
   buildServiceWorker,
+  CDN_PRECACHE,
+  DEV_PRECACHE,
+  ICON_FILES,
   isDriveHelperPath,
   isMutableShellPath,
   precacheVersion,
 } from "../../scripts/pwa.mjs";
-import { applyCdnIntegrity } from "../../scripts/cdn-integrity.mjs";
-import { copyGuideTo, guideSourcePath } from "../../scripts/sync-guide.mjs";
 import {
   headersFor,
   isInsideRoot,
@@ -31,14 +35,13 @@ import {
   strongEtag,
   toHttpDate,
 } from "../../scripts/serve-utils.mjs";
-import fs from "node:fs/promises";
-import os from "node:os";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { copyGuideTo, guideSourcePath } from "../../scripts/sync-guide.mjs";
 import { usedIdents } from "../../scripts/trim-unused-imports.mjs";
-import { minifyPreviewFrameDocWrite } from "../../scripts/minify-preview-frame-html.mjs";
 
-const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+const repoRoot = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "../..",
+);
 
 describe("minify-preview-frame-html.mjs", () => {
   it("minifies the doc.write HTML shell and keeps interpolations", async () => {
@@ -66,6 +69,7 @@ describe("minify-preview-frame-html.mjs", () => {
 
 describe("trim-unused-imports.mjs", () => {
   it("counts identifiers inside template literal expressions", () => {
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: fixture source for usedIdents
     const used = usedIdents("export const x = `/${FOO}`;\n");
     assert.equal(used.has("FOO"), true);
   });
@@ -81,16 +85,25 @@ describe("trim-unused-imports.mjs", () => {
 
 describe("csp.mjs", () => {
   it("extracts inline scripts and ignores src scripts", () => {
-    assert.deepEqual(extractInlineScripts('<script>alert(1)</script>'), ["alert(1)"]);
+    assert.deepEqual(extractInlineScripts("<script>alert(1)</script>"), [
+      "alert(1)",
+    ]);
     assert.deepEqual(extractInlineScripts('<script src="a.js"></script>'), []);
-    assert.deepEqual(extractInlineScripts('<script type="module">x</script>'), ["x"]);
+    assert.deepEqual(extractInlineScripts('<script type="module">x</script>'), [
+      "x",
+    ]);
     // HTML5-tolerated end tags (whitespace / junk before `>`).
     assert.deepEqual(extractInlineScripts("<script>y</script >"), ["y"]);
-    assert.deepEqual(extractInlineScripts('<script>z</script foo="bar">'), ["z"]);
+    assert.deepEqual(extractInlineScripts('<script>z</script foo="bar">'), [
+      "z",
+    ]);
   });
 
   it("hashes SHA-256 in base64", () => {
-    assert.equal(sha256Base64(""), "47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=");
+    assert.equal(
+      sha256Base64(""),
+      "47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=",
+    );
   });
 
   it("builds script-src and full CSP", () => {
@@ -119,7 +132,6 @@ describe("csp.mjs", () => {
     assert.doesNotMatch(csp, /oauth2\.googleapis\.com/);
     assert.doesNotMatch(csp, /docs\.google\.com/);
   });
-
 });
 
 describe("cdn-integrity.mjs", () => {
@@ -144,7 +156,9 @@ describe("cdn-integrity.mjs", () => {
     assert.match(out, /integrity="sha384-new"/);
     assert.doesNotMatch(out, /sha384-old/);
     // Injected import map must be compact JSON (no pretty-print whitespace).
-    const mapBody = out.match(/<script type="importmap">([\s\S]*?)<\/script>/)[1];
+    const mapBody = out.match(
+      /<script type="importmap">([\s\S]*?)<\/script>/,
+    )[1];
     assert.equal(mapBody, JSON.stringify(map));
   });
 });
@@ -158,7 +172,10 @@ describe("pwa.mjs", () => {
         return url.protocol === "https:" && url.hostname === "cdn.jsdelivr.net";
       }),
     );
-    assert.deepEqual(ICON_FILES, ["assets/icon-192.png", "assets/icon-512.png"]);
+    assert.deepEqual(ICON_FILES, [
+      "assets/icon-192.png",
+      "assets/icon-512.png",
+    ]);
   });
 
   it("builds a standalone manifest with file handlers", () => {
@@ -263,7 +280,10 @@ describe("serve-utils", () => {
   it("blocks path traversal and maps / to index.html", () => {
     const root = "/tmp/test-root";
     assert.equal(safeResolve("/", root), path.join(root, "index.html"));
-    assert.equal(safeResolve("/styles.css", root), path.join(root, "styles.css"));
+    assert.equal(
+      safeResolve("/styles.css", root),
+      path.join(root, "styles.css"),
+    );
     assert.equal(safeResolve("/../secret", root), null);
     assert.equal(safeResolve("/foo/../../etc/passwd", root), null);
     assert.equal(safeResolve("/%2e%2e/secret", root), null);
@@ -289,7 +309,9 @@ describe("serve-utils", () => {
     assert.equal(html.Link, "<./GUIDE.md>;rel=prefetch");
     assert.equal(html["Content-Encoding"], undefined);
 
-    const br = headersFor("/index.html", "br", { htmlHeaders: { "Cache-Control": "no-cache" } });
+    const br = headersFor("/index.html", "br", {
+      htmlHeaders: { "Cache-Control": "no-cache" },
+    });
     assert.equal(br["Content-Encoding"], "br");
 
     assert.equal(headersFor("/sw.js", null)["Cache-Control"], "no-cache");
@@ -298,7 +320,10 @@ describe("serve-utils", () => {
       "public, max-age=31536000, immutable",
     );
     assert.equal(headersFor("/app.js", null)["Cache-Control"], "no-cache");
-    assert.equal(headersFor("/markdown-utils.js", null)["Cache-Control"], "no-cache");
+    assert.equal(
+      headersFor("/markdown-utils.js", null)["Cache-Control"],
+      "no-cache",
+    );
     assert.equal(headersFor("/styles.css", null)["Cache-Control"], "no-cache");
     assert.equal(
       headersFor("/styles.abc12345.css", null)["Cache-Control"],

@@ -56,22 +56,30 @@ export function detectEditableExtension(text) {
   const head = sample.slice(0, 4000);
   const withoutComments = skipLeadingHtmlComments(head);
 
-  if (/^<!DOCTYPE\s+html\b/i.test(withoutComments) || /^<html[\s>]/i.test(withoutComments)) {
+  if (
+    /^<!DOCTYPE\s+html\b/i.test(withoutComments) ||
+    /^<html[\s>]/i.test(withoutComments)
+  ) {
     return "html";
   }
 
   // Tag-heavy document that starts with markup and lacks markdown structure.
   if (/^<[a-zA-Z!/?]/.test(withoutComments)) {
-    const tagCount = (sample.match(/<\/?[a-zA-Z][a-zA-Z0-9:-]*\b[^>]*>/g) || []).length;
-    const mdSignals = (sample.match(/^#{1,6}\s|^\s{0,3}[-*+]\s|^\s{0,3}\d+\.\s|```|^\|.+\||\[.+\]\(.+\)/gm) || [])
+    const tagCount = (sample.match(/<\/?[a-zA-Z][a-zA-Z0-9:-]*\b[^>]*>/g) || [])
       .length;
+    const mdSignals = (
+      sample.match(
+        /^#{1,6}\s|^\s{0,3}[-*+]\s|^\s{0,3}\d+\.\s|```|^\|.+\||\[.+\]\(.+\)/gm,
+      ) || []
+    ).length;
     if (tagCount >= 3 && tagCount > mdSignals * 2) return "html";
   }
 
   const hasHtmlTag = /<[a-zA-Z!/?]/.test(sample);
-  const hasMarkdown = /^#{1,6}\s|^\s{0,3}[-*+]\s|^\s{0,3}\d+\.\s|```|\*\*[^*]+\*\*|__[^_]+__|\[.+\]\(.+\)|^>\s/m.test(
-    sample,
-  );
+  const hasMarkdown =
+    /^#{1,6}\s|^\s{0,3}[-*+]\s|^\s{0,3}\d+\.\s|```|\*\*[^*]+\*\*|__[^_]+__|\[.+\]\(.+\)|^>\s/m.test(
+      sample,
+    );
   if (!hasHtmlTag && !hasMarkdown) return "txt";
 
   return "md";
@@ -156,7 +164,8 @@ async function idbDelete(key) {
     const tx = db.transaction(IDB_STORE, "readwrite");
     const store = tx.objectStore(IDB_STORE);
     const req = store.delete(key);
-    req.onerror = () => reject(req.error || new Error("IndexedDB delete failed"));
+    req.onerror = () =>
+      reject(req.error || new Error("IndexedDB delete failed"));
     req.onsuccess = () => resolve();
   });
 }
@@ -199,7 +208,8 @@ export async function openDirectory() {
 export async function loadStoredDirectory() {
   try {
     const handle = await idbGet(DIR_HANDLE_KEY);
-    if (handle && handle.kind === "directory") return /** @type {FileSystemDirectoryHandle} */ (handle);
+    if (handle && handle.kind === "directory")
+      return /** @type {FileSystemDirectoryHandle} */ (handle);
   } catch {
     /* ignore */
   }
@@ -240,7 +250,8 @@ export async function storeCurrentFileHandle(handle) {
 export async function loadStoredCurrentFileHandle() {
   try {
     const handle = await idbGet(FILE_HANDLE_KEY);
-    if (handle && handle.kind === "file") return /** @type {FileSystemFileHandle} */ (handle);
+    if (handle && handle.kind === "file")
+      return /** @type {FileSystemFileHandle} */ (handle);
   } catch {
     /* ignore */
   }
@@ -313,7 +324,8 @@ export async function listDirectory(dirHandle) {
       files.push({ name, kind: "file", handle });
     }
   }
-  const byName = (a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
+  const byName = (a, b) =>
+    a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
   dirs.sort(byName);
   files.sort(byName);
   return [...dirs, ...files];
@@ -405,7 +417,9 @@ export async function renameEntry(parentHandle, handle, newName) {
   }
 
   if (handle.kind === "file") {
-    const text = await readTextFile(/** @type {FileSystemFileHandle} */ (handle));
+    const text = await readTextFile(
+      /** @type {FileSystemFileHandle} */ (handle),
+    );
     const created = await createFile(parentHandle, next, text);
     await removeEntry(parentHandle, handle.name, false);
     return created;
@@ -451,7 +465,7 @@ export async function openWithPicker(pickerWindow = window) {
       },
     ],
   });
-  if (!handle || handle.kind !== "file") return null;
+  if (handle?.kind !== "file") return null;
   // Prefer readwrite so Save can write back without a second prompt.
   await ensureHandlePermission(handle, "readwrite").catch(() =>
     ensureHandlePermission(handle, "read"),
@@ -473,10 +487,22 @@ export async function saveWithPicker(suggestedName, text) {
   /** @type {Record<string, string[]>} */
   const accept =
     ext === "html"
-      ? { "text/html": [".html", ".htm"], "text/markdown": [".md", ".markdown"], "text/plain": [".txt"] }
+      ? {
+          "text/html": [".html", ".htm"],
+          "text/markdown": [".md", ".markdown"],
+          "text/plain": [".txt"],
+        }
       : ext === "txt"
-        ? { "text/plain": [".txt"], "text/markdown": [".md", ".markdown"], "text/html": [".html", ".htm"] }
-        : { "text/markdown": [".md", ".markdown"], "text/plain": [".txt"], "text/html": [".html", ".htm"] };
+        ? {
+            "text/plain": [".txt"],
+            "text/markdown": [".md", ".markdown"],
+            "text/html": [".html", ".htm"],
+          }
+        : {
+            "text/markdown": [".md", ".markdown"],
+            "text/plain": [".txt"],
+            "text/html": [".html", ".htm"],
+          };
   const handle = await window.showSaveFilePicker({
     suggestedName: name,
     types: [

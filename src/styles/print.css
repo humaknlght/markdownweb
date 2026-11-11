@@ -29,6 +29,11 @@
     --preview-font: var(--font-ui);
     --preview-size: 1rem;
     --heading-color: inherit;
+    --alert-note: #0969da;
+    --alert-tip: #1a7f37;
+    --alert-important: #8250df;
+    --alert-warning: #9a6700;
+    --alert-caution: #cf222e;
     --toast-bg: #1a1d23;
     --toast-fg: #ffffff;
     --color-scheme: light;
@@ -70,13 +75,17 @@
     --mermaid-gantt-section-opacity: 0.4;
   }
 
+  /* html[data-theme] beats fancy/zen page photo backgrounds without !important on image. */
   html,
-  body {
+  body,
+  html[data-theme],
+  html[data-theme] body {
+    /* biome-ignore lint/complexity/noImportantStyles: beat fancy/zen equal-specificity page background-color */
     background: #fff !important;
-    background-image: none !important;
-    color: #1f2328 !important;
-    height: auto !important;
-    display: block !important;
+    background-image: none;
+    color: #1f2328;
+    height: auto;
+    display: block;
   }
 
   .toolbar,
@@ -107,59 +116,72 @@
   #export-dropdown,
   #install-btn,
   #toolbar-menu {
-    display: none !important;
+    display: none;
   }
 
   .preview .md-section-folded {
-    display: revert !important;
+    display: revert;
   }
 
+  /*
+   * Beat fancy/zen `html[data-theme="…"] .preview-pane` (and friends) without
+   * !important: one extra descendant class (`.panes .preview-pane`).
+   */
   .workspace,
   .panes,
-  .preview-pane {
-    display: block !important;
-    height: auto !important;
-    overflow: visible !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    background: #fff !important;
-    border: 0 !important;
-    border-radius: 0 !important;
-    box-shadow: none !important;
-    backdrop-filter: none !important;
-    -webkit-backdrop-filter: none !important;
-    filter: none !important;
+  .preview-pane,
+  html[data-theme] .workspace,
+  html[data-theme] .panes,
+  html[data-theme] .preview-pane,
+  html[data-theme] .panes .preview-pane {
+    display: block;
+    height: auto;
+    overflow: visible;
+    margin: 0;
+    padding: 0;
+    background: #fff;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    filter: none;
   }
 
   /* Edit-mode "collapse preview" must not blank the printout. */
-  .panes.preview-collapsed {
-    --editor-track: 0% !important;
-    --preview-track: 100% !important;
-    --splitter-track: 0px !important;
+  .panes.preview-collapsed,
+  html[data-theme] .panes.preview-collapsed,
+  html[data-boot-preview-collapsed="1"] .panes {
+    --editor-track: 0%;
+    --preview-track: 100%;
+    --splitter-track: 0px;
   }
 
-  .panes.preview-collapsed .preview-pane {
-    visibility: visible !important;
-    pointer-events: auto !important;
-    overflow: visible !important;
+  html .panes.preview-collapsed .preview-pane,
+  html[data-theme] .panes.preview-collapsed .preview-pane {
+    visibility: visible;
+    pointer-events: auto;
+    overflow: visible;
   }
 
-  .preview {
-    max-width: none !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    color: var(--preview-fg) !important;
-    background: #fff !important;
-    border: 0 !important;
-    border-radius: 0 !important;
-    box-shadow: none !important;
-    text-shadow: none !important;
-    filter: none !important;
-    font-family: var(--preview-font) !important;
-    font-size: var(--preview-size) !important;
+  .preview,
+  html[data-theme] .preview {
+    max-width: none;
+    margin: 0;
+    padding: 0;
+    color: var(--preview-fg);
+    background: #fff;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    text-shadow: none;
+    filter: none;
+    font-family: var(--preview-font);
+    font-size: var(--preview-size);
   }
 
   .preview > [hidden] {
+    /* biome-ignore lint/complexity/noImportantStyles: beat [hidden] { display: none !important } polyfill */
     display: revert !important;
   }
 
@@ -167,6 +189,7 @@
      beat that so Print includes the whole deck. */
   html[data-view="present"] .preview > [hidden],
   html[data-view="slides"] .preview > [hidden] {
+    /* biome-ignore lint/complexity/noImportantStyles: beat [hidden] { display: none !important } polyfill */
     display: revert !important;
   }
 
@@ -179,129 +202,141 @@
     page-break-before: always;
   }
 
-  .preview a {
-    color: var(--preview-link) !important;
-    font-weight: inherit !important;
+  .preview a,
+  html[data-theme] .preview a {
+    color: var(--preview-link);
+    font-weight: inherit;
     text-decoration: underline;
   }
 
   /* Neutralize theme-specific preview chrome (Salesforce / Fancy) */
   .preview h1::after,
-  .preview h2::after {
-    border-bottom-color: var(--preview-rule) !important;
+  .preview h2::after,
+  html[data-theme] .preview h1::after,
+  html[data-theme] .preview h2::after {
+    border-bottom-color: var(--preview-rule);
   }
 
-  .preview blockquote {
-    background: transparent !important;
-    border-left: 3px solid var(--preview-quote) !important;
-    border-radius: 0 !important;
-    padding: 0.15em 0 0.15em 1em !important;
-    color: var(--preview-muted) !important;
+  .preview blockquote,
+  html[data-theme] .preview blockquote {
+    background: transparent;
+    border-left: 3px solid var(--preview-quote);
+    border-radius: 0;
+    padding: 0.15em 0 0.15em 1em;
+    color: var(--preview-muted);
   }
 
   .preview .markdown-alert {
-    background: transparent !important;
-    border-left: 0.25em solid var(--preview-quote) !important;
-    color: inherit !important;
+    background: transparent;
+    border-left: 0.25em solid var(--preview-quote);
+    color: inherit;
   }
 
   .preview .markdown-alert-note {
-    border-left-color: var(--alert-note) !important;
+    border-left-color: var(--alert-note);
   }
 
   .preview .markdown-alert-tip {
-    border-left-color: var(--alert-tip) !important;
+    border-left-color: var(--alert-tip);
   }
 
   .preview .markdown-alert-important {
-    border-left-color: var(--alert-important) !important;
+    border-left-color: var(--alert-important);
   }
 
   .preview .markdown-alert-warning {
-    border-left-color: var(--alert-warning) !important;
+    border-left-color: var(--alert-warning);
   }
 
   .preview .markdown-alert-caution {
-    border-left-color: var(--alert-caution) !important;
+    border-left-color: var(--alert-caution);
   }
 
   .preview .markdown-alert-note .markdown-alert-title {
-    color: var(--alert-note) !important;
+    color: var(--alert-note);
   }
 
   .preview .markdown-alert-tip .markdown-alert-title {
-    color: var(--alert-tip) !important;
+    color: var(--alert-tip);
   }
 
   .preview .markdown-alert-important .markdown-alert-title {
-    color: var(--alert-important) !important;
+    color: var(--alert-important);
   }
 
   .preview .markdown-alert-warning .markdown-alert-title {
-    color: var(--alert-warning) !important;
+    color: var(--alert-warning);
   }
 
   .preview .markdown-alert-caution .markdown-alert-title {
-    color: var(--alert-caution) !important;
+    color: var(--alert-caution);
   }
 
   .preview table.markdown-frontmatter {
-    display: table !important;
-    overflow: visible !important;
+    display: table;
+    overflow: visible;
   }
 
   .preview .markdown-frontmatter-error {
-    background: var(--preview-code-bg) !important;
-    border: 1px solid var(--preview-rule) !important;
+    background: var(--preview-code-bg);
+    border: 1px solid var(--preview-rule);
   }
 
   .preview .markdown-frontmatter-nested {
-    background: transparent !important;
-    border: 0 !important;
+    background: transparent;
+    border: 0;
   }
 
   .preview pre,
-  .preview pre code {
-    color: inherit !important;
+  .preview pre code,
+  html[data-theme] .preview pre,
+  html[data-theme] .preview pre code {
+    color: inherit;
   }
 
-  .preview code:not(pre code) {
-    color: inherit !important;
-    background: var(--preview-code-bg) !important;
-    border-radius: 3px !important;
+  .preview code:not(pre code),
+  html[data-theme] .preview code:not(pre code) {
+    color: inherit;
+    background: var(--preview-code-bg);
+    border-radius: 3px;
   }
 
-  .preview pre {
-    background: var(--preview-pre-bg) !important;
-    border: 1px solid var(--preview-pre-border) !important;
-    border-radius: 6px !important;
+  html[data-theme] .preview pre {
+    background: var(--preview-pre-bg);
+    border: 1px solid var(--preview-pre-border);
+    border-radius: 6px;
   }
 
-  .preview .line-num {
+  /*
+   * Beat fancy/zen `html[data-theme="…"] .preview .line-num` without !important
+   * on color: one extra class (.md-preview-frame is on the iframe <html>).
+   */
+  html[data-theme] .preview .line-num,
+  html.md-preview-frame[data-theme] .preview .line-num {
     position: static;
     white-space: nowrap;
-    background: var(--preview-pre-bg) !important;
-    border-right-color: var(--preview-pre-border) !important;
-    color: var(--syntax-comment) !important;
+    background: var(--preview-pre-bg);
+    border-right-color: var(--preview-pre-border);
+    color: var(--syntax-comment);
   }
 
-  .preview pre,
-  .preview blockquote,
+  html[data-theme] .preview pre,
+  html[data-theme] .preview blockquote,
   .preview .markdown-alert,
   .preview .markdown-frontmatter-error,
   .preview table {
     break-inside: avoid;
   }
 
-  .preview pre,
-  .preview pre code {
-    overflow: visible !important;
-    white-space: pre-wrap !important;
+  html[data-theme] .preview pre,
+  html[data-theme] .preview pre code {
+    overflow: visible;
+    white-space: pre-wrap;
     overflow-wrap: anywhere;
     word-break: break-word;
   }
 
-  .preview pre code {
+  html[data-theme] .preview pre code {
     grid-template-columns: max-content minmax(0, 1fr);
   }
 
@@ -313,9 +348,9 @@
   }
 
   .preview table {
-    display: table !important;
-    overflow: visible !important;
-    width: 100% !important;
+    display: table;
+    overflow: visible;
+    width: 100%;
   }
 
   .preview h1,
@@ -328,15 +363,17 @@
   .preview img,
   .preview .mermaid {
     break-inside: avoid;
-    max-width: 100% !important;
-    overflow: visible !important;
+    max-width: 100%;
+    overflow: visible;
   }
 
   .preview .mermaid,
-  .preview .mermaid svg {
-    background: var(--mermaid-bg) !important;
-    background-color: var(--mermaid-bg) !important;
-    filter: none !important;
+  .preview .mermaid svg,
+  html[data-theme] .preview .mermaid,
+  html[data-theme] .preview .mermaid svg {
+    background: var(--mermaid-bg);
+    background-color: var(--mermaid-bg);
+    filter: none;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }

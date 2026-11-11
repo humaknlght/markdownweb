@@ -42,7 +42,9 @@ export const RENDER_DEBOUNCE_MS = 80;
  * @param {string} [origin]
  * @returns {string}
  */
-export function previewFrameOriginSrc(origin = globalThis.location?.origin || "") {
+export function previewFrameOriginSrc(
+  origin = globalThis.location?.origin || "",
+) {
   if (!origin || origin === "null") return "";
   try {
     const url = new URL(origin);
@@ -60,7 +62,9 @@ export function previewFrameOriginSrc(origin = globalThis.location?.origin || ""
  * Blocks scripts and all remote subresources (phone-home images, etc.).
  * @param {string} [origin] Embedding page origin (`location.origin`).
  */
-export function buildPreviewFrameCsp(origin = globalThis.location?.origin || "") {
+export function buildPreviewFrameCsp(
+  origin = globalThis.location?.origin || "",
+) {
   const originSrc = previewFrameOriginSrc(origin);
   const withOrigin = originSrc ? ` ${originSrc}` : "";
 
@@ -110,7 +114,8 @@ export const WIDTHS = ["readable", "full"];
 /** Mermaid `look` values — handDrawn is the RoughJS / Excalidraw-style sketch. */
 export const MERMAID_LOOKS = ["classic", "handDrawn"];
 /** Hand-drawn diagram face (cdn.jsdelivr.net/npm/excalifont@1.0.0). */
-export const MERMAID_HAND_FONT = '"Excalifont","Segoe UI","Helvetica Neue",sans-serif';
+export const MERMAID_HAND_FONT =
+  '"Excalifont","Segoe UI","Helvetica Neue",sans-serif';
 export const VIEWS = ["edit", "reader", "present", "slides"];
 
 export const PRESENT_CHROME_IDLE_MS = 5000;
@@ -125,7 +130,8 @@ export const MERMAID_CDN =
  * Mermaid's native handDrawn uses dense hachure fills that fail WCAG (fill color
  * becomes stroke ink). We always render classic Mermaid, then sketch with solid fills.
  */
-export const SVG2ROUGH_CDN = "https://cdn.jsdelivr.net/npm/svg2roughjs@3.2.3/+esm";
+export const SVG2ROUGH_CDN =
+  "https://cdn.jsdelivr.net/npm/svg2roughjs@3.2.3/+esm";
 
 export const MERMAID_MIN_HOST_WIDTH = 48;
 export const MERMAID_MIN_GANTT_HOST_WIDTH = 220;

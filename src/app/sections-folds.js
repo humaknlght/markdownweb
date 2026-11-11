@@ -1,14 +1,13 @@
 import { hooks } from "./hooks.js";
-import {
-  preview,
-  collapsedSections
-} from "./state.js";
+import { collapsedSections, preview } from "./state.js";
 
 export function headingTitleText(heading) {
   const label = heading.querySelector(":scope > .md-section-label");
   if (label) return label.textContent?.trim() || "";
   const clone = heading.cloneNode(true);
-  clone.querySelectorAll(".md-section-toggle").forEach((el) => el.remove());
+  clone.querySelectorAll(".md-section-toggle").forEach((el) => {
+    el.remove();
+  });
   return clone.textContent?.trim() || "";
 }
 

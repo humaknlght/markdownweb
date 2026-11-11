@@ -1,24 +1,30 @@
 import { hooks } from "../hooks.js";
 import {
-  state,
   speakBtn,
+  speakNextBtn,
   speakPauseBtn,
   speakPrevBtn,
-  speakNextBtn,
-  speechSupported
+  speechSupported,
+  state,
 } from "../state.js";
 
 export function updateSpeakButton() {
   if (!speakBtn || !speechSupported) return;
   speakBtn.setAttribute("aria-pressed", String(state.speechActive));
   speakBtn.title = state.speechActive ? "Stop reading" : "Read aloud";
-  speakBtn.setAttribute("aria-label", state.speechActive ? "Stop reading" : "Read aloud");
+  speakBtn.setAttribute(
+    "aria-label",
+    state.speechActive ? "Stop reading" : "Read aloud",
+  );
 
   if (speakPauseBtn) {
     speakPauseBtn.disabled = !state.speechActive;
     speakPauseBtn.setAttribute("aria-pressed", String(state.speechPaused));
     speakPauseBtn.title = state.speechPaused ? "Resume" : "Pause";
-    speakPauseBtn.setAttribute("aria-label", state.speechPaused ? "Resume" : "Pause");
+    speakPauseBtn.setAttribute(
+      "aria-label",
+      state.speechPaused ? "Resume" : "Pause",
+    );
     speakPauseBtn.classList.toggle("is-paused", state.speechPaused);
   }
 
@@ -30,14 +36,17 @@ export function updateSpeakButton() {
   }
   if (speakNextBtn) {
     speakNextBtn.hidden = !state.speechActive;
-    speakNextBtn.disabled = !canSeekTracks || state.speechTrackIndex >= trackCount - 1;
+    speakNextBtn.disabled =
+      !canSeekTracks || state.speechTrackIndex >= trackCount - 1;
   }
 
   updateSpeechMediaSession();
 }
 
 const mediaSessionSupported =
-  typeof navigator !== "undefined" && "mediaSession" in navigator && typeof MediaMetadata !== "undefined";
+  typeof navigator !== "undefined" &&
+  "mediaSession" in navigator &&
+  typeof MediaMetadata !== "undefined";
 
 /** HTMLAudioElement that keeps OS / Chrome media controls alive for TTS. */
 /** @type {string} */
@@ -48,7 +57,8 @@ export function buildNearSilentWavBlobUrl(seconds = 8, sampleRate = 8000) {
   const buffer = new ArrayBuffer(44 + dataBytes);
   const view = new DataView(buffer);
   const writeStr = (offset, text) => {
-    for (let i = 0; i < text.length; i += 1) view.setUint8(offset + i, text.charCodeAt(i));
+    for (let i = 0; i < text.length; i += 1)
+      view.setUint8(offset + i, text.charCodeAt(i));
   };
 
   writeStr(0, "RIFF");
@@ -75,7 +85,8 @@ export function buildNearSilentWavBlobUrl(seconds = 8, sampleRate = 8000) {
 
 export function ensureSpeechSessionAudio() {
   if (state.speechSessionAudio) return state.speechSessionAudio;
-  if (!state.speechSessionAudioUrl) state.speechSessionAudioUrl = buildNearSilentWavBlobUrl();
+  if (!state.speechSessionAudioUrl)
+    state.speechSessionAudioUrl = buildNearSilentWavBlobUrl();
   const audio = new Audio();
   audio.preload = "auto";
   audio.loop = true;
@@ -125,12 +136,15 @@ export function stopSpeechSessionAudio() {
 
 export function speechMediaArtwork() {
   const artwork = [];
-  for (const link of document.querySelectorAll('link[rel="icon"], link[rel="apple-touch-icon"]')) {
+  for (const link of document.querySelectorAll(
+    'link[rel="icon"], link[rel="apple-touch-icon"]',
+  )) {
     const src = link.href;
     if (!src) continue;
     const sizes = link.getAttribute("sizes") || "192x192";
     const type = link.getAttribute("type") || "image/png";
-    if (artwork.some((entry) => entry.src === src && entry.sizes === sizes)) continue;
+    if (artwork.some((entry) => entry.src === src && entry.sizes === sizes))
+      continue;
     artwork.push({ src, sizes, type });
   }
   return artwork;
@@ -150,7 +164,9 @@ export function updateSpeechMediaSession() {
     const title = track?.title || state.currentFileName || "Markdown Editor";
     const artist = state.currentFileName || "Markdown Editor";
     const album =
-      trackCount > 1 ? `${state.speechTrackIndex + 1} / ${trackCount}` : "Read aloud";
+      trackCount > 1
+        ? `${state.speechTrackIndex + 1} / ${trackCount}`
+        : "Read aloud";
 
     navigator.mediaSession.metadata = new MediaMetadata({
       title,
@@ -158,7 +174,9 @@ export function updateSpeechMediaSession() {
       album,
       artwork: speechMediaArtwork(),
     });
-    navigator.mediaSession.playbackState = state.speechPaused ? "paused" : "playing";
+    navigator.mediaSession.playbackState = state.speechPaused
+      ? "paused"
+      : "playing";
   } catch {
     /* Media Session may reject metadata or state on some platforms */
   }

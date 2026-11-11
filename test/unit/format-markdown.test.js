@@ -1,7 +1,6 @@
-import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { describe, it } from "node:test";
 import {
-  TABLE_STUB,
   insertCodeBlock,
   insertHorizontalRule,
   insertImage,
@@ -10,6 +9,7 @@ import {
   insertTable,
   lineRange,
   prefixLines,
+  TABLE_STUB,
   wrapInline,
 } from "../../src/markdown/format-markdown.js";
 
@@ -77,7 +77,9 @@ describe("format-markdown prefixLines", () => {
   it("sets and toggles heading level", () => {
     const h2 = prefixLines("Title", 0, 5, "heading", { level: 2 });
     assert.equal(h2.text, "## Title");
-    const again = prefixLines(h2.text, 0, h2.text.length, "heading", { level: 2 });
+    const again = prefixLines(h2.text, 0, h2.text.length, "heading", {
+      level: 2,
+    });
     assert.equal(again.text, "Title");
     const h1 = prefixLines("Title", 0, 5, "heading", { level: 1 });
     assert.equal(h1.text, "# Title");

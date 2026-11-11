@@ -1,13 +1,15 @@
-import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { describe, it } from "node:test";
 import {
-  accumulateStream,
   acceptProofreadResult,
+  accumulateStream,
   availabilityLabel,
   BR_PLACEHOLDER,
   diffWords,
   escapeAiHtml,
   finalizeProofreadSlice,
+  findLineCommentSpans,
+  findMermaidNoteSpans,
   findProofreadSplitOffset,
   formatAiError,
   INPUT_TOO_LARGE_MESSAGE,
@@ -22,16 +24,14 @@ import {
   renderProofreadMarkup,
   resolveInsertRange,
   resolveTargetRange,
-  runProofread,
-  runProofreadChunked,
-  runProofreadDocument,
   runPromptProofread,
   runPromptRewrite,
   runPromptWrite,
-  splitProofreadChunks,
+  runProofread,
+  runProofreadChunked,
+  runProofreadDocument,
   splitMarkdownProofreadParts,
-  findMermaidNoteSpans,
-  findLineCommentSpans,
+  splitProofreadChunks,
   stripOuterMarkdownFence,
   tokenizeForDiff,
   wrapPromptSessionAsProofreader,
@@ -82,7 +82,10 @@ describe("chrome-ai helpers", () => {
     assert.equal(stripOuterMarkdownFence("```markdown\nHi\n```"), "Hi");
     assert.equal(stripOuterMarkdownFence("```\nHi\n```"), "Hi");
     assert.equal(stripOuterMarkdownFence("plain"), "plain");
-    assert.equal(stripOuterMarkdownFence("```js\ncode\n```"), "```js\ncode\n```");
+    assert.equal(
+      stripOuterMarkdownFence("```js\ncode\n```"),
+      "```js\ncode\n```",
+    );
   });
 
   it("promptSystemFor covers write / rewrite / proofread", () => {
@@ -199,7 +202,10 @@ describe("chrome-ai helpers", () => {
   });
 
   it("escapeAiHtml escapes markup characters", () => {
-    assert.equal(escapeAiHtml(`<a href="x">y's & z</a>`), "&lt;a href=&quot;x&quot;&gt;y&#39;s &amp; z&lt;/a&gt;");
+    assert.equal(
+      escapeAiHtml(`<a href="x">y's & z</a>`),
+      "&lt;a href=&quot;x&quot;&gt;y&#39;s &amp; z&lt;/a&gt;",
+    );
   });
 
   it("renderProofreadMarkup highlights correction ranges", () => {
@@ -210,7 +216,9 @@ describe("chrome-ai helpers", () => {
   });
 
   it("renderProofreadMarkup escapes text outside and inside marks", () => {
-    const html = renderProofreadMarkup("a <b> c", [{ startIndex: 2, endIndex: 5 }]);
+    const html = renderProofreadMarkup("a <b> c", [
+      { startIndex: 2, endIndex: 5 },
+    ]);
     assert.equal(html, 'a <mark class="ai-error">&lt;b&gt;</mark> c');
   });
 
@@ -235,7 +243,13 @@ describe("chrome-ai helpers", () => {
   });
 
   it("tokenizeForDiff keeps words and whitespace", () => {
-    assert.deepEqual(tokenizeForDiff("I seen  him"), ["I", " ", "seen", "  ", "him"]);
+    assert.deepEqual(tokenizeForDiff("I seen  him"), [
+      "I",
+      " ",
+      "seen",
+      "  ",
+      "him",
+    ]);
   });
 
   it("diffWords reports inserts and deletes", () => {
@@ -250,7 +264,8 @@ describe("chrome-ai helpers", () => {
   });
 
   it("diffWords keeps large nearly-identical docs from painting everything", () => {
-    const line = (i) => `line ${i} with enough words to inflate the token count here`;
+    const line = (i) =>
+      `line ${i} with enough words to inflate the token count here`;
     const lines = Array.from({ length: 120 }, (_, i) => line(i));
     const before = lines.join("\n");
     const after = lines
@@ -302,13 +317,19 @@ describe("chrome-ai helpers", () => {
       "Outro.",
     ].join("\n");
     const parts = splitMarkdownProofreadParts(md);
-    assert.equal(parts.map((p) => (p.kind === "prose" ? p.text : p.open + p.body + p.close)).join(""), md);
+    assert.equal(
+      parts
+        .map((p) => (p.kind === "prose" ? p.text : p.open + p.body + p.close))
+        .join(""),
+      md,
+    );
     assert.equal(parts.filter((p) => p.kind === "fence").length, 1);
     assert.equal(parts.find((p) => p.kind === "fence")?.lang, "mermaid");
   });
 
   it("findMermaidNoteSpans targets note bodies only", () => {
-    const body = "sequenceDiagram\n    note over Publish: I seen him\n    A->>B: x\n";
+    const body =
+      "sequenceDiagram\n    note over Publish: I seen him\n    A->>B: x\n";
     const spans = findMermaidNoteSpans(body);
     assert.equal(spans.length, 1);
     assert.equal(body.slice(spans[0].start, spans[0].end), "I seen him");
@@ -334,7 +355,10 @@ describe("chrome-ai helpers", () => {
   });
 
   it("acceptProofreadResult rejects repetition loops and length blowups", () => {
-    assert.equal(acceptProofreadResult("## Retreive\n\n", "## Retrieve\n\n"), true);
+    assert.equal(
+      acceptProofreadResult("## Retreive\n\n", "## Retrieve\n\n"),
+      true,
+    );
     const loop = Array.from({ length: 40 }, () => "## Retriever").join("\n");
     assert.equal(acceptProofreadResult("## Retreive\n\n", loop), false);
     assert.equal(
@@ -393,7 +417,9 @@ describe("chrome-ai helpers", () => {
   it("runProofread falls back when the model degenerates", async () => {
     const session = {
       proofread: async () => ({
-        correctedInput: Array.from({ length: 30 }, () => "## Retriever").join("\n"),
+        correctedInput: Array.from({ length: 30 }, () => "## Retriever").join(
+          "\n",
+        ),
         corrections: [{ startIndex: 0, endIndex: 3 }],
       }),
     };
@@ -403,7 +429,8 @@ describe("chrome-ai helpers", () => {
   });
 
   it("runProofreadDocument keeps fence structure when prose is mangled", async () => {
-    const md = "## Retreive\n\n```mermaid\nnote over A: hi\n```\n\n## Publish\n\n```mermaid\nnote over B: bye\n```\n";
+    const md =
+      "## Retreive\n\n```mermaid\nnote over A: hi\n```\n\n## Publish\n\n```mermaid\nnote over B: bye\n```\n";
     let call = 0;
     const session = {
       proofread: async (text) => {
@@ -411,10 +438,19 @@ describe("chrome-ai helpers", () => {
         if (String(text).includes("Retreive")) {
           return { correctedInput: "## Retrieve\n\n#", corrections: [] };
         }
-        if (String(text).includes("Publish") && !String(text).includes("note")) {
-          return { correctedInput: "## Publish\n\n## Publish", corrections: [] };
+        if (
+          String(text).includes("Publish") &&
+          !String(text).includes("note")
+        ) {
+          return {
+            correctedInput: "## Publish\n\n## Publish",
+            corrections: [],
+          };
         }
-        return { correctedInput: String(text).replace("hi", "hello"), corrections: [] };
+        return {
+          correctedInput: String(text).replace("hi", "hello"),
+          corrections: [],
+        };
       },
     };
     const result = await runProofreadDocument(session, md);
@@ -449,7 +485,10 @@ describe("chrome-ai helpers", () => {
     const result = await runProofreadChunked(session, text);
     assert.match(result.correctedInput, /^aXa/);
     assert.ok(result.chunkCount >= 2);
-    assert.ok(maxActive >= 2, `expected parallel calls, maxActive=${maxActive}`);
+    assert.ok(
+      maxActive >= 2,
+      `expected parallel calls, maxActive=${maxActive}`,
+    );
   });
 
   it("proofreadReplaceSpans proofreads notes in parallel without packing", async () => {

@@ -53,7 +53,11 @@ export const DRIVE_EDITABLE_MIME_TYPES = [
 export function isDriveMessage(data) {
   if (!data || typeof data !== "object") return false;
   const msg = /** @type {Record<string, unknown>} */ (data);
-  return msg.type === DRIVE_MSG_TYPE && msg.v === DRIVE_MSG_VERSION && typeof msg.action === "string";
+  return (
+    msg.type === DRIVE_MSG_TYPE &&
+    msg.v === DRIVE_MSG_VERSION &&
+    typeof msg.action === "string"
+  );
 }
 
 /**
@@ -102,7 +106,9 @@ export async function getDriveFileMeta(accessToken, fileId) {
   });
   if (!res.ok) {
     const detail = await res.text().catch(() => "");
-    throw new Error(`Drive meta failed (${res.status})${detail ? `: ${detail}` : ""}`);
+    throw new Error(
+      `Drive meta failed (${res.status})${detail ? `: ${detail}` : ""}`,
+    );
   }
   const json = await res.json();
   return {
@@ -127,7 +133,9 @@ export async function readDriveFileText(accessToken, fileId) {
   );
   if (!res.ok) {
     const detail = await res.text().catch(() => "");
-    throw new Error(`Drive read failed (${res.status})${detail ? `: ${detail}` : ""}`);
+    throw new Error(
+      `Drive read failed (${res.status})${detail ? `: ${detail}` : ""}`,
+    );
   }
   return res.text();
 }
@@ -152,7 +160,11 @@ export async function readDriveFileWithMeta(accessToken, fileId) {
  * @param {string} [fields]
  * @returns {Promise<Array<Record<string, unknown>>>}
  */
-async function queryDriveFiles(accessToken, q, fields = "files(id,name,mimeType,modifiedTime)") {
+async function queryDriveFiles(
+  accessToken,
+  q,
+  fields = "files(id,name,mimeType,modifiedTime)",
+) {
   const url = new URL("https://www.googleapis.com/drive/v3/files");
   url.searchParams.set("q", q);
   url.searchParams.set("spaces", "drive");
@@ -165,7 +177,9 @@ async function queryDriveFiles(accessToken, q, fields = "files(id,name,mimeType,
   });
   if (!res.ok) {
     const detail = await res.text().catch(() => "");
-    throw new Error(`Drive list failed (${res.status})${detail ? `: ${detail}` : ""}`);
+    throw new Error(
+      `Drive list failed (${res.status})${detail ? `: ${detail}` : ""}`,
+    );
   }
   const json = await res.json();
   return Array.isArray(json.files) ? json.files : [];
@@ -185,7 +199,11 @@ export async function listDriveFolderChildren(accessToken, folderId) {
   const rootId = await ensureDriveAppFolder(accessToken);
   const id = folderId || rootId;
   const q = `'${id}' in parents and trashed=false`;
-  const files = await queryDriveFiles(accessToken, q, "files(id,name,mimeType)");
+  const files = await queryDriveFiles(
+    accessToken,
+    q,
+    "files(id,name,mimeType)",
+  );
 
   /** @type {DriveTreeEntry[]} */
   const entries = [];
@@ -194,11 +212,21 @@ export async function listDriveFolderChildren(accessToken, folderId) {
     const mime = String(f.mimeType || "");
     const name = String(f.name);
     if (mime === "application/vnd.google-apps.folder") {
-      entries.push({ id: String(f.id), name, kind: "directory", mimeType: mime });
+      entries.push({
+        id: String(f.id),
+        name,
+        kind: "directory",
+        mimeType: mime,
+      });
       continue;
     }
     if (!isDriveEditableFile(name, mime)) continue;
-    entries.push({ id: String(f.id), name, kind: "file", mimeType: mime || undefined });
+    entries.push({
+      id: String(f.id),
+      name,
+      kind: "file",
+      mimeType: mime || undefined,
+    });
   }
 
   entries.sort((a, b) => {
@@ -239,7 +267,10 @@ export async function listDriveAppFiles(accessToken) {
  * @param {string} [folderName]
  * @returns {Promise<string>} folder id
  */
-export async function ensureDriveAppFolder(accessToken, folderName = DRIVE_DEFAULT_FOLDER_NAME) {
+export async function ensureDriveAppFolder(
+  accessToken,
+  folderName = DRIVE_DEFAULT_FOLDER_NAME,
+) {
   const cached = readCachedFolderId();
   if (cached) {
     const stillThere = await driveFolderExists(accessToken, cached);
@@ -271,7 +302,8 @@ async function driveFolderExists(accessToken, folderId) {
   if (!res.ok) return false;
   const json = await res.json();
   return (
-    json?.mimeType === "application/vnd.google-apps.folder" && json?.trashed !== true
+    json?.mimeType === "application/vnd.google-apps.folder" &&
+    json?.trashed !== true
   );
 }
 
@@ -307,7 +339,9 @@ async function findDriveFolderByName(accessToken, folderName) {
   });
   if (!res.ok) {
     const detail = await res.text().catch(() => "");
-    throw new Error(`Drive folder lookup failed (${res.status})${detail ? `: ${detail}` : ""}`);
+    throw new Error(
+      `Drive folder lookup failed (${res.status})${detail ? `: ${detail}` : ""}`,
+    );
   }
   const json = await res.json();
   const id = json?.files?.[0]?.id;
@@ -330,17 +364,22 @@ export async function createDriveFolder(accessToken, folderName, parentId) {
   };
   if (parentId) meta.parents = [parentId];
 
-  const res = await fetch("https://www.googleapis.com/drive/v3/files?fields=id,name", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
+  const res = await fetch(
+    "https://www.googleapis.com/drive/v3/files?fields=id,name",
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(meta),
     },
-    body: JSON.stringify(meta),
-  });
+  );
   if (!res.ok) {
     const detail = await res.text().catch(() => "");
-    throw new Error(`Drive folder create failed (${res.status})${detail ? `: ${detail}` : ""}`);
+    throw new Error(
+      `Drive folder create failed (${res.status})${detail ? `: ${detail}` : ""}`,
+    );
   }
   const json = await res.json();
   if (!json?.id) throw new Error("Drive folder create returned no id");
@@ -377,7 +416,10 @@ function clearCachedFolderId() {
  * @param {{ name: string, content: string, mimeType?: string, parentId?: string }} opts
  * @returns {Promise<DriveFileMeta>}
  */
-export async function createDriveFile(accessToken, { name, content, mimeType, parentId }) {
+export async function createDriveFile(
+  accessToken,
+  { name, content, mimeType, parentId },
+) {
   const mime = mimeType || mimeTypeForName(name);
   const parent = parentId || (await ensureDriveAppFolder(accessToken));
   const metadata = JSON.stringify({
@@ -408,7 +450,9 @@ export async function createDriveFile(accessToken, { name, content, mimeType, pa
   );
   if (!res.ok) {
     const detail = await res.text().catch(() => "");
-    throw new Error(`Drive create failed (${res.status})${detail ? `: ${detail}` : ""}`);
+    throw new Error(
+      `Drive create failed (${res.status})${detail ? `: ${detail}` : ""}`,
+    );
   }
   const json = await res.json();
   return {
@@ -425,7 +469,11 @@ export async function createDriveFile(accessToken, { name, content, mimeType, pa
  * @param {{ content: string, mimeType?: string, name?: string }} opts
  * @returns {Promise<DriveFileMeta>}
  */
-export async function updateDriveFile(accessToken, fileId, { content, mimeType, name }) {
+export async function updateDriveFile(
+  accessToken,
+  fileId,
+  { content, mimeType, name },
+) {
   const mime = mimeType || (name ? mimeTypeForName(name) : "text/plain");
   const res = await fetch(
     `https://www.googleapis.com/upload/drive/v3/files/${encodeURIComponent(fileId)}?uploadType=media&fields=id,name,mimeType,modifiedTime`,
@@ -440,7 +488,9 @@ export async function updateDriveFile(accessToken, fileId, { content, mimeType, 
   );
   if (!res.ok) {
     const detail = await res.text().catch(() => "");
-    const err = new Error(`Drive update failed (${res.status})${detail ? `: ${detail}` : ""}`);
+    const err = new Error(
+      `Drive update failed (${res.status})${detail ? `: ${detail}` : ""}`,
+    );
     // @ts-expect-error attach status for token refresh
     err.status = res.status;
     throw err;
@@ -475,7 +525,9 @@ export async function renameDriveItem(accessToken, fileId, newName) {
   );
   if (!res.ok) {
     const detail = await res.text().catch(() => "");
-    const err = new Error(`Drive rename failed (${res.status})${detail ? `: ${detail}` : ""}`);
+    const err = new Error(
+      `Drive rename failed (${res.status})${detail ? `: ${detail}` : ""}`,
+    );
     // @ts-expect-error attach status for token refresh
     err.status = res.status;
     throw err;
@@ -508,7 +560,9 @@ export async function trashDriveItem(accessToken, fileId) {
   );
   if (!res.ok) {
     const detail = await res.text().catch(() => "");
-    const err = new Error(`Drive delete failed (${res.status})${detail ? `: ${detail}` : ""}`);
+    const err = new Error(
+      `Drive delete failed (${res.status})${detail ? `: ${detail}` : ""}`,
+    );
     // @ts-expect-error attach status for token refresh
     err.status = res.status;
     throw err;

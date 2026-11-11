@@ -1,14 +1,9 @@
+import { THEMES, VIEWS } from "./constants.js";
 import { hooks } from "./hooks.js";
-import {
-  themeSelect
-} from "./state.js";
-import {
-  THEMES,
-  VIEWS
-} from "./constants.js";
+import { themeSelect } from "./state.js";
 import {
   compressUtf8ToBase64Url,
-  readShareParamsFromUrl
+  readShareParamsFromUrl,
 } from "./vendor-deps.js";
 
 export async function readShareParams(searchParams) {
@@ -31,8 +26,12 @@ export async function buildShareUrl({ markdown, theme } = {}) {
   const url = new URL(window.location.href);
   url.search = "";
   const params = new URLSearchParams();
-  params.set("mdz", await compressUtf8ToBase64Url(markdown ?? hooks.getMarkdownSource()));
-  const nextTheme = theme || document.documentElement.dataset.theme || themeSelect.value;
+  params.set(
+    "mdz",
+    await compressUtf8ToBase64Url(markdown ?? hooks.getMarkdownSource()),
+  );
+  const nextTheme =
+    theme || document.documentElement.dataset.theme || themeSelect.value;
   if (THEMES.includes(nextTheme)) params.set("theme", nextTheme);
   // Always edit: recipients need the source pane to identify the doc before Accept.
   params.set("view", "edit");

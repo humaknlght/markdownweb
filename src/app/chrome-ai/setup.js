@@ -1,24 +1,24 @@
 import { hooks } from "../hooks.js";
 import {
-  editor,
-  writingToolsDropdown,
-  writingToolsBtn,
-  writingToolsMenu,
-  aiWriteMenuBtn,
-  aiRewriteMenuBtn,
-  aiProofreadMenuBtn,
-  aiWriteDialog,
-  aiRewriteDialog,
-  aiProofreadDialog,
+  anyWritingAiGlobalPresent,
+  loadChromeAiModule,
+} from "../lazy-modules.js";
+import {
   aiProofEditor,
   aiProofHighlight,
+  aiProofreadDialog,
+  aiProofreadMenuBtn,
+  aiRewriteDialog,
+  aiRewriteMenuBtn,
+  aiWriteDialog,
+  aiWriteMenuBtn,
+  editor,
+  writingToolsBtn,
+  writingToolsDropdown,
+  writingToolsMenu,
 } from "../state.js";
-import {
-  loadChromeAiModule,
-  anyWritingAiGlobalPresent,
-} from "../lazy-modules.js";
-import { installAiDialogs } from "./dialogs.js";
 import { installAiActions } from "./actions.js";
+import { installAiDialogs } from "./dialogs.js";
 
 export async function setupChromeAi() {
   if (!writingToolsDropdown || !writingToolsBtn || !writingToolsMenu) return;
@@ -92,7 +92,9 @@ export async function setupChromeAi() {
   document.getElementById("ai-write-cancel")?.addEventListener("click", () => {
     s.closeAiDialog(aiWriteDialog);
   });
-  document.getElementById("ai-write-stop")?.addEventListener("click", () => s.abortAi());
+  document
+    .getElementById("ai-write-stop")
+    ?.addEventListener("click", () => s.abortAi());
   document
     .getElementById("ai-write-generate")
     ?.addEventListener("click", () => void s.runWriteAction());
@@ -106,10 +108,14 @@ export async function setupChromeAi() {
     s.applyPendingResult(aiWriteDialog);
   });
 
-  document.getElementById("ai-rewrite-cancel")?.addEventListener("click", () => {
-    s.closeAiDialog(aiRewriteDialog);
-  });
-  document.getElementById("ai-rewrite-stop")?.addEventListener("click", () => s.abortAi());
+  document
+    .getElementById("ai-rewrite-cancel")
+    ?.addEventListener("click", () => {
+      s.closeAiDialog(aiRewriteDialog);
+    });
+  document
+    .getElementById("ai-rewrite-stop")
+    ?.addEventListener("click", () => s.abortAi());
   document
     .getElementById("ai-rewrite-run")
     ?.addEventListener("click", () => void s.runRewriteAction());
@@ -117,9 +123,11 @@ export async function setupChromeAi() {
     s.applyPendingResult(aiRewriteDialog);
   });
 
-  document.getElementById("ai-proofread-cancel")?.addEventListener("click", () => {
-    s.closeAiDialog(aiProofreadDialog);
-  });
+  document
+    .getElementById("ai-proofread-cancel")
+    ?.addEventListener("click", () => {
+      s.closeAiDialog(aiProofreadDialog);
+    });
   document
     .getElementById("ai-proofread-stop")
     ?.addEventListener("click", () => s.abortAi());

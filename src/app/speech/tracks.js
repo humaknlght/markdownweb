@@ -1,20 +1,19 @@
 import { hooks } from "../hooks.js";
-import {
-  state,
-  preview
-} from "../state.js";
-import {
-  chunkSpeechText
-} from "../vendor-deps.js";
+import { preview, state } from "../state.js";
+import { chunkSpeechText } from "../vendor-deps.js";
 
 export function buildPreviewSpeechMap() {
   const nodes = [];
   let text = "";
-  const walker = document.createTreeWalker(preview, NodeFilter.SHOW_TEXT, {
+  // Preview lives in a sandboxed iframe — walk with that document's TreeWalker.
+  const doc = preview?.ownerDocument;
+  if (!preview || !doc) return { text: "", nodes };
+  const walker = doc.createTreeWalker(preview, NodeFilter.SHOW_TEXT, {
     acceptNode(node) {
       const parent = node.parentElement;
       if (!parent) return NodeFilter.FILTER_REJECT;
-      if (parent.closest("script, style, .mermaid, .line-num")) return NodeFilter.FILTER_REJECT;
+      if (parent.closest("script, style, .mermaid, .line-num"))
+        return NodeFilter.FILTER_REJECT;
       // Skip fold chrome (▼) and bodies hidden by section collapse.
       if (parent.closest(".md-section-toggle, .md-section-folded")) {
         return NodeFilter.FILTER_REJECT;
@@ -45,7 +44,11 @@ export function speechOffsetsForSection(map, sectionNodes) {
   for (const entry of map.nodes) {
     const parent = entry.node.parentElement;
     if (!parent) continue;
-    if (!sectionNodes.some((section) => section === parent || section.contains(parent))) {
+    if (
+      !sectionNodes.some(
+        (section) => section === parent || section.contains(parent),
+      )
+    ) {
       continue;
     }
     start = Math.min(start, entry.start);
@@ -72,7 +75,10 @@ export function buildSpeechTracks() {
   if (state.speechMap.text?.trim() && state.presentSections.length) {
     const tracks = [];
     for (let i = 0; i < state.presentSections.length; i++) {
-      const offsets = speechOffsetsForSection(state.speechMap, state.presentSections[i]);
+      const offsets = speechOffsetsForSection(
+        state.speechMap,
+        state.presentSections[i],
+      );
       if (!offsets) continue;
       const text = state.speechMap.text.slice(offsets.start, offsets.end);
       if (!text.trim()) continue;

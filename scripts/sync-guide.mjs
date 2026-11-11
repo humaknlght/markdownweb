@@ -45,6 +45,10 @@ if (isCli) {
   const dest = process.argv[2]
     ? path.resolve(process.cwd(), process.argv[2])
     : path.join(root, "dist");
-  const result = await copyGuideTo(dest, { hash: process.argv.includes("--hash") });
-  console.log(`Copied GUIDE.md → ${path.relative(root, result.outPath)} (${result.bytes} bytes)`);
+  const result = await copyGuideTo(dest, {
+    hash: process.argv.includes("--hash"),
+  });
+  console.log(
+    `Copied GUIDE.md → ${path.relative(root, result.outPath)} (${result.bytes} bytes)`,
+  );
 }

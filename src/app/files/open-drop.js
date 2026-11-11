@@ -1,21 +1,20 @@
-import { hooks } from "../hooks.js";
-import {
-  state,
-  fileInput,
-  dropOverlay
-} from "../state.js";
 import { TEXT_FILE_RE } from "../constants.js";
-import {
-  openWithPicker,
-  readTextFileMeta
-} from "../vendor-deps.js";
+import { hooks } from "../hooks.js";
+import { dropOverlay, fileInput, state } from "../state.js";
+import { openWithPicker, readTextFileMeta } from "../vendor-deps.js";
 
-export function loadExternalLocalFile({ text, name, handle = null, lastModified = null }) {
+export function loadExternalLocalFile({
+  text,
+  name,
+  handle = null,
+  lastModified = null,
+}) {
   hooks.stashPreExternalState();
   state.pendingExternalFromUrl = false;
   hooks.setEditorValue(text);
   hooks.bindCurrentFile(handle || null, name || "", "");
-  if (handle && lastModified != null) hooks.setCurrentFileRevision("fs", lastModified);
+  if (handle && lastModified != null)
+    hooks.setCurrentFileRevision("fs", lastModified);
   else if (!handle) hooks.clearCurrentFileRevision();
   hooks.selectFsPath("");
   // Real on-disk handle: opened content is the clean baseline (stays clean after Accept).
@@ -32,7 +31,11 @@ export function loadExternalLocalFile({ text, name, handle = null, lastModified 
  */
 export function handleFile(file) {
   if (!file) return;
-  if (!TEXT_FILE_RE.test(file.name) && !file.type.startsWith("text/") && file.type !== "text/html") {
+  if (
+    !TEXT_FILE_RE.test(file.name) &&
+    !file.type.startsWith("text/") &&
+    file.type !== "text/html"
+  ) {
     hooks.showToast("Only Markdown, text, or HTML files are supported");
     return;
   }
@@ -92,7 +95,7 @@ export async function openLocalFileChooser(options = {}) {
  * @param {FileSystemFileHandle} fileHandle
  */
 export async function openLaunchedFile(fileHandle) {
-  if (!fileHandle || fileHandle.kind !== "file") return;
+  if (fileHandle?.kind !== "file") return;
   const name = fileHandle.name || "";
   if (!TEXT_FILE_RE.test(name)) {
     hooks.showToast("Only Markdown, text, or HTML files are supported");
@@ -173,7 +176,9 @@ export async function handleDrop(dataTransfer) {
         try {
           const handle = await item.getAsFileSystemHandle();
           if (handle?.kind === "file") {
-            await openLaunchedFile(/** @type {FileSystemFileHandle} */ (handle));
+            await openLaunchedFile(
+              /** @type {FileSystemFileHandle} */ (handle),
+            );
             return;
           }
         } catch (err) {

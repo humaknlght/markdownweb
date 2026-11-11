@@ -11,7 +11,6 @@
  * static hosts without SPA client support (and no server-side exchange is available).
  */
 
-import { isGithubGistConfigured } from "./github-gist-config.js";
 import {
   clearVaultStorage,
   ensureVaultKey,
@@ -35,8 +34,11 @@ import {
   readGistFileWithMeta,
   updateGistFile,
 } from "./github-gist-api.js";
+import { isGithubGistConfigured } from "./github-gist-config.js";
 
+export { hasSealedGistSession } from "./gist-token-vault.js";
 export {
+  createGistOctokit,
   createPrivateGist,
   deleteGist,
   editableGistFiles,
@@ -46,10 +48,6 @@ export {
   readGistFileWithMeta,
   updateGistFile,
 };
-
-export { createGistOctokit };
-
-export { hasSealedGistSession } from "./gist-token-vault.js";
 
 /** PATs do not expire like OAuth access tokens; seal with a long horizon. */
 const DEFAULT_PAT_TTL_SEC = 365 * 24 * 60 * 60;
@@ -114,8 +112,10 @@ export async function prepareGistTokenVault() {
     if (meta?.kind === "prf") return { ready: true };
     return { ready: false, reason: "unsupported" };
   } catch (err) {
-    if (err?.name === "AbortError" || err?.name === "NotAllowedError") throw err;
-    if (err?.name === "NotSupportedError") return { ready: false, reason: "unsupported" };
+    if (err?.name === "AbortError" || err?.name === "NotAllowedError")
+      throw err;
+    if (err?.name === "NotSupportedError")
+      return { ready: false, reason: "unsupported" };
     return { ready: false, reason: "error" };
   }
 }
@@ -186,7 +186,7 @@ export async function unlockGistAccessToken() {
   if (!hasSealedGistSession()) return null;
 
   const meta = readVaultMeta();
-  if (!meta || meta.kind !== "prf") {
+  if (meta?.kind !== "prf") {
     clearVaultStorage();
     return null;
   }
@@ -203,7 +203,8 @@ export async function unlockGistAccessToken() {
     setCachedVaultKey(key);
     return accessToken;
   } catch (err) {
-    if (err?.name === "AbortError" || err?.name === "NotAllowedError") throw err;
+    if (err?.name === "AbortError" || err?.name === "NotAllowedError")
+      throw err;
     if (err?.name === "NotSupportedError") {
       memoryOnlySession = true;
       return null;
@@ -221,9 +222,12 @@ export async function ensureGistAccessToken() {
   if (accessToken) return accessToken;
   const unlocked = await unlockGistAccessToken();
   if (unlocked) return unlocked;
-  throw Object.assign(new Error("Connect GitHub Gist with a personal access token"), {
-    name: "NotAuthenticatedError",
-  });
+  throw Object.assign(
+    new Error("Connect GitHub Gist with a personal access token"),
+    {
+      name: "NotAuthenticatedError",
+    },
+  );
 }
 
 /**

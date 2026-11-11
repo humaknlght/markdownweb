@@ -15,17 +15,6 @@ import {
   generateDriveAuthHandoffKey,
 } from "./drive-auth-handoff.js";
 import {
-  DRIVE_AUTH_CHANNEL,
-  DRIVE_HELPER_PATH,
-  createDriveFile,
-  createDriveFolder,
-  isDriveMessage,
-  renameDriveItem,
-  trashDriveItem,
-  updateDriveFile,
-} from "./google-drive-api.js";
-import { isGoogleDriveConfigured } from "./google-drive-config.js";
-import {
   clearVaultStorage,
   ensureVaultKey,
   getCachedVaultKey,
@@ -37,20 +26,30 @@ import {
   setCachedVaultKey,
   unsealToken,
 } from "./drive-token-vault.js";
-
-export {
-  DRIVE_DEFAULT_FOLDER_NAME,
+import {
+  createDriveFile,
   createDriveFolder,
+  DRIVE_AUTH_CHANNEL,
+  DRIVE_HELPER_PATH,
+  isDriveMessage,
+  renameDriveItem,
+  trashDriveItem,
+  updateDriveFile,
+} from "./google-drive-api.js";
+import { isGoogleDriveConfigured } from "./google-drive-config.js";
+
+export { hasSealedDriveSession } from "./drive-token-vault.js";
+export {
+  createDriveFolder,
+  DRIVE_DEFAULT_FOLDER_NAME,
+  ensureDriveAppFolder,
   getDriveFileMeta,
-  listDriveAppFolder,
   listDriveAppFiles,
+  listDriveAppFolder,
   listDriveFolderChildren,
   readDriveFileText,
   readDriveFileWithMeta,
-  ensureDriveAppFolder,
 } from "./google-drive-api.js";
-
-export { hasSealedDriveSession } from "./drive-token-vault.js";
 
 /** Drop tokens this early so a refresh near expiry does not use a dead token. */
 const TOKEN_EXPIRY_SKEW_MS = 60_000;
@@ -175,7 +174,7 @@ export async function unlockDriveAccessToken() {
   if (!hasSealedDriveSession()) return null;
 
   const meta = readVaultMeta();
-  if (!meta || meta.kind !== "prf") {
+  if (meta?.kind !== "prf") {
     clearVaultStorage();
     return null;
   }
@@ -192,7 +191,8 @@ export async function unlockDriveAccessToken() {
     setCachedVaultKey(key);
     return accessToken;
   } catch (err) {
-    if (err?.name === "AbortError" || err?.name === "NotAllowedError") throw err;
+    if (err?.name === "AbortError" || err?.name === "NotAllowedError")
+      throw err;
     if (err?.name === "NotSupportedError") {
       memoryOnlySession = true;
       return null;
@@ -243,7 +243,11 @@ async function openDriveAuthHelper() {
       "width=520,height=640,menubar=no,toolbar=no,location=yes,status=no,resizable=yes,scrollbars=yes",
     );
     if (!popup) {
-      reject(new Error("Popup blocked — allow popups for this site to use Google Drive"));
+      reject(
+        new Error(
+          "Popup blocked — allow popups for this site to use Google Drive",
+        ),
+      );
       return;
     }
 
@@ -294,14 +298,22 @@ async function openDriveAuthHelper() {
           try {
             // Reject cleartext tokens — only the ephemeral-key ciphertext is trusted.
             if (typeof msg.accessToken === "string" || !msg.iv || !msg.ct) {
-              finish(reject, new Error("Rejected cleartext or incomplete Drive auth handoff"));
+              finish(
+                reject,
+                new Error(
+                  "Rejected cleartext or incomplete Drive auth handoff",
+                ),
+              );
               return;
             }
             const opened = await decryptDriveAuthHandoff(handoffKey, {
               iv: msg.iv,
               ct: msg.ct,
             });
-            const result = await persistDriveSession(opened.accessToken, opened.expiresIn);
+            const result = await persistDriveSession(
+              opened.accessToken,
+              opened.expiresIn,
+            );
             finish(resolve, {
               action: msg.action,
               accessToken: opened.accessToken,
@@ -348,7 +360,8 @@ export async function prepareDriveTokenVault() {
     await ensureVaultKey();
     return { ready: true };
   } catch (err) {
-    if (err?.name === "AbortError" || err?.name === "NotAllowedError") throw err;
+    if (err?.name === "AbortError" || err?.name === "NotAllowedError")
+      throw err;
     console.warn("[google-drive] vault prepare failed", err);
     setCachedVaultKey(null);
     memoryOnlySession = true;

@@ -1,14 +1,17 @@
-import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
+import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 import { JSDOM } from "jsdom";
 import { buildManifest } from "../../scripts/pwa.mjs";
-import { THEMES, THEME_COLORS } from "../../src/app/constants.js";
+import { THEME_COLORS, THEMES } from "../../src/app/constants.js";
 import { applyPwaDisplayAttrs } from "../../src/app/pwa-display-attrs.js";
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+const root = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "../..",
+);
 
 describe("applyPwaDisplayAttrs", () => {
   it("sets data-pwa for an installed window and clears data-wco when the overlay is off", () => {
@@ -32,7 +35,9 @@ describe("applyPwaDisplayAttrs", () => {
   });
 
   it("clears both attributes in a normal browser tab", () => {
-    const { document } = new JSDOM("<!DOCTYPE html><html data-pwa data-wco></html>").window;
+    const { document } = new JSDOM(
+      "<!DOCTYPE html><html data-pwa data-wco></html>",
+    ).window;
     applyPwaDisplayAttrs(document.documentElement, {
       standalone: false,
       wcoVisible: false,
@@ -44,7 +49,10 @@ describe("applyPwaDisplayAttrs", () => {
 
 describe("PWA toolbar border CSS", () => {
   it("adds top+bottom borders for installed PWA with the system title bar", async () => {
-    const css = await fs.readFile(path.join(root, "src/styles/styles.css"), "utf8");
+    const css = await fs.readFile(
+      path.join(root, "src/styles/styles.css"),
+      "utf8",
+    );
     assert.match(
       css,
       /html\[data-pwa\]:not\(\[data-wco\]\)\s*\.toolbar\s*\{[^}]*border-top:\s*1px solid var\(--chrome-border\)/s,
@@ -56,11 +64,11 @@ describe("PWA toolbar border CSS", () => {
   });
 
   it("removes top+bottom borders when the button bar is in the title bar (WCO)", async () => {
-    const css = await fs.readFile(path.join(root, "src/styles/styles.css"), "utf8");
-    assert.match(
-      css,
-      /html\[data-wco\]\s*\.toolbar\s*\{[^}]*border-top:\s*0/s,
+    const css = await fs.readFile(
+      path.join(root, "src/styles/styles.css"),
+      "utf8",
     );
+    assert.match(css, /html\[data-wco\]\s*\.toolbar\s*\{[^}]*border-top:\s*0/s);
     assert.match(
       css,
       /html\[data-wco\]\s*\.toolbar\s*\{[^}]*border-bottom:\s*0/s,
@@ -68,10 +76,16 @@ describe("PWA toolbar border CSS", () => {
   });
 
   it("keeps the default browser toolbar border-bottom outside PWA selectors", async () => {
-    const css = await fs.readFile(path.join(root, "src/styles/styles.css"), "utf8");
+    const css = await fs.readFile(
+      path.join(root, "src/styles/styles.css"),
+      "utf8",
+    );
     const toolbarBlock = css.match(/(?:^|\n)\.toolbar\s*\{[^}]+\}/);
     assert.ok(toolbarBlock, "expected a base .toolbar rule");
-    assert.match(toolbarBlock[0], /border-bottom:\s*1px solid var\(--chrome-border\)/);
+    assert.match(
+      toolbarBlock[0],
+      /border-bottom:\s*1px solid var\(--chrome-border\)/,
+    );
     assert.doesNotMatch(toolbarBlock[0], /border-top:/);
   });
 });

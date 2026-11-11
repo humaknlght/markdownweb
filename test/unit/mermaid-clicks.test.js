@@ -1,9 +1,9 @@
-import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { describe, it } from "node:test";
 import { JSDOM } from "jsdom";
 import {
-  parseMermaidClickHrefs,
   applyMermaidHrefLinks,
+  parseMermaidClickHrefs,
 } from "../../src/app/mermaid/clicks.js";
 
 describe("mermaid click hrefs", () => {
@@ -43,22 +43,22 @@ gantt
     svg.append(rect, text, other);
     win.document.getElementById("root").append(svg);
 
-    applyMermaidHrefLinks(
-      svg,
-      new Map([["a1", "https://example.com/task"]]),
-    );
+    applyMermaidHrefLinks(svg, new Map([["a1", "https://example.com/task"]]));
 
     assert.equal(rect.parentElement?.tagName, "a");
     assert.equal(text.parentElement?.tagName, "a");
     assert.equal(other.parentElement?.tagName, "svg");
-    assert.equal(rect.parentElement?.getAttribute("href"), "https://example.com/task");
-    assert.equal(rect.parentElement?.getAttribute("target"), "_blank");
-    assert.equal(rect.parentElement?.getAttribute("rel"), "noopener noreferrer");
-    // Idempotent — already wrapped nodes are left alone.
-    applyMermaidHrefLinks(
-      svg,
-      new Map([["a1", "https://example.com/task"]]),
+    assert.equal(
+      rect.parentElement?.getAttribute("href"),
+      "https://example.com/task",
     );
+    assert.equal(rect.parentElement?.getAttribute("target"), "_blank");
+    assert.equal(
+      rect.parentElement?.getAttribute("rel"),
+      "noopener noreferrer",
+    );
+    // Idempotent — already wrapped nodes are left alone.
+    applyMermaidHrefLinks(svg, new Map([["a1", "https://example.com/task"]]));
     assert.equal(rect.parentElement?.parentElement?.tagName, "svg");
   });
 });

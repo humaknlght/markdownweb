@@ -33,6 +33,23 @@ jobs:
             npx commitlint --last --verbose
           fi
 
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          # No cache here: parallel with `test` races on the same npm cache key
+          # ("Unable to reserve cache… another job may be creating this cache").
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
   test:
     runs-on: ubuntu-latest
     steps:

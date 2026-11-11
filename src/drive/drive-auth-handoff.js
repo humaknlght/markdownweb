@@ -74,10 +74,13 @@ export async function importDriveAuthHandoffKey(param) {
     throw new Error("Invalid handoff key");
   }
   const raw = base64UrlToBytes(param);
-  return crypto.subtle.importKey("raw", raw, { name: "AES-GCM", length: 256 }, false, [
-    "encrypt",
-    "decrypt",
-  ]);
+  return crypto.subtle.importKey(
+    "raw",
+    raw,
+    { name: "AES-GCM", length: 256 },
+    false,
+    ["encrypt", "decrypt"],
+  );
 }
 
 /**
@@ -102,7 +105,11 @@ export async function encryptDriveAuthHandoff(key, payload) {
   };
   const iv = crypto.getRandomValues(new Uint8Array(IV_BYTES));
   const plaintext = new TextEncoder().encode(JSON.stringify(body));
-  const ct = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, plaintext);
+  const ct = await crypto.subtle.encrypt(
+    { name: "AES-GCM", iv },
+    key,
+    plaintext,
+  );
   return {
     iv: bytesToBase64Url(iv),
     ct: bytesToBase64Url(ct),
@@ -121,7 +128,11 @@ export async function decryptDriveAuthHandoff(key, cipher) {
   const iv = base64UrlToBytes(cipher.iv);
   const ct = base64UrlToBytes(cipher.ct);
   if (iv.length !== IV_BYTES) throw new Error("Invalid auth cipher");
-  const plainBuf = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, ct);
+  const plainBuf = await crypto.subtle.decrypt(
+    { name: "AES-GCM", iv },
+    key,
+    ct,
+  );
   const parsed = JSON.parse(new TextDecoder().decode(plainBuf));
   if (typeof parsed?.accessToken !== "string" || !parsed.accessToken) {
     throw new Error("Invalid auth payload");

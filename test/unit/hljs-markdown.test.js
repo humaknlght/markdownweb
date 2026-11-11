@@ -1,5 +1,5 @@
-import { describe, it, before } from "node:test";
 import assert from "node:assert/strict";
+import { before, describe, it } from "node:test";
 import { withMarkdownEscapes } from "../../src/markdown/hljs-markdown.js";
 
 /** @type {import("highlight.js").HLJSApi} */
@@ -11,7 +11,8 @@ let highlightStock;
 
 before(async () => {
   ({ default: hljs } = await import("highlight.js"));
-  const markdown = (await import("highlight.js/lib/languages/markdown")).default;
+  const markdown = (await import("highlight.js/lib/languages/markdown"))
+    .default;
 
   const stock = hljs.newInstance();
   stock.registerLanguage("markdown", markdown);

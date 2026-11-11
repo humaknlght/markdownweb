@@ -1,21 +1,18 @@
+import { STORAGE_KEYS } from "./constants.js";
 import { hooks } from "./hooks.js";
 import {
-  state,
-  editor,
-  preview,
-  panes,
-  aiProofEditorWrap,
   aiProofEditor,
+  aiProofEditorWrap,
   aiProofHighlight,
   aiProofHighlightCode,
-  syncScrollBtn,
+  editor,
   lineWrapBtn,
-  previewPane
+  panes,
+  preview,
+  previewPane,
+  state,
+  syncScrollBtn,
 } from "./state.js";
-import {
-  STORAGE_KEYS
-} from "./constants.js";
-
 
 export function scrollRatio(el) {
   const max = el.scrollHeight - el.clientHeight;
@@ -39,7 +36,9 @@ export function invalidateScrollAnchors() {
 
 /** True when `el` participates in preview layout (not slide-hidden or section-folded). */
 export function previewNodeIsLaidOut(el) {
-  return Boolean(el) && !el.hidden && !el.closest("[hidden], .md-section-folded");
+  return (
+    Boolean(el) && !el.hidden && !el.closest("[hidden], .md-section-folded")
+  );
 }
 
 export function offsetWithin(el, container) {
@@ -134,7 +133,11 @@ export function buildScrollAnchors() {
     });
 
     const endLine = Number(el.getAttribute("data-source-line-end"));
-    if (Number.isFinite(endLine) && endLine > line && endLine <= lineTops.length) {
+    if (
+      Number.isFinite(endLine) &&
+      endLine > line &&
+      endLine <= lineTops.length
+    ) {
       anchors.push({
         editor: lineTops[endLine - 1],
         preview: previewTop + el.offsetHeight,
@@ -211,7 +214,10 @@ export function setSyncScroll(enabled, { persist = true } = {}) {
   syncScrollBtn.setAttribute("aria-label", syncLabel);
   if (persist) {
     try {
-      localStorage.setItem(STORAGE_KEYS.syncScroll, state.syncScrollEnabled ? "1" : "0");
+      localStorage.setItem(
+        STORAGE_KEYS.syncScroll,
+        state.syncScrollEnabled ? "1" : "0",
+      );
     } catch {
       /* storage may be unavailable */
     }
@@ -225,7 +231,9 @@ export function setSyncScroll(enabled, { persist = true } = {}) {
 
 export function setLineWrap(enabled, { persist = true } = {}) {
   state.lineWrapEnabled = Boolean(enabled);
-  document.documentElement.dataset.lineWrap = state.lineWrapEnabled ? "on" : "off";
+  document.documentElement.dataset.lineWrap = state.lineWrapEnabled
+    ? "on"
+    : "off";
   hooks.syncPreviewFrameChrome?.();
   hooks.schedulePreviewFrameHeight?.();
   if (lineWrapBtn) {
@@ -236,7 +244,10 @@ export function setLineWrap(enabled, { persist = true } = {}) {
   }
   if (persist) {
     try {
-      localStorage.setItem(STORAGE_KEYS.lineWrap, state.lineWrapEnabled ? "1" : "0");
+      localStorage.setItem(
+        STORAGE_KEYS.lineWrap,
+        state.lineWrapEnabled ? "1" : "0",
+      );
     } catch {
       /* storage may be unavailable */
     }
@@ -265,7 +276,10 @@ export function syncProofEditorHighlightScroll() {
 
 export function syncPreviewFromEditor() {
   if (!state.syncScrollEnabled || state.syncScrollDriver === "preview") return;
-  if (panes.classList.contains("editor-collapsed") || panes.classList.contains("preview-collapsed")) {
+  if (
+    panes.classList.contains("editor-collapsed") ||
+    panes.classList.contains("preview-collapsed")
+  ) {
     return;
   }
   // Proofread replaces the rendered preview with a second editor — ratio-sync
@@ -287,7 +301,9 @@ export function syncPreviewFromEditor() {
   if (anchors.length >= 2) {
     target = interpolateAnchor(editor.scrollTop, anchors, "editor", "preview");
   } else {
-    target = scrollRatio(editor) * Math.max(0, previewPane.scrollHeight - previewPane.clientHeight);
+    target =
+      scrollRatio(editor) *
+      Math.max(0, previewPane.scrollHeight - previewPane.clientHeight);
   }
   if (typeof hooks.adjustPreviewScrollForVisibleCaret === "function") {
     target = hooks.adjustPreviewScrollForVisibleCaret(target);
@@ -297,7 +313,10 @@ export function syncPreviewFromEditor() {
 
 export function syncEditorFromPreview() {
   if (!state.syncScrollEnabled || state.syncScrollDriver === "editor") return;
-  if (panes.classList.contains("editor-collapsed") || panes.classList.contains("preview-collapsed")) {
+  if (
+    panes.classList.contains("editor-collapsed") ||
+    panes.classList.contains("preview-collapsed")
+  ) {
     return;
   }
   // Preview height is mid-flight while Mermaid paints; mapping back into the

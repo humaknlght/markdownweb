@@ -1,9 +1,9 @@
 import { hooks } from "../hooks.js";
 import {
-  state,
-  preview,
+  mermaidHeightCache,
   mermaidSources,
-  mermaidHeightCache
+  preview,
+  state,
 } from "../state.js";
 
 /**
@@ -19,7 +19,9 @@ export function hoistMermaidDiagramSvg(el) {
   );
   if (!svgs.length) return null;
   const svg = svgs.reduce((best, cur) =>
-    cur.querySelectorAll("*").length > best.querySelectorAll("*").length ? cur : best,
+    cur.querySelectorAll("*").length > best.querySelectorAll("*").length
+      ? cur
+      : best,
   );
   if (svg.parentElement !== el) {
     // Preserve zoom controls if they were already mounted.
@@ -38,7 +40,9 @@ export function syncMermaidSvgSizes() {
     // discard Mermaid's in-progress wrapper + SVG. Hoist only after run().
     const svg =
       host.querySelector(":scope > svg") ||
-      [...host.querySelectorAll("svg")].find((node) => !node.closest(".mermaid-zoom-btn"));
+      [...host.querySelectorAll("svg")].find(
+        (node) => !node.closest(".mermaid-zoom-btn"),
+      );
     if (!svg) {
       hooks.ensureMermaidZoomControls(host);
       if (
@@ -136,7 +140,7 @@ export function relayoutFluidMermaidDiagrams() {
   const targets = [];
   for (const el of preview.querySelectorAll(".mermaid")) {
     const svg = el.querySelector(":scope > svg");
-    if (!svg || svg.dataset.mermaidFluid !== "1") continue;
+    if (svg?.dataset.mermaidFluid !== "1") continue;
     if (!mermaidSources.has(el)) continue;
     // Keep the last good SVG while the pane is too narrow for a safe re-run.
     if (!hooks.mermaidHostWideEnough(el)) continue;
@@ -235,10 +239,15 @@ export async function renderMermaidDiagrams({ force = false } = {}) {
     // Don't blank diagrams that already rendered (re-entry from slide change).
     const existing =
       el.querySelector(":scope > svg") ||
-      [...el.querySelectorAll("svg")].find((node) => !node.closest(".mermaid-zoom-btn"));
+      [...el.querySelectorAll("svg")].find(
+        (node) => !node.closest(".mermaid-zoom-btn"),
+      );
     // Empty SVGs (cross-document Mermaid failures) must be retried.
     const hasDiagram =
-      existing && existing.querySelectorAll("path, rect, polygon, circle, line, polyline, text, foreignObject").length > 0;
+      existing &&
+      existing.querySelectorAll(
+        "path, rect, polygon, circle, line, polyline, text, foreignObject",
+      ).length > 0;
     if (!hasDiagram) {
       hooks.rememberMermaidSource(el);
       el.setAttribute("data-pending", "");
@@ -260,9 +269,9 @@ export async function renderMermaidDiagrams({ force = false } = {}) {
     void preview.offsetWidth;
   }
 
-  const candidates = [...preview.querySelectorAll(".mermaid[data-pending]")].filter(
-    (el) => force || hooks.mermaidNodeIsVisible(el),
-  );
+  const candidates = [
+    ...preview.querySelectorAll(".mermaid[data-pending]"),
+  ].filter((el) => force || hooks.mermaidNodeIsVisible(el));
   // Defer narrow hosts (esp. gantt) — leave data-pending for resize retry.
   const nodes = candidates.filter((el) => hooks.mermaidHostWideEnough(el));
 
@@ -270,7 +279,8 @@ export async function renderMermaidDiagrams({ force = false } = {}) {
   const staged = [];
   try {
     if (nodes.length) {
-      if (state.mermaidLook === "handDrawn") await hooks.ensureExcalifontLoaded();
+      if (state.mermaidLook === "handDrawn")
+        await hooks.ensureExcalifontLoaded();
       if (gen !== state.mermaidGen) return;
       const mermaid = await hooks.loadMermaid();
       if (gen !== state.mermaidGen) return;
@@ -293,9 +303,13 @@ export async function renderMermaidDiagrams({ force = false } = {}) {
       for (const { el, staging } of staged) {
         const srcSvg =
           staging.querySelector(":scope > svg") ||
-          [...staging.querySelectorAll("svg")].find((node) => !node.closest(".mermaid-zoom-btn"));
+          [...staging.querySelectorAll("svg")].find(
+            (node) => !node.closest(".mermaid-zoom-btn"),
+          );
         if (srcSvg) {
-          const adopted = /** @type {SVGElement} */ (el.ownerDocument.importNode(srcSvg, true));
+          const adopted = /** @type {SVGElement} */ (
+            el.ownerDocument.importNode(srcSvg, true)
+          );
           el.replaceChildren(adopted);
         }
       }

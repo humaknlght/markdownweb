@@ -1,5 +1,5 @@
-import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { describe, it } from "node:test";
 import {
   detectEditableExtension,
   ensureEditableExtension,
@@ -11,7 +11,13 @@ import {
 
 describe("fs helpers", () => {
   it("recognizes editable file names", () => {
-    for (const name of ["readme.md", "doc.markdown", "notes.txt", "index.html", "x.HTM"]) {
+    for (const name of [
+      "readme.md",
+      "doc.markdown",
+      "notes.txt",
+      "index.html",
+      "x.HTM",
+    ]) {
       assert.equal(isEditableFileName(name), true, name);
     }
     assert.equal(isEditableFileName("image.png"), false);
@@ -28,8 +34,14 @@ describe("fs helpers", () => {
   });
 
   it("ignores leading HTML comments when detecting html documents", () => {
-    assert.equal(detectEditableExtension("<!-- note -->\n<!DOCTYPE html>"), "html");
-    assert.equal(detectEditableExtension("<!-- a --><!-- b -->\n<html>"), "html");
+    assert.equal(
+      detectEditableExtension("<!-- note -->\n<!DOCTYPE html>"),
+      "html",
+    );
+    assert.equal(
+      detectEditableExtension("<!-- a --><!-- b -->\n<html>"),
+      "html",
+    );
     // Unclosed leading comment: do not sniff the body as the document root.
     assert.equal(detectEditableExtension("<!--\n<!DOCTYPE html>"), "md");
   });
@@ -38,7 +50,10 @@ describe("fs helpers", () => {
     assert.equal(ensureEditableExtension(""), "untitled.md");
     assert.equal(ensureEditableExtension("doc"), "doc.md");
     assert.equal(ensureEditableExtension("page.md"), "page.md");
-    assert.equal(ensureEditableExtension("page", "<!DOCTYPE html>"), "page.html");
+    assert.equal(
+      ensureEditableExtension("page", "<!DOCTYPE html>"),
+      "page.html",
+    );
   });
 
   it("suggests untitled names", () => {
@@ -55,9 +70,18 @@ describe("fs helpers", () => {
         throw new Error("should not open");
       },
     };
-    assert.equal(await resolveFilePath(/** @type {any} */ (root), "../secret.md"), null);
-    assert.equal(await resolveFilePath(/** @type {any} */ (root), "a/../b.md"), null);
-    assert.equal(await resolveFilePath(/** @type {any} */ (root), "a/./b.md"), null);
+    assert.equal(
+      await resolveFilePath(/** @type {any} */ (root), "../secret.md"),
+      null,
+    );
+    assert.equal(
+      await resolveFilePath(/** @type {any} */ (root), "a/../b.md"),
+      null,
+    );
+    assert.equal(
+      await resolveFilePath(/** @type {any} */ (root), "a/./b.md"),
+      null,
+    );
     assert.equal(await resolveFilePath(/** @type {any} */ (root), ".."), null);
     assert.equal(await resolveFilePath(/** @type {any} */ (root), ""), null);
   });
@@ -72,7 +96,10 @@ describe("fs helpers", () => {
       },
       getFileHandle: async (name) => ({ kind: "file", name }),
     };
-    const file = await resolveFilePath(/** @type {any} */ (root), "docs/notes.md");
+    const file = await resolveFilePath(
+      /** @type {any} */ (root),
+      "docs/notes.md",
+    );
     assert.deepEqual(dirs, ["docs"]);
     assert.equal(file?.name, "notes.md");
   });

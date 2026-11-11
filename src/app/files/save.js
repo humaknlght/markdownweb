@@ -1,32 +1,30 @@
+import { STORAGE_KEYS } from "../constants.js";
 import { hooks } from "../hooks.js";
 import {
-  state,
+  driveCurrentFolderId,
+  expandedPaths,
   fsAccessSupported,
   fsEntries,
-  expandedPaths,
-  driveCurrentFolderId
+  state,
 } from "../state.js";
 import {
-  STORAGE_KEYS
-} from "../constants.js";
-import {
-  createFile,
-  ensureEditableExtension,
-  readTextFileMeta,
-  saveWithPicker,
-  suggestedUntitledName,
-  writeTextFile,
   createDriveFileWithToken,
+  createFile,
+  createPrivateGist,
   ensureDriveAccessToken,
   ensureDriveAppFolder,
-  getDriveFileMeta,
-  saveExistingDriveFile,
-  createPrivateGist,
+  ensureEditableExtension,
   ensureGistAccessToken,
-  readGistFileWithMeta,
-  updateGistFile,
+  getDriveFileMeta,
+  joinFsPath,
   moveDraft,
-  joinFsPath
+  readGistFileWithMeta,
+  readTextFileMeta,
+  saveExistingDriveFile,
+  saveWithPicker,
+  suggestedUntitledName,
+  updateGistFile,
+  writeTextFile,
 } from "../vendor-deps.js";
 
 export async function saveCurrentDocumentToDrive() {
@@ -38,19 +36,27 @@ export async function saveCurrentDocumentToDrive() {
       const meta = await getDriveFileMeta(token, state.currentDriveFile.id);
       if (
         !hooks.confirmOverwriteIfRemoteChanged(
-          state.currentDriveFile.name || state.currentFileName || "This Drive file",
+          state.currentDriveFile.name ||
+            state.currentFileName ||
+            "This Drive file",
           meta.modifiedTime,
         )
       ) {
         return;
       }
       const saved = await saveExistingDriveFile(state.currentDriveFile.id, {
-        name: state.currentDriveFile.name || state.currentFileName || suggestedUntitledName(text),
+        name:
+          state.currentDriveFile.name ||
+          state.currentFileName ||
+          suggestedUntitledName(text),
         content: text,
       });
-      if (saved.modifiedTime) hooks.setCurrentFileRevision("drive", saved.modifiedTime);
+      if (saved.modifiedTime)
+        hooks.setCurrentFileRevision("drive", saved.modifiedTime);
       hooks.markCleanFromEditor();
-      hooks.showToast(`Saved ${state.currentDriveFile.name || state.currentFileName}`);
+      hooks.showToast(
+        `Saved ${state.currentDriveFile.name || state.currentFileName}`,
+      );
       void hooks.refreshDriveTree();
       return;
     }
@@ -65,8 +71,13 @@ export async function saveCurrentDocumentToDrive() {
     if (raw == null) return;
     const name = ensureEditableExtension(raw, text);
     const parentId =
-      driveCurrentFolderId() || (await ensureDriveAppFolder(await ensureDriveAccessToken()));
-    const file = await createDriveFileWithToken({ name, content: text, parentId });
+      driveCurrentFolderId() ||
+      (await ensureDriveAppFolder(await ensureDriveAccessToken()));
+    const file = await createDriveFileWithToken({
+      name,
+      content: text,
+      parentId,
+    });
     const fromKey = hooks.currentDocKey();
     hooks.bindCurrentDriveFile(file);
     const toKey = hooks.currentDocKey();
@@ -116,7 +127,8 @@ export async function saveCurrentDocumentToGist() {
         state.currentGistFile.filename,
         text,
       );
-      if (saved.updatedAt) hooks.setCurrentFileRevision("gist", saved.updatedAt);
+      if (saved.updatedAt)
+        hooks.setCurrentFileRevision("gist", saved.updatedAt);
       hooks.markCleanFromEditor();
       hooks.showToast(`Saved ${state.currentGistFile.filename}`);
       void hooks.refreshGistTree();
@@ -198,7 +210,9 @@ export async function saveCurrentDocument() {
       const after = await state.currentFileHandle.getFile();
       hooks.setCurrentFileRevision("fs", after.lastModified);
       hooks.markCleanFromEditor();
-      hooks.showToast(`Saved ${state.currentFileName || state.currentFileHandle.name}`);
+      hooks.showToast(
+        `Saved ${state.currentFileName || state.currentFileHandle.name}`,
+      );
       return;
     }
 
@@ -208,7 +222,11 @@ export async function saveCurrentDocument() {
       if (raw == null) return;
       const name = ensureEditableExtension(raw, text);
       const handle = await createFile(dir, name, text);
-      const basePath = dir === state.rootDirHandle ? "" : ([...fsEntries.entries()].find(([, e]) => e.handle === dir)?.[0] ?? "");
+      const basePath =
+        dir === state.rootDirHandle
+          ? ""
+          : ([...fsEntries.entries()].find(([, e]) => e.handle === dir)?.[0] ??
+            "");
       if (basePath) expandedPaths.add(basePath);
       await hooks.refreshFilesTree();
       const createdPath = joinFsPath(basePath, name);

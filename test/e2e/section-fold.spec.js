@@ -1,9 +1,5 @@
-import { test, expect } from "playwright/test";
-import {
-  openFreshApp,
-  headingText,
-  previewLocator
-} from "./helpers.js";
+import { expect, test } from "playwright/test";
+import { headingText, openFreshApp, previewLocator } from "./helpers.js";
 
 /** Click a section twistie and wait until the fold animation has fully settled. */
 async function toggleSectionSettled(page, heading) {
@@ -11,7 +7,10 @@ async function toggleSectionSettled(page, heading) {
   // Tall sections skip the height animation; still wait a frame so applySectionCollapse
   // (and any in-flight paint) can commit is-collapsed before the next toggle.
   await expect(previewLocator(page, ".md-section-anim")).toHaveCount(0);
-  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+  await page.evaluate(
+    () =>
+      new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))),
+  );
 }
 
 /** Preview heading by visible label text. */
@@ -26,7 +25,10 @@ async function waitForPreviewHeadings(page, labels) {
   for (const label of labels) {
     await expect
       .poll(async () => {
-        const texts = await previewLocator(page, ".md-section-label").allTextContents();
+        const texts = await previewLocator(
+          page,
+          ".md-section-label",
+        ).allTextContents();
         return texts.some((t) => t.includes(label));
       })
       .toBe(true);
@@ -39,7 +41,10 @@ async function waitForPreviewHeadings(page, labels) {
  * Watch every animation frame while expand/collapse runs.
  * Also probes appendChild so a full-height expand insert is caught synchronously.
  */
-async function watchFoldAnimation(page, { siblingLabels, collapsedBodyMarkers }) {
+async function watchFoldAnimation(
+  page,
+  { siblingLabels, collapsedBodyMarkers },
+) {
   await page.evaluate(
     ({ siblingLabels: labels, collapsedBodyMarkers: markers }) => {
       window.__foldWatch = {
@@ -76,11 +81,15 @@ async function watchFoldAnimation(page, { siblingLabels, collapsedBodyMarkers })
       };
 
       const previewRoot = () =>
-        document.getElementById("preview-frame")?.contentDocument?.getElementById("preview");
+        document
+          .getElementById("preview-frame")
+          ?.contentDocument?.getElementById("preview");
 
       const headingByLabel = (label) =>
         [...(previewRoot()?.querySelectorAll("h1, h2, h3") || [])].find((h) =>
-          (h.querySelector(".md-section-label")?.textContent || "").includes(label),
+          (h.querySelector(".md-section-label")?.textContent || "").includes(
+            label,
+          ),
         );
 
       const tick = () => {
@@ -90,13 +99,17 @@ async function watchFoldAnimation(page, { siblingLabels, collapsedBodyMarkers })
 
         for (const label of labels) {
           const h = headingByLabel(label);
-          if (!h || !h.isConnected) {
+          if (!h?.isConnected) {
             w.siblingVanish = true;
             continue;
           }
           const r = h.getBoundingClientRect();
           const cs = getComputedStyle(h);
-          if (cs.display === "none" || cs.visibility === "hidden" || r.height < 1) {
+          if (
+            cs.display === "none" ||
+            cs.visibility === "hidden" ||
+            r.height < 1
+          ) {
             w.siblingVanish = true;
             if (w.samples.length < 6) {
               w.samples.push({
@@ -111,9 +124,9 @@ async function watchFoldAnimation(page, { siblingLabels, collapsedBodyMarkers })
         }
 
         for (const marker of markers) {
-          const el = [...(previewRoot()?.querySelectorAll("p, ul, ol") || [])].find(
-            (node) => (node.textContent || "").includes(marker),
-          );
+          const el = [
+            ...(previewRoot()?.querySelectorAll("p, ul, ol") || []),
+          ].find((node) => (node.textContent || "").includes(marker));
           if (!el) continue;
           if (getComputedStyle(el).display !== "none") {
             w.bodyUnhide = true;
@@ -150,12 +163,20 @@ test.describe("section fold", () => {
     await openFreshApp(page);
   });
 
-  test("collapse hides section body and expand shows it again", async ({ page }) => {
-    await page.locator("#editor").fill("## Section\n\nVisible body paragraph.\n\n## Next\n\nNext body.");
-    await expect.poll(async () => headingText(previewLocator(page, "h2").first())).toBe("Section");
+  test("collapse hides section body and expand shows it again", async ({
+    page,
+  }) => {
+    await page
+      .locator("#editor")
+      .fill("## Section\n\nVisible body paragraph.\n\n## Next\n\nNext body.");
+    await expect
+      .poll(async () => headingText(previewLocator(page, "h2").first()))
+      .toBe("Section");
 
     const section = previewHeading(page, "h2", "Section");
-    const body = previewLocator(page, "p", { hasText: "Visible body paragraph" });
+    const body = previewLocator(page, "p", {
+      hasText: "Visible body paragraph",
+    });
 
     await expect(body).toBeVisible();
     await expect(section).not.toHaveClass(/is-collapsed/);
@@ -174,26 +195,32 @@ test.describe("section fold", () => {
   test("expanding a parent keeps nested collapsed bodies hidden during the animation", async ({
     page,
   }) => {
-    await page.locator("#editor").fill(
-      [
-        "# Parent",
-        "",
-        "Parent intro.",
-        "",
-        "## Nested",
-        "",
-        "NESTED_SECRET_BODY",
-        "",
-        "## Sibling",
-        "",
-        "Sibling body.",
-      ].join("\n"),
-    );
-    await expect.poll(async () => headingText(previewLocator(page, "h1"))).toBe("Parent");
+    await page
+      .locator("#editor")
+      .fill(
+        [
+          "# Parent",
+          "",
+          "Parent intro.",
+          "",
+          "## Nested",
+          "",
+          "NESTED_SECRET_BODY",
+          "",
+          "## Sibling",
+          "",
+          "Sibling body.",
+        ].join("\n"),
+      );
+    await expect
+      .poll(async () => headingText(previewLocator(page, "h1")))
+      .toBe("Parent");
 
     const parent = previewHeading(page, "h1", "Parent");
     const nested = previewHeading(page, "h2", "Nested");
-    const nestedBody = previewLocator(page, "p", { hasText: "NESTED_SECRET_BODY" });
+    const nestedBody = previewLocator(page, "p", {
+      hasText: "NESTED_SECRET_BODY",
+    });
 
     await toggleSectionSettled(page, nested);
     await expect(nested).toHaveClass(/is-collapsed/);
@@ -211,9 +238,10 @@ test.describe("section fold", () => {
     await expect(parent).not.toHaveClass(/is-collapsed/);
 
     const watch = await stopFoldWatch(page);
-    expect(watch.bodyUnhide, `nested body became visible: ${JSON.stringify(watch.samples)}`).toBe(
-      false,
-    );
+    expect(
+      watch.bodyUnhide,
+      `nested body became visible: ${JSON.stringify(watch.samples)}`,
+    ).toBe(false);
 
     await expect(nested).toBeVisible();
     await expect(nested).toHaveClass(/is-collapsed/);
@@ -225,28 +253,31 @@ test.describe("section fold", () => {
   }) => {
     // Mirrors help-doc repro: collapse Getting started / Supported / Mermaid, then expand
     // Getting started. Later titles must stay in the DOM with real geometry every frame.
-    const tallBody = Array.from({ length: 40 }, (_, i) => `Line ${i} of the tall section.`).join(
-      "\n\n",
-    );
-    await page.locator("#editor").fill(
-      [
-        "## Getting started",
-        "",
-        tallBody,
-        "",
-        "## Supported Markdown",
-        "",
-        "SUPPORTED_BODY_MARKER",
-        "",
-        "## Mermaid diagrams",
-        "",
-        "MERMAID_BODY_MARKER",
-        "",
-        "## YAML front matter",
-        "",
-        "YAML body.",
-      ].join("\n"),
-    );
+    const tallBody = Array.from(
+      { length: 40 },
+      (_, i) => `Line ${i} of the tall section.`,
+    ).join("\n\n");
+    await page
+      .locator("#editor")
+      .fill(
+        [
+          "## Getting started",
+          "",
+          tallBody,
+          "",
+          "## Supported Markdown",
+          "",
+          "SUPPORTED_BODY_MARKER",
+          "",
+          "## Mermaid diagrams",
+          "",
+          "MERMAID_BODY_MARKER",
+          "",
+          "## YAML front matter",
+          "",
+          "YAML body.",
+        ].join("\n"),
+      );
     await waitForPreviewHeadings(page, [
       "Getting started",
       "Supported Markdown",
@@ -258,8 +289,12 @@ test.describe("section fold", () => {
     const supported = previewHeading(page, "h2", "Supported Markdown");
     const mermaid = previewHeading(page, "h2", "Mermaid diagrams");
     const yaml = previewHeading(page, "h2", "YAML front matter");
-    const supportedBody = previewLocator(page, "p", { hasText: "SUPPORTED_BODY_MARKER" });
-    const mermaidBody = previewLocator(page, "p", { hasText: "MERMAID_BODY_MARKER" });
+    const supportedBody = previewLocator(page, "p", {
+      hasText: "SUPPORTED_BODY_MARKER",
+    });
+    const mermaidBody = previewLocator(page, "p", {
+      hasText: "MERMAID_BODY_MARKER",
+    });
 
     await toggleSectionSettled(page, gettingStarted);
     await expect(gettingStarted).toHaveClass(/is-collapsed/);
@@ -277,7 +312,11 @@ test.describe("section fold", () => {
     await expect(yaml).toBeInViewport();
 
     await watchFoldAnimation(page, {
-      siblingLabels: ["Supported Markdown", "Mermaid diagrams", "YAML front matter"],
+      siblingLabels: [
+        "Supported Markdown",
+        "Mermaid diagrams",
+        "YAML front matter",
+      ],
       collapsedBodyMarkers: ["SUPPORTED_BODY_MARKER", "MERMAID_BODY_MARKER"],
     });
 
@@ -311,24 +350,30 @@ test.describe("section fold", () => {
     await expect(mermaidBody).toBeHidden();
   });
 
-  test("interrupted parent fold settles without visible folded bodies", async ({ page }) => {
+  test("interrupted parent fold settles without visible folded bodies", async ({
+    page,
+  }) => {
     await openFreshApp(page);
-    await page.locator("#editor").fill(
-      [
-        "# Parent",
-        "",
-        "PARENT_INTRO",
-        "",
-        "## Child A",
-        "",
-        "CHILD_A_BODY",
-        "",
-        "## Child B",
-        "",
-        "CHILD_B_BODY",
-      ].join("\n"),
-    );
-    await expect.poll(async () => headingText(previewLocator(page, "h1").first())).toBe("Parent");
+    await page
+      .locator("#editor")
+      .fill(
+        [
+          "# Parent",
+          "",
+          "PARENT_INTRO",
+          "",
+          "## Child A",
+          "",
+          "CHILD_A_BODY",
+          "",
+          "## Child B",
+          "",
+          "CHILD_B_BODY",
+        ].join("\n"),
+      );
+    await expect
+      .poll(async () => headingText(previewLocator(page, "h1").first()))
+      .toBe("Parent");
 
     const parent = previewHeading(page, "h1", "Parent");
     const childA = previewHeading(page, "h2", "Child A");
@@ -339,8 +384,10 @@ test.describe("section fold", () => {
 
     // Rapid: collapse parent, then child, without waiting — reproduces the
     // is-collapsed / visible-body desync from interrupted fold animations.
+    // force: parent collapse hides Child A mid-flight; Playwright actionability
+    // would otherwise wait forever for a visible/stable target.
     await parent.locator(":scope > .md-section-toggle").click();
-    await childA.locator(":scope > .md-section-toggle").click();
+    await childA.locator(":scope > .md-section-toggle").click({ force: true });
     await expect(previewLocator(page, ".md-section-anim")).toHaveCount(0);
 
     // Parent collapsed wins: its body (including child headings) must be hidden.

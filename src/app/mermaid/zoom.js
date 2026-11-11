@@ -1,19 +1,16 @@
+import { MERMAID_ZOOM_BTN_SVG, MERMAID_ZOOM_STEP } from "../constants.js";
 import { hooks } from "../hooks.js";
 import {
-  state,
-  preview,
+  mermaidZoomCloseBtn,
   mermaidZoomDialog,
-  mermaidZoomStage,
-  mermaidZoomLevel,
   mermaidZoomInBtn,
+  mermaidZoomLevel,
   mermaidZoomOutBtn,
   mermaidZoomResetBtn,
-  mermaidZoomCloseBtn
+  mermaidZoomStage,
+  preview,
+  state,
 } from "../state.js";
-import {
-  MERMAID_ZOOM_STEP,
-  MERMAID_ZOOM_BTN_SVG
-} from "../constants.js";
 import { clampMermaidZoom, mermaidZoomViewBox } from "./zoom-utils.js";
 
 export { clampMermaidZoom, mermaidZoomViewBox };
@@ -41,7 +38,7 @@ export function ensureMermaidZoomControls(host) {
 export function applyMermaidZoom() {
   const svg = mermaidZoomStage?.querySelector(".mermaid-zoom-scaler > svg");
   // Don't use instanceof — the node may have been imported from the preview iframe.
-  if (!svg || svg.namespaceURI !== "http://www.w3.org/2000/svg") return;
+  if (svg?.namespaceURI !== "http://www.w3.org/2000/svg") return;
   if (!(state.mermaidZoomBaseW > 0)) return;
   state.mermaidZoomFactor = clampMermaidZoom(state.mermaidZoomFactor);
   const w = state.mermaidZoomBaseW * state.mermaidZoomFactor;
@@ -62,7 +59,9 @@ export function fitMermaidZoom() {
   if (!(stageW > 0)) {
     state.mermaidZoomFactor = 1;
   } else {
-    state.mermaidZoomFactor = clampMermaidZoom((stageW * 0.92) / state.mermaidZoomBaseW);
+    state.mermaidZoomFactor = clampMermaidZoom(
+      (stageW * 0.92) / state.mermaidZoomBaseW,
+    );
   }
   applyMermaidZoom();
 }
@@ -79,7 +78,7 @@ export function openMermaidZoom(host) {
 
   const pre = srcSvg.getBoundingClientRect();
   state.mermaidZoomBaseW = pre.width > 0 ? pre.width : 400;
-  state.mermaidZoomBaseH = pre.height > 0 ? pre.height : 0;
+  state.mermaidZoomBaseH = Math.max(pre.height, 0);
   state.mermaidZoomFactor = 1;
 
   // Preview lives in a sandboxed iframe — import into the parent document so
@@ -146,8 +145,12 @@ export function setupMermaidZoom() {
     if (host) openMermaidZoom(host);
   });
 
-  mermaidZoomInBtn?.addEventListener("click", () => stepMermaidZoom(MERMAID_ZOOM_STEP));
-  mermaidZoomOutBtn?.addEventListener("click", () => stepMermaidZoom(-MERMAID_ZOOM_STEP));
+  mermaidZoomInBtn?.addEventListener("click", () =>
+    stepMermaidZoom(MERMAID_ZOOM_STEP),
+  );
+  mermaidZoomOutBtn?.addEventListener("click", () =>
+    stepMermaidZoom(-MERMAID_ZOOM_STEP),
+  );
   mermaidZoomResetBtn?.addEventListener("click", () => fitMermaidZoom());
   mermaidZoomCloseBtn?.addEventListener("click", () => closeMermaidZoom());
   mermaidZoomDialog?.addEventListener("close", onMermaidZoomDialogClose);

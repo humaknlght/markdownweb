@@ -7,7 +7,10 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const repoRoot = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "..",
+);
 /** Split app modules only — lib/markdown use imports referenced from JSDoc. */
 const targetRoots = [path.join(repoRoot, "src/app")];
 
@@ -63,8 +66,7 @@ function usedIdents(code) {
   const cleaned = stripLiteralsForUsedScan(noComments);
   const re = /\b([A-Za-z_$][\w$]*)\b/g;
   for (const chunk of [templateExprs, cleaned]) {
-    let m;
-    while ((m = re.exec(chunk))) set.add(m[1]);
+    for (const m of chunk.matchAll(re)) set.add(m[1]);
   }
   return set;
 }
@@ -87,7 +89,10 @@ function splitImports(text) {
     }
     if (trimmed.startsWith("import ")) {
       importLines.push(line);
-      while (!importLines[importLines.length - 1].includes(";") && i + 1 < lines.length) {
+      while (
+        !importLines[importLines.length - 1].includes(";") &&
+        i + 1 < lines.length
+      ) {
         i++;
         importLines.push(lines[i]);
       }
@@ -119,7 +124,7 @@ function trimImportBlock(importBlock, used) {
   const out = [];
   let changed = false;
   const stmts = importBlock.split(/(?<=;)\n/);
-  for (let raw of stmts) {
+  for (const raw of stmts) {
     const stmt = raw.trim();
     if (!stmt) continue;
 
@@ -211,7 +216,8 @@ async function main() {
   console.log(`${dryRun ? "Would trim" : "Trimmed"} ${touched} file(s)`);
 }
 
-const isCli = process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url;
+const isCli =
+  process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url;
 if (isCli) {
   main().catch((err) => {
     console.error(err);

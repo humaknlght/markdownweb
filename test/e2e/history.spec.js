@@ -1,4 +1,4 @@
-import { test, expect } from "playwright/test";
+import { expect, test } from "playwright/test";
 import { openFreshApp } from "./helpers.js";
 
 /** History restore prompts when the untitled draft is dirty — always accept. */
@@ -17,7 +17,9 @@ async function pushHistoryNow(page, titleRe) {
       async () => {
         const title = await page.evaluate(() => {
           try {
-            const hist = JSON.parse(localStorage.getItem("md-editor:history") || "{}");
+            const hist = JSON.parse(
+              localStorage.getItem("md-editor:history") || "{}",
+            );
             return hist.entries?.[0]?.title || "";
           } catch {
             return "";
@@ -33,14 +35,16 @@ async function pushHistoryNow(page, titleRe) {
 async function restoreHistoryAt(page, index) {
   await page.keyboard.press("Escape");
   await page.locator("#history-btn").click();
-  const item = page.locator("#history-menu li button").nth(index);
+  const item = page.locator("#history-menu button").nth(index);
   await expect(item).toBeVisible();
   await item.click();
   await expect(page.locator("#history-menu")).toBeHidden();
 }
 
 test.describe("history", () => {
-  test("records a history entry after idle debounce and restores it", async ({ page }) => {
+  test("records a history entry after idle debounce and restores it", async ({
+    page,
+  }) => {
     acceptDiscardDialogs(page);
     await page.clock.install();
     await openFreshApp(page);
@@ -49,17 +53,23 @@ test.describe("history", () => {
     await pushHistoryNow(page, /History One|First/);
 
     await page.locator("#history-btn").click();
-    await expect(page.locator("#history-menu li button").first()).toContainText(/History One|First/);
+    await expect(page.locator("#history-menu button").first()).toContainText(
+      /History One|First/,
+    );
     await page.keyboard.press("Escape");
 
     await page.locator("#editor").fill("# History Two\n\nSecond version.");
     await pushHistoryNow(page, /History Two|Second/);
 
     await restoreHistoryAt(page, 1);
-    await expect(page.locator("#editor")).toHaveValue(/History One|First version/);
+    await expect(page.locator("#editor")).toHaveValue(
+      /History One|First version/,
+    );
   });
 
-  test("re-saving an older revision keeps the chain intact", async ({ page }) => {
+  test("re-saving an older revision keeps the chain intact", async ({
+    page,
+  }) => {
     acceptDiscardDialogs(page);
     await page.clock.install();
     await openFreshApp(page);
@@ -89,7 +99,7 @@ test.describe("history", () => {
     await page.clock.resume();
 
     await page.locator("#history-btn").click();
-    const buttons = page.locator("#history-menu li button");
+    const buttons = page.locator("#history-menu button");
     await expect(buttons.first()).toContainText(/Bravo/);
     const count = await buttons.count();
     expect(count).toBeGreaterThanOrEqual(3);
@@ -100,8 +110,12 @@ test.describe("history", () => {
     for (let i = 0; i < Math.min(count, 4); i++) {
       await restoreHistoryAt(page, i);
       const value = await page.locator("#editor").inputValue();
-      const labels = ["Alpha", "Bravo", "Charlie", "Delta"].filter((l) => value.includes(l));
-      expect(labels.length, `corrupt history body: ${value.slice(0, 80)}`).toBe(1);
+      const labels = ["Alpha", "Bravo", "Charlie", "Delta"].filter((l) =>
+        value.includes(l),
+      );
+      expect(labels.length, `corrupt history body: ${value.slice(0, 80)}`).toBe(
+        1,
+      );
       expect(value.startsWith(`# ${labels[0]}`)).toBe(true);
     }
   });

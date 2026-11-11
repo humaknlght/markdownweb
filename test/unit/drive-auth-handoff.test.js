@@ -1,5 +1,5 @@
-import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { describe, it } from "node:test";
 import {
   base64UrlToBytes,
   bytesToBase64Url,
@@ -24,7 +24,10 @@ describe("drive-auth-handoff", () => {
     assert.equal(isDriveAuthHandoffKeyParam(""), false);
     assert.equal(isDriveAuthHandoffKeyParam(null), false);
     assert.equal(isDriveAuthHandoffKeyParam("not-base64!!!"), false);
-    assert.equal(isDriveAuthHandoffKeyParam(bytesToBase64Url(new Uint8Array(16))), false);
+    assert.equal(
+      isDriveAuthHandoffKeyParam(bytesToBase64Url(new Uint8Array(16))),
+      false,
+    );
   });
 
   it("encrypts and decrypts an auth payload with an ephemeral key", async () => {
@@ -54,7 +57,9 @@ describe("drive-auth-handoff", () => {
 
   it("rejects cleartext-shaped auth cipher input", async () => {
     const key = await generateDriveAuthHandoffKey();
-    await assert.rejects(() => decryptDriveAuthHandoff(key, /** @type {any} */ ({})));
+    await assert.rejects(() =>
+      decryptDriveAuthHandoff(key, /** @type {any} */ ({})),
+    );
     await assert.rejects(() =>
       decryptDriveAuthHandoff(key, { iv: "x", ct: "y" }),
     );

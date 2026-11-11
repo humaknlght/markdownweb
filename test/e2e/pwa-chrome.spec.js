@@ -1,12 +1,15 @@
-import { test, expect } from "playwright/test";
-import { preparePage, waitForAppReady, clearAppStorage } from "./helpers.js";
+import { expect, test } from "playwright/test";
+import { clearAppStorage, preparePage, waitForAppReady } from "./helpers.js";
 
 /**
  * Simulate an installed PWA before app modules read display-mode / WCO.
  * @param {import('playwright/test').Page} page
  * @param {{ standalone?: boolean, wcoVisible?: boolean }} mode
  */
-async function mockInstalledPwa(page, { standalone = true, wcoVisible = false } = {}) {
+async function mockInstalledPwa(
+  page,
+  { standalone = true, wcoVisible = false } = {},
+) {
   await page.addInitScript(
     ({ standalone: isStandalone, wcoVisible: overlayOn }) => {
       const realMatchMedia = window.matchMedia.bind(window);
@@ -89,7 +92,9 @@ test.describe("PWA toolbar chrome", () => {
     expect(border.top).toBe("0px");
   });
 
-  test("installed PWA with system title bar gets top and bottom borders", async ({ page }) => {
+  test("installed PWA with system title bar gets top and bottom borders", async ({
+    page,
+  }) => {
     await mockInstalledPwa(page, { standalone: true, wcoVisible: false });
     await preparePage(page);
     await page.goto("/");

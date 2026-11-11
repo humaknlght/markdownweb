@@ -1,28 +1,28 @@
-import { describe, it, mock, beforeEach } from "node:test";
 import assert from "node:assert/strict";
+import { beforeEach, describe, it, mock } from "node:test";
 import {
-  DRIVE_MSG_TYPE,
-  DRIVE_MSG_VERSION,
   createDriveFile,
   createDriveFolder,
+  DRIVE_MSG_TYPE,
+  DRIVE_MSG_VERSION,
   ensureDriveAppFolder,
   escapeDriveQueryValue,
-  listDriveAppFolder,
-  listDriveFolderChildren,
-  renameDriveItem,
-  trashDriveItem,
+  getDriveFileMeta,
   isDriveEditableFile,
   isDriveMessage,
+  listDriveAppFolder,
+  listDriveFolderChildren,
   makeDriveMessage,
   mimeTypeForName,
-  getDriveFileMeta,
   readDriveFileText,
   readDriveFileWithMeta,
+  renameDriveItem,
+  trashDriveItem,
   updateDriveFile,
 } from "../../src/drive/google-drive-api.js";
 import {
-  GOOGLE_DRIVE,
   applyGoogleDriveConfig,
+  GOOGLE_DRIVE,
   isGoogleDriveConfigured,
   loadGoogleDriveConfig,
   resetGoogleDriveConfigForTests,
@@ -90,7 +90,10 @@ describe("google-drive-api helpers", () => {
     assert.equal(escapeDriveQueryValue("plain"), "plain");
     assert.equal(escapeDriveQueryValue("quinn's"), "quinn\\'s");
     assert.equal(escapeDriveQueryValue("a\\b"), "a\\\\b");
-    assert.equal(escapeDriveQueryValue("quinn's paper\\essay"), "quinn\\'s paper\\\\essay");
+    assert.equal(
+      escapeDriveQueryValue("quinn's paper\\essay"),
+      "quinn\\'s paper\\\\essay",
+    );
   });
 
   it("validates editable Drive files", () => {
@@ -118,7 +121,10 @@ describe("google-drive-api helpers", () => {
     assert.equal(msg.type, DRIVE_MSG_TYPE);
     assert.equal(msg.v, DRIVE_MSG_VERSION);
     assert.equal(isDriveMessage(msg), true);
-    assert.equal(isDriveMessage({ type: "other", v: 1, action: "open" }), false);
+    assert.equal(
+      isDriveMessage({ type: "other", v: 1, action: "open" }),
+      false,
+    );
     assert.equal(isDriveMessage(null), false);
   });
 
@@ -211,7 +217,10 @@ describe("google-drive-api helpers", () => {
       assert.match(calls[0].url, /uploadType=multipart/);
       assert.equal(calls[0].method, "POST");
 
-      const updated = await updateDriveFile("tok", "new1", { name: "doc.md", content: "# Y" });
+      const updated = await updateDriveFile("tok", "new1", {
+        name: "doc.md",
+        content: "# Y",
+      });
       assert.equal(updated.id, "new1");
       assert.equal(updated.modifiedTime, "2026-01-01T01:00:00.000Z");
       assert.equal(calls[1].method, "PATCH");
@@ -250,7 +259,11 @@ describe("google-drive-api helpers", () => {
           json: async () => ({
             files: [
               { id: "a", name: "notes.md", mimeType: "text/markdown" },
-              { id: "d", name: "sub", mimeType: "application/vnd.google-apps.folder" },
+              {
+                id: "d",
+                name: "sub",
+                mimeType: "application/vnd.google-apps.folder",
+              },
               { id: "b", name: "skip.png", mimeType: "image/png" },
             ],
           }),
@@ -298,14 +311,19 @@ describe("google-drive-api helpers", () => {
         return {
           ok: true,
           json: async () => ({
-            files: [{ id: "nested", name: "deep.md", mimeType: "text/markdown" }],
+            files: [
+              { id: "nested", name: "deep.md", mimeType: "text/markdown" },
+            ],
           }),
         };
       }
       return { ok: false, status: 500, text: async () => href };
     });
     try {
-      const { folderId, entries } = await listDriveFolderChildren("tok", "sub1");
+      const { folderId, entries } = await listDriveFolderChildren(
+        "tok",
+        "sub1",
+      );
       assert.equal(folderId, "sub1");
       assert.equal(entries.length, 1);
       assert.equal(entries[0].name, "deep.md");
@@ -317,13 +335,16 @@ describe("google-drive-api helpers", () => {
 
   it("creates a Drive subfolder under a parent", async () => {
     const original = globalThis.fetch;
-    globalThis.fetch = mock.fn(async (url, init) => {
+    globalThis.fetch = mock.fn(async (_url, init) => {
       assert.equal(init.method, "POST");
       const body = JSON.parse(String(init.body));
       assert.equal(body.name, "chapters");
       assert.equal(body.mimeType, "application/vnd.google-apps.folder");
       assert.deepEqual(body.parents, ["parent1"]);
-      return { ok: true, json: async () => ({ id: "child1", name: "chapters" }) };
+      return {
+        ok: true,
+        json: async () => ({ id: "child1", name: "chapters" }),
+      };
     });
     try {
       const id = await createDriveFolder("tok", "chapters", "parent1");
@@ -339,7 +360,14 @@ describe("google-drive-api helpers", () => {
     globalThis.fetch = mock.fn(async (url, init) => {
       calls.push({ url: String(url), method: init.method, body: init.body });
       if (String(init.body).includes('"name"')) {
-        return { ok: true, json: async () => ({ id: "f1", name: "renamed.md", mimeType: "text/markdown" }) };
+        return {
+          ok: true,
+          json: async () => ({
+            id: "f1",
+            name: "renamed.md",
+            mimeType: "text/markdown",
+          }),
+        };
       }
       return { ok: true, json: async () => ({ id: "f1", trashed: true }) };
     });
@@ -381,14 +409,25 @@ describe("google-drive-api helpers", () => {
       if (href.includes("/files?") && href.includes("q=")) {
         return { ok: true, json: async () => ({ files: [] }) };
       }
-      if (init?.method === "POST" && href.includes("/drive/v3/files") && !href.includes("uploadType")) {
-        return { ok: true, json: async () => ({ id: "folder-new", name: "markdown-editor" }) };
+      if (
+        init?.method === "POST" &&
+        href.includes("/drive/v3/files") &&
+        !href.includes("uploadType")
+      ) {
+        return {
+          ok: true,
+          json: async () => ({ id: "folder-new", name: "markdown-editor" }),
+        };
       }
       if (href.includes("uploadType=multipart")) {
         assert.match(String(init.body), /"parents":\["folder-new"\]/);
         return {
           ok: true,
-          json: async () => ({ id: "file1", name: "doc.md", mimeType: "text/markdown" }),
+          json: async () => ({
+            id: "file1",
+            name: "doc.md",
+            mimeType: "text/markdown",
+          }),
         };
       }
       return { ok: false, status: 500, text: async () => `unexpected ${href}` };
@@ -396,7 +435,10 @@ describe("google-drive-api helpers", () => {
     try {
       const folderId = await ensureDriveAppFolder("tok");
       assert.equal(folderId, "folder-new");
-      const created = await createDriveFile("tok", { name: "doc.md", content: "# X" });
+      const created = await createDriveFile("tok", {
+        name: "doc.md",
+        content: "# X",
+      });
       assert.equal(created.id, "file1");
     } finally {
       globalThis.fetch = original;

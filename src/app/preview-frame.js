@@ -1,11 +1,11 @@
-import { hooks } from "./hooks.js";
 import { buildPreviewFrameCsp, PREVIEW_FRAME_CSP } from "./constants.js";
+import { hooks } from "./hooks.js";
 import {
-  state,
   preview,
   previewFrame,
   previewPane,
   setPreviewElement,
+  state,
 } from "./state.js";
 
 export { buildPreviewFrameCsp, PREVIEW_FRAME_CSP };
@@ -62,6 +62,39 @@ function syncPreviewFrameZenCss() {
 }
 
 /**
+ * Mirror the parent print stylesheet into the preview frame.
+ * Parent print.css cannot style iframe content across the frame boundary.
+ */
+function syncPreviewFramePrintCss() {
+  const doc = previewFrame?.contentDocument;
+  if (!doc?.head) return;
+  const parentPrint = [
+    ...document.querySelectorAll('link[rel="stylesheet"]'),
+  ].find((link) => {
+    if (link.media === "print") return true;
+    return /print/i.test(link.getAttribute("href") || "");
+  });
+  let framePrint = doc.getElementById("print-css");
+  if (parentPrint?.href) {
+    if (!framePrint) {
+      framePrint = doc.createElement("link");
+      framePrint.id = "print-css";
+      framePrint.rel = "stylesheet";
+      framePrint.media = "print";
+      doc.head.appendChild(framePrint);
+    }
+    if (framePrint.href !== parentPrint.href) {
+      framePrint.href = parentPrint.href;
+    }
+    if (framePrint.media !== "print") framePrint.media = "print";
+    // Keep print last among stylesheets for cascade against theme overrides.
+    if (framePrint.nextSibling) doc.head.appendChild(framePrint);
+  } else if (framePrint) {
+    framePrint.remove();
+  }
+}
+
+/**
  * Copy parent chrome attrs that preview CSS selectors depend on.
  */
 export function syncPreviewFrameChrome() {
@@ -76,6 +109,9 @@ export function syncPreviewFrameChrome() {
     else dst.dataset[key] = value;
   }
   syncPreviewFrameZenCss();
+  // Print must come after zen.css so equal-specificity print rules win in
+  // @media print (zen tokens are not print-wrapped).
+  syncPreviewFramePrintCss();
   // Pane background lives on parent `.preview-pane` (and fancy/zen glass).
   // Keep the framed document transparent so app `body` / fancy page rules
   // from the shared stylesheet cannot repaint chrome or photo inside it.
@@ -188,7 +224,10 @@ export function initPreviewFrame() {
   }
 
   frame.setAttribute("sandbox", PREVIEW_FRAME_SANDBOX);
-  frame.setAttribute("title", frame.getAttribute("title") || "Rendered preview");
+  frame.setAttribute(
+    "title",
+    frame.getAttribute("title") || "Rendered preview",
+  );
 
   const doc = frame.contentDocument;
   if (!doc) {

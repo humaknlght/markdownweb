@@ -1,19 +1,13 @@
 import { hooks } from "./hooks.js";
-import {
-  state,
-  historyBtn,
-  historyMenu
-} from "./state.js";
-import {
-  formatRelativeTime
-} from "./vendor-deps.js";
+import { historyBtn, historyMenu, state } from "./state.js";
+import { formatRelativeTime } from "./vendor-deps.js";
 
 export function renderHistoryMenu() {
   const entries = hooks.loadHistoryIndexEntries();
   historyMenu.replaceChildren();
 
   if (!entries.length) {
-    const empty = document.createElement("li");
+    const empty = document.createElement("div");
     empty.className = "empty";
     empty.textContent = "No history yet";
     historyMenu.appendChild(empty);
@@ -21,7 +15,7 @@ export function renderHistoryMenu() {
   }
 
   entries.forEach((entry, index) => {
-    const li = document.createElement("li");
+    const li = document.createElement("div");
     const btn = document.createElement("button");
     btn.type = "button";
     btn.setAttribute("role", "option");

@@ -38,7 +38,10 @@ export function wrapInline(value, start, end, before, after = before) {
       selected.endsWith(after) &&
       selected.length >= before.length + after.length
     ) {
-      const inner = selected.slice(before.length, selected.length - after.length);
+      const inner = selected.slice(
+        before.length,
+        selected.length - after.length,
+      );
       return {
         from: start,
         to: end,
@@ -155,7 +158,14 @@ export function prefixLines(value, start, end, type, options = {}) {
  * @param {number} [selectLength]
  * @returns {FormatEdit}
  */
-export function insertSnippet(value, start, end, snippet, selectOffset = snippet.length, selectLength = 0) {
+export function insertSnippet(
+  _value,
+  start,
+  end,
+  snippet,
+  selectOffset = snippet.length,
+  selectLength = 0,
+) {
   const selStart = start + Math.max(0, Math.min(selectOffset, snippet.length));
   const selEnd = selStart + Math.max(0, selectLength);
   return {
@@ -205,7 +215,7 @@ export function insertCodeBlock(value, start, end) {
   const selected = value.slice(start, end);
   if (selected) {
     const body = selected.replace(/\n$/, "");
-    const snippet = "```\n" + body + "\n```";
+    const snippet = `\`\`\`\n${body}\n\`\`\``;
     return {
       from: start,
       to: end,

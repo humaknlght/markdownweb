@@ -1,24 +1,16 @@
+import { MERMAID_LOOKS, STORAGE_KEYS, THEMES, WIDTHS } from "./constants.js";
 import { hooks } from "./hooks.js";
+import { panes, state } from "./state.js";
 import {
-  state,
-  panes
-} from "./state.js";
-import {
-  STORAGE_KEYS,
-  THEMES,
-  WIDTHS,
-  MERMAID_LOOKS
-} from "./constants.js";
-import {
-  loadGoogleDriveConfig,
-  googleDriveEnabled,
-  tryRestoreDriveAccessToken,
-  loadGithubGistConfig,
-  githubGistEnabled,
-  tryRestoreGistAccessToken,
   getTip,
+  githubGistEnabled,
+  googleDriveEnabled,
+  loadGithubGistConfig,
+  loadGoogleDriveConfig,
   probeHistoryIdb,
-  setDraft
+  setDraft,
+  tryRestoreDriveAccessToken,
+  tryRestoreGistAccessToken,
 } from "./vendor-deps.js";
 
 export async function init() {
@@ -54,12 +46,17 @@ export async function init() {
   }
 
   const savedWidth = localStorage.getItem(STORAGE_KEYS.width);
-  hooks.setPreviewWidth(WIDTHS.includes(savedWidth) ? savedWidth : "readable", { persist: false });
-  const savedMermaidLook = localStorage.getItem(STORAGE_KEYS.mermaidLook);
-  hooks.setMermaidLook(MERMAID_LOOKS.includes(savedMermaidLook) ? savedMermaidLook : "classic", {
+  hooks.setPreviewWidth(WIDTHS.includes(savedWidth) ? savedWidth : "readable", {
     persist: false,
-    rerender: false,
   });
+  const savedMermaidLook = localStorage.getItem(STORAGE_KEYS.mermaidLook);
+  hooks.setMermaidLook(
+    MERMAID_LOOKS.includes(savedMermaidLook) ? savedMermaidLook : "classic",
+    {
+      persist: false,
+      rerender: false,
+    },
+  );
   hooks.applyCollapseState();
   hooks.setupSplitter();
   // Head boot already revealed the shell; commit JS layout without animating
@@ -99,17 +96,27 @@ export async function init() {
     state.gistConnected = await tryRestoreGistAccessToken();
     hooks.updateFilesChrome();
   }
-  if (state.driveConfigured && state.driveConnected && hooks.isDriveFilesSource()) {
+  if (
+    state.driveConfigured &&
+    state.driveConnected &&
+    hooks.isDriveFilesSource()
+  ) {
     await hooks.refreshDriveTree();
   }
-  if (state.gistConfigured && state.gistConnected && hooks.isGistFilesSource()) {
+  if (
+    state.gistConfigured &&
+    state.gistConnected &&
+    hooks.isGistFilesSource()
+  ) {
     await hooks.refreshGistTree();
   }
 
   const savedSyncScroll = localStorage.getItem(STORAGE_KEYS.syncScroll) === "1";
   hooks.setSyncScroll(savedSyncScroll, { persist: false });
   const savedLineWrap = localStorage.getItem(STORAGE_KEYS.lineWrap);
-  hooks.setLineWrap(savedLineWrap == null ? true : savedLineWrap === "1", { persist: false });
+  hooks.setLineWrap(savedLineWrap == null ? true : savedLineWrap === "1", {
+    persist: false,
+  });
 
   // URL markdown that matches our own draft/tip is local residue (e.g. an old
   // view-sync that wrote mdz), not untrusted external content.
@@ -155,7 +162,8 @@ export async function init() {
       const legacy = await hooks.loadStoredDraftContent("untitled");
       if (legacy != null) {
         draft = legacy;
-        if (state.historyIdbReady) await setDraft(legacy, hooks.currentDocKey());
+        if (state.historyIdbReady)
+          await setDraft(legacy, hooks.currentDocKey());
       }
     }
     if (draft == null) {
@@ -180,7 +188,11 @@ export async function init() {
       hooks.updateSaveButton();
     } else if (state.currentFileHandle) {
       let storedSnapshot = hooks.readSavedSnapshot(hooks.currentDocKey());
-      if (storedSnapshot == null && state.currentFileName && hooks.currentDocKey() !== "untitled") {
+      if (
+        storedSnapshot == null &&
+        state.currentFileName &&
+        hooks.currentDocKey() !== "untitled"
+      ) {
         const legacySnap = hooks.readSavedSnapshot("untitled");
         if (legacySnap != null) {
           storedSnapshot = legacySnap;
@@ -234,7 +246,9 @@ export async function init() {
   const initialView = urlIsExternal
     ? "edit"
     : shareState.view || (state.guideSession ? "reader" : "edit");
-  hooks.setView(initialView, { syncUrl: fromUrl != null || state.guideSession });
+  hooks.setView(initialView, {
+    syncUrl: fromUrl != null || state.guideSession,
+  });
 
   // After draft/URL load so a launched file overwrites the restored editor.
   hooks.setupFileHandling();

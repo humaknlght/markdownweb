@@ -32,10 +32,7 @@ export const CDN_LAZY = [
   "https://cdn.jsdelivr.net/npm/svg2roughjs@3.2.3/+esm",
 ];
 
-export const ICON_FILES = [
-  "assets/icon-192.png",
-  "assets/icon-512.png",
-];
+export const ICON_FILES = ["assets/icon-192.png", "assets/icon-512.png"];
 
 /** Precache list for `npm run dev` (unhashed src/ paths + CDN modules). */
 export const DEV_PRECACHE = [
@@ -120,7 +117,7 @@ export function buildManifest(iconNames) {
       },
     },
     null,
-    2
+    2,
   )}\n`;
 }
 

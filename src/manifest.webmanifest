@@ -5,9 +5,7 @@
   "id": "./",
   "start_url": "./?source=pwa",
   "scope": "./",
-  "display_override": [
-    "window-controls-overlay"
-  ],
+  "display_override": ["window-controls-overlay"],
   "display": "standalone",
   "orientation": "any",
   "background_color": "#0d1117",
@@ -31,19 +29,9 @@
     {
       "action": "./",
       "accept": {
-        "text/markdown": [
-          ".md",
-          ".markdown",
-          ".mdown",
-          ".mkd"
-        ],
-        "text/plain": [
-          ".txt"
-        ],
-        "text/html": [
-          ".html",
-          ".htm"
-        ]
+        "text/markdown": [".md", ".markdown", ".mdown", ".mkd"],
+        "text/plain": [".txt"],
+        "text/html": [".html", ".htm"]
       },
       "launch_type": "single-client"
     }

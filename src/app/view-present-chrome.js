@@ -1,13 +1,10 @@
-import { hooks } from "./hooks.js";
 import {
-  state,
-  presentChrome
-} from "./state.js";
-import {
-  VIEWS,
   PRESENT_CHROME_IDLE_MS,
-  PRESENT_SWIPE_MIN_DX
+  PRESENT_SWIPE_MIN_DX,
+  VIEWS,
 } from "./constants.js";
+import { hooks } from "./hooks.js";
+import { presentChrome, state } from "./state.js";
 
 export function getFullscreenElement() {
   return document.fullscreenElement || document.webkitFullscreenElement || null;
@@ -37,7 +34,11 @@ export async function leavePresentFullscreen() {
 }
 
 export function viewAfterPresent() {
-  if (state.viewBeforePresent && state.viewBeforePresent !== "present" && VIEWS.includes(state.viewBeforePresent)) {
+  if (
+    state.viewBeforePresent &&
+    state.viewBeforePresent !== "present" &&
+    VIEWS.includes(state.viewBeforePresent)
+  ) {
     return state.viewBeforePresent;
   }
   return "slides";
@@ -63,7 +64,8 @@ export function schedulePresentChromeHide() {
 }
 
 export function revealPresentChrome() {
-  if (state.currentView !== "present" || !presentChrome || presentChrome.hidden) return;
+  if (state.currentView !== "present" || !presentChrome || presentChrome.hidden)
+    return;
   setPresentChromeActive(true);
   schedulePresentChromeHide();
 }
@@ -102,7 +104,8 @@ export function onPresentSwipePointerUp(e) {
 }
 
 export function onPresentSwipePointerCancel(e) {
-  if (state.presentSwipe && e.pointerId === state.presentSwipe.id) state.presentSwipe = null;
+  if (state.presentSwipe && e.pointerId === state.presentSwipe.id)
+    state.presentSwipe = null;
 }
 
 export function onPresentFullscreenChange() {
@@ -132,7 +135,8 @@ export function syncPrintPageOrientation() {
     el.id = "print-orientation-style";
     document.head.appendChild(el);
   }
-  const landscape = state.currentView === "slides" || state.currentView === "present";
+  const landscape =
+    state.currentView === "slides" || state.currentView === "present";
   el.textContent = landscape
     ? "@media print { @page { size: landscape; margin: 0.5in; } }"
     : "";

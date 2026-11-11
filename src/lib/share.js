@@ -11,7 +11,10 @@ export function bytesToBase64Url(bytes) {
   for (let i = 0; i < bytes.length; i++) {
     binary += String.fromCharCode(bytes[i]);
   }
-  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  return btoa(binary)
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
 }
 
 /**
@@ -45,7 +48,9 @@ export function base64UrlToUtf8(value) {
  * @returns {Promise<Uint8Array>}
  */
 async function pipeThroughCompression(bytes, TransformStreamCtor, format) {
-  const stream = new Blob([bytes]).stream().pipeThrough(new TransformStreamCtor(format));
+  const stream = new Blob([bytes])
+    .stream()
+    .pipeThrough(new TransformStreamCtor(format));
   return new Uint8Array(await new Response(stream).arrayBuffer());
 }
 
@@ -55,7 +60,11 @@ async function pipeThroughCompression(bytes, TransformStreamCtor, format) {
  */
 export async function compressUtf8ToBase64Url(text) {
   const input = new TextEncoder().encode(text);
-  const compressed = await pipeThroughCompression(input, CompressionStream, "deflate-raw");
+  const compressed = await pipeThroughCompression(
+    input,
+    CompressionStream,
+    "deflate-raw",
+  );
   return bytesToBase64Url(compressed);
 }
 
@@ -65,7 +74,11 @@ export async function compressUtf8ToBase64Url(text) {
  */
 export async function decompressBase64UrlToUtf8(value) {
   const compressed = base64UrlToBytes(value);
-  const inflated = await pipeThroughCompression(compressed, DecompressionStream, "deflate-raw");
+  const inflated = await pipeThroughCompression(
+    compressed,
+    DecompressionStream,
+    "deflate-raw",
+  );
   return new TextDecoder().decode(inflated);
 }
 
@@ -104,7 +117,10 @@ export async function decodeMdzParam(mdz) {
  * @param {{ themes?: string[], views?: string[] }} [opts]
  * @returns {Promise<{ markdown: string | null, theme: string | null, view: string | null }>}
  */
-export async function readShareParams(searchParams, { themes = [], views = [] } = {}) {
+export async function readShareParams(
+  searchParams,
+  { themes = [], views = [] } = {},
+) {
   const mdz = searchParams.get("mdz");
   let markdown = mdz ? await decodeMdzParam(mdz) : null;
   if (markdown == null) {

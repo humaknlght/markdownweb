@@ -1,5 +1,5 @@
-import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { describe, it } from "node:test";
 import { findDefListStart, parseDefList } from "../../src/markdown/deflist.js";
 import { renderMarkdownHtml } from "../helpers/render.js";
 
@@ -79,7 +79,9 @@ describe("defListExtension", () => {
   });
 
   it("renders inline markdown inside terms and definitions", () => {
-    const html = renderMarkdownHtml("**Bold term**\n: A `code` and *em* value\n");
+    const html = renderMarkdownHtml(
+      "**Bold term**\n: A `code` and *em* value\n",
+    );
     assert.match(html, /<dt><strong>Bold term<\/strong><\/dt>/);
     assert.match(html, /<dd>A <code>code<\/code> and <em>em<\/em> value<\/dd>/);
   });

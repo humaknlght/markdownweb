@@ -1,10 +1,5 @@
 import { hooks } from "../hooks.js";
-import {
-  state,
-  panes,
-  previewPane,
-  cloudSpeechModal
-} from "../state.js";
+import { cloudSpeechModal, panes, previewPane, state } from "../state.js";
 import { wordEndOffset } from "../vendor-deps.js";
 
 export function speakPreviousTrack() {
@@ -51,7 +46,11 @@ export function stopSpeaking() {
   clearSpeechKeepalive();
   hooks.clearSpeechHighlight();
   hooks.stopSpeechSessionAudio();
-  if (window.speechSynthesis?.speaking || window.speechSynthesis?.pending || window.speechSynthesis?.paused) {
+  if (
+    window.speechSynthesis?.speaking ||
+    window.speechSynthesis?.pending ||
+    window.speechSynthesis?.paused
+  ) {
     window.speechSynthesis.cancel();
   }
   hooks.updateSpeakButton();
@@ -83,10 +82,13 @@ export function syncPreviewToSpeechTrack() {
   if (!state.speechTracks.length) return;
   const track = state.speechTracks[state.speechTrackIndex];
   const sectionIndex =
-    typeof track?.sectionIndex === "number" ? track.sectionIndex : state.speechTrackIndex;
+    typeof track?.sectionIndex === "number"
+      ? track.sectionIndex
+      : state.speechTrackIndex;
 
   if (hooks.isSlideNavView()) {
-    if (sectionIndex < 0 || sectionIndex >= state.presentSections.length) return;
+    if (sectionIndex < 0 || sectionIndex >= state.presentSections.length)
+      return;
     if (sectionIndex !== state.presentIndex) {
       hooks.showPresentSection(sectionIndex);
       hooks.syncEditorToPresentSection();
@@ -107,7 +109,9 @@ export function syncPreviewToSpeechTrack() {
 
   const el = state.presentSections[sectionIndex]?.[0];
   if (!hooks.previewNodeIsLaidOut(el)) return;
-  hooks.beginSyncDriver(panes.classList.contains("editor-collapsed") ? "preview" : "editor");
+  hooks.beginSyncDriver(
+    panes.classList.contains("editor-collapsed") ? "preview" : "editor",
+  );
   hooks.clampScrollTop(previewPane, hooks.offsetWithin(el, previewPane) - 8);
   hooks.highlightActiveOutlineItem();
 }
@@ -123,7 +127,10 @@ export function speakTrackAt(index) {
   const generation = ++state.speechGeneration;
   state.speechTrackIndex = index;
   state.speechPaused = false;
-  state.speechQueue = track.chunks.map((chunk) => ({ text: chunk.text, start: chunk.start }));
+  state.speechQueue = track.chunks.map((chunk) => ({
+    text: chunk.text,
+    start: chunk.start,
+  }));
   hooks.clearSpeechHighlight();
   syncPreviewToSpeechTrack();
   void hooks.startSpeechSessionAudio();
@@ -177,12 +184,17 @@ export function speakNextChunk(generation = state.speechGeneration) {
   // Only highlight when the engine fires word boundary events (many
   // Google/network voices do not support this in Chrome).
   utterance.addEventListener("boundary", (event) => {
-    if (!state.speechActive || state.speechGeneration !== generation || event.name !== "word") return;
+    if (
+      !state.speechActive ||
+      state.speechGeneration !== generation ||
+      event.name !== "word"
+    )
+      return;
     const absoluteStart = chunk.start + event.charIndex;
     const absoluteEnd = wordEndOffset(
       state.speechMap?.text || chunk.text,
       absoluteStart,
-      event.charLength || 0
+      event.charLength || 0,
     );
     hooks.highlightSpeechOffsets(absoluteStart, absoluteEnd);
   });
@@ -222,18 +234,20 @@ export function isDefaultedToCloudVoice() {
  * Confirm before starting cloud TTS when that voice is only the fallback default.
  * @returns {Promise<boolean>}
  */
+/**
+ * @returns {boolean | Promise<boolean>}
+ */
 export function confirmCloudSpeechIfNeeded() {
   if (state.cloudSpeechAllowedThisSession || !isDefaultedToCloudVoice()) {
-    return Promise.resolve(true);
+    // Sync true keeps the initiating user gesture for speechSynthesis / audio.
+    return true;
   }
   if (!cloudSpeechModal || typeof cloudSpeechModal.showModal !== "function") {
-    return Promise.resolve(
-      window.confirm(
-        "No local voice is available. Read aloud will use a cloud voice and send document text to the voice provider. Continue?",
-      ),
+    return window.confirm(
+      "No local voice is available. Read aloud will use a cloud voice and send document text to the voice provider. Continue?",
     );
   }
-  if (cloudSpeechModal.open) return Promise.resolve(false);
+  if (cloudSpeechModal.open) return false;
 
   return new Promise((resolve) => {
     const onClose = () => {
@@ -248,10 +262,15 @@ export function confirmCloudSpeechIfNeeded() {
   });
 }
 
-export async function requestStartSpeaking() {
-  const allowed = await confirmCloudSpeechIfNeeded();
-  if (!allowed) return;
-  startSpeaking();
+export function requestStartSpeaking() {
+  const allowed = confirmCloudSpeechIfNeeded();
+  if (allowed && typeof allowed.then === "function") {
+    void allowed.then((ok) => {
+      if (ok) startSpeaking();
+    });
+    return;
+  }
+  if (allowed) startSpeaking();
 }
 
 export function startSpeaking() {
@@ -268,9 +287,13 @@ export function startSpeaking() {
   const map = state.speechMap;
   let startIndex = 0;
   if (hooks.isSlideNavView()) {
-    const match = tracks.findIndex((track) => track.sectionIndex === state.presentIndex);
+    const match = tracks.findIndex(
+      (track) => track.sectionIndex === state.presentIndex,
+    );
     startIndex =
-      match >= 0 ? match : Math.max(0, Math.min(state.presentIndex, tracks.length - 1));
+      match >= 0
+        ? match
+        : Math.max(0, Math.min(state.presentIndex, tracks.length - 1));
   }
 
   stopSpeaking();

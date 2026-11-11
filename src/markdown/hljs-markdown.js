@@ -42,15 +42,11 @@ export function withMarkdownEscapes(factory) {
   // Underscore: GFM/CommonMark — no intraword `_` emphasis (upstream PR #4342).
   // Same-line closer so an unmatched opener cannot paint through EOF.
   const ITALIC_UNDERSCORE = {
-    begin: new RegExp(
-      String.raw`(?<![a-zA-Z0-9])_(?![_\s])(?=[^\n]*_(?![a-zA-Z0-9]))`,
-    ),
+    begin: /(?<![a-zA-Z0-9])_(?![_\s])(?=[^\n]*_(?![a-zA-Z0-9]))/,
     end: /_(?![a-zA-Z0-9])/,
   };
   const BOLD_UNDERSCORE = {
-    begin: new RegExp(
-      String.raw`(?<![a-zA-Z0-9])_{2}(?!\s)(?=[^\n]*_{2}(?![a-zA-Z0-9]))`,
-    ),
+    begin: /(?<![a-zA-Z0-9])_{2}(?!\s)(?=[^\n]*_{2}(?![a-zA-Z0-9]))/,
     end: /_{2}(?![a-zA-Z0-9])/,
   };
 

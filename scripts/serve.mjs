@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+import { execFile } from "node:child_process";
+import fs from "node:fs/promises";
 /**
  * Local static server that mirrors public/.htaccess security headers
  * and serves precompressed .br / .gz assets when available.
@@ -16,32 +18,30 @@
  */
 import http from "node:http";
 import http2 from "node:http2";
-import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
-import {
-  inlineScriptHashes,
-  buildScriptSrc,
-  buildContentSecurityPolicy,
-  buildDriveHelperScriptSrc,
-  buildDriveHelperContentSecurityPolicy,
-} from "./csp.mjs";
+import { promisify } from "node:util";
 import { applyCdnIntegrity, loadCdnIntegrity } from "./cdn-integrity.mjs";
-import { guideSourcePath } from "./sync-guide.mjs";
-import { buildDevServiceWorker } from "./pwa.mjs";
-import { injectDevLocalModulepreloads } from "./dev-module-graph.mjs";
 import {
-  CORP,
+  buildContentSecurityPolicy,
+  buildDriveHelperContentSecurityPolicy,
+  buildDriveHelperScriptSrc,
+  buildScriptSrc,
+  inlineScriptHashes,
+} from "./csp.mjs";
+import { injectDevLocalModulepreloads } from "./dev-module-graph.mjs";
+import { buildDevServiceWorker } from "./pwa.mjs";
+import {
   headersFor as buildHeaders,
+  CORP,
   isNotModified,
-  resolveWithCompression,
   safeResolve as resolveSafePath,
+  resolveWithCompression,
   strongEtag,
   toHttpDate,
 } from "./serve-utils.mjs";
+import { guideSourcePath } from "./sync-guide.mjs";
 
 const execFileAsync = promisify(execFile);
 
@@ -70,11 +70,14 @@ async function resolveCspConfig() {
     if (parsed.scriptSrc) {
       return {
         scriptSrc: parsed.scriptSrc,
-        guideUrl: typeof parsed.guideUrl === "string" ? parsed.guideUrl : "./GUIDE.md",
+        guideUrl:
+          typeof parsed.guideUrl === "string" ? parsed.guideUrl : "./GUIDE.md",
         driveHelperCsp:
           typeof parsed.driveHelperCsp === "string"
             ? parsed.driveHelperCsp
-            : buildDriveHelperContentSecurityPolicy(buildDriveHelperScriptSrc([])),
+            : buildDriveHelperContentSecurityPolicy(
+                buildDriveHelperScriptSrc([]),
+              ),
       };
     }
   } catch {
@@ -93,7 +96,9 @@ async function resolveCspConfig() {
   return {
     scriptSrc: buildScriptSrc(hashes),
     guideUrl: "./GUIDE.md",
-    driveHelperCsp: buildDriveHelperContentSecurityPolicy(buildDriveHelperScriptSrc([])),
+    driveHelperCsp: buildDriveHelperContentSecurityPolicy(
+      buildDriveHelperScriptSrc([]),
+    ),
   };
 }
 
@@ -137,7 +142,9 @@ function isDriveHelperHtml(logicalPath) {
 
 function headersFor(logicalPath, encoding) {
   if (isDriveHelperHtml(logicalPath)) {
-    return buildHeaders(logicalPath, encoding, { htmlHeaders: DRIVE_HELPER_HTML_HEADERS });
+    return buildHeaders(logicalPath, encoding, {
+      htmlHeaders: DRIVE_HELPER_HTML_HEADERS,
+    });
   }
   return buildHeaders(logicalPath, encoding, { htmlHeaders: HTML_HEADERS });
 }
@@ -385,7 +392,12 @@ async function createServer() {
         { key: tls.key, cert: tls.cert, allowHTTP1: true },
         handleRequest,
       );
-      return { server, protocol: "https", http2: true, tlsTrusted: tls.trusted };
+      return {
+        server,
+        protocol: "https",
+        http2: true,
+        tlsTrusted: tls.trusted,
+      };
     } catch (err) {
       console.warn(
         `HTTP/2 unavailable (${err.message || err}); falling back to HTTP/1.1`,
@@ -401,7 +413,12 @@ async function createServer() {
   };
 }
 
-const { server, protocol, http2: usingHttp2, tlsTrusted } = await createServer();
+const {
+  server,
+  protocol,
+  http2: usingHttp2,
+  tlsTrusted,
+} = await createServer();
 
 server.on("error", (err) => {
   if (err.code === "EADDRINUSE") {

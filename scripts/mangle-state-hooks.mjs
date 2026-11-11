@@ -9,7 +9,7 @@
  *
  * Dev (`npm run dev`) serves unmangled modules for readable debugging.
  */
-import { readFile, readdir } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 
 const RESERVED = new Set([
@@ -108,7 +108,9 @@ export async function collectStateHooksProps(appDir) {
   const props = new Set();
   for (const file of files) {
     const src = await readFile(file, "utf8");
-    for (const match of src.matchAll(/\b(?:hooks|state)\.([A-Za-z_$][\w$]*)/g)) {
+    for (const match of src.matchAll(
+      /\b(?:hooks|state)\.([A-Za-z_$][\w$]*)/g,
+    )) {
       props.add(match[1]);
     }
   }
@@ -116,7 +118,9 @@ export async function collectStateHooksProps(appDir) {
   const stateSrc = await readFile(stateFile, "utf8");
   const stateBlock = stateSrc.match(/export const state = \{([\s\S]*?)\n\};/);
   if (stateBlock) {
-    for (const match of stateBlock[1].matchAll(/^\s*([A-Za-z_$][\w$]*)\s*:/gm)) {
+    for (const match of stateBlock[1].matchAll(
+      /^\s*([A-Za-z_$][\w$]*)\s*:/gm,
+    )) {
       props.add(match[1]);
     }
   }
@@ -131,7 +135,9 @@ export async function collectStateHooksProps(appDir) {
  */
 export function buildPropMangleMap(props) {
   const propSet = props instanceof Set ? props : new Set(props);
-  const sorted = [...propSet].sort((a, b) => b.length - a.length || a.localeCompare(b));
+  const sorted = [...propSet].sort(
+    (a, b) => b.length - a.length || a.localeCompare(b),
+  );
   const map = new Map();
   const used = new Set();
   let i = 0;
@@ -139,7 +145,11 @@ export function buildPropMangleMap(props) {
     let name;
     do {
       name = shortName(i++);
-    } while (RESERVED.has(name) || used.has(name) || (propSet.has(name) && name !== prop));
+    } while (
+      RESERVED.has(name) ||
+      used.has(name) ||
+      (propSet.has(name) && name !== prop)
+    );
     used.add(name);
     map.set(prop, name);
   }
@@ -167,7 +177,7 @@ export function mangleStateHooksSource(src, map, opts = {}) {
       // Do not rewrite property access (worker.state, audioCtx.state, obj.hooks) —
       // those are platform / third-party fields, not the shared bags.
       .replace(/(?<!\.)\bhooks\b(?!\s*:)/g, "h")
-      .replace(/(?<!\.)\bstate\b(?!\s*:)/g, "s")
+      .replace(/(?<!\.)\bstate\b(?!\s*:)/g, "s"),
   );
 
   if (opts.mangleStateObjectKeys) {
@@ -176,7 +186,7 @@ export function mangleStateHooksSource(src, map, opts = {}) {
       block.replace(keyRe, (full, indent, prop, colon) => {
         const short = map.get(prop);
         return short ? `${indent}${short}${colon}` : full;
-      })
+      }),
     );
   }
   return out;
@@ -297,7 +307,8 @@ function rewriteCode(src, transform) {
           }
           if (c === "/" && n === "*") {
             i += 2;
-            while (i < src.length && !(src[i] === "*" && src[i + 1] === "/")) i++;
+            while (i < src.length && !(src[i] === "*" && src[i + 1] === "/"))
+              i++;
             i += 2;
             continue;
           }
@@ -401,8 +412,10 @@ function rewriteCode(src, transform) {
       const prevCh = prevCode.slice(-1);
       if (
         !prevCh ||
-        /[=(:,!&|?{};~+\-*%^<>\[]/.test(prevCh) ||
-        /\b(?:return|case|throw|in|of|typeof|delete|void|new)$/.test(prevCode.slice(-8))
+        /[=(:,!&|?{};~+\-*%^<>[]/.test(prevCh) ||
+        /\b(?:return|case|throw|in|of|typeof|delete|void|new)$/.test(
+          prevCode.slice(-8),
+        )
       ) {
         emitCodeUpTo(i);
         skipRegex();
@@ -424,9 +437,14 @@ export async function collectImportedExportNames(appDir) {
   const imported = new Set();
   for (const file of files) {
     const src = await readFile(file, "utf8");
-    for (const match of src.matchAll(/import\s*\{([^}]+)\}\s*from\s*["'][^"']+["']/g)) {
+    for (const match of src.matchAll(
+      /import\s*\{([^}]+)\}\s*from\s*["'][^"']+["']/g,
+    )) {
       for (const part of match[1].split(",")) {
-        const name = part.trim().split(/\s+as\s+/)[0].trim();
+        const name = part
+          .trim()
+          .split(/\s+as\s+/)[0]
+          .trim();
         if (name) imported.add(name);
       }
     }
@@ -442,13 +460,11 @@ export async function collectImportedExportNames(appDir) {
  */
 export function stripUnreferencedExports(src, keepExport) {
   return src
-    .replace(
-      /^export (async function|function) (\w+)/gm,
-      (full, kind, name) => (keepExport.has(name) ? full : `${kind} ${name}`)
+    .replace(/^export (async function|function) (\w+)/gm, (full, kind, name) =>
+      keepExport.has(name) ? full : `${kind} ${name}`,
     )
-    .replace(
-      /^export (const|let) (\w+)(\s*=)/gm,
-      (full, kind, name, eq) => (keepExport.has(name) ? full : `${kind} ${name}${eq}`)
+    .replace(/^export (const|let) (\w+)(\s*=)/gm, (full, kind, name, eq) =>
+      keepExport.has(name) ? full : `${kind} ${name}${eq}`,
     );
 }
 
@@ -464,7 +480,7 @@ export async function collectHooksRegistry(appDir) {
   for (const file of files) {
     const src = await readFile(file, "utf8");
     for (const match of src.matchAll(
-      /^hooks\.([A-Za-z_$][\w$]*)\s*=\s*([A-Za-z_$][\w$]*)\s*;/gm
+      /^hooks\.([A-Za-z_$][\w$]*)\s*=\s*([A-Za-z_$][\w$]*)\s*;/gm,
     )) {
       registry.set(match[1], { file, localName: match[2] });
     }
@@ -480,7 +496,7 @@ export async function collectHooksRegistry(appDir) {
  * @param {Map<string, { file: string, localName: string }>} registry
  * @param {string} appDir
  */
-export function rewriteHooksToDirectImports(file, src, registry, appDir) {
+export function rewriteHooksToDirectImports(file, src, registry, _appDir) {
   const needed = new Map(); // localName -> defining file
   for (const [hookName, def] of registry) {
     const re = new RegExp(`\\bhooks\\.${hookName}\\b`);
@@ -496,7 +512,7 @@ export function rewriteHooksToDirectImports(file, src, registry, appDir) {
       const def = registry.get(hookName);
       if (def && def.file === file && def.localName === localName) return "";
       return full;
-    }
+    },
   );
 
   /** @type {Map<string, string>} hookName -> binding to use in this file */
@@ -530,7 +546,11 @@ export function rewriteHooksToDirectImports(file, src, registry, appDir) {
     // Insert after existing import block.
     const importBlock = out.match(/^(?:import\s+[^;]+;\s*\n)*/);
     const idx = importBlock ? importBlock[0].length : 0;
-    out = out.slice(0, idx) + importLines.join("\n") + (importLines.length ? "\n" : "") + out.slice(idx);
+    out =
+      out.slice(0, idx) +
+      importLines.join("\n") +
+      (importLines.length ? "\n" : "") +
+      out.slice(idx);
   }
 
   return out;
@@ -555,7 +575,9 @@ export async function createStateHooksManglePlugin(appDir, opts = {}) {
   const stateSrc = await readFile(stateFile, "utf8");
   const stateBlock = stateSrc.match(/export const state = \{([\s\S]*?)\n\};/);
   if (stateBlock) {
-    for (const match of stateBlock[1].matchAll(/^\s*([A-Za-z_$][\w$]*)\s*:/gm)) {
+    for (const match of stateBlock[1].matchAll(
+      /^\s*([A-Za-z_$][\w$]*)\s*:/gm,
+    )) {
       stateProps.add(match[1]);
     }
   }
@@ -574,7 +596,10 @@ export async function createStateHooksManglePlugin(appDir, opts = {}) {
     setup(build) {
       build.onLoad({ filter: /\.js$/ }, async (args) => {
         const file = path.resolve(args.path);
-        if (!file.startsWith(appDirResolved + path.sep) && file !== appDirResolved) {
+        if (
+          !file.startsWith(appDirResolved + path.sep) &&
+          file !== appDirResolved
+        ) {
           return null;
         }
         let src = await readFile(file, "utf8");

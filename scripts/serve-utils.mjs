@@ -55,7 +55,11 @@ export function headersFor(logicalPath, encoding, opts = {}) {
 
   if (ext === ".html") {
     Object.assign(headers, htmlHeaders);
-  } else if (base === "sw.js" || ext === ".webmanifest" || base === "GUIDE.md") {
+  } else if (
+    base === "sw.js" ||
+    ext === ".webmanifest" ||
+    base === "GUIDE.md"
+  ) {
     headers["Cache-Control"] = "no-cache";
   } else if (/^GUIDE\.[a-f0-9]+\.md$/i.test(base)) {
     headers["Cache-Control"] = "public, max-age=31536000, immutable";
@@ -69,7 +73,12 @@ export function headersFor(logicalPath, encoding, opts = {}) {
     headers["Cache-Control"] = hashed
       ? "public, max-age=31536000, immutable"
       : "no-cache";
-  } else if (ext === ".jpg" || ext === ".jpeg" || ext === ".avif" || ext === ".png") {
+  } else if (
+    ext === ".jpg" ||
+    ext === ".jpeg" ||
+    ext === ".avif" ||
+    ext === ".png"
+  ) {
     const hashed = /\.[a-f0-9]{8,}\.(?:jpg|jpeg|avif|png)$/i.test(base);
     headers["Cache-Control"] = hashed
       ? "public, max-age=31536000, immutable"
@@ -112,6 +121,7 @@ export function safeResolve(urlPath, rootDir) {
     return null;
   }
   // Null bytes / other C0 controls make fs.stat throw EINVAL → 500; reject as forbidden.
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: intentional C0/DEL path reject
   if (/[\u0000-\u001f\u007f]/.test(decoded)) {
     return null;
   }
@@ -130,10 +140,15 @@ export function safeResolve(urlPath, rootDir) {
  * @param {(filePath: string) => Promise<boolean>} exists
  * @returns {Promise<{ path: string, encoding: string | null }>}
  */
-export async function resolveWithCompression(logicalPath, acceptEncoding, exists) {
+export async function resolveWithCompression(
+  logicalPath,
+  acceptEncoding,
+  exists,
+) {
   const accept = (acceptEncoding || "").toLowerCase();
   const candidates = [];
-  if (accept.includes("br")) candidates.push({ path: `${logicalPath}.br`, encoding: "br" });
+  if (accept.includes("br"))
+    candidates.push({ path: `${logicalPath}.br`, encoding: "br" });
   if (accept.includes("gzip") || accept.includes("deflate")) {
     candidates.push({ path: `${logicalPath}.gz`, encoding: "gzip" });
   }

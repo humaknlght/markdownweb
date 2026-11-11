@@ -112,7 +112,10 @@ export function exportBasename(title) {
  * @param {string} [mime]
  */
 export function downloadBlob(data, filename, mime) {
-  const blob = data instanceof Blob ? data : new Blob([data], { type: mime || "application/octet-stream" });
+  const blob =
+    data instanceof Blob
+      ? data
+      : new Blob([data], { type: mime || "application/octet-stream" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
@@ -188,7 +191,9 @@ function prepareFluidMermaidSvgForExport(svg) {
 
 /** @param {HTMLElement} clone */
 function cleanupClone(clone) {
-  for (const el of clone.querySelectorAll("[data-source-line], [data-source-line-end]")) {
+  for (const el of clone.querySelectorAll(
+    "[data-source-line], [data-source-line-end]",
+  )) {
     el.removeAttribute("data-source-line");
     el.removeAttribute("data-source-line-end");
   }
@@ -227,8 +232,7 @@ function cleanupClone(clone) {
   for (const wrap of anims) {
     const parent = wrap.parentNode;
     if (!parent) continue;
-    const inner =
-      wrap.querySelector(":scope > .md-section-anim-inner") || wrap;
+    const inner = wrap.querySelector(":scope > .md-section-anim-inner") || wrap;
     while (inner.firstChild) parent.insertBefore(inner.firstChild, wrap);
     wrap.remove();
   }
@@ -335,7 +339,8 @@ const DEFAULT_EXPORT_STYLE_VARS = {
   "--preview-pre-bg": "#f6f8fa",
   "--preview-pre-border": "#d1d9e0",
   "--preview-quote": "#d1d9e0",
-  "--preview-font": '-apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif',
+  "--preview-font":
+    '-apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif',
   "--preview-size": "1rem",
   "--heading-color": "inherit",
   "--font-mono": "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
@@ -390,7 +395,9 @@ const DEFAULT_EXPORT_STYLE_VARS = {
  * }}
  */
 export function exportStyleOptionsFromPreview(previewEl) {
-  const doc = previewEl?.ownerDocument || (typeof document !== "undefined" ? document : null);
+  const doc =
+    previewEl?.ownerDocument ||
+    (typeof document !== "undefined" ? document : null);
   const root = doc?.documentElement;
   /** @type {Record<string, string>} */
   const vars = {};
@@ -403,7 +410,8 @@ export function exportStyleOptionsFromPreview(previewEl) {
   }
   const width = previewEl?.dataset?.width === "full" ? "full" : "readable";
   const lineWrap = root?.dataset?.lineWrap !== "off";
-  const theme = sanitizeCssValue(root?.dataset?.theme || "github-light") || "github-light";
+  const theme =
+    sanitizeCssValue(root?.dataset?.theme || "github-light") || "github-light";
   return { width, lineWrap, theme, vars };
 }
 
@@ -518,7 +526,7 @@ function formatExportRootVars(vars) {
   /** @type {Record<string, string>} */
   const merged = { ...DEFAULT_EXPORT_STYLE_VARS };
   for (const [name, raw] of Object.entries(vars || {})) {
-    if (!Object.prototype.hasOwnProperty.call(DEFAULT_EXPORT_STYLE_VARS, name)) continue;
+    if (!Object.hasOwn(DEFAULT_EXPORT_STYLE_VARS, name)) continue;
     const cleaned = sanitizeCssValue(raw);
     if (cleaned) merged[name] = cleaned;
   }
@@ -547,13 +555,15 @@ export function buildHtmlDocument(bodyHtml, title, options = {}) {
   const lineWrap = options.lineWrap !== false;
   // Attribute-safe: sanitizeHtmlAttrValue strips quotes; escapeHtml is defense in depth.
   const theme =
-    escapeHtml(sanitizeHtmlAttrValue(options.theme || "github-light")) || "github-light";
+    escapeHtml(sanitizeHtmlAttrValue(options.theme || "github-light")) ||
+    "github-light";
   const maxWidth = width === "full" ? "none" : "52rem";
   const rootVars = formatExportRootVars(options.vars || {});
   const colorScheme =
     escapeHtml(
       sanitizeHtmlAttrValue(
-        options.vars?.["--color-scheme"] || DEFAULT_EXPORT_STYLE_VARS["--color-scheme"],
+        options.vars?.["--color-scheme"] ||
+          DEFAULT_EXPORT_STYLE_VARS["--color-scheme"],
       ),
     ) || "light";
   const themeCss = themeExportCss(theme);
@@ -749,7 +759,11 @@ ${bodyHtml}
  */
 export async function printPreviewAsPdf(previewEl, title, options) {
   const style = options || exportStyleOptionsFromPreview(previewEl);
-  const html = buildHtmlDocument(cleanPreviewHtmlForPrint(previewEl), title, style);
+  const html = buildHtmlDocument(
+    cleanPreviewHtmlForPrint(previewEl),
+    title,
+    style,
+  );
   await printHtmlDocument(html);
 }
 
@@ -793,7 +807,9 @@ function printHtmlDocument(html) {
       try {
         await waitForImages(doc);
         // Let SVG layout settle before the print snapshot.
-        await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+        await new Promise((r) =>
+          requestAnimationFrame(() => requestAnimationFrame(r)),
+        );
         win.focus();
         win.print();
         // Some browsers never fire afterprint when the dialog is dismissed oddly.
@@ -807,7 +823,9 @@ function printHtmlDocument(html) {
     if (doc.readyState === "complete") {
       void triggerPrint();
     } else {
-      iframe.addEventListener("load", () => void triggerPrint(), { once: true });
+      iframe.addEventListener("load", () => void triggerPrint(), {
+        once: true,
+      });
     }
   });
 }
@@ -964,7 +982,15 @@ function inlineSvgComputedStyles(sourceRoot, cloneRoot) {
   ];
   // Structural containers: baking stroke/fill here inherits onto gantt
   // weekend bands (exclude-range) and draws an extra border in HTML export.
-  const containerTags = new Set(["svg", "g", "defs", "clipPath", "mask", "marker", "symbol"]);
+  const containerTags = new Set([
+    "svg",
+    "g",
+    "defs",
+    "clipPath",
+    "mask",
+    "marker",
+    "symbol",
+  ]);
 
   const walk = (src, dst) => {
     if (src.nodeType !== 1 || dst.nodeType !== 1) return;
@@ -979,10 +1005,13 @@ function inlineSvgComputedStyles(sourceRoot, cloneRoot) {
         dst.style.setProperty(prop, value);
       }
       const fill = cs.fill;
-      if (fill && fill !== "none") dst.setAttribute("fill", rgbToSvgColor(fill));
+      if (fill && fill !== "none")
+        dst.setAttribute("fill", rgbToSvgColor(fill));
       const stroke = cs.stroke;
-      if (stroke && stroke !== "none") dst.setAttribute("stroke", rgbToSvgColor(stroke));
-      else if (cs.getPropertyValue("stroke") === "none") dst.setAttribute("stroke", "none");
+      if (stroke && stroke !== "none")
+        dst.setAttribute("stroke", rgbToSvgColor(stroke));
+      else if (cs.getPropertyValue("stroke") === "none")
+        dst.setAttribute("stroke", "none");
     }
 
     // Gantt weekends: force no stroke + resolved exclude fill (DOMPurify may
@@ -1010,7 +1039,9 @@ function inlineSvgComputedStyles(sourceRoot, cloneRoot) {
 
 /** @param {string} color */
 function rgbToSvgColor(color) {
-  const m = String(color).match(/rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)/i);
+  const m = String(color).match(
+    /rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)/i,
+  );
   if (!m) return color;
   const r = Math.round(Number(m[1]));
   const g = Math.round(Number(m[2]));
@@ -1044,9 +1075,11 @@ function htmlToDocxBody(root) {
   const para = (text, { bold = false, heading = 0, code = false } = {}) => {
     const content = escapeXml(text);
     let rPr = "";
-    if (heading) rPr += `<w:b/><w:sz w:val="${Math.max(24, 48 - heading * 4)}"/>`;
+    if (heading)
+      rPr += `<w:b/><w:sz w:val="${Math.max(24, 48 - heading * 4)}"/>`;
     else if (bold) rPr += `<w:b/>`;
-    if (code) rPr += `<w:rFonts w:ascii="Courier New" w:hAnsi="Courier New"/><w:sz w:val="18"/>`;
+    if (code)
+      rPr += `<w:rFonts w:ascii="Courier New" w:hAnsi="Courier New"/><w:sz w:val="18"/>`;
     const rPrXml = rPr ? `<w:rPr>${rPr}</w:rPr>` : "";
     const pPr = heading
       ? `<w:pPr><w:pStyle w:val="Heading${heading}"/><w:spacing w:before="240" w:after="120"/></w:pPr>`
@@ -1067,15 +1100,20 @@ function htmlToDocxBody(root) {
     const tag = el.tagName;
     if (tag === "SCRIPT" || tag === "STYLE") return;
     if (/^H[1-6]$/.test(tag)) {
-      para(el.innerText || el.textContent || "", { bold: true, heading: Number(tag[1]) });
+      para(el.textContent || el.textContent || "", {
+        bold: true,
+        heading: Number(tag[1]),
+      });
       return;
     }
     if (tag === "P" || tag === "LI" || tag === "BLOCKQUOTE") {
-      para(el.innerText || el.textContent || "");
+      para(el.textContent || el.textContent || "");
       return;
     }
     if (tag === "PRE") {
-      for (const line of (el.textContent || "").replace(/\n$/, "").split("\n")) {
+      for (const line of (el.textContent || "")
+        .replace(/\n$/, "")
+        .split("\n")) {
         para(line, { code: true });
       }
       return;
@@ -1086,7 +1124,9 @@ function htmlToDocxBody(root) {
     }
     if (tag === "TABLE") {
       for (const row of el.querySelectorAll("tr")) {
-        const cells = [...row.children].map((c) => (c.textContent || "").trim());
+        const cells = [...row.children].map((c) =>
+          (c.textContent || "").trim(),
+        );
         para(cells.join(" | "));
       }
       return;
@@ -1141,15 +1181,20 @@ function htmlToRtf(root) {
     if (tag === "SCRIPT" || tag === "STYLE") return;
     if (/^H[1-6]$/.test(tag)) {
       const level = Number(tag[1]);
-      emit(el.innerText || el.textContent || "", { bold: true, size: Math.max(24, 36 - level * 2) });
+      emit(el.textContent || el.textContent || "", {
+        bold: true,
+        size: Math.max(24, 36 - level * 2),
+      });
       return;
     }
     if (tag === "P" || tag === "LI" || tag === "BLOCKQUOTE") {
-      emit(el.innerText || el.textContent || "");
+      emit(el.textContent || el.textContent || "");
       return;
     }
     if (tag === "PRE") {
-      for (const line of (el.textContent || "").replace(/\n$/, "").split("\n")) {
+      for (const line of (el.textContent || "")
+        .replace(/\n$/, "")
+        .split("\n")) {
         emit(line, { mono: true, size: 18 });
       }
       return;
@@ -1160,7 +1205,9 @@ function htmlToRtf(root) {
     }
     if (tag === "TABLE") {
       for (const row of el.querySelectorAll("tr")) {
-        const cells = [...row.children].map((c) => (c.textContent || "").trim());
+        const cells = [...row.children].map((c) =>
+          (c.textContent || "").trim(),
+        );
         emit(cells.join(" | "));
       }
       return;

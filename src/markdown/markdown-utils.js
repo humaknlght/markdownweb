@@ -48,7 +48,7 @@ export function escapeHtml(text) {
 export function canonicalHljsLang(name) {
   const raw = (name || "").trim().split(/\s+/)[0].toLowerCase();
   if (!raw) return "";
-  if (Object.prototype.hasOwnProperty.call(HLJS_LANG_ALIASES, raw)) {
+  if (Object.hasOwn(HLJS_LANG_ALIASES, raw)) {
     return HLJS_LANG_ALIASES[raw] || "";
   }
   if (!/^[a-z][a-z0-9+-]*$/i.test(raw)) return "";
@@ -66,8 +66,7 @@ export function canonicalHljsLang(name) {
 export function collectFenceLanguages(source, { includeMermaid = false } = {}) {
   const langs = [];
   const re = /^ {0,3}(`{3,}|~{3,})([^\n`]*)/gm;
-  let match;
-  while ((match = re.exec(source || ""))) {
+  for (const match of (source || "").matchAll(re)) {
     const info = match[2].trim();
     if (!info) continue;
     const lang = info.split(/\s+/)[0];
@@ -105,11 +104,17 @@ function highlightFrontmatterScalar(value) {
   if (!trimmed) return escapeHtml(value);
 
   if (trimmed.startsWith("#")) {
-    return escapeHtml(lead) + `<span class="hljs-comment">${escapeHtml(trimmed)}</span>`;
+    return (
+      escapeHtml(lead) +
+      `<span class="hljs-comment">${escapeHtml(trimmed)}</span>`
+    );
   }
 
   if (trimmed[0] === '"' || trimmed[0] === "'") {
-    return escapeHtml(lead) + `<span class="hljs-string">${escapeHtml(trimmed)}</span>`;
+    return (
+      escapeHtml(lead) +
+      `<span class="hljs-string">${escapeHtml(trimmed)}</span>`
+    );
   }
 
   let main = trimmed;
@@ -212,7 +217,10 @@ export function highlightEditorMarkdown(source, hljs) {
     }
     if (language !== "markdown") {
       try {
-        return hljs.highlight(text, { language: "markdown", ignoreIllegals: true }).value;
+        return hljs.highlight(text, {
+          language: "markdown",
+          ignoreIllegals: true,
+        }).value;
       } catch {
         /* fall through */
       }
@@ -236,8 +244,7 @@ export function highlightEditorMarkdown(source, hljs) {
       /^ {0,3}(`{3,}|~{3,})([^\n]*)\n([\s\S]*?)(^ {0,3}\1[ \t]*$)/gm;
     let out = "";
     let last = 0;
-    let match;
-    while ((match = fenceRe.exec(region))) {
+    for (const match of region.matchAll(fenceRe)) {
       const full = match[0];
       const body = match[3];
       const before = region.slice(last, match.index);
@@ -258,7 +265,8 @@ export function highlightEditorMarkdown(source, hljs) {
       last = match.index + full.length;
     }
 
-    if (last < region.length) out += highlightChunk(region.slice(last), "markdown");
+    if (last < region.length)
+      out += highlightChunk(region.slice(last), "markdown");
     return out;
   }
 
@@ -287,7 +295,9 @@ export function highlightEditorMarkdown(source, hljs) {
  * @returns {string}
  */
 export function wrapHighlightedLines(html) {
-  const lines = String(html || "").replace(/\n$/, "").split("\n");
+  const lines = String(html || "")
+    .replace(/\n$/, "")
+    .split("\n");
   const openTags = [];
   let out = "";
 

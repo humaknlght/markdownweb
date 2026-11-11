@@ -1,21 +1,20 @@
+import { DRAWER_CLOSE_SWIPE_MIN_DX, STORAGE_KEYS } from "../constants.js";
 import { hooks } from "../hooks.js";
 import {
-  state,
-  panes,
-  filesToggleBtn,
-  filesDrawer,
   filesBackdrop,
   filesContextMenu,
+  filesDrawer,
+  filesToggleBtn,
+  fsAccessSupported,
   fsPermissionToast,
-  fsAccessSupported
+  panes,
+  state,
 } from "../state.js";
-import {
-  STORAGE_KEYS,
-  DRAWER_CLOSE_SWIPE_MIN_DX
-} from "../constants.js";
 
 export function filesDrawerToggleNoun() {
-  return fsAccessSupported || state.driveConfigured || state.gistConfigured ? "Files" : "Outline";
+  return fsAccessSupported || state.driveConfigured || state.gistConfigured
+    ? "Files"
+    : "Outline";
 }
 
 export function syncFilesToggleLabel() {
@@ -27,7 +26,9 @@ export function syncFilesToggleLabel() {
 
 function readFsPermissionToastDismissed() {
   try {
-    return localStorage.getItem(STORAGE_KEYS.fsPermissionToastDismissed) === "1";
+    return (
+      localStorage.getItem(STORAGE_KEYS.fsPermissionToastDismissed) === "1"
+    );
   } catch {
     return false;
   }
@@ -58,7 +59,8 @@ export function syncFsPermissionToast() {
   state.fsPermissionToastDismissed =
     state.fsPermissionToastDismissed || readFsPermissionToastDismissed();
   // Drawer already has the full regrant UI — only prompt when it is closed.
-  fsPermissionToast.hidden = state.fsPermissionToastDismissed || state.filesDrawerOpen;
+  fsPermissionToast.hidden =
+    state.fsPermissionToastDismissed || state.filesDrawerOpen;
 }
 
 export function dismissFsPermissionToast() {
@@ -67,18 +69,30 @@ export function dismissFsPermissionToast() {
   if (fsPermissionToast) fsPermissionToast.hidden = true;
 }
 
-export function setFilesDrawerOpen(open, { persist = true, preserveDragWidth = false } = {}) {
+export function setFilesDrawerOpen(
+  open,
+  { persist = true, preserveDragWidth = false } = {},
+) {
   state.filesDrawerOpen = Boolean(open);
   document.body.classList.toggle("files-drawer-open", state.filesDrawerOpen);
   if (filesDrawer) {
-    filesDrawer.setAttribute("aria-hidden", state.filesDrawerOpen ? "false" : "true");
+    filesDrawer.setAttribute(
+      "aria-hidden",
+      state.filesDrawerOpen ? "false" : "true",
+    );
     if (state.filesDrawerOpen) filesDrawer.removeAttribute("inert");
     else filesDrawer.setAttribute("inert", "");
   }
   if (filesBackdrop) {
-    filesBackdrop.setAttribute("aria-hidden", state.filesDrawerOpen ? "false" : "true");
+    filesBackdrop.setAttribute(
+      "aria-hidden",
+      state.filesDrawerOpen ? "false" : "true",
+    );
   }
-  filesToggleBtn?.setAttribute("aria-pressed", state.filesDrawerOpen ? "true" : "false");
+  filesToggleBtn?.setAttribute(
+    "aria-pressed",
+    state.filesDrawerOpen ? "true" : "false",
+  );
   syncFilesToggleLabel();
   if (!state.filesDrawerOpen) {
     state.drawerCloseDrag = null;
@@ -87,7 +101,10 @@ export function setFilesDrawerOpen(open, { persist = true, preserveDragWidth = f
   }
   if (persist) {
     try {
-      localStorage.setItem(STORAGE_KEYS.filesDrawer, state.filesDrawerOpen ? "1" : "0");
+      localStorage.setItem(
+        STORAGE_KEYS.filesDrawer,
+        state.filesDrawerOpen ? "1" : "0",
+      );
     } catch {
       /* quota / private mode */
     }
@@ -116,7 +133,12 @@ export function onDrawerCloseDragPointerDown(e) {
 }
 
 export function onDrawerCloseDragPointerMove(e) {
-  if (!state.drawerCloseDrag || e.pointerId !== state.drawerCloseDrag.id || !filesDrawer) return;
+  if (
+    !state.drawerCloseDrag ||
+    e.pointerId !== state.drawerCloseDrag.id ||
+    !filesDrawer
+  )
+    return;
   const dx = e.clientX - state.drawerCloseDrag.startX;
   const dy = e.clientY - state.drawerCloseDrag.startY;
 
@@ -139,12 +161,16 @@ export function onDrawerCloseDragPointerMove(e) {
   if (state.drawerCloseDrag.active) e.preventDefault();
 
   // Shrink the drawer so the panes slide left over it with the finger.
-  const next = Math.max(0, Math.min(state.drawerCloseDrag.width, state.drawerCloseDrag.width + dx));
+  const next = Math.max(
+    0,
+    Math.min(state.drawerCloseDrag.width, state.drawerCloseDrag.width + dx),
+  );
   filesDrawer.style.width = `${next}px`;
 }
 
 export function finishDrawerCloseDrag(e, { cancelled = false } = {}) {
-  if (!state.drawerCloseDrag || e.pointerId !== state.drawerCloseDrag.id) return;
+  if (!state.drawerCloseDrag || e.pointerId !== state.drawerCloseDrag.id)
+    return;
   const { active, width: startWidth, startX } = state.drawerCloseDrag;
   const dx = e.clientX - startX;
   const currentWidth = filesDrawer?.getBoundingClientRect().width ?? startWidth;
@@ -198,18 +224,28 @@ export function openFilesContextMenu(x, y, target) {
   if (!filesContextMenu) return;
   const id = target.id || "";
   state.contextTarget = { id, kind: target.kind };
-  const newFileItem = filesContextMenu.querySelector('[data-fs-action="new-file"]');
-  const newFolderItem = filesContextMenu.querySelector('[data-fs-action="new-folder"]');
-  const renameItem = filesContextMenu.querySelector('[data-fs-action="rename"]');
-  const deleteItem = filesContextMenu.querySelector('[data-fs-action="delete"]');
+  const newFileItem = filesContextMenu.querySelector(
+    '[data-fs-action="new-file"]',
+  );
+  const newFolderItem = filesContextMenu.querySelector(
+    '[data-fs-action="new-folder"]',
+  );
+  const renameItem = filesContextMenu.querySelector(
+    '[data-fs-action="rename"]',
+  );
+  const deleteItem = filesContextMenu.querySelector(
+    '[data-fs-action="delete"]',
+  );
   const gistMode = hooks.isGistFilesSource();
   // Gists are flat: empty-area creates a new private gist; no folders/rename.
   const showCreate = gistMode ? !id : target.kind === "directory";
   const showNewFolder = showCreate && !gistMode;
   const canMutate = Boolean(id);
   const canRename = canMutate && !gistMode;
-  if (newFileItem?.parentElement) newFileItem.parentElement.hidden = !showCreate;
-  if (newFolderItem?.parentElement) newFolderItem.parentElement.hidden = !showNewFolder;
+  if (newFileItem?.parentElement)
+    newFileItem.parentElement.hidden = !showCreate;
+  if (newFolderItem?.parentElement)
+    newFolderItem.parentElement.hidden = !showNewFolder;
   if (renameItem?.parentElement) renameItem.parentElement.hidden = !canRename;
   if (deleteItem?.parentElement) deleteItem.parentElement.hidden = !canMutate;
 

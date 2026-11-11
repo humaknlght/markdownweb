@@ -1,10 +1,13 @@
-import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
+import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+const root = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "../..",
+);
 
 /** Main + lazy Zen theme CSS (zen tokens live in src/styles/zen.css). */
 async function readThemeCss() {
@@ -76,7 +79,9 @@ const SYNTAX_VARS = [
 function parseColor(hex) {
   let h = hex.trim().toLowerCase();
   if (h.startsWith("rgba(") || h.startsWith("rgb(")) {
-    const m = h.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)(?:\s*,\s*([\d.]+))?/);
+    const m = h.match(
+      /rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)(?:\s*,\s*([\d.]+))?/,
+    );
     assert.ok(m, `expected rgb(a) color, got ${hex}`);
     return { r: +m[1], g: +m[2], b: +m[3], a: m[4] === undefined ? 1 : +m[4] };
   }
@@ -134,7 +139,11 @@ function parseThemeBlock(css, theme) {
           /:root\s*,\s*html\[data-theme="github-light"\]\s*\{([\s\S]*?)\n\}/,
           /html\[data-theme="github-light"\]\s*\{([\s\S]*?)\n\}/,
         ]
-      : [new RegExp(`html\\[data-theme="${theme}"\\]\\s*\\{([\\s\\S]*?)\\n\\}`)];
+      : [
+          new RegExp(
+            `html\\[data-theme="${theme}"\\]\\s*\\{([\\s\\S]*?)\\n\\}`,
+          ),
+        ];
 
   for (const re of patterns) {
     const m = css.match(re);
@@ -149,7 +158,7 @@ function parseThemeBlock(css, theme) {
  * @param {string} value
  */
 function resolveValue(tokens, value) {
-  let v = value.trim();
+  const v = value.trim();
   const m = v.match(/^var\((--[a-z0-9-]+)(?:,\s*([^)]+))?\)$/i);
   if (!m) return v;
   if (tokens[m[1]] != null) return resolveValue(tokens, tokens[m[1]]);

@@ -69,7 +69,9 @@ export function makePatch(base, target) {
   for (let i = n - 1; i >= 0; i--) {
     for (let j = m - 1; j >= 0; j--) {
       dp[i][j] =
-        a[i] === b[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+        a[i] === b[j]
+          ? dp[i + 1][j + 1] + 1
+          : Math.max(dp[i + 1][j], dp[i][j + 1]);
     }
   }
 
@@ -84,7 +86,11 @@ export function makePatch(base, target) {
       j++;
     } else if (dp[i + 1][j] >= dp[i][j + 1]) {
       let del = 0;
-      while (i < n && (j >= m || a[i] !== b[j]) && dp[i + 1][j] >= dp[i][j + 1]) {
+      while (
+        i < n &&
+        (j >= m || a[i] !== b[j]) &&
+        dp[i + 1][j] >= dp[i][j + 1]
+      ) {
         del++;
         i++;
       }
@@ -92,7 +98,11 @@ export function makePatch(base, target) {
     } else {
       /** @type {string[]} */
       const ins = [];
-      while (j < m && (i >= n || a[i] !== b[j]) && dp[i + 1][j] < dp[i][j + 1]) {
+      while (
+        j < m &&
+        (i >= n || a[i] !== b[j]) &&
+        dp[i + 1][j] < dp[i][j + 1]
+      ) {
         ins.push(b[j]);
         j++;
       }
@@ -118,7 +128,7 @@ export function applyPatch(base, patchJson) {
   } catch {
     return base;
   }
-  if (!parsed || parsed.v !== 1 || !Array.isArray(parsed.ops)) return base;
+  if (parsed?.v !== 1 || !Array.isArray(parsed.ops)) return base;
 
   const a = toLines(base);
   /** @type {string[]} */

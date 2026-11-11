@@ -131,7 +131,9 @@ export const INPUT_TOO_LARGE_MESSAGE =
 export function formatAiError(err, fallback = "Something went wrong.") {
   if (!err) return fallback;
   const name = /** @type {{ name?: string }} */ (err).name || "";
-  const message = String(/** @type {{ message?: string }} */ (err).message || "");
+  const message = String(
+    /** @type {{ message?: string }} */ (err).message || "",
+  );
   if (name === "AbortError") return "Stopped.";
   if (name === "QuotaExceededError" || /too large/i.test(message)) {
     return INPUT_TOO_LARGE_MESSAGE;
@@ -291,7 +293,8 @@ export function acceptProofreadResult(original, corrected) {
       .filter(Boolean);
   const beforeLines = nonEmpty(before);
   const afterLines = nonEmpty(after);
-  const headingCount = (rows) => rows.filter((l) => /^#{1,6}\s+\S/.test(l)).length;
+  const headingCount = (rows) =>
+    rows.filter((l) => /^#{1,6}\s+\S/.test(l)).length;
 
   // Short or heading-only slices: keep line/heading cardinality stable so we
   // never glue an extra "#" onto the following ``` fence.
@@ -303,7 +306,11 @@ export function acceptProofreadResult(original, corrected) {
   const beforeNl = (before.match(/\n/g) || []).length;
   const afterNl = (after.match(/\n/g) || []).length;
   if (beforeNl >= 2 && afterNl > beforeNl + 8) return false;
-  if (before.length > 80 && beforeNl >= 2 && afterNl < Math.max(0, beforeNl - 8)) {
+  if (
+    before.length > 80 &&
+    beforeNl >= 2 &&
+    afterNl < Math.max(0, beforeNl - 8)
+  ) {
     return false;
   }
 
@@ -402,7 +409,10 @@ export function findProofreadSplitOffset(text, maxLen) {
  * @param {number} [maxLen]
  * @returns {string[]}
  */
-export function splitProofreadChunks(text, maxLen = DEFAULT_PROOFREAD_CHUNK_CHARS) {
+export function splitProofreadChunks(
+  text,
+  maxLen = DEFAULT_PROOFREAD_CHUNK_CHARS,
+) {
   const value = String(text ?? "");
   const limit = Math.max(200, Number(maxLen) || DEFAULT_PROOFREAD_CHUNK_CHARS);
   if (!value) return [];
@@ -428,7 +438,8 @@ export function splitProofreadChunks(text, maxLen = DEFAULT_PROOFREAD_CHUNK_CHAR
 export async function resolveProofreadChunkLimit(session, text) {
   const fallback = DEFAULT_PROOFREAD_CHUNK_CHARS;
   const value = String(text ?? "");
-  if (!session || typeof session.measureInputUsage !== "function") return fallback;
+  if (!session || typeof session.measureInputUsage !== "function")
+    return fallback;
   const quota = Number(session.inputQuota);
   if (!Number.isFinite(quota) || quota <= 0) return fallback;
   try {
@@ -440,7 +451,8 @@ export async function resolveProofreadChunkLimit(session, text) {
         return Math.max(value.length, fallback);
       }
     }
-    const probe = value.slice(0, Math.min(800, value.length)) || "word ".repeat(40);
+    const probe =
+      value.slice(0, Math.min(800, value.length)) || "word ".repeat(40);
     const probeUsage = await session.measureInputUsage(probe);
     if (typeof probeUsage !== "number" || probeUsage <= 0) return fallback;
     const charsPerUnit = probe.length / probeUsage;
@@ -493,7 +505,10 @@ export async function assertInputFitsQuota(session, text) {
   try {
     const usage = await session.measureInputUsage(text);
     if (typeof usage === "number" && usage > quota) {
-      const err = new DOMException(INPUT_TOO_LARGE_MESSAGE, "QuotaExceededError");
+      const err = new DOMException(
+        INPUT_TOO_LARGE_MESSAGE,
+        "QuotaExceededError",
+      );
       throw err;
     }
   } catch (err) {
@@ -511,7 +526,10 @@ export async function assertInputFitsQuota(session, text) {
  */
 function normalizeSelectionRange(text, selectionStart, selectionEnd) {
   const value = String(text ?? "");
-  const start = Math.max(0, Math.min(Number(selectionStart) || 0, value.length));
+  const start = Math.max(
+    0,
+    Math.min(Number(selectionStart) || 0, value.length),
+  );
   const end = Math.max(0, Math.min(Number(selectionEnd) || 0, value.length));
   const from = Math.min(start, end);
   const to = Math.max(start, end);
@@ -658,7 +676,9 @@ function lcsTokenOps(a, b) {
   for (let i = n - 1; i >= 0; i--) {
     for (let j = m - 1; j >= 0; j--) {
       dp[i][j] =
-        a[i] === b[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+        a[i] === b[j]
+          ? dp[i + 1][j + 1] + 1
+          : Math.max(dp[i + 1][j], dp[i][j + 1]);
     }
   }
 
@@ -829,7 +849,10 @@ export async function createAiSession(kind, options = {}, hooks = {}) {
  * @param {{ signal?: AbortSignal, onProgress?: (loaded: number) => void }} [hooks]
  * @returns {Promise<object>}
  */
-export async function createPromptSession(options = PROMPT_TEXT_OPTIONS, hooks = {}) {
+export async function createPromptSession(
+  options = PROMPT_TEXT_OPTIONS,
+  hooks = {},
+) {
   const Api = globalThis.LanguageModel;
   if (!Api || typeof Api.create !== "function") {
     throw new Error("Prompt API is not available");
@@ -903,13 +926,17 @@ export function stripOuterMarkdownFence(text) {
 function toneLengthInstructions(tone, length) {
   const parts = [];
   if (tone && tone !== "as-is" && tone !== "neutral") {
-    if (tone === "formal" || tone === "more-formal") parts.push("Use a formal tone.");
-    else if (tone === "casual" || tone === "more-casual") parts.push("Use a casual tone.");
+    if (tone === "formal" || tone === "more-formal")
+      parts.push("Use a formal tone.");
+    else if (tone === "casual" || tone === "more-casual")
+      parts.push("Use a casual tone.");
     else parts.push(`Tone: ${tone}.`);
   }
   if (length && length !== "as-is") {
-    if (length === "short" || length === "shorter") parts.push("Keep it short.");
-    else if (length === "long" || length === "longer") parts.push("Make it longer.");
+    if (length === "short" || length === "shorter")
+      parts.push("Keep it short.");
+    else if (length === "long" || length === "longer")
+      parts.push("Make it longer.");
     else if (length === "medium") parts.push("Use a medium length.");
     else parts.push(`Length: ${length}.`);
   }
@@ -932,7 +959,10 @@ export async function runPrompt(session, input, opts = {}) {
 
   if (typeof session.promptStreaming === "function") {
     const stream = session.promptStreaming(input, promptOpts);
-    const raw = await accumulateStream(stream, { signal, onChunk: cleanedOnChunk });
+    const raw = await accumulateStream(stream, {
+      signal,
+      onChunk: cleanedOnChunk,
+    });
     return stripOuterMarkdownFence(raw);
   }
   if (typeof session.prompt !== "function") {
@@ -1085,7 +1115,9 @@ export async function runProofread(session, text, opts = {}) {
   if (correctedInput === input) {
     return { correctedInput: input, corrections: [] };
   }
-  const corrections = Array.isArray(result?.corrections) ? result.corrections : [];
+  const corrections = Array.isArray(result?.corrections)
+    ? result.corrections
+    : [];
   return { correctedInput, corrections };
 }
 
@@ -1109,7 +1141,8 @@ async function proofreadChunkWithRetry(session, chunk, opts = {}) {
     return await runProofread(session, chunk, { signal });
   } catch (err) {
     const tooLarge =
-      err?.name === "QuotaExceededError" || /too large/i.test(String(err?.message || ""));
+      err?.name === "QuotaExceededError" ||
+      /too large/i.test(String(err?.message || ""));
     if (!tooLarge || chunk.length < 400) throw err;
     const halves = splitProofreadChunks(chunk, Math.ceil(chunk.length / 2));
     if (halves.length < 2) throw err;
@@ -1429,7 +1462,9 @@ export async function proofreadReplaceSpans(session, text, spans, opts = {}) {
       let corrected;
       let correctionCount;
       if (protectedText.length > DEFAULT_PROOFREAD_CHUNK_CHARS) {
-        const result = await runProofreadChunked(session, protectedText, { signal });
+        const result = await runProofreadChunked(session, protectedText, {
+          signal,
+        });
         corrected = restoreBreakTags(result.correctedInput);
         correctionCount = result.correctionCount;
       } else {
@@ -1549,7 +1584,9 @@ export async function runProofreadDocument(session, text, opts = {}) {
           total: Math.max(totalHint, unit + 1),
           label: "mermaid-notes",
         });
-        const result = await proofreadReplaceSpans(session, body, spans, { signal });
+        const result = await proofreadReplaceSpans(session, body, spans, {
+          signal,
+        });
         body = result.text;
         correctionCount += result.correctionCount;
         chunkCount += 1;
@@ -1563,7 +1600,9 @@ export async function runProofreadDocument(session, text, opts = {}) {
           total: Math.max(totalHint, unit + 1),
           label: "comments",
         });
-        const result = await proofreadReplaceSpans(session, body, spans, { signal });
+        const result = await proofreadReplaceSpans(session, body, spans, {
+          signal,
+        });
         body = result.text;
         correctionCount += result.correctionCount;
         chunkCount += 1;
@@ -1581,7 +1620,11 @@ export async function runProofreadDocument(session, text, opts = {}) {
     };
   }
 
-  return { correctedInput: corrected, correctionCount, chunkCount: Math.max(1, chunkCount) };
+  return {
+    correctedInput: corrected,
+    correctionCount,
+    chunkCount: Math.max(1, chunkCount),
+  };
 }
 
 /** Destroy a session if the API exposes destroy(). */

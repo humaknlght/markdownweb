@@ -1,5 +1,5 @@
-import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { describe, it } from "node:test";
 import { renderMarkdownHtml } from "../helpers/render.js";
 
 describe("emojiExtension", () => {
@@ -36,12 +36,14 @@ describe("emojiExtension", () => {
   for (const src of urlCases) {
     it(`does not convert emoji inside URL: ${src}`, () => {
       const html = renderMarkdownHtml(src);
-      assert.doesNotMatch(html, /[😉😕🙂😦😎😠]/);
+      assert.doesNotMatch(html, /[😉😕🙂😦😎😠]/u);
     });
   }
 
   it("converts emoticon after a URL on the same line", () => {
-    const html = renderMarkdownHtml("text before http://x.com?:-) text after :-)");
+    const html = renderMarkdownHtml(
+      "text before http://x.com?:-) text after :-)",
+    );
     assert.match(html, /🙂/);
   });
 
@@ -55,7 +57,7 @@ describe("emojiExtension", () => {
     it(`does not convert bound emoticon in ${JSON.stringify(src)}`, () => {
       const html = renderMarkdownHtml(src);
       assert.match(html, expect);
-      assert.doesNotMatch(html, /[😕😒😎]/);
+      assert.doesNotMatch(html, /[😕😒😎]/u);
     });
   }
 

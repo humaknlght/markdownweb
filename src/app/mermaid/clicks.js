@@ -11,8 +11,7 @@ export function parseMermaidClickHrefs(src) {
   /** @type {Map<string, string>} */
   const hrefById = new Map();
   const re = /^\s*click\s+(\S+)\s+href\s+(?:"([^"]+)"|'([^']+)'|(\S+))\s*$/gim;
-  let match;
-  while ((match = re.exec(String(src ?? "")))) {
+  for (const match of String(src ?? "").matchAll(re)) {
     const id = match[1];
     const url = match[2] ?? match[3] ?? match[4] ?? "";
     if (!id || !url) continue;
@@ -30,7 +29,8 @@ export function parseMermaidClickHrefs(src) {
  */
 export function applyMermaidHrefLinks(svg, hrefById) {
   // Avoid `instanceof SVGElement` — that global is missing in plain Node tests.
-  if (!svg || String(svg.tagName).toLowerCase() !== "svg" || !hrefById?.size) return;
+  if (!svg || String(svg.tagName).toLowerCase() !== "svg" || !hrefById?.size)
+    return;
   const doc = svg.ownerDocument;
   if (!doc) return;
   const svgNS = "http://www.w3.org/2000/svg";
@@ -39,7 +39,9 @@ export function applyMermaidHrefLinks(svg, hrefById) {
   for (const [taskId, url] of hrefById) {
     let targets;
     try {
-      const esc = cssEscape ? cssEscape(taskId) : taskId.replace(/[^a-zA-Z0-9_-]/g, "\\$&");
+      const esc = cssEscape
+        ? cssEscape(taskId)
+        : taskId.replace(/[^a-zA-Z0-9_-]/g, "\\$&");
       targets = [
         ...svg.querySelectorAll(`[id$="-${esc}"], [id$="-${esc}-text"]`),
       ];

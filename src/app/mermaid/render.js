@@ -1,9 +1,9 @@
 import { hooks } from "../hooks.js";
 import {
-  state,
-  preview,
+  mermaidHeightCache,
   mermaidSources,
-  mermaidHeightCache
+  preview,
+  state,
 } from "../state.js";
 
 /**

@@ -1,20 +1,24 @@
+import { STORAGE_KEYS } from "../constants.js";
 import { hooks } from "../hooks.js";
 import {
-  state,
-  speakDropdown,
   speakBtn,
+  speakDropdown,
+  speakNextBtn,
   speakPauseBtn,
   speakPrevBtn,
-  speakNextBtn,
+  speechSupported,
+  state,
   voiceMenuBtn,
-  speechSupported
 } from "../state.js";
-import {
-  STORAGE_KEYS
-} from "../constants.js";
 
 export function setupSpeech() {
-  if (!speakBtn || !speakDropdown || !speechSupported || !window.speechSynthesis) return;
+  if (
+    !speakBtn ||
+    !speakDropdown ||
+    !speechSupported ||
+    !window.speechSynthesis
+  )
+    return;
   speakDropdown.hidden = false;
   state.selectedVoiceURI = localStorage.getItem(STORAGE_KEYS.voice) || "";
   hooks.setupSpeechMediaSession();

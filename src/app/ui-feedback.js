@@ -1,14 +1,12 @@
+import { RENDER_LOADING_DELAY_MS } from "./constants.js";
 import { hooks } from "./hooks.js";
 import {
-  state,
   preview,
   previewPane,
   renderLoading,
-  toastEl
+  state,
+  toastEl,
 } from "./state.js";
-import {
-  RENDER_LOADING_DELAY_MS
-} from "./constants.js";
 
 export function showToast(message) {
   toastEl.textContent = message;
@@ -41,7 +39,10 @@ export function setContentExternal(external) {
 export function stashPreExternalState(contentOverride) {
   if (state.preExternalSnapshot) return;
   state.preExternalSnapshot = {
-    content: contentOverride != null ? String(contentOverride) : hooks.getMarkdownSource(),
+    content:
+      contentOverride != null
+        ? String(contentOverride)
+        : hooks.getMarkdownSource(),
     fileHandle: state.currentFileHandle,
     driveFile: state.currentDriveFile,
     gistFile: state.currentGistFile,
@@ -103,7 +104,8 @@ export function clearPreviewContent() {
 export function beginRenderLoading(opts = {}) {
   if (!(renderLoading instanceof HTMLElement)) return;
   window.clearTimeout(state.renderLoadingTimer);
-  const alreadyVisible = renderLoading.classList.contains("is-visible") && !renderLoading.hidden;
+  const alreadyVisible =
+    renderLoading.classList.contains("is-visible") && !renderLoading.hidden;
   renderLoading.hidden = false;
   previewPane?.setAttribute("aria-busy", "true");
   if (opts.eager || alreadyVisible) {

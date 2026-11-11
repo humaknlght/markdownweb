@@ -1,19 +1,23 @@
 import { hooks } from "./hooks.js";
-import {
-  state,
-  installBtn,
-  updateToast,
-  updateReloadBtn,
-  isStandaloneDisplay
-} from "./state.js";
 import { applyPwaDisplayAttrs } from "./pwa-display-attrs.js";
+import {
+  installBtn,
+  isStandaloneDisplay,
+  state,
+  updateReloadBtn,
+  updateToast,
+} from "./state.js";
 
 export { applyPwaDisplayAttrs } from "./pwa-display-attrs.js";
 
 export function resolveServiceWorkerUrl() {
   try {
     const configured = window.__MD_SW__;
-    if (typeof configured === "string" && configured && configured !== "__SW_URL__") {
+    if (
+      typeof configured === "string" &&
+      configured &&
+      configured !== "__SW_URL__"
+    ) {
       return configured;
     }
   } catch {
@@ -26,7 +30,8 @@ export function registerServiceWorker() {
   if (!("serviceWorker" in navigator)) return;
 
   let waitingForUpdateReload = false;
-  const desiredSwUrl = new URL(resolveServiceWorkerUrl(), window.location.href).href;
+  const desiredSwUrl = new URL(resolveServiceWorkerUrl(), window.location.href)
+    .href;
 
   navigator.serviceWorker.addEventListener("controllerchange", () => {
     if (waitingForUpdateReload) window.location.reload();
@@ -127,7 +132,10 @@ export function setupWindowControlsOverlay() {
     overlay.addEventListener("geometrychange", syncPwaDisplayAttrs);
   }
 
-  for (const query of ["(display-mode: standalone)", "(display-mode: window-controls-overlay)"]) {
+  for (const query of [
+    "(display-mode: standalone)",
+    "(display-mode: window-controls-overlay)",
+  ]) {
     try {
       window.matchMedia(query).addEventListener("change", syncPwaDisplayAttrs);
     } catch {
