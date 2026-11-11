@@ -128,7 +128,8 @@ test.describe("layout / speech / print", () => {
       await expect
         .poll(async () =>
           page.locator("#preview-frame").evaluate((frame) => {
-            const doc = /** @type {HTMLIFrameElement} */ (frame).contentDocument;
+            const doc = /** @type {HTMLIFrameElement} */ (frame)
+              .contentDocument;
             return doc?.documentElement?.getAttribute("data-theme") || "";
           }),
         )
@@ -157,21 +158,37 @@ test.describe("layout / speech / print", () => {
           backgroundColor: "rgb(255, 255, 255)",
           boxShadow: "none",
         });
+      // Fancy/zen equal-specificity page color needs print `background: #fff !important`.
       await expect
         .poll(async () =>
-          page.locator("html").evaluate((el) => getComputedStyle(el).backgroundImage),
+          page.locator("html").evaluate((el) => {
+            const cs = getComputedStyle(el);
+            return {
+              backgroundImage: cs.backgroundImage,
+              backgroundColor: cs.backgroundColor,
+            };
+          }),
         )
-        .toBe("none");
+        .toEqual({
+          backgroundImage: "none",
+          backgroundColor: "rgb(255, 255, 255)",
+        });
       await expect
         .poll(async () =>
-          page.locator("body").evaluate((el) => getComputedStyle(el).backgroundImage),
+          page.locator("body").evaluate((el) => {
+            const cs = getComputedStyle(el);
+            return {
+              backgroundImage: cs.backgroundImage,
+              backgroundColor: cs.backgroundColor,
+              color: cs.color,
+            };
+          }),
         )
-        .toBe("none");
-      await expect
-        .poll(async () =>
-          page.locator("body").evaluate((el) => getComputedStyle(el).color),
-        )
-        .toBe("rgb(31, 35, 40)");
+        .toEqual({
+          backgroundImage: "none",
+          backgroundColor: "rgb(255, 255, 255)",
+          color: "rgb(31, 35, 40)",
+        });
 
       await expect
         .poll(async () =>
@@ -179,7 +196,9 @@ test.describe("layout / speech / print", () => {
             const doc = /** @type {HTMLIFrameElement} */ (frame)
               .contentDocument;
             const link = doc?.getElementById("print-css");
-            return Boolean(link?.sheet || (link?.href && link.media === "print"));
+            return Boolean(
+              link?.sheet || (link?.href && link.media === "print"),
+            );
           }),
         )
         .toBe(true);
@@ -197,6 +216,147 @@ test.describe("layout / speech / print", () => {
           { timeout: 10000 },
         )
         .toBe("rgb(106, 115, 125)");
+
+      await page.emulateMedia({ media: "screen" });
+    }
+  });
+
+  test("print media keeps group-A preview chrome after dropping !important", async ({
+    page,
+  }) => {
+    // Salesforce/Fancy style blockquotes/links harder; print must still win
+    // without !important on those group-A declarations.
+    const themes = ["salesforce", "fancy"];
+    const doc = [
+      "---",
+      "title: Frontmatter",
+      "---",
+      "",
+      "# Group A",
+      "",
+      "> Quoted line",
+      "",
+      "> [!NOTE]",
+      "> Note body",
+      "",
+      "| Col | Val |",
+      "| --- | --- |",
+      "| a | 1 |",
+      "",
+      "[Link](https://example.com)",
+      "",
+      "```js",
+      "const x = 1;",
+      "```",
+      "",
+    ].join("\n");
+
+    await openFreshApp(page);
+    await fillEditor(page, doc);
+    await expect
+      .poll(async () => headingText(previewLocator(page, "h1")))
+      .toBe("Group A");
+    await expect(previewLocator(page, "blockquote").first()).toBeVisible();
+    await expect(previewLocator(page, ".markdown-alert-note")).toBeVisible();
+    await expect(
+      previewLocator(page, "table.markdown-frontmatter"),
+    ).toBeVisible();
+
+    for (const theme of themes) {
+      await openSettings(page);
+      await page.locator("#theme-select").selectOption(theme);
+      await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
+      await expect
+        .poll(async () =>
+          page.locator("#preview-frame").evaluate((frame) => {
+            const frameDoc = /** @type {HTMLIFrameElement} */ (frame)
+              .contentDocument;
+            return frameDoc?.documentElement?.getAttribute("data-theme") || "";
+          }),
+        )
+        .toBe(theme);
+
+      await page.emulateMedia({ media: "print" });
+
+      await expect
+        .poll(async () =>
+          previewLocator(page, "blockquote")
+            .first()
+            .evaluate((el) => {
+              const cs = getComputedStyle(el);
+              return {
+                backgroundColor: cs.backgroundColor,
+                borderTopLeftRadius: cs.borderTopLeftRadius,
+                borderLeftWidth: cs.borderLeftWidth,
+                borderLeftColor: cs.borderLeftColor,
+                color: cs.color,
+                paddingLeft: cs.paddingLeft,
+              };
+            }),
+        )
+        .toEqual({
+          backgroundColor: "rgba(0, 0, 0, 0)",
+          borderTopLeftRadius: "0px",
+          borderLeftWidth: "3px",
+          borderLeftColor: "rgb(209, 217, 224)",
+          color: "rgb(101, 109, 118)",
+          paddingLeft: "16px",
+        });
+
+      await expect
+        .poll(async () =>
+          previewLocator(page, ".markdown-alert-note").evaluate((el) => {
+            const cs = getComputedStyle(el);
+            return {
+              backgroundColor: cs.backgroundColor,
+              borderLeftColor: cs.borderLeftColor,
+            };
+          }),
+        )
+        .toEqual({
+          backgroundColor: "rgba(0, 0, 0, 0)",
+          borderLeftColor: "rgb(9, 105, 218)",
+        });
+
+      await expect
+        .poll(async () =>
+          previewLocator(page, "table.markdown-frontmatter").evaluate((el) => {
+            const cs = getComputedStyle(el);
+            return { display: cs.display, overflow: cs.overflow };
+          }),
+        )
+        .toEqual({ display: "table", overflow: "visible" });
+
+      await expect
+        .poll(async () =>
+          previewLocator(page, "table")
+            .filter({ hasNot: page.locator("table.markdown-frontmatter") })
+            .first()
+            .evaluate((el) => {
+              const cs = getComputedStyle(el);
+              return { display: cs.display, overflow: cs.overflow };
+            }),
+        )
+        .toEqual({ display: "table", overflow: "visible" });
+
+      await expect
+        .poll(async () =>
+          previewLocator(page, "a")
+            .filter({ hasText: "Link" })
+            .evaluate((el) => getComputedStyle(el).fontWeight),
+        )
+        .toMatch(/^(400|normal)$/);
+
+      await expect
+        .poll(async () =>
+          previewLocator(page, "pre")
+            .first()
+            .evaluate((el) => {
+              const cs = getComputedStyle(el);
+              return { overflow: cs.overflow, whiteSpace: cs.whiteSpace };
+            }),
+        )
+        .toEqual({ overflow: "visible", whiteSpace: "pre-wrap" });
 
       await page.emulateMedia({ media: "screen" });
     }
@@ -239,9 +399,15 @@ test.describe("layout / speech / print", () => {
     await openFreshApp(page);
     await fillEditor(
       page,
-      ["# Title", "", "Hidden body for print.", "", "# Next", "", "Visible."].join(
-        "\n",
-      ),
+      [
+        "# Title",
+        "",
+        "Hidden body for print.",
+        "",
+        "# Next",
+        "",
+        "Visible.",
+      ].join("\n"),
     );
     await expect
       .poll(async () => headingText(previewLocator(page, "h1").first()))

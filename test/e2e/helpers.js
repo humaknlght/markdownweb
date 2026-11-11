@@ -154,7 +154,8 @@ export async function stubSpeechSynthesis(page, options = {}) {
         // App code uses addEventListener("boundary", …); mirror EventTarget.
         this._listeners = Object.create(null);
         this.addEventListener = (type, fn) => {
-          (this._listeners[type] ||= []).push(fn);
+          if (!this._listeners[type]) this._listeners[type] = [];
+          this._listeners[type].push(fn);
         };
         this.removeEventListener = (type, fn) => {
           const list = this._listeners[type];
@@ -163,7 +164,8 @@ export async function stubSpeechSynthesis(page, options = {}) {
           if (i >= 0) list.splice(i, 1);
         };
         this.dispatchEvent = (event) => {
-          for (const fn of this._listeners[event?.type] || []) fn.call(this, event);
+          for (const fn of this._listeners[event?.type] || [])
+            fn.call(this, event);
           return true;
         };
       };
