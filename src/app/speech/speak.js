@@ -234,18 +234,20 @@ export function isDefaultedToCloudVoice() {
  * Confirm before starting cloud TTS when that voice is only the fallback default.
  * @returns {Promise<boolean>}
  */
+/**
+ * @returns {boolean | Promise<boolean>}
+ */
 export function confirmCloudSpeechIfNeeded() {
   if (state.cloudSpeechAllowedThisSession || !isDefaultedToCloudVoice()) {
-    return Promise.resolve(true);
+    // Sync true keeps the initiating user gesture for speechSynthesis / audio.
+    return true;
   }
   if (!cloudSpeechModal || typeof cloudSpeechModal.showModal !== "function") {
-    return Promise.resolve(
-      window.confirm(
-        "No local voice is available. Read aloud will use a cloud voice and send document text to the voice provider. Continue?",
-      ),
+    return window.confirm(
+      "No local voice is available. Read aloud will use a cloud voice and send document text to the voice provider. Continue?",
     );
   }
-  if (cloudSpeechModal.open) return Promise.resolve(false);
+  if (cloudSpeechModal.open) return false;
 
   return new Promise((resolve) => {
     const onClose = () => {
@@ -260,10 +262,15 @@ export function confirmCloudSpeechIfNeeded() {
   });
 }
 
-export async function requestStartSpeaking() {
-  const allowed = await confirmCloudSpeechIfNeeded();
-  if (!allowed) return;
-  startSpeaking();
+export function requestStartSpeaking() {
+  const allowed = confirmCloudSpeechIfNeeded();
+  if (allowed && typeof allowed.then === "function") {
+    void allowed.then((ok) => {
+      if (ok) startSpeaking();
+    });
+    return;
+  }
+  if (allowed) startSpeaking();
 }
 
 export function startSpeaking() {

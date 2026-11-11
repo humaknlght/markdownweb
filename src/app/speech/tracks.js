@@ -5,7 +5,10 @@ import { chunkSpeechText } from "../vendor-deps.js";
 export function buildPreviewSpeechMap() {
   const nodes = [];
   let text = "";
-  const walker = document.createTreeWalker(preview, NodeFilter.SHOW_TEXT, {
+  // Preview lives in a sandboxed iframe — walk with that document's TreeWalker.
+  const doc = preview?.ownerDocument;
+  if (!preview || !doc) return { text: "", nodes };
+  const walker = doc.createTreeWalker(preview, NodeFilter.SHOW_TEXT, {
     acceptNode(node) {
       const parent = node.parentElement;
       if (!parent) return NodeFilter.FILTER_REJECT;

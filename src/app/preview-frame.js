@@ -68,12 +68,12 @@ function syncPreviewFrameZenCss() {
 function syncPreviewFramePrintCss() {
   const doc = previewFrame?.contentDocument;
   if (!doc?.head) return;
-  const parentPrint = [...document.querySelectorAll('link[rel="stylesheet"]')].find(
-    (link) => {
-      if (link.media === "print") return true;
-      return /print/i.test(link.getAttribute("href") || "");
-    },
-  );
+  const parentPrint = [
+    ...document.querySelectorAll('link[rel="stylesheet"]'),
+  ].find((link) => {
+    if (link.media === "print") return true;
+    return /print/i.test(link.getAttribute("href") || "");
+  });
   let framePrint = doc.getElementById("print-css");
   if (parentPrint?.href) {
     if (!framePrint) {

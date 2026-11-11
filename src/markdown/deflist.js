@@ -127,7 +127,7 @@ export function parseDefList(src) {
             /^[ \t]/.test(lines[i + 1]) &&
             !parseDdLine(lines[i + 1])
           ) {
-            text += "\n" + line;
+            text += `\n${line}`;
             i += 1;
             continue;
           }
@@ -138,7 +138,7 @@ export function parseDefList(src) {
         if (isOtherBlockLine(line) && !/^[ \t]/.test(line)) break;
         // Prefer indented continuations; also allow lazy (unindented) lines that
         // are not other block starters — common Extra/pandoc style.
-        text += "\n" + line.replace(/^[ \t]+/, "");
+        text += `\n${line.replace(/^[ \t]+/, "")}`;
         i += 1;
       }
 

@@ -530,7 +530,7 @@ async function writeApacheConfig(scriptSrc, guideUrl, driveHelperCsp) {
 
   await writeFile(
     path.join(distDir, "csp.json"),
-    JSON.stringify({ scriptSrc, guideUrl, driveHelperCsp }, null, 2) + "\n",
+    `${JSON.stringify({ scriptSrc, guideUrl, driveHelperCsp }, null, 2)}\n`,
   );
 
   await copyFile(

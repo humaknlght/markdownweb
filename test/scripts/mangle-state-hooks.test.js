@@ -14,6 +14,7 @@ describe("mangle-state-hooks", () => {
     const out = mangleStateHooksSource(
       [
         "state.splitPercent = 50;",
+        // biome-ignore lint/suspicious/noTemplateCurlyInString: fixture source for mangler
         "const tip = `wrap ${state.lineWrapEnabled}`;",
         "const re = /state.splitPercent/;",
         'const s = "state.splitPercent";',

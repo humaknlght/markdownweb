@@ -48,8 +48,7 @@ function plaintextFromHighlight(html) {
 
 describe("speech-text", () => {
   it("chunks long text at sentence boundaries under the max", () => {
-    const text =
-      "A".repeat(50) + ". " + "B".repeat(50) + "! " + "C".repeat(200);
+    const text = `${"A".repeat(50)}. ${"B".repeat(50)}! ${"C".repeat(200)}`;
     const chunks = chunkSpeechText(text);
     assert.ok(chunks.length >= 2);
     for (const chunk of chunks) {

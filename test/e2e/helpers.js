@@ -100,23 +100,34 @@ export async function stubSpeechSynthesis(page, options = {}) {
           currentUtterance = utterance;
           this.speaking = true;
           this.paused = false;
-          queueMicrotask(() => utterance.onstart?.(new Event("start")));
           queueMicrotask(() => {
-            utterance.onboundary?.(
-              Object.assign(new Event("boundary"), {
-                name: "word",
-                charIndex: 0,
-                charLength: 4,
-              }),
-            );
+            utterance.onstart?.(new Event("start"));
+            utterance.dispatchEvent?.(new Event("start"));
+          });
+          queueMicrotask(() => {
+            const boundary = Object.assign(new Event("boundary"), {
+              name: "word",
+              charIndex: 0,
+              charLength: 4,
+            });
+            utterance.onboundary?.(boundary);
+            utterance.dispatchEvent?.(boundary);
           });
           // Stay "speaking" until cancel — matches a long utterance for aria-pressed checks.
         },
         cancel() {
           this.speaking = false;
           this.paused = false;
-          if (currentUtterance?.onend) currentUtterance.onend(new Event("end"));
+          // Prefer canceled/interrupted error (app ignores those) over onend,
+          // which would advance the queue and clear aria-pressed immediately.
+          const u = currentUtterance;
           currentUtterance = null;
+          if (!u) return;
+          const err = Object.assign(new Event("error"), {
+            error: "canceled",
+          });
+          u.onerror?.(err);
+          u.dispatchEvent?.(err);
         },
         pause() {
           this.paused = true;
@@ -140,6 +151,21 @@ export async function stubSpeechSynthesis(page, options = {}) {
         this.onend = null;
         this.onerror = null;
         this.onboundary = null;
+        // App code uses addEventListener("boundary", …); mirror EventTarget.
+        this._listeners = Object.create(null);
+        this.addEventListener = (type, fn) => {
+          (this._listeners[type] ||= []).push(fn);
+        };
+        this.removeEventListener = (type, fn) => {
+          const list = this._listeners[type];
+          if (!list) return;
+          const i = list.indexOf(fn);
+          if (i >= 0) list.splice(i, 1);
+        };
+        this.dispatchEvent = (event) => {
+          for (const fn of this._listeners[event?.type] || []) fn.call(this, event);
+          return true;
+        };
       };
     },
     { cloudOnly: Boolean(options.cloudOnly) },

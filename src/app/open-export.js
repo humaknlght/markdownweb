@@ -17,7 +17,7 @@ export async function copyText(url, toastMessage) {
     await navigator.clipboard.writeText(url);
     hooks.showToast(toastMessage);
   } catch {
-    window.prompt(toastMessage.replace(/copied\.?$/i, "").trim() + ":", url);
+    window.prompt(`${toastMessage.replace(/copied\.?$/i, "").trim()}:`, url);
   }
 }
 

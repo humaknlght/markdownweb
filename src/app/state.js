@@ -259,6 +259,8 @@ export const state = {
   rafId: 0,
   /** Bumps to cancel in-flight async markdown paints. */
   paintGen: 0,
+  /** Last Markdown source successfully painted into the preview. */
+  lastRenderedMarkdown: null,
   /** Timer that reveals the preview loading spinner after RENDER_LOADING_DELAY_MS. */
   renderLoadingTimer: 0,
   toastTimer: 0,

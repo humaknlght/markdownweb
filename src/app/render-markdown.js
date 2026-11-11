@@ -18,7 +18,15 @@ export async function renderMarkdown(source, options = {}) {
     hooks.clearUntrustedPreview();
     return;
   }
-  if (state.speechActive) hooks.stopSpeaking();
+  // Stop read-aloud only when the document text changed. Same-source re-paints
+  // (textarea `change` on blur, quiet HLJS grammar loads) must not interrupt.
+  if (
+    state.speechActive &&
+    source !== state.lastRenderedMarkdown &&
+    !options.skipLoadingUi
+  ) {
+    hooks.stopSpeaking();
+  }
 
   const skipLoadingUi = options.skipLoadingUi === true;
   const gen = ++state.paintGen;
@@ -114,6 +122,7 @@ export function paintMarkdown(source, gen = state.paintGen) {
     }
     hooks.invalidateScrollAnchors();
     hooks.updateDocOutline();
+    if (gen === state.paintGen) state.lastRenderedMarkdown = source;
     // Hold the editor as sync driver through any async Mermaid pass so reverse
     // sync cannot yank the textarea while preview height is still settling.
     hooks.beginSyncDriver("editor");

@@ -36,7 +36,7 @@ export function findAbbrDefStart(src) {
   const lines = src.split(/\r?\n/);
   let offset = 0;
   for (let i = 0; i < lines.length; i++) {
-    if (DEF_RE.test(lines[i] + "\n") || /^\*\[[^\]]+\]:\s+\S/.test(lines[i])) {
+    if (DEF_RE.test(`${lines[i]}\n`) || /^\*\[[^\]]+\]:\s+\S/.test(lines[i])) {
       return offset;
     }
     offset += lines[i].length;

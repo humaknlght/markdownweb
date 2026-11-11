@@ -215,7 +215,7 @@ export function insertCodeBlock(value, start, end) {
   const selected = value.slice(start, end);
   if (selected) {
     const body = selected.replace(/\n$/, "");
-    const snippet = "```\n" + body + "\n```";
+    const snippet = `\`\`\`\n${body}\n\`\`\``;
     return {
       from: start,
       to: end,

@@ -21,6 +21,7 @@
 /* Author `display:` rules (e.g. .svg-btn) must not defeat the hidden attribute.
    Browsers no longer map [hidden] to display:none !important in the UA sheet. */
 [hidden] {
+  /* biome-ignore lint/complexity/noImportantStyles: polyfill — beat author display without UA !important */
   display: none !important;
 }
 
@@ -420,151 +421,6 @@ html[data-theme="salesforce"] {
   --install-grad-b: #00c2a8;
 }
 
-html[data-theme="salesforce"] .brand {
-  color: #0170c8;
-}
-
-/*
- * Preview fenced code uses a dark Cosmos pre background, but the editor is white.
- * Scope light-theme syntax tokens to the editor overlay so both surfaces stay AA.
- */
-html[data-theme="salesforce"] .editor-highlight {
-  --syntax-comment: #6a737d;
-  --syntax-keyword: #cc3745;
-  --syntax-string: #032f62;
-  --syntax-number: #005cc5;
-  --syntax-literal: #005cc5;
-  --syntax-built-in: #bb5107;
-  --syntax-type: #6f42c1;
-  --syntax-attr: #005cc5;
-  --syntax-title: #6f42c1;
-  --syntax-meta: #6a737d;
-  --syntax-deletion: #b31d28;
-  --syntax-addition: #207f37;
-}
-
-html[data-theme="salesforce"] .btn,
-html[data-theme="salesforce"] .select-label select,
-html[data-theme="salesforce"] .dropdown-menu {
-  border-radius: var(--radius-sm);
-  box-shadow: 0 1px 2px rgba(8, 7, 7, 0.06);
-}
-
-html[data-theme="salesforce"] .split-btn-group .btn {
-  border-radius: 0;
-  box-shadow: none;
-}
-
-html[data-theme="salesforce"] .split-btn-group .split-btn-prev {
-  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
-  box-shadow: 0 1px 2px rgba(8, 7, 7, 0.06);
-}
-
-html[data-theme="salesforce"] .split-btn-group .split-btn-main {
-  border-radius: 0;
-  box-shadow: none;
-}
-
-html[data-theme="salesforce"]
-  .split-btn-group
-  .split-btn-prev[hidden]
-  + .split-btn-main,
-html[data-theme="salesforce"]
-  .format-bar
-  .split-btn-group
-  > .split-btn-main:first-child {
-  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
-  box-shadow: 0 1px 2px rgba(8, 7, 7, 0.06);
-}
-
-html[data-theme="salesforce"] .split-btn-group .split-btn-toggle {
-  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
-  box-shadow: 0 1px 2px rgba(8, 7, 7, 0.06);
-}
-
-html[data-theme="salesforce"] .btn:hover,
-html[data-theme="salesforce"] .select-label select:hover {
-  border-color: #0176d3;
-}
-
-html[data-theme="salesforce"] #share-btn {
-  background: var(--chrome-focus);
-  border-color: var(--chrome-focus);
-  color: var(--chrome-on-focus);
-}
-
-html[data-theme="salesforce"] #share-btn:hover {
-  background: color-mix(in srgb, var(--chrome-focus) 82%, white);
-  border-color: color-mix(in srgb, var(--chrome-focus) 82%, white);
-  color: var(--chrome-on-focus);
-}
-
-html[data-theme="salesforce"] .preview-pane {
-  padding: 1rem;
-  overflow-x: hidden;
-  overflow-y: auto;
-}
-
-html[data-theme="salesforce"] .preview {
-  background: #ffffff;
-  border-radius: var(--radius-md);
-  margin: 0 auto;
-  padding: 1.5rem 1.75rem 2.5rem;
-  box-shadow: var(--chrome-shadow);
-  max-width: 52rem;
-  width: 100%;
-  box-sizing: border-box;
-}
-
-html[data-theme="salesforce"] .preview[data-width="full"] {
-  max-width: none;
-}
-
-html[data-theme="salesforce"] .preview h1::after,
-html[data-theme="salesforce"] .preview h2::after {
-  border-bottom-color: #90d0fe;
-}
-
-html[data-theme="salesforce"] .preview blockquote {
-  background: #eaf5fe;
-  border-left-width: 4px;
-  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
-  padding: 0.65rem 1rem;
-  color: #032d60;
-}
-
-html[data-theme="salesforce"] .preview pre {
-  border-radius: var(--radius-md);
-  color: #eaf5fe;
-}
-
-html[data-theme="salesforce"] .preview pre code {
-  color: #eaf5fe;
-}
-
-html[data-theme="salesforce"] .preview code:not(pre code) {
-  color: #014486;
-  border-radius: 0.5rem;
-}
-
-html[data-theme="salesforce"] .preview a {
-  font-weight: 600;
-}
-
-html[data-theme="salesforce"] .splitter {
-  background: #90d0fe;
-}
-
-html[data-theme="salesforce"] .splitter:hover,
-html[data-theme="salesforce"] .splitter:focus-visible,
-html[data-theme="salesforce"] .panes.is-resizing .splitter {
-  background: #0176d3;
-}
-
-html[data-theme="salesforce"] .toast {
-  border-radius: var(--radius-sm);
-}
-
 html[data-theme="fancy"] {
   --chrome-bg: transparent;
   --chrome-surface: rgba(255, 255, 255, 0.14);
@@ -647,215 +503,6 @@ html[data-theme="fancy"] {
   --install-grad-b: #ff6b9d;
 }
 
-html[data-theme="fancy"],
-html[data-theme="fancy"] body {
-  background-color: #062436;
-  background-image: url("../assets/fancy.avif");
-  background-position: center;
-  background-size: cover;
-  background-repeat: no-repeat;
-  background-attachment: fixed;
-}
-
-html[data-theme="fancy"] .toolbar {
-  margin: var(--fancy-margin) var(--fancy-margin) 0;
-  height: auto;
-  min-height: var(--toolbar-h);
-  border: 1px solid var(--fancy-glass-border);
-  border-radius: 14px;
-  background: var(--fancy-glass);
-  backdrop-filter: blur(18px) saturate(1.35);
-  -webkit-backdrop-filter: blur(18px) saturate(1.35);
-  box-shadow: var(--chrome-shadow);
-}
-
-html[data-theme="fancy"] .site-intro {
-  margin: 0.45rem var(--fancy-margin) 0;
-  padding: 0.45rem 0.85rem;
-  border: 1px solid var(--fancy-glass-border);
-  border-radius: 12px;
-  background: var(--fancy-glass);
-  backdrop-filter: blur(18px) saturate(1.35);
-  -webkit-backdrop-filter: blur(18px) saturate(1.35);
-  box-shadow: var(--chrome-shadow);
-  color: #f4f8fb;
-  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.4);
-}
-
-html[data-theme="fancy"] .brand {
-  color: #ffffff;
-  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.35);
-}
-
-html[data-theme="fancy"] .btn,
-html[data-theme="fancy"] .select-label select {
-  background: rgba(255, 255, 255, 0.12);
-  border-color: rgba(255, 255, 255, 0.5);
-  color: var(--chrome-text);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-}
-
-html[data-theme="fancy"] .dropdown-menu {
-  background: rgba(6, 24, 36, 0.72);
-  border-color: rgba(255, 255, 255, 0.5);
-  color: var(--chrome-text);
-  backdrop-filter: blur(22px) saturate(1.4);
-  -webkit-backdrop-filter: blur(22px) saturate(1.4);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
-}
-
-html[data-theme="fancy"] .btn:hover,
-html[data-theme="fancy"] .select-label select:hover,
-html[data-theme="fancy"] .dropdown-menu > div > button:hover {
-  background: rgba(255, 255, 255, 0.22);
-}
-
-html[data-theme="fancy"] #share-btn {
-  background: var(--chrome-focus);
-  border-color: var(--chrome-focus);
-  color: var(--chrome-on-focus);
-}
-
-html[data-theme="fancy"] #share-btn:hover {
-  background: color-mix(in srgb, var(--chrome-focus) 82%, white);
-  border-color: color-mix(in srgb, var(--chrome-focus) 82%, white);
-  color: var(--chrome-on-focus);
-}
-
-html[data-theme="fancy"] .panes {
-  --splitter-track: 10px;
-  margin: 0.7rem var(--fancy-margin) var(--fancy-margin);
-  min-height: 0;
-  column-gap: var(--fancy-margin);
-}
-
-html[data-theme="fancy"] .panes.editor-collapsed,
-html[data-theme="fancy"] .panes.preview-collapsed {
-  --splitter-track: 0px;
-  column-gap: 0;
-}
-
-html[data-theme="fancy"] .editor-pane,
-html[data-theme="fancy"] .preview-pane {
-  border: 1px solid var(--fancy-glass-border);
-  border-radius: 14px;
-  background: var(--fancy-glass);
-  backdrop-filter: blur(20px) saturate(1.4);
-  -webkit-backdrop-filter: blur(20px) saturate(1.4);
-  box-shadow: var(--chrome-shadow);
-}
-
-/* The textarea scrolls itself, so the pane only needs to clip to the radius. */
-html[data-theme="fancy"] .editor-pane {
-  overflow: hidden;
-}
-
-html[data-theme="fancy"] .editor-wrap {
-  background: transparent;
-}
-
-html[data-theme="fancy"] #editor::placeholder {
-  /* ≥4.5:1 vs fancy page base (#062436) when blended */
-  color: rgba(244, 248, 251, 0.72);
-}
-
-html[data-theme="fancy"] .preview-pane {
-  background: var(--fancy-glass);
-  overflow: auto;
-}
-
-html[data-theme="fancy"] .preview {
-  color: var(--preview-fg);
-}
-
-html[data-theme="fancy"] .preview h1::after,
-html[data-theme="fancy"] .preview h2::after {
-  border-bottom-color: rgba(255, 255, 255, 0.2);
-}
-
-html[data-theme="fancy"] .preview blockquote {
-  background: rgba(255, 255, 255, 0.08);
-  border-radius: 0 10px 10px 0;
-  padding: 0.55rem 0.9rem;
-}
-
-html[data-theme="fancy"] .preview pre {
-  border-radius: 10px;
-}
-
-/* Let diagrams sit on the fancy preview glass — solid --mermaid-bg blocks look heavy. */
-html[data-theme="fancy"] .preview .mermaid,
-html[data-theme="fancy"] .preview .mermaid svg {
-  background: transparent;
-}
-
-html[data-theme="fancy"] .preview .line-num {
-  background: transparent;
-  border-right-color: rgba(255, 255, 255, 0.14);
-  color: rgba(244, 248, 251, 0.5);
-}
-
-html[data-theme="fancy"] .splitter {
-  background: rgba(255, 255, 255, 0.28);
-  border-radius: 999px;
-  align-self: stretch;
-  margin-block: 0.35rem;
-}
-
-html[data-theme="fancy"] .splitter:hover,
-html[data-theme="fancy"] .splitter:focus-visible,
-html[data-theme="fancy"] .panes.is-resizing .splitter {
-  background: var(--chrome-focus);
-}
-
-html[data-theme="fancy"] .toast {
-  border: 1px solid var(--fancy-glass-border);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-}
-
-/* Files drawer uses --chrome-bg (transparent in fancy); frost it like the panes
-   so light tree text stays readable over the photo. */
-html[data-theme="fancy"] .files-drawer {
-  background: var(--fancy-glass);
-  box-shadow: var(--chrome-shadow);
-  border-right-color: transparent;
-}
-
-html[data-theme="fancy"] body.files-drawer-open .files-drawer {
-  border-right-color: var(--fancy-glass-border);
-}
-
-html[data-theme="fancy"] .files-drawer-header,
-html[data-theme="fancy"] .files-section,
-html[data-theme="fancy"] .outline-header {
-  border-bottom-color: var(--fancy-glass-border);
-}
-
-html[data-theme="fancy"] .files-drawer-actions .btn {
-  background: rgba(255, 255, 255, 0.12);
-  border-color: rgba(255, 255, 255, 0.5);
-  color: var(--chrome-text);
-}
-
-html[data-theme="fancy"] .files-drawer-actions .btn:hover {
-  background: rgba(255, 255, 255, 0.22);
-}
-
-html[data-theme="fancy"] .files-tree-row:hover,
-html[data-theme="fancy"] .files-tree-row:focus-visible,
-html[data-theme="fancy"] .files-tree-row.is-selected,
-html[data-theme="fancy"] .outline-row:hover,
-html[data-theme="fancy"] .outline-row:focus-visible {
-  background: rgba(255, 255, 255, 0.16);
-}
-
-html[data-theme="fancy"] .files-tree-row.is-active-file,
-html[data-theme="fancy"] .outline-row.is-active {
-  color: #ffe08a;
-}
-
 @media (max-width: 800px) {
   html[data-theme="fancy"] .panes {
     column-gap: 0;
@@ -876,14 +523,6 @@ html[data-theme="fancy"] .outline-row.is-active {
     margin-block: 0;
     margin-inline: 0.35rem;
   }
-}
-
-/* Overflow panel needs denser glass than panes — light labels over the photo. */
-html[data-theme="fancy"] .toolbar-actions {
-  background: rgba(6, 24, 36, 0.94);
-  backdrop-filter: blur(20px) saturate(1.3);
-  -webkit-backdrop-filter: blur(20px) saturate(1.3);
-  border-color: var(--fancy-glass-border);
 }
 
 @media (prefers-reduced-transparency: reduce) {
@@ -1067,6 +706,7 @@ html.site-intro-seen .site-intro {
   min-width: 17rem;
   max-width: min(22rem, calc(100vw - 1.5rem));
   max-height: min(24rem, calc(100vh - var(--toolbar-h) - 16px));
+  /* biome-ignore lint/suspicious/noDuplicateProperties: vh fallback, then dvh + safe-area */
   max-height: min(
     24rem,
     calc(100dvh - var(--toolbar-h) - 16px - env(safe-area-inset-bottom, 0px))
@@ -1083,100 +723,6 @@ html.site-intro-seen .site-intro {
   box-shadow: var(--chrome-shadow, 0 8px 24px rgba(26, 29, 35, 0.12));
   backdrop-filter: blur(18px) saturate(1.25);
   -webkit-backdrop-filter: blur(18px) saturate(1.25);
-}
-
-.toolbar-menu.is-open .toolbar-actions {
-  display: flex;
-}
-
-/* When the bar is relocated into the panel (narrow), separate it from Theme+. */
-.toolbar-actions > .toolbar-bar {
-  flex-direction: column;
-  align-items: stretch;
-  width: 100%;
-  gap: 0.1rem;
-  margin-bottom: 0.2rem;
-  padding-bottom: 0.3rem;
-  border-bottom: 1px solid var(--chrome-border);
-}
-
-.toolbar-actions .select-label {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  width: 100%;
-  min-height: 2.25rem;
-  padding: 0.35rem 0.5rem;
-  border-radius: 4px;
-  color: var(--chrome-text);
-  box-sizing: border-box;
-}
-
-.toolbar-actions .select-label:hover {
-  background: var(--chrome-hover);
-}
-
-.toolbar-actions .select-caption {
-  position: static;
-  width: auto;
-  height: auto;
-  margin: 0;
-  padding: 0;
-  overflow: visible;
-  clip: unset;
-  clip-path: none;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
-.toolbar-actions .select-label select {
-  flex: 1;
-  min-width: 0;
-  margin-left: auto;
-  max-width: 62%;
-  text-align: right;
-  text-align-last: right;
-}
-
-.toolbar-actions .menu-icon {
-  display: block;
-  width: 1rem;
-  height: 1rem;
-  flex-shrink: 0;
-}
-
-.toolbar-more-sep {
-  height: 1px;
-  margin: 0.25rem 0.35rem;
-  background: var(--chrome-border);
-  flex-shrink: 0;
-}
-
-.toolbar-actions > .btn {
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 0.5rem;
-  width: 100%;
-  min-height: 2.25rem;
-  padding: 0.35rem 0.5rem;
-  border: 0;
-  border-radius: 4px;
-  background: transparent;
-  box-shadow: none;
-  color: var(--chrome-text);
-  text-align: left;
-}
-
-.toolbar-actions > .btn:hover,
-.toolbar-actions > .btn:focus-visible {
-  background: var(--chrome-hover);
-  border-color: transparent;
-}
-
-.toolbar-actions > .btn .btn-text {
-  font-size: 0.8125rem;
-  font-weight: 450;
 }
 
 .btn.overflow-btn {
@@ -1269,6 +815,17 @@ html.site-intro-seen .site-intro {
 
 /* Keep chrome controls on one baseline; selects are otherwise taller than icon buttons. */
 .toolbar .btn,
+.ai-option select {
+  min-height: 2rem;
+  padding: 0.25rem 0.45rem;
+  border: 1px solid var(--chrome-border);
+  border-radius: 8px;
+  background: var(--chrome-bg, var(--chrome-surface));
+  color: var(--chrome-text);
+  font: inherit;
+  font-size: 0.875rem;
+}
+
 .toolbar .select-label select {
   min-height: var(--toolbar-control-h);
 }
@@ -1371,7 +928,7 @@ a.btn {
 .speak-next-btn[hidden],
 .toolbar-actions .speak-prev-btn[hidden],
 .toolbar-actions .speak-next-btn[hidden] {
-  display: none !important;
+  display: none;
 }
 
 .split-btn-group {
@@ -1394,9 +951,6 @@ a.btn {
 }
 
 /* When prev/next are hidden, restore the compact speak control edges. */
-.split-btn-group .split-btn-prev[hidden] + .split-btn-main {
-  border-radius: 4px 0 0 4px;
-}
 
 .split-btn-group .split-btn-pause,
 .split-btn-group .split-btn-next {
@@ -1407,6 +961,12 @@ a.btn {
   border-radius: 0 4px 4px 0;
   padding-inline: 0.2rem;
   min-width: 1.35rem;
+}
+
+.mermaid-zoom-stage svg {
+  display: block;
+  max-width: none;
+  background: var(--mermaid-bg);
 }
 
 .split-btn-group .split-btn-toggle svg {
@@ -1474,12 +1034,103 @@ a.btn {
   padding: 0.25rem;
   list-style: none;
   background: var(--chrome-surface);
+  /* biome-ignore lint/suspicious/noDuplicateProperties: solid fallback, then color-mix */
   background: color-mix(in srgb, var(--chrome-surface) 88%, transparent);
   border: 1px solid var(--chrome-border);
   border-radius: 6px;
   box-shadow: var(--chrome-shadow);
   backdrop-filter: blur(18px) saturate(1.25);
   -webkit-backdrop-filter: blur(18px) saturate(1.25);
+}
+
+/* When the bar is relocated into the panel (narrow), separate it from Theme+. */
+.toolbar-actions > .toolbar-bar {
+  flex-direction: column;
+  align-items: stretch;
+  width: 100%;
+  gap: 0.1rem;
+  margin-bottom: 0.2rem;
+  padding-bottom: 0.3rem;
+  border-bottom: 1px solid var(--chrome-border);
+}
+
+.toolbar-actions .select-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  min-height: 2.25rem;
+  padding: 0.35rem 0.5rem;
+  border-radius: 4px;
+  color: var(--chrome-text);
+  box-sizing: border-box;
+}
+
+.toolbar-actions .select-label:hover {
+  background: var(--chrome-hover);
+}
+
+.toolbar-actions .select-caption {
+  position: static;
+  width: auto;
+  height: auto;
+  margin: 0;
+  padding: 0;
+  overflow: visible;
+  clip: unset;
+  clip-path: none;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.toolbar-actions .select-label select {
+  flex: 1;
+  min-width: 0;
+  margin-left: auto;
+  max-width: 62%;
+  text-align: right;
+  text-align-last: right;
+}
+
+.toolbar-actions .menu-icon {
+  display: block;
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+}
+
+.toolbar-more-sep {
+  height: 1px;
+  margin: 0.25rem 0.35rem;
+  background: var(--chrome-border);
+  flex-shrink: 0;
+}
+
+.toolbar-actions > .btn {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.5rem;
+  width: 100%;
+  min-height: 2.25rem;
+  padding: 0.35rem 0.5rem;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  box-shadow: none;
+  color: var(--chrome-text);
+  text-align: left;
+}
+
+.toolbar-actions > .btn:hover,
+.toolbar-actions > .btn:focus-visible {
+  background: var(--chrome-hover);
+  border-color: transparent;
+}
+
+.toolbar-actions > .btn .btn-text {
+  font-size: 0.8125rem;
+  font-weight: 450;
 }
 
 .dropdown-menu > div > button {
@@ -1591,39 +1242,6 @@ a.btn {
   font: var(--preview-size) / 1.5 var(--preview-font);
 }
 
-/* Fancy chrome-surface is nearly clear; frost modals like the toolbar/panes. */
-html[data-theme="fancy"] .external-modal {
-  background: var(--fancy-glass);
-  border-color: var(--fancy-glass-border);
-  backdrop-filter: blur(18px) saturate(1.35);
-  -webkit-backdrop-filter: blur(18px) saturate(1.35);
-}
-
-/* Modeless proof dock has no ::backdrop — use denser fancy fill so preview
-   text does not bleed through the title and description. */
-html[data-theme="fancy"] .external-modal.ai-proof-dock {
-  background: rgba(8, 28, 42, 0.85);
-  backdrop-filter: blur(22px) saturate(1.4);
-  -webkit-backdrop-filter: blur(22px) saturate(1.4);
-}
-
-/* Fancy surface is translucent — inverted Accept needs opaque dark label text. */
-html[data-theme="fancy"] .external-modal .btn.external-modal-accept {
-  background: #f4f8fb;
-  color: #062436;
-  border-color: #f4f8fb;
-}
-
-html[data-theme="fancy"] .external-modal .btn.external-modal-accept:hover,
-html[data-theme="fancy"]
-  .external-modal
-  .btn.external-modal-accept:focus-visible {
-  background: #ffffff;
-  color: #062436;
-  border-color: #ffffff;
-  filter: none;
-}
-
 .ai-modal {
   width: min(36rem, calc(100% - 2.5rem));
   max-height: min(90vh, 40rem);
@@ -1681,17 +1299,6 @@ html[data-theme="fancy"]
   gap: 0.3rem;
   min-width: 8rem;
   flex: 1;
-}
-
-.ai-option select {
-  min-height: 2rem;
-  padding: 0.25rem 0.45rem;
-  border: 1px solid var(--chrome-border);
-  border-radius: 8px;
-  background: var(--chrome-bg, var(--chrome-surface));
-  color: var(--chrome-text);
-  font: inherit;
-  font-size: 0.875rem;
 }
 
 .ai-status {
@@ -1778,17 +1385,11 @@ html[data-theme="fancy"]
 }
 
 /* Keep pane content clear of the fixed proofread dock. */
-body:has(#ai-proofread-dialog[open]) .workspace {
-  padding-bottom: var(--ai-proof-dock-clearance, 12rem);
-}
 
-body[data-ai-proof-preview="1"] .preview-pane {
-  overflow: hidden;
-  background: var(--editor-bg);
-}
-
-body[data-ai-proof-preview="1"] .preview-pane > #preview-frame {
+.ai-proof-editor-wrap {
   display: none;
+  position: absolute;
+  inset: 0;
 }
 
 .preview-frame {
@@ -1803,12 +1404,6 @@ body[data-ai-proof-preview="1"] .preview-pane > #preview-frame {
 
 body[data-ai-proof-preview="1"] .ai-proof-editor-wrap {
   display: block;
-}
-
-.ai-proof-editor-wrap {
-  display: none;
-  position: absolute;
-  inset: 0;
 }
 
 #ai-proof-editor {
@@ -1853,6 +1448,9 @@ html[data-theme="sepia"] .ai-diff {
   min-width: 0;
   position: relative;
 }
+body:has(#ai-proofread-dialog[open]) .workspace {
+  padding-bottom: var(--ai-proof-dock-clearance, 12rem);
+}
 
 .files-drawer {
   --files-drawer-duration: 0.28s;
@@ -1887,7 +1485,7 @@ body.files-drawer-open .files-drawer {
 }
 
 .files-drawer[hidden] {
-  display: none !important;
+  display: none;
 }
 
 .files-drawer-header,
@@ -1993,17 +1591,17 @@ html.is-booting .files-backdrop {
 
 body.files-source-drive .local-only,
 body.files-source-gist .local-only {
-  display: none !important;
+  display: none;
 }
 
 /* Hide Drive/Gist *panel* chrome for the inactive cloud source — not the
    source toggle buttons (those keep drive-only/gist-only for feature gating). */
 body.files-source-gist .drive-only:not(.cloud-only):not(.files-source-btn) {
-  display: none !important;
+  display: none;
 }
 
 body.files-source-drive .gist-only:not(.cloud-only):not(.files-source-btn) {
-  display: none !important;
+  display: none;
 }
 
 .gist-pat-form {
@@ -2323,25 +1921,10 @@ body.files-source-drive .gist-only:not(.cloud-only):not(.files-source-btn) {
 }
 
 /* Head boot script paints collapse via <html> attrs before #panes exists / JS runs. */
-html[data-boot-editor-collapsed="1"] .panes {
-  --editor-track: 0%;
-  --preview-track: 100%;
-  --splitter-track: 0px;
-}
 
-html[data-boot-preview-collapsed="1"] .panes {
-  --editor-track: 100%;
-  --preview-track: 0%;
-  --splitter-track: 0px;
-}
-
-html[data-boot-editor-collapsed="1"][data-boot-preview-collapsed="1"] .panes {
-  --editor-track: 0%;
-  --preview-track: 0%;
-}
-
-html[data-boot-width="full"] .preview {
-  max-width: none;
+html.is-booting .panes {
+  --collapse-duration: 0s;
+  visibility: hidden;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -2353,10 +1936,6 @@ html[data-boot-width="full"] .preview {
 /* Head boot sets layout attrs then drops is-booting before first paint. Keep the
    hide gate only if that script fails, so a late JS restore cannot animate from
    the default 50/50 split. */
-html.is-booting .panes {
-  --collapse-duration: 0s;
-  visibility: hidden;
-}
 
 .pane {
   min-width: 0;
@@ -2466,7 +2045,7 @@ html.is-booting .panes {
 }
 
 .format-bar.is-compact .format-bar-wide {
-  display: none !important;
+  display: none;
 }
 
 .format-bar.is-compact .format-bar-sep.format-bar-narrow {
@@ -2475,18 +2054,6 @@ html.is-booting .panes {
 
 .format-bar.is-compact .format-bar-narrow.dropdown {
   display: block;
-}
-
-/* Delay hiding until the track has finished shrinking, so the pane stays
-   visible during the collapse and reappears immediately when expanding. */
-.panes.editor-collapsed .editor-pane,
-.panes.editor-collapsed .splitter,
-.panes.preview-collapsed .preview-pane,
-.panes.preview-collapsed .splitter {
-  visibility: hidden;
-  pointer-events: none;
-  overflow: hidden;
-  transition-delay: var(--collapse-duration);
 }
 
 .splitter {
@@ -2516,8 +2083,7 @@ html.is-booting .panes {
 }
 
 .splitter:hover,
-.splitter:focus-visible,
-.panes.is-resizing .splitter {
+.splitter:focus-visible {
   background: var(--chrome-focus);
   outline: none;
 }
@@ -2526,11 +2092,6 @@ html.is-booting .panes {
   cursor: col-resize;
   user-select: none;
   transition: none;
-}
-
-.panes.is-resizing #editor,
-.panes.is-resizing .preview {
-  pointer-events: none;
 }
 
 .editor-wrap {
@@ -2545,6 +2106,11 @@ html.is-booting .panes {
   flex: 1;
   min-height: 0;
   height: auto;
+}
+
+/* After layout rule so fancy does not precede a weaker overlapping selector. */
+html[data-theme="fancy"] .editor-wrap {
+  background: transparent;
 }
 
 .editor-highlight,
@@ -2564,14 +2130,6 @@ html.is-booting .panes {
   word-wrap: break-word;
 }
 
-html[data-line-wrap="off"] .editor-highlight,
-html[data-line-wrap="off"] #editor,
-html[data-line-wrap="off"] #ai-proof-editor {
-  white-space: pre;
-  overflow-wrap: normal;
-  word-wrap: normal;
-}
-
 .editor-highlight {
   /* Not a scroll container: browser Find must not scroll this layer independently
      of the textarea (that caused a jump-to-top on the next manual scroll). */
@@ -2583,22 +2141,6 @@ html[data-line-wrap="off"] #ai-proof-editor {
   background: transparent;
   /* Padding lives on `code` so absolute positioning does not eat the inset. */
   padding: 0;
-}
-
-.editor-highlight code {
-  position: absolute;
-  inset: 0;
-  box-sizing: border-box;
-  display: block;
-  font: inherit;
-  color: inherit;
-  background: none;
-  padding: 1rem 1.1rem;
-  white-space: inherit;
-  overflow-wrap: inherit;
-  word-wrap: inherit;
-  tab-size: inherit;
-  will-change: transform;
 }
 
 #editor {
@@ -2617,6 +2159,30 @@ html[data-line-wrap="off"] #ai-proof-editor {
 #editor::selection {
   color: transparent;
   background: color-mix(in srgb, var(--chrome-focus) 35%, transparent);
+}
+
+html[data-line-wrap="off"] .editor-highlight,
+html[data-line-wrap="off"] #editor,
+html[data-line-wrap="off"] #ai-proof-editor {
+  white-space: pre;
+  overflow-wrap: normal;
+  word-wrap: normal;
+}
+
+.editor-highlight code {
+  position: absolute;
+  inset: 0;
+  box-sizing: border-box;
+  display: block;
+  font: inherit;
+  color: inherit;
+  background: none;
+  padding: 1rem 1.1rem;
+  white-space: inherit;
+  overflow-wrap: inherit;
+  word-wrap: inherit;
+  tab-size: inherit;
+  will-change: transform;
 }
 
 .preview-pane {
@@ -2665,11 +2231,6 @@ html[data-line-wrap="off"] #ai-proof-editor {
 @media (prefers-reduced-motion: reduce) {
   .render-loading-spinner {
     animation: none;
-    border-top-color: color-mix(
-      in srgb,
-      var(--preview-muted, #656d76) 35%,
-      transparent
-    );
     border-color: var(--preview-link, #0969da);
   }
 }
@@ -2684,6 +2245,9 @@ html[data-line-wrap="off"] #ai-proof-editor {
   font-size: var(--preview-size);
   line-height: 1.65;
   word-wrap: break-word;
+}
+html[data-boot-width="full"] .preview {
+  max-width: none;
 }
 
 ::highlight(speech-word) {
@@ -2965,6 +2529,22 @@ html[data-mermaid-look="handDrawn"] {
   font-family: var(--mermaid-font);
 }
 
+.mermaid-zoom-stage {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 1rem;
+  background: var(--mermaid-bg);
+  outline: none;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.mermaid-zoom-stage foreignObject p,
+.mermaid-zoom-stage foreignObject div {
+  margin: 0;
+}
+
 .preview .mermaid text,
 .preview .mermaid tspan,
 .preview .mermaid .nodeLabel,
@@ -2974,18 +2554,17 @@ html[data-mermaid-look="handDrawn"] {
 .preview .mermaid foreignObject div,
 .preview .mermaid foreignObject span,
 .preview .mermaid foreignObject p {
-  font-family: var(--mermaid-font) !important;
+  font-family: var(--mermaid-font);
 }
 
-.mermaid-zoom-stage,
-.mermaid-zoom-stage svg,
-.mermaid-zoom-stage text,
-.mermaid-zoom-stage tspan,
-.mermaid-zoom-stage foreignObject,
-.mermaid-zoom-stage foreignObject div,
-.mermaid-zoom-stage foreignObject span,
-.mermaid-zoom-stage foreignObject p {
-  font-family: var(--mermaid-font) !important;
+.preview .mermaid-zoom-stage,
+.preview .mermaid-zoom-stage text,
+.preview .mermaid-zoom-stage tspan,
+.preview .mermaid-zoom-stage foreignObject,
+.preview .mermaid-zoom-stage foreignObject div,
+.preview .mermaid-zoom-stage foreignObject span,
+.preview .mermaid-zoom-stage foreignObject p {
+  font-family: var(--mermaid-font);
 }
 
 .preview .mermaid-zoom-btn {
@@ -3118,49 +2697,17 @@ html[data-mermaid-look="handDrawn"] {
   margin-left: auto;
 }
 
-.mermaid-zoom-stage {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow: auto;
-  padding: 1rem;
-  background: var(--mermaid-bg);
-  outline: none;
-  overscroll-behavior: contain;
-  -webkit-overflow-scrolling: touch;
-}
-
 .mermaid-zoom-scaler {
   margin: 0 auto;
   width: max-content;
   max-width: none;
 }
 
-.mermaid-zoom-stage svg {
-  display: block;
-  max-width: none;
-  background: var(--mermaid-bg);
-}
-
 /* Mermaid node labels use <p> inside foreignObject. Outside .preview the UA
    margin-top:1em clips text (svg2roughjs also drops Mermaid's p{margin:0} style). */
-.mermaid-zoom-stage foreignObject p,
-.mermaid-zoom-stage foreignObject div {
-  margin: 0;
-}
 
 .preview .mermaid foreignObject p {
   margin: 0;
-}
-
-html[data-theme="fancy"] .mermaid-zoom-dialog {
-  background: var(--fancy-glass, var(--mermaid-bg));
-  border-color: var(--fancy-glass-border, var(--chrome-border));
-  backdrop-filter: blur(18px) saturate(1.35);
-  -webkit-backdrop-filter: blur(18px) saturate(1.35);
-}
-
-html[data-theme="fancy"] .mermaid-zoom-toolbar {
-  background: color-mix(in srgb, var(--fancy-glass, #fff) 80%, transparent);
 }
 
 .preview .hljs-comment,
@@ -3221,14 +2768,6 @@ html[data-theme="fancy"] .mermaid-zoom-toolbar {
 }
 
 .preview .hljs-type,
-.preview .hljs-class .hljs-title,
-.preview .hljs-title.class_,
-.editor-highlight .hljs-type,
-.editor-highlight .hljs-class .hljs-title,
-.editor-highlight .hljs-title.class_ {
-  color: var(--syntax-type);
-}
-
 .preview .hljs-attr,
 .preview .hljs-selector-attr,
 .preview .hljs-selector-class,
@@ -3244,11 +2783,19 @@ html[data-theme="fancy"] .mermaid-zoom-toolbar {
 
 .preview .hljs-title,
 .preview .hljs-section,
-.preview .hljs-function .hljs-title,
 .editor-highlight .hljs-title,
 .editor-highlight .hljs-section,
+.preview .hljs-function .hljs-title,
 .editor-highlight .hljs-function .hljs-title {
   color: var(--syntax-title);
+}
+
+.preview .hljs-class .hljs-title,
+.preview .hljs-title.class_,
+.editor-highlight .hljs-type,
+.editor-highlight .hljs-class .hljs-title,
+.editor-highlight .hljs-title.class_ {
+  color: var(--syntax-type);
 }
 
 .preview .hljs-meta,
@@ -3518,12 +3065,12 @@ html[data-theme="fancy"] .mermaid-zoom-toolbar {
 /* Beat theme rules that style `.preview pre` as light-on-dark code blocks
    (Salesforce Cosmos), so nested FM values stay readable in the table. */
 html[data-theme] .preview pre.markdown-frontmatter-nested,
-html[data-theme] .preview .markdown-frontmatter-error pre {
+.preview .markdown-frontmatter-error pre {
   color: var(--preview-fg);
   background: transparent;
 }
 
-.preview .markdown-frontmatter-error {
+html[data-theme] .preview .markdown-frontmatter-error {
   margin: 0 0 1.25em;
   padding: 0.65em 0.85em;
   border: 1px solid var(--preview-rule);
@@ -3623,6 +3170,12 @@ html[data-theme] .preview .markdown-frontmatter-error pre {
 .preview .footnote-ref {
   font-size: 0.75em;
   line-height: 0;
+}
+
+.photo-credit a {
+  color: #f0b45a;
+  text-decoration: none;
+  font-weight: 600;
 }
 
 .preview .footnote-ref a {
@@ -3732,7 +3285,7 @@ html[data-theme] .preview .markdown-frontmatter-error pre {
 }
 
 #install-btn[hidden] {
-  display: none !important;
+  display: none;
 }
 
 /* Animated gradient border — https://ibelick.com/blog/create-animated-gradient-borders-with-css */
@@ -3804,51 +3357,6 @@ html[data-theme] .preview .markdown-frontmatter-error pre {
     border-box;
 }
 
-html[data-theme="salesforce"] .btn-spin-border,
-html[data-theme="salesforce"] #install-btn:not([hidden]) {
-  border-radius: var(--radius-sm);
-  border-color: transparent;
-  box-shadow: none;
-}
-
-html[data-theme="salesforce"] .btn-spin-border:hover,
-html[data-theme="salesforce"] #install-btn:not([hidden]):hover {
-  border-color: transparent;
-}
-
-html[data-theme="fancy"] .btn.btn-spin-border,
-html[data-theme="fancy"] #install-btn:not([hidden]) {
-  border-radius: 8px;
-  border-color: transparent;
-  color: var(--install-fg);
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-  background:
-    linear-gradient(var(--install-fill), var(--install-fill)) padding-box,
-    conic-gradient(
-      from var(--install-angle),
-      var(--install-grad-a),
-      var(--install-grad-b),
-      var(--install-grad-a)
-    )
-    border-box;
-}
-
-html[data-theme="fancy"] .btn.btn-spin-border:hover,
-html[data-theme="fancy"] #install-btn:not([hidden]):hover {
-  color: var(--install-fg);
-  background:
-    linear-gradient(var(--install-fill-hover), var(--install-fill-hover))
-    padding-box,
-    conic-gradient(
-      from var(--install-angle),
-      var(--install-grad-a),
-      var(--install-grad-b),
-      var(--install-grad-a)
-    )
-    border-box;
-}
-
 @keyframes install-border-spin {
   to {
     --install-angle: 360deg;
@@ -3882,18 +3390,8 @@ html[data-theme="fancy"] #install-btn:not([hidden]):hover {
   text-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
 }
 
-.photo-credit a {
-  color: #f0b45a;
-  text-decoration: none;
-  font-weight: 600;
-}
-
 .photo-credit a:hover {
   text-decoration: underline;
-}
-
-html[data-theme="fancy"] .photo-credit:not([hidden]) {
-  display: block;
 }
 
 @media (max-width: 1100px) {
@@ -3955,6 +3453,7 @@ html[data-theme="fancy"] .photo-credit:not([hidden]) {
     min-width: min(18rem, calc(100vw - 1.5rem));
     max-width: min(22rem, calc(100vw - 1.5rem));
     max-height: calc(100vh - var(--toolbar-h) - 12px);
+    /* biome-ignore lint/suspicious/noDuplicateProperties: vh fallback, then dvh + safe-area */
     max-height: calc(
       100dvh -
       var(--toolbar-h) -
@@ -3990,11 +3489,11 @@ html[data-theme="fancy"] .photo-credit:not([hidden]) {
     border-top: 1px solid var(--chrome-border);
   }
 
-  .toolbar-actions .toolbar-bar + .toolbar-more-sep,
   .toolbar-more-sep {
     margin: 0.25rem 0.7rem;
   }
 
+  .toolbar-actions .toolbar-bar + .toolbar-more-sep,
   .toolbar-actions .btn-text {
     display: none;
   }
@@ -4003,46 +3502,6 @@ html[data-theme="fancy"] .photo-credit:not([hidden]) {
   .toolbar-actions .select-label,
   .toolbar-actions .dropdown {
     width: 100%;
-  }
-
-  /* Menu rows: icon, then title, left aligned. No button chrome. */
-  .toolbar-actions .btn,
-  .toolbar-actions .select-label,
-  html[data-theme="fancy"] .toolbar-actions .btn,
-  html[data-theme="fancy"] .toolbar-actions .select-label,
-  html[data-theme="salesforce"] .toolbar-actions .btn,
-  html[data-theme="salesforce"] .toolbar-actions .select-label,
-  html[data-theme="salesforce"] .toolbar-actions #share-btn,
-  html[data-theme="fancy"] .toolbar-actions #share-btn {
-    display: flex;
-    align-items: center;
-    justify-content: flex-start;
-    gap: 0.75rem;
-    min-height: 2.75rem;
-    padding: 0.5rem 0.7rem;
-    border: 0;
-    border-radius: 6px;
-    background: transparent;
-    box-shadow: none;
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-    color: var(--chrome-text);
-    text-align: left;
-    font-weight: 450;
-  }
-
-  .toolbar-actions .btn:hover,
-  .toolbar-actions .select-label:hover,
-  html[data-theme="fancy"] .toolbar-actions .btn:hover,
-  html[data-theme="fancy"] .toolbar-actions .select-label:hover,
-  html[data-theme="salesforce"] .toolbar-actions .btn:hover,
-  html[data-theme="salesforce"] .toolbar-actions .select-label:hover,
-  html[data-theme="salesforce"] .toolbar-actions #share-btn:hover,
-  html[data-theme="fancy"] .toolbar-actions #share-btn:hover {
-    background: var(--chrome-hover);
-    border-color: transparent;
-    color: var(--chrome-text);
-    box-shadow: none;
   }
 
   .toolbar-actions .btn[aria-pressed="true"],
@@ -4142,7 +3601,7 @@ html[data-theme="fancy"] .photo-credit:not([hidden]) {
 
   /* Overflow: one "View modes" row that expands to Edit / Slides / Present. */
   .toolbar-actions #view-mode-main-btn {
-    display: none !important;
+    display: none;
   }
 
   .toolbar-actions #view-mode-menu-btn {
@@ -4163,7 +3622,7 @@ html[data-theme="fancy"] .photo-credit:not([hidden]) {
   /* Reader: reuse the same submenu instead of separate Edit / Present rows. */
   .toolbar-actions #edit-view-btn,
   .toolbar-actions #present-view-btn {
-    display: none !important;
+    display: none;
   }
 
   html[data-view="reader"] .toolbar-actions #view-mode-dropdown {
@@ -4174,15 +3633,6 @@ html[data-theme="fancy"] .photo-credit:not([hidden]) {
     display: none;
   }
 
-  .toolbar-actions .collapse-btn .stacked-collapse,
-  .toolbar-actions .collapse-btn[aria-pressed="true"] .stacked-expand {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 1.05rem;
-    flex-shrink: 0;
-  }
-
   .toolbar-actions .split-btn-group {
     display: flex;
     flex-direction: column;
@@ -4191,12 +3641,56 @@ html[data-theme="fancy"] .photo-credit:not([hidden]) {
     gap: 0.1rem;
   }
 
-  .toolbar-actions .split-btn-group .btn,
-  .toolbar-actions .split-btn-group .split-btn-prev,
-  .toolbar-actions .split-btn-group .split-btn-main,
-  .toolbar-actions .split-btn-group .split-btn-pause,
-  .toolbar-actions .split-btn-group .split-btn-next,
-  .toolbar-actions .split-btn-group .split-btn-toggle,
+  .toolbar-actions .select-label {
+    color: var(--chrome-text);
+  }
+
+  /* Menu rows: icon, then title, left aligned. No button chrome. */
+  .toolbar-actions .btn,
+  .toolbar-actions .select-label,
+  html[data-theme="fancy"] .toolbar-actions .btn,
+  html[data-theme="fancy"] .toolbar-actions .select-label,
+  html[data-theme="salesforce"] .toolbar-actions .btn,
+  html[data-theme="salesforce"] .toolbar-actions .select-label,
+  html[data-theme="salesforce"] .toolbar-actions #share-btn,
+  html[data-theme="fancy"] .toolbar-actions #share-btn {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 0.75rem;
+    min-height: 2.75rem;
+    padding: 0.5rem 0.7rem;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    box-shadow: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    color: var(--chrome-text);
+    text-align: left;
+    font-weight: 450;
+  }
+
+  .toolbar-actions .btn:hover,
+  .toolbar-actions .select-label:hover,
+  html[data-theme="fancy"] .toolbar-actions .btn:hover,
+  html[data-theme="fancy"] .toolbar-actions .select-label:hover,
+  html[data-theme="salesforce"] .toolbar-actions .btn:hover,
+  html[data-theme="salesforce"] .toolbar-actions .select-label:hover,
+  html[data-theme="salesforce"] .toolbar-actions #share-btn:hover,
+  html[data-theme="fancy"] .toolbar-actions #share-btn:hover {
+    background: var(--chrome-hover);
+    border-color: transparent;
+    color: var(--chrome-text);
+    box-shadow: none;
+  }
+
+  html .toolbar-actions .split-btn-group .btn,
+  html .toolbar-actions .split-btn-group .split-btn-prev,
+  html .toolbar-actions .split-btn-group .split-btn-main,
+  html .toolbar-actions .split-btn-group .split-btn-pause,
+  html .toolbar-actions .split-btn-group .split-btn-next,
+  html .toolbar-actions .split-btn-group .split-btn-toggle,
   html[data-theme="salesforce"] .toolbar-actions .split-btn-group .btn,
   html[data-theme="salesforce"]
     .toolbar-actions
@@ -4222,8 +3716,9 @@ html[data-theme="fancy"] .photo-credit:not([hidden]) {
     height: 1.05rem;
   }
 
-  .toolbar-actions .select-label {
-    color: var(--chrome-text);
+  .toolbar-actions .select-label select {
+    flex: 1;
+    min-width: 0;
   }
 
   .toolbar-actions .select-label select,
@@ -4255,15 +3750,6 @@ html[data-theme="fancy"] .photo-credit:not([hidden]) {
 
   .toolbar-actions .collapse-btn .btn-label {
     display: none;
-  }
-
-  .toolbar-actions .select-label select {
-    flex: 1;
-    min-width: 0;
-  }
-
-  .toolbar-actions .icon-btn {
-    min-width: 0;
   }
 
   .toolbar-actions .dropdown-menu,
@@ -4298,6 +3784,16 @@ html[data-theme="fancy"] .photo-credit:not([hidden]) {
     display: none;
   }
 
+  /* After base stacked glyphs so overflow-menu sizing does not precede weaker selectors. */
+  .toolbar-actions .collapse-btn .stacked-collapse,
+  .toolbar-actions .collapse-btn[aria-pressed="true"] .stacked-expand {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.05rem;
+    flex-shrink: 0;
+  }
+
   .panes {
     --splitter-track: 10px;
     grid-template-columns: minmax(0, 1fr);
@@ -4326,10 +3822,6 @@ html[data-theme="fancy"] .photo-credit:not([hidden]) {
   body.files-drawer-dragging .panes * {
     touch-action: none;
     user-select: none;
-  }
-
-  body.files-drawer-dragging .files-drawer {
-    transition: none !important;
   }
 
   .files-drawer {
@@ -4362,6 +3854,10 @@ html[data-theme="fancy"] .photo-credit:not([hidden]) {
       visibility 0s linear 0s;
   }
 
+  body.files-drawer-dragging .files-drawer {
+    transition: none;
+  }
+
   .files-drawer-header,
   .files-drawer-body,
   .files-drawer-section,
@@ -4375,7 +3871,7 @@ html[data-theme="fancy"] .photo-credit:not([hidden]) {
 
   /* Push layout — no dimmed overlay on top of the editor. */
   .files-backdrop {
-    display: none !important;
+    display: none;
   }
 
   .splitter {
@@ -4394,14 +3890,466 @@ html[data-theme="fancy"] .photo-credit:not([hidden]) {
 }
 
 /* View modes: edit (default), reader, present, slides */
+/* === Theme component overrides (after base UI for cascade order) === */
+
+html[data-theme="salesforce"] .brand {
+  color: #0170c8;
+}
+
+html[data-theme="salesforce"] .btn,
+html[data-theme="salesforce"] .select-label select,
+html[data-theme="salesforce"] .dropdown-menu {
+  border-radius: var(--radius-sm);
+  box-shadow: 0 1px 2px rgba(8, 7, 7, 0.06);
+}
+
+html[data-theme="salesforce"] .split-btn-group .btn {
+  border-radius: 0;
+  box-shadow: none;
+}
+
+html[data-theme="salesforce"] .split-btn-group .split-btn-prev {
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+  box-shadow: 0 1px 2px rgba(8, 7, 7, 0.06);
+}
+
+html[data-theme="salesforce"] .split-btn-group .split-btn-main {
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.split-btn-group .split-btn-prev[hidden] + .split-btn-main {
+  border-radius: 4px 0 0 4px;
+}
+
+html[data-theme="salesforce"]
+  .split-btn-group
+  .split-btn-prev[hidden]
+  + .split-btn-main,
+html[data-theme="salesforce"]
+  .format-bar
+  .split-btn-group
+  > .split-btn-main:first-child {
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+  box-shadow: 0 1px 2px rgba(8, 7, 7, 0.06);
+}
+
+html[data-theme="salesforce"] .split-btn-group .split-btn-toggle {
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  box-shadow: 0 1px 2px rgba(8, 7, 7, 0.06);
+}
+
+html[data-theme="salesforce"] .btn:hover,
+html[data-theme="salesforce"] .select-label select:hover {
+  border-color: #0176d3;
+}
+
+html[data-theme="salesforce"] #share-btn {
+  background: var(--chrome-focus);
+  border-color: var(--chrome-focus);
+  color: var(--chrome-on-focus);
+}
+
+html[data-theme="salesforce"] #share-btn:hover {
+  background: color-mix(in srgb, var(--chrome-focus) 82%, white);
+  border-color: color-mix(in srgb, var(--chrome-focus) 82%, white);
+  color: var(--chrome-on-focus);
+}
+
+html[data-theme="salesforce"] .preview-pane {
+  padding: 1rem;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+html[data-theme="salesforce"] .preview {
+  background: #ffffff;
+  border-radius: var(--radius-md);
+  margin: 0 auto;
+  padding: 1.5rem 1.75rem 2.5rem;
+  box-shadow: var(--chrome-shadow);
+  max-width: 52rem;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+html[data-theme="salesforce"] .preview[data-width="full"] {
+  max-width: none;
+}
+
+html[data-theme="salesforce"] .preview h1::after,
+html[data-theme="salesforce"] .preview h2::after {
+  border-bottom-color: #90d0fe;
+}
+
+html[data-theme="salesforce"] .preview blockquote {
+  background: #eaf5fe;
+  border-left-width: 4px;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  padding: 0.65rem 1rem;
+  color: #032d60;
+}
+
+html[data-theme="salesforce"] .preview pre {
+  border-radius: var(--radius-md);
+  color: #eaf5fe;
+}
+
+html[data-theme="salesforce"] .preview code:not(pre code) {
+  color: #014486;
+  border-radius: 0.5rem;
+}
+
+html[data-theme="salesforce"] .preview a {
+  font-weight: 600;
+}
+
+html[data-theme="salesforce"] .toast {
+  border-radius: var(--radius-sm);
+}
+
+html[data-theme="fancy"],
+html[data-theme="fancy"] body {
+  background-color: #062436;
+  background-image: url("../assets/fancy.avif");
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+}
+
+html[data-theme="fancy"] .toolbar {
+  margin: var(--fancy-margin) var(--fancy-margin) 0;
+  height: auto;
+  min-height: var(--toolbar-h);
+  border: 1px solid var(--fancy-glass-border);
+  border-radius: 14px;
+  background: var(--fancy-glass);
+  backdrop-filter: blur(18px) saturate(1.35);
+  -webkit-backdrop-filter: blur(18px) saturate(1.35);
+  box-shadow: var(--chrome-shadow);
+}
+
+html[data-theme="fancy"] .site-intro {
+  margin: 0.45rem var(--fancy-margin) 0;
+  padding: 0.45rem 0.85rem;
+  border: 1px solid var(--fancy-glass-border);
+  border-radius: 12px;
+  background: var(--fancy-glass);
+  backdrop-filter: blur(18px) saturate(1.35);
+  -webkit-backdrop-filter: blur(18px) saturate(1.35);
+  box-shadow: var(--chrome-shadow);
+  color: #f4f8fb;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.4);
+}
+
+html[data-theme="fancy"] .brand {
+  color: #ffffff;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.35);
+}
+
+/* biome-ignore lint/style/noDescendingSpecificity: fancy/salesforce theme selectors never match the same document */
+html[data-theme="fancy"] .btn,
+html[data-theme="fancy"] .select-label select {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.5);
+  color: var(--chrome-text);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+html[data-theme="fancy"] .dropdown-menu {
+  background: rgba(6, 24, 36, 0.72);
+  border-color: rgba(255, 255, 255, 0.5);
+  color: var(--chrome-text);
+  backdrop-filter: blur(22px) saturate(1.4);
+  -webkit-backdrop-filter: blur(22px) saturate(1.4);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+}
+
+html[data-theme="fancy"] .btn:hover,
+html[data-theme="fancy"] .select-label select:hover,
+html[data-theme="fancy"] .dropdown-menu > div > button:hover {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+html[data-theme="fancy"] #share-btn {
+  background: var(--chrome-focus);
+  border-color: var(--chrome-focus);
+  color: var(--chrome-on-focus);
+}
+
+html[data-theme="fancy"] #share-btn:hover {
+  background: color-mix(in srgb, var(--chrome-focus) 82%, white);
+  border-color: color-mix(in srgb, var(--chrome-focus) 82%, white);
+  color: var(--chrome-on-focus);
+}
+
+html[data-theme="fancy"] .panes {
+  --splitter-track: 10px;
+  margin: 0.7rem var(--fancy-margin) var(--fancy-margin);
+  min-height: 0;
+  column-gap: var(--fancy-margin);
+}
+
+html[data-theme="fancy"] .panes.editor-collapsed,
+html[data-theme="fancy"] .panes.preview-collapsed {
+  --splitter-track: 0px;
+  column-gap: 0;
+}
+
+html[data-theme="fancy"] .editor-pane,
+html[data-theme="fancy"] .preview-pane {
+  border: 1px solid var(--fancy-glass-border);
+  border-radius: 14px;
+  background: var(--fancy-glass);
+  backdrop-filter: blur(20px) saturate(1.4);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+  box-shadow: var(--chrome-shadow);
+}
+
+/* The textarea scrolls itself, so the pane only needs to clip to the radius. */
+html[data-theme="fancy"] .editor-pane {
+  overflow: hidden;
+}
+
+html[data-theme="fancy"] .preview-pane {
+  background: var(--fancy-glass);
+  overflow: auto;
+}
+
+html[data-theme="fancy"] .preview {
+  color: var(--preview-fg);
+}
+
+html[data-theme="fancy"] .preview h1::after,
+html[data-theme="fancy"] .preview h2::after {
+  border-bottom-color: rgba(255, 255, 255, 0.2);
+}
+
+html[data-theme="fancy"] .preview blockquote {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 0 10px 10px 0;
+  padding: 0.55rem 0.9rem;
+}
+
+html[data-theme="fancy"] .preview pre {
+  border-radius: 10px;
+}
+
+/* Let diagrams sit on the fancy preview glass — solid --mermaid-bg blocks look heavy. */
+html[data-theme="fancy"] .preview .mermaid,
+html[data-theme="fancy"] .preview .mermaid svg {
+  background: transparent;
+}
+
+html[data-theme="fancy"] .preview .line-num {
+  background: transparent;
+  border-right-color: rgba(255, 255, 255, 0.14);
+  color: rgba(244, 248, 251, 0.5);
+}
+
+html[data-theme="fancy"] .toast {
+  border: 1px solid var(--fancy-glass-border);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+/* Files drawer uses --chrome-bg (transparent in fancy); frost it like the panes
+   so light tree text stays readable over the photo. */
+html[data-theme="fancy"] .files-drawer {
+  background: var(--fancy-glass);
+  box-shadow: var(--chrome-shadow);
+  border-right-color: transparent;
+}
+
+html[data-theme="fancy"] .files-drawer-header,
+html[data-theme="fancy"] .files-section,
+html[data-theme="fancy"] .outline-header {
+  border-bottom-color: var(--fancy-glass-border);
+}
+
+html[data-theme="fancy"] .files-drawer-actions .btn {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.5);
+  color: var(--chrome-text);
+}
+
+html[data-theme="fancy"] .files-drawer-actions .btn:hover {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+html[data-theme="fancy"] .files-tree-row:hover,
+html[data-theme="fancy"] .files-tree-row:focus-visible,
+html[data-theme="fancy"] .files-tree-row.is-selected,
+html[data-theme="fancy"] .outline-row:hover,
+html[data-theme="fancy"] .outline-row:focus-visible {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+html[data-theme="fancy"] .files-tree-row.is-active-file,
+html[data-theme="fancy"] .outline-row.is-active {
+  color: #ffe08a;
+}
+
+/* Overflow panel needs denser glass than panes — light labels over the photo. */
+html[data-theme="fancy"] .toolbar-actions {
+  background: rgba(6, 24, 36, 0.94);
+  backdrop-filter: blur(20px) saturate(1.3);
+  -webkit-backdrop-filter: blur(20px) saturate(1.3);
+  border-color: var(--fancy-glass-border);
+}
+
+.toolbar-menu.is-open .toolbar-actions {
+  display: flex;
+}
+
+/* Fancy chrome-surface is nearly clear; frost modals like the toolbar/panes. */
+html[data-theme="fancy"] .external-modal {
+  background: var(--fancy-glass);
+  border-color: var(--fancy-glass-border);
+  backdrop-filter: blur(18px) saturate(1.35);
+  -webkit-backdrop-filter: blur(18px) saturate(1.35);
+}
+
+/* Modeless proof dock has no ::backdrop — use denser fancy fill so preview
+   text does not bleed through the title and description. */
+html[data-theme="fancy"] .external-modal.ai-proof-dock {
+  background: rgba(8, 28, 42, 0.85);
+  backdrop-filter: blur(22px) saturate(1.4);
+  -webkit-backdrop-filter: blur(22px) saturate(1.4);
+}
+
+/* Fancy surface is translucent — inverted Accept needs opaque dark label text. */
+html[data-theme="fancy"] .external-modal .btn.external-modal-accept {
+  background: #f4f8fb;
+  color: #062436;
+  border-color: #f4f8fb;
+}
+
+html[data-theme="fancy"] .external-modal .btn.external-modal-accept:hover,
+html[data-theme="fancy"]
+  .external-modal
+  .btn.external-modal-accept:focus-visible {
+  background: #ffffff;
+  color: #062436;
+  border-color: #ffffff;
+  filter: none;
+}
+
+/* After base .splitter so themed chrome does not precede a weaker selector. */
+html[data-theme="salesforce"] .splitter {
+  background: #90d0fe;
+}
+
+html[data-theme="fancy"] .splitter {
+  background: rgba(255, 255, 255, 0.28);
+  border-radius: 999px;
+  align-self: stretch;
+  margin-block: 0.35rem;
+}
+
+/* After base hover so themed hover does not precede a weaker overlapping selector. */
+
+/* After base placeholder so fancy does not precede a weaker overlapping selector. */
+html[data-theme="fancy"] #editor::placeholder {
+  /* ≥4.5:1 vs fancy page base (#062436) when blended */
+  color: rgba(244, 248, 251, 0.72);
+}
+
+/*
+ * Preview fenced code uses a dark Cosmos pre background, but the editor is white.
+ * Scope light-theme syntax tokens to the editor overlay so both surfaces stay AA.
+ * After base .editor-highlight so themed tokens do not precede a weaker selector.
+ */
+html[data-theme="salesforce"] .editor-highlight {
+  --syntax-comment: #6a737d;
+  --syntax-keyword: #cc3745;
+  --syntax-string: #032f62;
+  --syntax-number: #005cc5;
+  --syntax-literal: #005cc5;
+  --syntax-built-in: #bb5107;
+  --syntax-type: #6f42c1;
+  --syntax-attr: #005cc5;
+  --syntax-title: #6f42c1;
+  --syntax-meta: #6a737d;
+  --syntax-deletion: #b31d28;
+  --syntax-addition: #207f37;
+}
+
+/* After .editor-highlight code so themed pre code does not precede a weaker code selector. */
+html[data-theme="salesforce"] .preview pre code {
+  color: #eaf5fe;
+}
+
+html[data-theme="fancy"] .mermaid-zoom-dialog {
+  background: var(--fancy-glass, var(--mermaid-bg));
+  border-color: var(--fancy-glass-border, var(--chrome-border));
+  backdrop-filter: blur(18px) saturate(1.35);
+  -webkit-backdrop-filter: blur(18px) saturate(1.35);
+}
+
+html[data-theme="fancy"] .mermaid-zoom-toolbar {
+  background: color-mix(in srgb, var(--fancy-glass, #fff) 80%, transparent);
+}
+
+html[data-theme="salesforce"] .btn-spin-border,
+html[data-theme="salesforce"] #install-btn:not([hidden]) {
+  border-radius: var(--radius-sm);
+  border-color: transparent;
+  box-shadow: none;
+}
+
+html[data-theme="salesforce"] .btn-spin-border:hover,
+html[data-theme="salesforce"] #install-btn:not([hidden]):hover {
+  border-color: transparent;
+}
+
+html[data-theme="fancy"] .btn.btn-spin-border,
+html[data-theme="fancy"] #install-btn:not([hidden]) {
+  border-radius: 8px;
+  border-color: transparent;
+  color: var(--install-fg);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  background:
+    linear-gradient(var(--install-fill), var(--install-fill)) padding-box,
+    conic-gradient(
+      from var(--install-angle),
+      var(--install-grad-a),
+      var(--install-grad-b),
+      var(--install-grad-a)
+    )
+    border-box;
+}
+
+html[data-theme="fancy"] .btn.btn-spin-border:hover,
+html[data-theme="fancy"] #install-btn:not([hidden]):hover {
+  color: var(--install-fg);
+  background:
+    linear-gradient(var(--install-fill-hover), var(--install-fill-hover))
+    padding-box,
+    conic-gradient(
+      from var(--install-angle),
+      var(--install-grad-a),
+      var(--install-grad-b),
+      var(--install-grad-a)
+    )
+    border-box;
+}
+
+html[data-theme="fancy"] .photo-credit:not([hidden]) {
+  display: block;
+}
+
 html[data-view="edit"] .reader-only,
 html[data-view="slides"] .reader-only {
-  display: none !important;
+  display: none;
 }
 
 html[data-view="reader"] .authoring-only,
 html[data-view="present"] .authoring-only {
-  display: none !important;
+  display: none;
 }
 
 html[data-view="reader"] .files-drawer,
@@ -4410,7 +4358,11 @@ html[data-view="reader"] .files-backdrop,
 html[data-view="present"] .files-backdrop,
 html[data-view="reader"] .files-context-menu,
 html[data-view="present"] .files-context-menu {
-  display: none !important;
+  display: none;
+}
+
+html[data-theme="fancy"] body.files-drawer-open .files-drawer {
+  border-right-color: var(--fancy-glass-border);
 }
 
 html[data-view="reader"] .panes,
@@ -4472,7 +4424,7 @@ html[data-view="present"] .preview[data-width="full"] {
 
 html[data-view="present"] .preview > [hidden],
 html[data-view="slides"] .preview > [hidden] {
-  display: none !important;
+  display: none;
 }
 
 /* Each slide starts with an h1/h2 that is not :first-child (earlier slides
@@ -4521,7 +4473,7 @@ html[data-view="present"] .present-chrome.is-active {
 }
 
 .present-chrome[hidden] {
-  display: none !important;
+  display: none;
 }
 
 .present-progress {
@@ -4560,27 +4512,6 @@ html[data-view="present"] .present-chrome.is-active {
  * - Installed + system title bar: top + bottom on the button bar
  * - Installed + WCO (button bar in the title bar): no top/bottom
  */
-html[data-pwa]:not([data-wco]) .toolbar {
-  border-top: 1px solid var(--chrome-border);
-  border-bottom: 1px solid var(--chrome-border);
-}
-
-/*
- * Window Controls Overlay — layout matches
- * https://web.dev/articles/window-controls-overlay
- * (fixed into titlebar-area-* env vars + app-region drag).
- * html[data-wco] is set only when navigator.windowControlsOverlay.visible
- * is true (overlay actually on — not merely display_override in the manifest).
- */
-html[data-wco] {
-  --toolbar-h: env(titlebar-area-height, 3rem);
-}
-
-/* Reserve flow space so panes don't jump under the fixed toolbar. */
-html[data-wco] body {
-  padding-top: var(--toolbar-h);
-}
-
 html[data-wco] .toolbar {
   position: fixed;
   left: env(titlebar-area-x, 0);
@@ -4600,6 +4531,27 @@ html[data-wco] .toolbar {
   box-shadow: none;
   -webkit-app-region: drag;
   app-region: drag;
+}
+
+html[data-pwa]:not([data-wco]) .toolbar {
+  border-top: 1px solid var(--chrome-border);
+  border-bottom: 1px solid var(--chrome-border);
+}
+
+/*
+ * Window Controls Overlay — layout matches
+ * https://web.dev/articles/window-controls-overlay
+ * (fixed into titlebar-area-* env vars + app-region drag).
+ * html[data-wco] is set only when navigator.windowControlsOverlay.visible
+ * is true (overlay actually on — not merely display_override in the manifest).
+ */
+html[data-wco] {
+  --toolbar-h: env(titlebar-area-height, 3rem);
+}
+
+/* Reserve flow space so panes don't jump under the fixed toolbar. */
+html[data-wco] body {
+  padding-top: var(--toolbar-h);
 }
 
 html[data-wco]
@@ -4630,4 +4582,67 @@ html[data-wco][data-theme="fancy"] .toolbar {
   height: var(--toolbar-h);
   min-height: var(--toolbar-h);
   background: #062436;
+}
+
+/* === Transient layout state (after theme/view for cascade order) === */
+
+/* Delay hiding until the track has finished shrinking, so the pane stays
+   visible during the collapse and reappears immediately when expanding. */
+body[data-ai-proof-preview="1"] .preview-pane {
+  overflow: hidden;
+  background: var(--editor-bg);
+}
+
+body[data-ai-proof-preview="1"] .preview-pane > #preview-frame {
+  display: none;
+}
+
+html .panes.editor-collapsed .editor-pane,
+html .panes.editor-collapsed .splitter,
+html .panes.preview-collapsed .preview-pane,
+html .panes.preview-collapsed .splitter {
+  visibility: hidden;
+  pointer-events: none;
+  overflow: hidden;
+  transition-delay: var(--collapse-duration);
+}
+
+html .panes.is-resizing .splitter {
+  background: var(--chrome-focus);
+  outline: none;
+}
+
+html[data-theme="salesforce"] .splitter:hover,
+html[data-theme="salesforce"] .splitter:focus-visible,
+html[data-theme="salesforce"] .panes.is-resizing .splitter {
+  background: #0176d3;
+}
+
+html[data-theme="fancy"] .splitter:hover,
+html[data-theme="fancy"] .splitter:focus-visible,
+html[data-theme="fancy"] .panes.is-resizing .splitter {
+  background: var(--chrome-focus);
+}
+
+html .panes.is-resizing #editor,
+html .panes.is-resizing .preview {
+  pointer-events: none;
+}
+
+/* Boot collapsed panes (after theme/view) */
+html[data-boot-editor-collapsed="1"] .panes {
+  --editor-track: 0%;
+  --preview-track: 100%;
+  --splitter-track: 0px;
+}
+
+html[data-boot-preview-collapsed="1"] .panes {
+  --editor-track: 100%;
+  --preview-track: 0%;
+  --splitter-track: 0px;
+}
+
+html[data-boot-editor-collapsed="1"][data-boot-preview-collapsed="1"] .panes {
+  --editor-track: 0%;
+  --preview-track: 0%;
 }

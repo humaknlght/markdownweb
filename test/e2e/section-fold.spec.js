@@ -384,8 +384,10 @@ test.describe("section fold", () => {
 
     // Rapid: collapse parent, then child, without waiting — reproduces the
     // is-collapsed / visible-body desync from interrupted fold animations.
+    // force: parent collapse hides Child A mid-flight; Playwright actionability
+    // would otherwise wait forever for a visible/stable target.
     await parent.locator(":scope > .md-section-toggle").click();
-    await childA.locator(":scope > .md-section-toggle").click();
+    await childA.locator(":scope > .md-section-toggle").click({ force: true });
     await expect(previewLocator(page, ".md-section-anim")).toHaveCount(0);
 
     // Parent collapsed wins: its body (including child headings) must be hidden.

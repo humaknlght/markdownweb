@@ -1264,9 +1264,9 @@ test.describe("editor + render", () => {
     await page
       .locator("#editor")
       .fill(`${mermaidFixture.replace(/\s+$/, "")}\n\n`);
-    // Diagram SVGs use id="mermaid-…"; zoom-button icons do not. Some fences in
-    // the fixture can fail to paint, so do not require hostCount === svgCount.
-    const diagramSvg = previewLocator(page, 'svg[id^="mermaid-"]');
+    // Direct-child diagram SVGs only — zoom-button icons nest an svg inside the
+    // button. Mermaid 12 may omit id="mermaid-…" on some diagram types.
+    const diagramSvg = previewLocator(page, ".mermaid > svg");
     await expect
       .poll(async () => diagramSvg.count(), { timeout: 90_000 })
       .toBeGreaterThanOrEqual(10);
@@ -1312,9 +1312,8 @@ test.describe("editor + render", () => {
               ).length,
             svgs: document
               .getElementById("preview-frame")
-              ?.contentDocument?.querySelectorAll(
-                '#preview .mermaid svg[id^="mermaid-"]',
-              ).length,
+              ?.contentDocument?.querySelectorAll("#preview .mermaid > svg")
+              .length,
           };
         }),
       );

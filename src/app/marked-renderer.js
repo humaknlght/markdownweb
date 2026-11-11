@@ -76,9 +76,7 @@ export function addCodeLineNumbers(root) {
 }
 
 marked.use({
-  // String key: production mangling must not rename this to `h` — marked only
-  // recognizes the API name `hooks` (see mangle-state-hooks.mjs).
-  ["hooks"]: {
+  hooks: {
     processAllTokens(tokens) {
       return annotateSourceLines(tokens);
     },
@@ -159,7 +157,7 @@ marked.use({
           _sourceLineEnd,
         );
       }
-      const code = text.replace(/\n$/, "") + "\n";
+      const code = `${text.replace(/\n$/, "")}\n`;
       const { html, language: highlighted } = highlightCode(code, lang);
       const classes = ["hljs"];
       if (highlighted) classes.push(`language-${highlighted}`);

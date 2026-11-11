@@ -69,6 +69,7 @@ describe("minify-preview-frame-html.mjs", () => {
 
 describe("trim-unused-imports.mjs", () => {
   it("counts identifiers inside template literal expressions", () => {
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: fixture source for usedIdents
     const used = usedIdents("export const x = `/${FOO}`;\n");
     assert.equal(used.has("FOO"), true);
   });

@@ -136,7 +136,7 @@
         if (!Number.isFinite(split)) split = 50;
         if (split < 15) split = 15;
         if (split > 85) split = 85;
-        root.style.setProperty("--split", split + "%");
+        root.style.setProperty("--split", `${split}%`);
 
         const authoring = view === "edit" || view === "slides";
         if (localStorage.getItem("md-editor:editor-collapsed") === "1") {
@@ -1154,6 +1154,7 @@
       <button type="button" class="btn" id="mermaid-zoom-reset" title="Reset zoom" aria-label="Reset zoom">Reset</button>
       <button type="button" class="btn" id="mermaid-zoom-close" title="Close" aria-label="Close">Close</button>
     </div>
+    <!-- biome-ignore-start lint/a11y/noNoninteractiveTabindex: role=application zoom surface; focused on open -->
     <div
       class="mermaid-zoom-stage"
       id="mermaid-zoom-stage"
@@ -1161,6 +1162,7 @@
       aria-label="Diagram zoom view"
       tabindex="0"
     ></div>
+    <!-- biome-ignore-end lint/a11y/noNoninteractiveTabindex: role=application zoom surface; focused on open -->
   </dialog>
 
   <div class="toast" id="toast" hidden role="status"></div>

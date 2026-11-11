@@ -35,7 +35,7 @@ async function pushHistoryNow(page, titleRe) {
 async function restoreHistoryAt(page, index) {
   await page.keyboard.press("Escape");
   await page.locator("#history-btn").click();
-  const item = page.locator("#history-menu li button").nth(index);
+  const item = page.locator("#history-menu button").nth(index);
   await expect(item).toBeVisible();
   await item.click();
   await expect(page.locator("#history-menu")).toBeHidden();
@@ -53,7 +53,7 @@ test.describe("history", () => {
     await pushHistoryNow(page, /History One|First/);
 
     await page.locator("#history-btn").click();
-    await expect(page.locator("#history-menu li button").first()).toContainText(
+    await expect(page.locator("#history-menu button").first()).toContainText(
       /History One|First/,
     );
     await page.keyboard.press("Escape");
@@ -99,7 +99,7 @@ test.describe("history", () => {
     await page.clock.resume();
 
     await page.locator("#history-btn").click();
-    const buttons = page.locator("#history-menu li button");
+    const buttons = page.locator("#history-menu button");
     await expect(buttons.first()).toContainText(/Bravo/);
     const count = await buttons.count();
     expect(count).toBeGreaterThanOrEqual(3);
