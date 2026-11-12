@@ -1,0 +1,16 @@
+---
+description: Run Biome on touched files before finishing code changes
+alwaysApply: true
+---
+
+# Lint before done
+
+After editing JS, CSS, HTML, JSON, or other Biome-covered files:
+
+1. Run Biome on the **touched paths** (prefer scoped over whole-repo):
+   `npx biome check --write --error-on-warnings --no-errors-on-unmatched --files-ignore-unknown=true -- <paths>`
+2. Fix any remaining diagnostics; do not leave failing lint.
+3. Do not disable rules or add ignore comments unless the user explicitly asks.
+4. Before committing, staged files must pass `npm run lint:staged` (Husky `pre-commit`).
+
+Match CI: `npm run lint` uses `biome check --error-on-warnings .`.

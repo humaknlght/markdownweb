@@ -18,10 +18,11 @@ Open [https://127.0.0.1:3456](https://127.0.0.1:3456) (self-signed TLS; accept t
 
 ## Lint
 
-Biome formats and lints JS/CSS/HTML/JSON. CI runs `npm run lint` on every pull request.
+Biome formats and lints JS/CSS/HTML/JSON. CI runs `npm run lint` on every pull request. A Husky `pre-commit` hook runs the same check on **staged** files (`npm run lint:staged`) so local commits fail before push when Biome would fail in CI.
 
 ```bash
-npm run lint             # check (same as CI)
+npm run lint             # check whole tree (same as CI)
+npm run lint:staged      # check staged files only (pre-commit)
 npm run lint:fix        # apply safe fixes + format
 ```
 
@@ -43,7 +44,7 @@ Prefer a failing test (unit or Playwright) when fixing a bug.
 
 ## Commit messages
 
-Use [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/). A `commit-msg` hook (via Husky + commitlint) rejects non-conforming local commits; CI also checks the PR commit range.
+Use [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/). Husky runs `pre-commit` (Biome on staged files) and `commit-msg` (commitlint). CI also checks the PR commit range.
 
 Examples: `feat: add export`, `fix(drive): handle token refresh`, `docs: update CONTRIBUTING`.
 

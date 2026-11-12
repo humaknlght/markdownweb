@@ -15,6 +15,7 @@
     "test:all": "npm test && npm run test:e2e && npm run test:build",
     "lint": "biome check --error-on-warnings .",
     "lint:fix": "biome check --write --error-on-warnings .",
+    "lint:staged": "biome check --error-on-warnings --staged --no-errors-on-unmatched",
     "prepare": "husky"
   },
   "devDependencies": {
