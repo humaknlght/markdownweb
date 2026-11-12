@@ -9,7 +9,11 @@ import {
   state,
 } from "./state.js";
 
-export { buildPreviewFrameCsp, measurePreviewFrameContentHeight, PREVIEW_FRAME_CSP };
+export {
+  buildPreviewFrameCsp,
+  measurePreviewFrameContentHeight,
+  PREVIEW_FRAME_CSP,
+};
 
 const PREVIEW_FRAME_SANDBOX = "allow-same-origin allow-popups";
 
