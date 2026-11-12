@@ -63,6 +63,7 @@ Open [https://127.0.0.1:3456](https://127.0.0.1:3456) (self-signed TLS so the se
 
 ```bash
 npm run lint        # Biome check (format + lint; same as CI)
+npm run lint:staged # Biome on staged files (Husky pre-commit)
 npm run lint:fix   # apply safe fixes + format
 ```
 

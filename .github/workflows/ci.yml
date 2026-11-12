@@ -64,7 +64,14 @@ jobs:
         run: npm ci
 
       - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium
+        run: |
+          echo 'Acquire::Retries "3";' | sudo tee /etc/apt/apt.conf.d/80-retries
+          for attempt in 1 2 3; do
+            npx playwright install --with-deps chromium && exit 0
+            echo "Install failed; retrying in $((attempt * 15)) seconds..."
+            sleep $((attempt * 15))
+          done
+          exit 1
 
       - name: Build
         run: npm run build
