@@ -141,6 +141,20 @@ html[data-theme="zen"] .brand {
   text-shadow: 0 0 14px rgba(125, 211, 200, 0.28);
 }
 
+html[data-theme="zen"] .brand:has(+ .current-file:not([hidden])) {
+  color: rgba(244, 248, 251, 0.72);
+  text-shadow: none;
+}
+
+html[data-theme="zen"] .current-file-name {
+  color: #ffffff;
+  text-shadow: 0 0 14px rgba(125, 211, 200, 0.28);
+}
+
+html[data-theme="zen"] .current-file-source {
+  color: rgba(244, 248, 251, 0.85);
+}
+
 html[data-theme="zen"] .btn,
 html[data-theme="zen"] .select-label select {
   background: rgba(255, 255, 255, 0.1);
