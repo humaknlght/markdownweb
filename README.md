@@ -63,17 +63,18 @@ Open [https://127.0.0.1:3456](https://127.0.0.1:3456) (self-signed TLS so the se
 
 ```bash
 npm run lint        # Biome check (format + lint; same as CI)
-npm run lint:staged # Biome on staged files (Husky pre-commit)
+npm run lint:staged # Biome on staged files
 npm run lint:fix   # apply safe fixes + format
+npm run precommit   # lint:staged + npm test (Husky pre-commit)
 ```
 
 ## Tests
 
 ```bash
-npm test            # unit + script checks (node:test)
+npm test            # unit + script checks (node:test; also on pre-commit)
 npm run test:e2e    # Playwright Chromium against the src server
 npm run test:build  # production build invariants (opt-in; slower)
-npm run test:all    # all of the above
+npm run test:all    # all of the above (CI)
 ```
 
 ## Production build

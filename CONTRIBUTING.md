@@ -18,12 +18,13 @@ Open [https://127.0.0.1:3456](https://127.0.0.1:3456) (self-signed TLS; accept t
 
 ## Lint
 
-Biome formats and lints JS/CSS/HTML/JSON. CI runs `npm run lint` on every pull request. A Husky `pre-commit` hook runs the same check on **staged** files (`npm run lint:staged`) so local commits fail before push when Biome would fail in CI.
+Biome formats and lints JS/CSS/HTML/JSON. CI runs `npm run lint` on every pull request. A Husky `pre-commit` hook runs Biome on **staged** files plus the unit/script suite (`npm run precommit`) so local commits fail before push when lint or `npm test` would fail in CI.
 
 ```bash
 npm run lint             # check whole tree (same as CI)
-npm run lint:staged      # check staged files only (pre-commit)
+npm run lint:staged      # check staged files only
 npm run lint:fix        # apply safe fixes + format
+npm run precommit        # lint:staged + npm test (Husky pre-commit)
 ```
 
 ## Tests
@@ -31,20 +32,20 @@ npm run lint:fix        # apply safe fixes + format
 CI runs the full suite on every pull request. Locally:
 
 ```bash
-npm test                 # unit + script checks
+npm test                 # unit + script checks (also on pre-commit)
 npx playwright install chromium   # once, for e2e
 npm run test:e2e
 npm run test:build       # production build invariants (slower)
 npm run test:all         # everything CI runs
 ```
 
-Prefer a failing test (unit or Playwright) when fixing a bug.
+Prefer a failing test (unit or Playwright) when fixing a bug. Pre-commit covers `npm test` only; run `npm run test:e2e` / `npm run test:build` (or `npm run test:all`) before opening a PR.
 
 `npm run dev` and e2e serve raw `src/` (import map), while `npm run preview` serves the esbuild bundle. A dependency can work in preview and still break boot under src. After adding or changing a package imported from `src/`, run `npm test` and `npm run test:e2e` (or at least the boot smoke)—do not rely on preview alone.
 
 ## Commit messages
 
-Use [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/). Husky runs `pre-commit` (Biome on staged files) and `commit-msg` (commitlint). CI also checks the PR commit range.
+Use [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/). Husky runs `pre-commit` (`npm run precommit`) and `commit-msg` (commitlint). CI also checks the PR commit range.
 
 Examples: `feat: add export`, `fix(drive): handle token refresh`, `docs: update CONTRIBUTING`.
 
