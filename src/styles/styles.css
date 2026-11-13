@@ -660,8 +660,7 @@ html.site-intro-seen .site-intro {
 }
 
 .current-file-source {
-  /* biome-ignore lint/complexity/noImportantStyles: hide until data-source selects one */
-  display: none !important;
+  display: none;
   width: 1rem;
   height: 1rem;
   flex-shrink: 0;
@@ -672,8 +671,7 @@ html.site-intro-seen .site-intro {
 .current-file[data-source="url"] > [data-source-icon="url"],
 .current-file[data-source="drive"] > [data-source-icon="drive"],
 .current-file[data-source="gist"] > [data-source-icon="gist"] {
-  /* biome-ignore lint/complexity/noImportantStyles: beat [hidden] polyfill + default hide */
-  display: block !important;
+  display: block;
 }
 
 .current-file-name {
