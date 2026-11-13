@@ -636,33 +636,53 @@ html.site-intro-seen .site-intro {
   flex-shrink: 0;
 }
 
+/* File title is the primary chrome label when a document is open. */
+.brand:has(+ .current-file:not([hidden])) {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--chrome-muted);
+}
+
+.current-file {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+  max-width: min(28rem, 42vw);
+  color: var(--chrome-text);
+}
+
+.current-file:not([hidden])::before {
+  content: "·";
+  margin-right: 0.05rem;
+  font-weight: 500;
+  color: var(--chrome-muted);
+}
+
+.current-file-source {
+  display: none;
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+  color: inherit;
+}
+
+.current-file[data-source="fs"] > [data-source-icon="fs"],
+.current-file[data-source="url"] > [data-source-icon="url"],
+.current-file[data-source="drive"] > [data-source-icon="drive"],
+.current-file[data-source="gist"] > [data-source-icon="gist"] {
+  display: block;
+}
+
 .current-file-name {
   min-width: 0;
-  max-width: 14rem;
-  font-size: 0.8rem;
-  color: var(--chrome-muted);
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--chrome-text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-.current-file-name:not([hidden])::before {
-  content: "·";
-  margin-right: 0.35rem;
-  color: var(--chrome-muted);
-}
-
-.brand-link {
-  font-size: 0.75rem;
-  color: var(--chrome-muted);
-  text-decoration: none;
-  white-space: nowrap;
-}
-
-.brand-link:hover,
-.brand-link:focus-visible {
-  color: var(--chrome-text);
-  text-decoration: underline;
 }
 
 .toolbar-menu {
@@ -690,7 +710,7 @@ html.site-intro-seen .site-intro {
 }
 
 /*
- * Single overflow panel at every width. Desktop: Theme/Width/Diagrams/Print/Help/Bug/Privacy.
+ * Single overflow panel at every width. Desktop: Theme/Width/Diagrams/Print/Help/Bug/Privacy/Site.
  * Narrow: JS moves #toolbar-bar in first, so the same panel holds everything.
  */
 .toolbar-actions {
@@ -3411,10 +3431,6 @@ html[data-theme] .preview .markdown-frontmatter-error {
   .select-label {
     position: relative;
   }
-
-  .brand-link {
-    display: none;
-  }
 }
 
 /* Keep a single toolbar row above the overflow breakpoint.
@@ -3437,6 +3453,23 @@ html[data-theme] .preview .markdown-frontmatter-error {
 
   .brand {
     font-size: 0.875rem;
+  }
+
+  .brand:has(+ .current-file:not([hidden])) {
+    font-size: 0.75rem;
+  }
+
+  .current-file {
+    max-width: min(18rem, 36vw);
+  }
+
+  .current-file-name {
+    font-size: 0.875rem;
+  }
+
+  .current-file-source {
+    width: 0.85rem;
+    height: 0.85rem;
   }
 }
 
@@ -3896,6 +3929,18 @@ html[data-theme="salesforce"] .brand {
   color: #0170c8;
 }
 
+html[data-theme="salesforce"] .brand:has(+ .current-file:not([hidden])) {
+  color: var(--chrome-muted);
+}
+
+html[data-theme="salesforce"] .current-file-name {
+  color: #0170c8;
+}
+
+html[data-theme="salesforce"] .current-file-source {
+  color: #0170c8;
+}
+
 html[data-theme="salesforce"] .btn,
 html[data-theme="salesforce"] .select-label select,
 html[data-theme="salesforce"] .dropdown-menu {
@@ -4046,6 +4091,20 @@ html[data-theme="fancy"] .site-intro {
 html[data-theme="fancy"] .brand {
   color: #ffffff;
   text-shadow: 0 1px 8px rgba(0, 0, 0, 0.35);
+}
+
+html[data-theme="fancy"] .brand:has(+ .current-file:not([hidden])) {
+  color: rgba(244, 248, 251, 0.72);
+  text-shadow: none;
+}
+
+html[data-theme="fancy"] .current-file-name {
+  color: #ffffff;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.35);
+}
+
+html[data-theme="fancy"] .current-file-source {
+  color: rgba(244, 248, 251, 0.85);
 }
 
 /* biome-ignore lint/style/noDescendingSpecificity: fancy/salesforce theme selectors never match the same document */
@@ -4569,6 +4628,43 @@ html[data-wco]
   ) {
   -webkit-app-region: no-drag;
   app-region: no-drag;
+}
+
+/* Titlebar chrome: icon-only controls (overflow panel already uses borderless rows).
+   Beat theme #share-btn / pressed-chip fills so nothing paints a plate in the title bar. */
+html[data-wco] .toolbar .btn:not(.btn-spin-border),
+html[data-wco] .toolbar #share-btn,
+html[data-wco] .toolbar #sync-scroll-btn[aria-pressed="true"],
+html[data-wco] .toolbar #line-wrap-btn[aria-pressed="true"] {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  color: var(--chrome-text);
+}
+
+html[data-wco] .toolbar .btn:not(.btn-spin-border):hover,
+html[data-wco] .toolbar .btn:not(.btn-spin-border):focus-visible,
+html[data-wco] .toolbar #share-btn:hover,
+html[data-wco] .toolbar #share-btn:focus-visible {
+  background: var(--chrome-hover);
+  color: var(--chrome-text);
+}
+
+html[data-wco] .toolbar .btn[aria-pressed="true"]:not(.btn-spin-border),
+html[data-wco] .toolbar #sync-scroll-btn[aria-pressed="true"],
+html[data-wco] .toolbar #line-wrap-btn[aria-pressed="true"] {
+  border-color: transparent;
+  background: transparent;
+  color: var(--chrome-focus);
+}
+
+html[data-wco] .toolbar #sync-scroll-btn[aria-pressed="true"]:hover,
+html[data-wco] .toolbar #line-wrap-btn[aria-pressed="true"]:hover {
+  background: var(--chrome-hover);
+  color: var(--chrome-focus);
+  filter: none;
 }
 
 /* Fancy/Zen use transparent --chrome-bg; pin the same solids as THEME_COLORS. */

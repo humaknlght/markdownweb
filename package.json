@@ -16,6 +16,7 @@
     "lint": "biome check --error-on-warnings .",
     "lint:fix": "biome check --write --error-on-warnings .",
     "lint:staged": "biome check --error-on-warnings --staged --no-errors-on-unmatched",
+    "precommit": "npm run lint:staged && npm test",
     "prepare": "husky"
   },
   "devDependencies": {

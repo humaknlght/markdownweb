@@ -1,12 +1,21 @@
 import { SAVED_SNAPSHOT_MAX_KEYS, STORAGE_KEYS } from "./constants.js";
 import { hooks } from "./hooks.js";
 import {
+  currentFileEl,
   currentFileNameEl,
   fsAccessSupported,
   fsEntries,
   state,
 } from "./state.js";
 import { revisionStampChanged, storeCurrentFileHandle } from "./vendor-deps.js";
+
+/** @type {Record<"fs"|"drive"|"gist"|"url", string>} */
+const CONTENT_SOURCE_LABELS = {
+  fs: "Local file",
+  drive: "Google Drive",
+  gist: "GitHub Gist",
+  url: "Shared link",
+};
 
 export function isDirty() {
   // Clean only after a disk save/load or Accept of URL md/mdz content.
@@ -19,19 +28,43 @@ export function confirmDiscardIfDirty() {
   return window.confirm("You have unsaved changes. Discard them?");
 }
 
+/** @returns {"fs"|"drive"|"gist"|"url"|null} */
+export function resolveContentSource() {
+  if (
+    state.contentSource === "fs" ||
+    state.contentSource === "drive" ||
+    state.contentSource === "gist" ||
+    state.contentSource === "url"
+  ) {
+    return state.contentSource;
+  }
+  if (state.currentDriveFile) return "drive";
+  if (state.currentGistFile) return "gist";
+  if (state.currentFileHandle || state.currentFilePath) return "fs";
+  return null;
+}
+
 export function updateDocumentTitle() {
   const base = "Markdown Editor";
   document.title = state.currentFileName
     ? `${state.currentFileName} · ${base}`
     : base;
-  if (currentFileNameEl) {
-    if (state.currentFileName) {
-      currentFileNameEl.textContent = state.currentFileName;
-      currentFileNameEl.hidden = false;
-    } else {
-      currentFileNameEl.textContent = "";
-      currentFileNameEl.hidden = true;
-    }
+  const source = resolveContentSource();
+  const fileEl = currentFileEl || document.getElementById("current-file");
+  const nameEl =
+    currentFileNameEl || document.getElementById("current-file-name");
+  if (nameEl) {
+    nameEl.textContent = state.currentFileName || "";
+  }
+  if (fileEl) {
+    const show = Boolean(state.currentFileName);
+    fileEl.hidden = !show;
+    // CSS shows the matching [data-source-icon] from this attribute.
+    fileEl.dataset.source = show && source ? source : "";
+    fileEl.title = show && source ? CONTENT_SOURCE_LABELS[source] : "";
+  } else if (nameEl) {
+    // Older cached markup only had #current-file-name.
+    nameEl.hidden = !state.currentFileName;
   }
   if (state.speechActive) hooks.updateSpeechMediaSession();
 }
@@ -172,6 +205,17 @@ export function pathForHandle(fileHandle) {
 }
 
 export function persistCurrentFileBinding() {
+  // Shared-link labels are session UI only — don't revive as a local file name.
+  if (state.contentSource === "url") {
+    try {
+      localStorage.removeItem(STORAGE_KEYS.currentFile);
+      localStorage.removeItem(STORAGE_KEYS.currentFilePath);
+    } catch {
+      /* ignore */
+    }
+    if (fsAccessSupported) void storeCurrentFileHandle(null);
+    return;
+  }
   try {
     if (state.currentFileName)
       localStorage.setItem(STORAGE_KEYS.currentFile, state.currentFileName);
@@ -193,6 +237,7 @@ export function clearCurrentFileBinding() {
   state.currentGistFile = null;
   state.currentFileName = "";
   state.currentFilePath = "";
+  state.contentSource = null;
   clearCurrentFileRevision();
   updateDocumentTitle();
   hooks.updateSaveButton();
@@ -211,6 +256,7 @@ export function bindCurrentFile(fileHandle, name, path = "") {
   state.currentFileHandle = fileHandle;
   state.currentFileName = name || fileHandle?.name || "";
   state.currentFilePath = path || pathForHandle(fileHandle) || "";
+  state.contentSource = "fs";
   // Revision stamp is set by the open/save caller (needs lastModified from getFile).
   if (!fileHandle) clearCurrentFileRevision();
   else if (state.currentFileRevision?.source !== "fs")
@@ -237,6 +283,7 @@ export function bindCurrentDriveFile(file) {
     mimeType: file.mimeType,
   };
   state.currentFileName = file.name || "";
+  state.contentSource = "drive";
   if (file.modifiedTime) setCurrentFileRevision("drive", file.modifiedTime);
   else if (state.currentFileRevision?.source !== "drive")
     clearCurrentFileRevision();
@@ -255,9 +302,28 @@ export function bindCurrentGistFile(file) {
   state.currentDriveFile = null;
   state.currentGistFile = { gistId: file.gistId, filename: file.filename };
   state.currentFileName = file.filename || "";
+  state.contentSource = "gist";
   if (file.updatedAt) setCurrentFileRevision("gist", file.updatedAt);
   else if (state.currentFileRevision?.source !== "gist")
     clearCurrentFileRevision();
+  updateDocumentTitle();
+  hooks.updateSaveButton();
+  hooks.highlightActiveFileInTree();
+  persistCurrentFileBinding();
+}
+
+/**
+ * Label for Markdown loaded from a share URL (`#md` / `#mdz`).
+ * @param {string} [name]
+ */
+export function bindCurrentUrlDocument(name = "Shared document") {
+  state.currentFileHandle = null;
+  state.currentDriveFile = null;
+  state.currentGistFile = null;
+  state.currentFilePath = "";
+  state.currentFileName = name;
+  state.contentSource = "url";
+  clearCurrentFileRevision();
   updateDocumentTitle();
   hooks.updateSaveButton();
   hooks.highlightActiveFileInTree();
@@ -283,6 +349,8 @@ hooks.confirmOverwriteIfRemoteChanged = confirmOverwriteIfRemoteChanged;
 hooks.pathForHandle = pathForHandle;
 hooks.persistCurrentFileBinding = persistCurrentFileBinding;
 hooks.clearCurrentFileBinding = clearCurrentFileBinding;
+hooks.resolveContentSource = resolveContentSource;
 hooks.bindCurrentFile = bindCurrentFile;
 hooks.bindCurrentDriveFile = bindCurrentDriveFile;
 hooks.bindCurrentGistFile = bindCurrentGistFile;
+hooks.bindCurrentUrlDocument = bindCurrentUrlDocument;

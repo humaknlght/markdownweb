@@ -171,6 +171,7 @@ export const filesTree = document.getElementById("files-tree");
 export const filesContextMenu = document.getElementById("files-context-menu");
 export const gistPatModal = document.getElementById("gist-pat-modal");
 export const gistPatInput = document.getElementById("gist-pat-input");
+export const currentFileEl = document.getElementById("current-file");
 export const currentFileNameEl = document.getElementById("current-file-name");
 export const outlineEmpty = document.getElementById("outline-empty");
 export const outlineList = document.getElementById("outline-list");
@@ -220,6 +221,11 @@ export const state = {
   currentFileName: "",
   /** @type {string} Relative path under the open folder, when known. */
   currentFilePath: "",
+  /**
+   * Where the open document came from. Null = typed/untitled (no source icon).
+   * @type {"fs"|"drive"|"gist"|"url"|null}
+   */
+  contentSource: null,
   /**
    * Revision stamp for conflict-aware Save (local lastModified, Drive modifiedTime, Gist updated_at).
    * @type {{ source: "fs"|"drive"|"gist", value: string } | null}

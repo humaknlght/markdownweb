@@ -142,7 +142,7 @@ export async function init() {
       hooks.setEditorValue(fromUrl);
       state.lastHistoryContent = "";
       hooks.setContentExternal(true);
-      hooks.clearCurrentFileBinding();
+      hooks.bindCurrentUrlDocument();
     }
   } else if (state.guideSession) {
     // Dedicated help tab: load GUIDE as trusted preview; do not touch drafts.

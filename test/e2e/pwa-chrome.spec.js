@@ -121,4 +121,24 @@ test.describe("PWA toolbar chrome", () => {
     expect(border.top).toBe("0px");
     expect(border.bottom).toBe("0px");
   });
+
+  test("Window Controls Overlay toolbar buttons are borderless icons", async ({
+    page,
+  }) => {
+    await mockInstalledPwa(page, { standalone: true, wcoVisible: true });
+    await preparePage(page);
+    await page.goto("/");
+    await waitForAppReady(page);
+
+    const style = await page.locator("#overflow-btn").evaluate((el) => {
+      const s = getComputedStyle(el);
+      return {
+        borderTopColor: s.borderTopColor,
+        backgroundColor: s.backgroundColor,
+      };
+    });
+    // Transparent border (layout width may remain 1px) — not a visible chrome edge.
+    expect(style.borderTopColor).toMatch(/rgba?\(\s*0,\s*0,\s*0,\s*0\s*\)/);
+    expect(style.backgroundColor).toMatch(/rgba?\(\s*0,\s*0,\s*0,\s*0\s*\)/);
+  });
 });

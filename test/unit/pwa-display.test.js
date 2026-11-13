@@ -75,6 +75,25 @@ describe("PWA toolbar border CSS", () => {
     );
   });
 
+  it("makes titlebar toolbar buttons borderless icon chrome under WCO", async () => {
+    const css = await fs.readFile(
+      path.join(root, "src/styles/styles.css"),
+      "utf8",
+    );
+    assert.match(
+      css,
+      /html\[data-wco\]\s*\.toolbar\s*\.btn:not\(\.btn-spin-border\),\s*html\[data-wco\]\s*\.toolbar\s*#share-btn/s,
+    );
+    assert.match(
+      css,
+      /html\[data-wco\]\s*\.toolbar\s*\.btn:not\(\.btn-spin-border\),[\s\S]*?\{[^}]*border-color:\s*transparent/s,
+    );
+    assert.match(
+      css,
+      /html\[data-wco\]\s*\.toolbar\s*\.btn:not\(\.btn-spin-border\),[\s\S]*?\{[^}]*background:\s*transparent/s,
+    );
+  });
+
   it("keeps the default browser toolbar border-bottom outside PWA selectors", async () => {
     const css = await fs.readFile(
       path.join(root, "src/styles/styles.css"),

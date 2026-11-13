@@ -48,6 +48,7 @@ export function stashPreExternalState(contentOverride) {
     gistFile: state.currentGistFile,
     fileName: state.currentFileName,
     filePath: state.currentFilePath,
+    contentSource: state.contentSource,
     savedSnapshot: state.savedSnapshot,
     fileRevision: state.currentFileRevision,
   };

@@ -174,6 +174,7 @@ export function rejectExternalContent() {
     state.currentGistFile = snapshot.gistFile ?? null;
     state.currentFileName = snapshot.fileName;
     state.currentFilePath = snapshot.filePath;
+    state.contentSource = snapshot.contentSource ?? null;
     state.savedSnapshot = snapshot.savedSnapshot;
     state.currentFileRevision = snapshot.fileRevision ?? null;
     hooks.updateDocumentTitle();
