@@ -429,23 +429,27 @@ function rewriteCode(src, transform) {
 }
 
 /**
- * Names imported as bindings from other app modules (must keep `export`).
- * @param {string} appDir
+ * Names imported as bindings elsewhere (must keep `export` on app modules).
+ * Scan every dir passed — typically all of `src/`, not just `src/app`, so
+ * cross-folder imports (e.g. `src/lib` → `src/app/constants.js`) stay exported.
+ * @param {...string} dirs
  */
-export async function collectImportedExportNames(appDir) {
-  const files = await walkJs(appDir);
+export async function collectImportedExportNames(...dirs) {
   const imported = new Set();
-  for (const file of files) {
-    const src = await readFile(file, "utf8");
-    for (const match of src.matchAll(
-      /import\s*\{([^}]+)\}\s*from\s*["'][^"']+["']/g,
-    )) {
-      for (const part of match[1].split(",")) {
-        const name = part
-          .trim()
-          .split(/\s+as\s+/)[0]
-          .trim();
-        if (name) imported.add(name);
+  for (const dir of dirs) {
+    const files = await walkJs(dir);
+    for (const file of files) {
+      const src = await readFile(file, "utf8");
+      for (const match of src.matchAll(
+        /import\s*\{([^}]+)\}\s*from\s*["'][^"']+["']/g,
+      )) {
+        for (const part of match[1].split(",")) {
+          const name = part
+            .trim()
+            .split(/\s+as\s+/)[0]
+            .trim();
+          if (name) imported.add(name);
+        }
       }
     }
   }
@@ -583,7 +587,8 @@ export async function createStateHooksManglePlugin(appDir, opts = {}) {
   }
   const map = buildPropMangleMap(stateProps);
 
-  const keepExport = await collectImportedExportNames(appDir);
+  // Whole `src/` so lib/markdown/drive imports of app exports are not stripped.
+  const keepExport = await collectImportedExportNames(path.dirname(appDir));
   keepExport.add("state");
   keepExport.add("hooks");
   // Everything reached via former hooks.* must stay exportable for injected imports.

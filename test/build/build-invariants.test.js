@@ -130,6 +130,15 @@ describe("production build invariants", { timeout: 180_000 }, () => {
       // state-bag mangling must not rewrite ServiceWorker.state (update toast).
       assert.match(appJs, /\.state==="installed"/);
       assert.doesNotMatch(appJs, /\.s==="installed"/);
+      // Print iframe sandbox (src/lib → src/app) may live in a lazy chunk.
+      const jsBundle = (
+        await Promise.all(
+          files
+            .filter((f) => /\.js$/.test(f) && !f.endsWith(".gz"))
+            .map((f) => fs.readFile(path.join(dist, f), "utf8")),
+        )
+      ).join("\n");
+      assert.match(jsBundle, /allow-same-origin allow-popups allow-modals/);
       const gz = gunzipSync(
         await fs.readFile(path.join(dist, `${appFile}.gz`)),
       );

@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
+
 import { applyCdnIntegrity } from "../../scripts/cdn-integrity.mjs";
 import {
   buildContentSecurityPolicy,
@@ -185,6 +186,19 @@ describe("pwa.mjs", () => {
     assert.equal(m.start_url, "./?source=pwa");
     assert.equal(m.launch_handler.client_mode, "focus-existing");
     assert.ok(m.file_handlers[0].accept["text/markdown"].includes(".md"));
+  });
+
+  it("emits Biome-compatible compact arrays in the manifest text", () => {
+    const text = buildManifest();
+    // JSON.stringify(…, null, 2) expands these; Biome keeps them on one line.
+    assert.match(text, /"display_override": \["window-controls-overlay"\],/);
+    assert.match(
+      text,
+      /"text\/markdown": \["\.md", "\.markdown", "\.mdown", "\.mkd"\],/,
+    );
+    assert.match(text, /"text\/plain": \["\.txt"\],/);
+    assert.match(text, /"text\/html": \["\.html", "\.htm"\]/);
+    assert.doesNotMatch(text, /"display_override": \[\s*\n/);
   });
 
   it("embeds precache URLs and SKIP_WAITING in the SW template", () => {
