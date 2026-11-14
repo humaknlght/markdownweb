@@ -67,58 +67,89 @@ export function buildDevServiceWorker() {
   });
 }
 
+/**
+ * JSON text that matches Biome's JSON formatter: 2-space indent, trailing
+ * newline, and primitive arrays kept on one line (so `npm run build` does not
+ * dirty `src/manifest.webmanifest` under `biome check`).
+ * @param {unknown} value
+ * @param {number} [indent]
+ */
+export function formatJsonLikeBiome(value, indent = 0) {
+  const pad = " ".repeat(indent);
+  const padIn = " ".repeat(indent + 2);
+  if (value === null || typeof value !== "object") {
+    return JSON.stringify(value);
+  }
+  if (Array.isArray(value)) {
+    if (value.length === 0) return "[]";
+    const allPrimitive = value.every(
+      (item) => item === null || typeof item !== "object",
+    );
+    if (allPrimitive) {
+      return `[${value.map((item) => JSON.stringify(item)).join(", ")}]`;
+    }
+    return `[\n${value
+      .map((item) => `${padIn}${formatJsonLikeBiome(item, indent + 2)}`)
+      .join(",\n")}\n${pad}]`;
+  }
+  const keys = Object.keys(value);
+  if (!keys.length) return "{}";
+  return `{\n${keys
+    .map(
+      (key) =>
+        `${padIn}${JSON.stringify(key)}: ${formatJsonLikeBiome(value[key], indent + 2)}`,
+    )
+    .join(",\n")}\n${pad}}`;
+}
+
 export function buildManifest(iconNames) {
   const icon192 = iconNames?.icon192 ?? "./assets/icon-192.png";
   const icon512 = iconNames?.icon512 ?? "./assets/icon-512.png";
-  return `${JSON.stringify(
-    {
-      name: "Markdown Editor",
-      short_name: "MD Editor",
-      description:
-        "Edit Markdown with a live HTML preview. Mermaid diagrams, themes, share links, and optional Drive or Gist. Everything runs securely in your browser.",
-      id: "./",
-      start_url: "./?source=pwa",
-      scope: "./",
-      display_override: ["window-controls-overlay"],
-      display: "standalone",
-      orientation: "any",
-      background_color: "#0d1117",
-      theme_color: "#0d1117",
-      lang: "en",
-      icons: [
-        {
-          src: icon192,
-          sizes: "192x192",
-          type: "image/png",
-          purpose: "any",
-        },
-        {
-          src: icon512,
-          sizes: "512x512",
-          type: "image/png",
-          purpose: "any",
-        },
-      ],
-      // Lets an installed Chromium PWA appear in “Open with” / default-app lists
-      // for Markdown (and related text) files. Requires launchQueue handling in-app.
-      file_handlers: [
-        {
-          action: "./",
-          accept: {
-            "text/markdown": [".md", ".markdown", ".mdown", ".mkd"],
-            "text/plain": [".txt"],
-            "text/html": [".html", ".htm"],
-          },
-          launch_type: "single-client",
-        },
-      ],
-      launch_handler: {
-        client_mode: "focus-existing",
+  // Lets an installed Chromium PWA appear in “Open with” / default-app lists
+  // for Markdown (and related text) files. Requires launchQueue handling in-app.
+  return `${formatJsonLikeBiome({
+    name: "Markdown Editor",
+    short_name: "MD Editor",
+    description:
+      "Edit Markdown with a live HTML preview. Mermaid diagrams, themes, share links, and optional Drive or Gist. Everything runs securely in your browser.",
+    id: "./",
+    start_url: "./?source=pwa",
+    scope: "./",
+    display_override: ["window-controls-overlay"],
+    display: "standalone",
+    orientation: "any",
+    background_color: "#0d1117",
+    theme_color: "#0d1117",
+    lang: "en",
+    icons: [
+      {
+        src: icon192,
+        sizes: "192x192",
+        type: "image/png",
+        purpose: "any",
       },
+      {
+        src: icon512,
+        sizes: "512x512",
+        type: "image/png",
+        purpose: "any",
+      },
+    ],
+    file_handlers: [
+      {
+        action: "./",
+        accept: {
+          "text/markdown": [".md", ".markdown", ".mdown", ".mkd"],
+          "text/plain": [".txt"],
+          "text/html": [".html", ".htm"],
+        },
+        launch_type: "single-client",
+      },
+    ],
+    launch_handler: {
+      client_mode: "focus-existing",
     },
-    null,
-    2,
-  )}\n`;
+  })}\n`;
 }
 
 /** True when the URL is under the COEP-free Google Drive auth helper directory. */
