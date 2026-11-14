@@ -1,12 +1,23 @@
 import assert from "node:assert/strict";
+import fs from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { describe, it } from "node:test";
+import { fileURLToPath } from "node:url";
+import * as esbuild from "esbuild";
 import {
   buildPropMangleMap,
+  collectImportedExportNames,
+  createStateHooksManglePlugin,
   mangleStateHooksSource,
   rewriteHooksToDirectImports,
   stripUnreferencedExports,
 } from "../../scripts/mangle-state-hooks.mjs";
+
+const repoRoot = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "../..",
+);
 
 describe("mangle-state-hooks", () => {
   it("rewrites state members but leaves strings and regex bodies alone", () => {
@@ -49,6 +60,59 @@ describe("mangle-state-hooks", () => {
     assert.match(out, /export function keepMe/);
     assert.match(out, /^function dropMe/m);
     assert.match(out, /^async function dropAsync/m);
+  });
+
+  it("keeps app exports imported from outside src/app (e.g. lib)", async () => {
+    const srcRoot = path.join(repoRoot, "src");
+    const imported = await collectImportedExportNames(srcRoot);
+    assert.ok(
+      imported.has("PRINT_FRAME_SANDBOX"),
+      "PRINT_FRAME_SANDBOX is imported from src/lib/export.js",
+    );
+    const kept = stripUnreferencedExports(
+      'export const PRINT_FRAME_SANDBOX = "allow-modals";\nexport const ONLY_APP_INTERNAL = 1;\n',
+      imported,
+    );
+    assert.match(kept, /export const PRINT_FRAME_SANDBOX/);
+  });
+
+  it("production esbuild with mangler compiles (cross-folder app exports)", {
+    timeout: 60_000,
+  }, async () => {
+    // Mirrors scripts/build.mjs JS bundling: mangler must not strip exports
+    // that src/lib (etc.) imports from src/app, or esbuild fails.
+    const appDir = path.join(repoRoot, "src/app");
+    const outdir = await fs.mkdtemp(
+      path.join(os.tmpdir(), "md-mangle-bundle-"),
+    );
+    const plugin = await createStateHooksManglePlugin(appDir);
+    const result = await esbuild.build({
+      entryPoints: [
+        path.join(appDir, "app.js"),
+        path.join(repoRoot, "src/drive/drive-helper.js"),
+      ],
+      bundle: true,
+      minify: true,
+      format: "esm",
+      splitting: true,
+      target: ["es2020"],
+      write: false,
+      outdir,
+      entryNames: "[name]",
+      chunkNames: "chunk-[hash]",
+      legalComments: "none",
+      treeShaking: true,
+      plugins: [plugin],
+      external: ["marked", "dompurify", "highlight.js", "gemoji", "yaml"],
+      logLevel: "silent",
+    });
+    assert.ok(result.outputFiles.length > 0);
+    const joined = result.outputFiles.map((f) => f.text).join("\n");
+    assert.match(
+      joined,
+      /allow-same-origin allow-popups allow-modals/,
+      "PRINT_FRAME_SANDBOX must survive mangler + bundle",
+    );
   });
 
   it("preserves third-party object keys named hooks/state", () => {
