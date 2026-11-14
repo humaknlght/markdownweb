@@ -74,6 +74,19 @@ export function buildPreviewFrameCsp(
 /** Stable CSP string without an embedder origin (unit / string compares). */
 export const PREVIEW_FRAME_CSP = buildPreviewFrameCsp("");
 
+/**
+ * Preview iframe sandbox tokens. Omits `allow-scripts` so rendered Markdown
+ * cannot run JS; `allow-same-origin` lets the parent write/measure the frame.
+ */
+export const PREVIEW_FRAME_SANDBOX = "allow-same-origin allow-popups";
+
+/**
+ * PDF print iframe: same as preview, plus `allow-modals` so `window.print()`
+ * is not blocked by the sandbox (HTML `allow-modals` covers print dialogs).
+ */
+export const PRINT_FRAME_SANDBOX =
+  "allow-same-origin allow-popups allow-modals";
+
 /** Delay before the preview loading spinner becomes visible. */
 export const RENDER_LOADING_DELAY_MS = 700;
 /**

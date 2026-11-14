@@ -3,8 +3,34 @@ import { describe, it } from "node:test";
 import {
   buildPreviewFrameCsp,
   PREVIEW_FRAME_CSP,
+  PREVIEW_FRAME_SANDBOX,
+  PRINT_FRAME_SANDBOX,
   previewFrameOriginSrc,
 } from "../../src/app/constants.js";
+
+describe("preview / print frame sandbox", () => {
+  it("shares the same base tokens and never enables scripts", () => {
+    expectSandboxTokens(PREVIEW_FRAME_SANDBOX, [
+      "allow-popups",
+      "allow-same-origin",
+    ]);
+    expectSandboxTokens(PRINT_FRAME_SANDBOX, [
+      "allow-modals",
+      "allow-popups",
+      "allow-same-origin",
+    ]);
+    assert.doesNotMatch(PREVIEW_FRAME_SANDBOX, /\ballow-scripts\b/);
+    assert.doesNotMatch(PRINT_FRAME_SANDBOX, /\ballow-scripts\b/);
+  });
+});
+
+/**
+ * @param {string} sandbox
+ * @param {string[]} expected
+ */
+function expectSandboxTokens(sandbox, expected) {
+  assert.equal(sandbox.split(/\s+/).sort().join(" "), expected.join(" "));
+}
 
 describe("preview frame CSP", () => {
   it("whitelists the embedder origin so Firefox about:blank 'self' can load CSS", () => {

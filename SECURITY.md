@@ -2,7 +2,7 @@
 
 Markdown Editor is a client-side app. Markdown is rendered in the browser; this project does not run a server that stores or processes document contents.
 
-Accepted Markdown is painted into a sandboxed preview iframe (`allow-same-origin` + `allow-popups`, without `allow-scripts`) with its own Content Security Policy that blocks scripts and remote subresources. DOMPurify and remote-media stripping remain defense in depth.
+Accepted Markdown is painted into a sandboxed preview iframe (`allow-same-origin` + `allow-popups`, without `allow-scripts`) with its own Content Security Policy that blocks scripts and remote subresources. The temporary PDF print iframe uses the same base sandbox (plus `allow-modals` so `window.print()` works) and the exported HTML document carries the same CSP. DOMPurify and remote-media stripping remain defense in depth.
 
 ## Supported versions
 

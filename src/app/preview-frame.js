@@ -1,4 +1,8 @@
-import { buildPreviewFrameCsp, PREVIEW_FRAME_CSP } from "./constants.js";
+import {
+  buildPreviewFrameCsp,
+  PREVIEW_FRAME_CSP,
+  PREVIEW_FRAME_SANDBOX,
+} from "./constants.js";
 import { hooks } from "./hooks.js";
 import { measurePreviewFrameContentHeight } from "./preview-frame-height.js";
 import {
@@ -13,9 +17,8 @@ export {
   buildPreviewFrameCsp,
   measurePreviewFrameContentHeight,
   PREVIEW_FRAME_CSP,
+  PREVIEW_FRAME_SANDBOX,
 };
-
-const PREVIEW_FRAME_SANDBOX = "allow-same-origin allow-popups";
 
 /** @type {number} */
 let heightRaf = 0;

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { JSDOM } from "jsdom";
+import { PREVIEW_FRAME_CSP } from "../../src/app/constants.js";
 import {
   buildDocxBlob,
   buildHtmlDocument,
@@ -44,6 +45,16 @@ describe("buildHtmlDocument", () => {
     assert.match(doc, /<p>Hi<\/p>/);
     assert.ok(doc.includes(GENERATOR_URL));
     assert.match(buildHtmlDocument("", "<script>"), /&lt;script&gt;/);
+  });
+
+  it("embeds the same blocking CSP as the preview frame", () => {
+    const doc = buildHtmlDocument("<p>Hi</p>", "Test");
+    assert.ok(
+      doc.includes(
+        `<meta http-equiv="Content-Security-Policy" content="${PREVIEW_FRAME_CSP}" />`,
+      ),
+    );
+    assert.match(doc, /script-src 'none'/);
   });
 
   it("defaults to readable width", () => {

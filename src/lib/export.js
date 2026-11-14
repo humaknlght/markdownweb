@@ -1,4 +1,5 @@
 import createDOMPurify from "dompurify";
+import { PREVIEW_FRAME_CSP, PRINT_FRAME_SANDBOX } from "../app/constants.js";
 import { extractFrontmatter } from "../markdown/frontmatter.js";
 import { installMarkdownLinkHooks } from "./link-targets.js";
 import { installSafeMediaHooks } from "./safe-media-uri.js";
@@ -571,6 +572,7 @@ export function buildHtmlDocument(bodyHtml, title, options = {}) {
 <html lang="en" data-theme="${theme}" data-width="${width}" data-line-wrap="${lineWrap ? "on" : "off"}">
 <head>
   <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="${PREVIEW_FRAME_CSP}" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="generator" content="${GENERATOR_URL}" />
   <meta name="color-scheme" content="${colorScheme}" />
@@ -776,6 +778,8 @@ function printHtmlDocument(html) {
     const iframe = document.createElement("iframe");
     iframe.title = "Export PDF";
     iframe.setAttribute("aria-hidden", "true");
+    // Match the preview frame sandbox; allow-modals is required for win.print().
+    iframe.setAttribute("sandbox", PRINT_FRAME_SANDBOX);
     iframe.style.cssText =
       "position:fixed;right:0;bottom:0;width:0;height:0;border:0;opacity:0;pointer-events:none;";
     document.body.appendChild(iframe);
