@@ -149,9 +149,10 @@ export async function sketchMermaidSvg(svg) {
         sketched.firstChild,
       );
     }
-    // Hachure strokes often reuse fill pastels — remap to WCAG theme ink.
-    hooks.normalizeMermaidHandDrawnColors(sketched);
     svg.replaceWith(sketched);
+    // Remap after insert — getComputedStyle on a detached sketch misses SVG
+    // <style> strokes (Mermaid edges), so WCAG var(--mermaid-*) paints never land.
+    hooks.normalizeMermaidHandDrawnColors(sketched);
     // Fit after insert — getBBox() is wrong while the sketch sits in [hidden].
     // tighten: drop asymmetric Mermaid/svg2roughjs gutters so drawings look centered.
     hooks.fitMermaidSvgViewBox(sketched, { tighten: true });

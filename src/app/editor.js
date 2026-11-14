@@ -167,12 +167,14 @@ export function replaceEditorRange(start, end, text, { notify = true } = {}) {
     }
   } catch {
     ok = false;
+  } finally {
+    // Always clear — a stuck suppress flag drops later input (incl. e2e fills).
+    state.suppressEditorInput = false;
   }
   // Some browsers report success even when nothing changed (or the reverse).
   if (from < to || text !== "") {
     ok = editor.value !== before;
   }
-  state.suppressEditorInput = false;
 
   if (!ok) {
     if (typeof editor.setRangeText === "function") {
