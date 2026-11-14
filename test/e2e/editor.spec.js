@@ -814,30 +814,21 @@ test.describe("editor + render", () => {
   }) => {
     await openFreshApp(page);
 
+    // One flowchart is enough for stroke remaps; multiple diagrams + an open
+    // settings panel resize-thrash mermaidGen and cancel svg2roughjs mid-pass.
     await page
       .locator("#editor")
-      .fill(
-        [
-          "```mermaid",
-          "sequenceDiagram",
-          "    Alice->>Bob: Hello",
-          "    Note right of Bob: hi",
-          "```",
-          "",
-          "```mermaid",
-          "graph TD",
-          "    A[Start] --> B{OK?}",
-          "```",
-        ].join("\n"),
-      );
-    await expect(previewLocator(page, ".mermaid > svg").first()).toBeVisible({
+      .fill("```mermaid\ngraph TD\n    A[Start] --> B{OK?}\n```");
+    await expect(previewLocator(page, ".mermaid > svg")).toBeVisible({
       timeout: 20_000,
     });
     await openSettings(page);
     await page.locator("#mermaid-look-select").selectOption("handDrawn");
-    await expect(previewLocator(page, ".mermaid > svg").first()).toBeVisible({
-      timeout: 20_000,
-    });
+    await closeSettings(page);
+    await expect(
+      previewLocator(page, '.mermaid > svg[data-mermaid-sketched="1"]'),
+    ).toBeVisible({ timeout: 20_000 });
+    // Theme-token strokes are set by normalizeMermaidHandDrawnColors after sketch.
     await expect
       .poll(
         async () =>

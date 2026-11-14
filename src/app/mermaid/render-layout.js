@@ -129,10 +129,14 @@ export function schedulePendingMermaidRender() {
  */
 export function scheduleMermaidRelayout() {
   window.clearTimeout(state.mermaidRelayoutTimer);
+  // Hand-drawn sketching (svg2roughjs) often exceeds the classic 220ms debounce.
+  // Bumping mermaidGen mid-sketch cancels the pass and leaves classic SVGs
+  // without data-mermaid-sketched / var(--mermaid-*) paints (flaky e2e on CI).
+  const delay = state.mermaidLook === "handDrawn" ? 900 : 220;
   state.mermaidRelayoutTimer = window.setTimeout(() => {
     state.mermaidRelayoutTimer = 0;
     relayoutFluidMermaidDiagrams();
-  }, 220);
+  }, delay);
 }
 
 export function relayoutFluidMermaidDiagrams() {
