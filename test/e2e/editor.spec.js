@@ -257,6 +257,9 @@ test.describe("editor + render", () => {
     await page.locator("#files-open-file-btn").click();
     await expect(page.locator("#external-modal")).toBeVisible();
     await page.locator("#external-modal .external-modal-accept").click();
+    // Wait for dialog `close` → acceptExternalContent before editing; otherwise
+    // a late mark-clean can clear is-dirty after fillEditor.
+    await expect(page.locator("#external-modal")).toBeHidden();
     await expect(page.locator("#save-btn")).not.toHaveClass(/is-dirty/);
 
     await fillEditor(page, "# Conflict\n\nMine.");
