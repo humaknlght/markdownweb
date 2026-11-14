@@ -10,7 +10,7 @@ After editing JS, CSS, HTML, JSON, or other Biome-covered files:
 1. Run Biome on the **touched paths** (prefer scoped over whole-repo):
    `npx biome check --write --error-on-warnings --no-errors-on-unmatched --files-ignore-unknown=true -- <paths>`
 2. Fix any remaining diagnostics; do not leave failing lint.
-3. Do not disable rules or add ignore comments unless the user explicitly asks.
+3. Do not disable rules or add ignore comments unless the user explicitly asks. A `biome-ignore` does not waive separate unit-test invariants (for example the `styles.css` `!important` count in `editor-wrap-cascade.test.js` — see `styles-css-important`).
 4. Before committing, Husky `pre-commit` runs `npm run precommit` (`lint:staged` + `npm test`). Do not skip it.
 
 Match CI: `npm run lint` uses `biome check --error-on-warnings .`. Unit/script checks match `npm test`; e2e/build still need `npm run test:all` before relying on CI alone.

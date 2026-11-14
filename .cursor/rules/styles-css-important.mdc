@@ -1,0 +1,31 @@
+---
+description: styles.css may only use !important for the [hidden] polyfill
+globs: src/styles/**/*.css
+alwaysApply: false
+---
+
+# styles.css `!important` policy
+
+In `src/styles/styles.css`, **only** the `[hidden]` polyfill may use `!important`:
+
+```css
+[hidden] {
+  display: none !important;
+}
+```
+
+That polyfill is required because browsers no longer give `[hidden]` UA-level `!important`, and author `display:` rules must not defeat it.
+
+## Do
+
+- Prefer higher specificity or later cascade order instead of `!important`.
+- Keep view/theme/`[hidden]` conflicts solvable without new `!important`s.
+- Leave the existing `[hidden]` polyfill `biome-ignore` alone (Biome needs it for that one exception).
+
+## Do not
+
+- Add new `!important` in `styles.css`.
+- Add `biome-ignore lint/complexity/noImportantStyles` to waive new `!important`s — Biome ignores do **not** satisfy the unit-test invariant in `test/unit/editor-wrap-cascade.test.js` (“only [hidden] polyfill may use !important”).
+- Assume print.css / injected preview CSS policies apply to `styles.css`; this rule is specific to the main stylesheet.
+
+`npm test` / pre-commit (`npm run precommit`) will fail if `styles.css` gains extra `!important` declarations.
