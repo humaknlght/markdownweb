@@ -24,16 +24,31 @@ export async function preparePage(page, speechOptions = {}) {
 }
 
 /**
- * Fill the editor and ensure dirty chrome updates (CI has occasionally dropped
- * the synthetic `input` event from locator.fill()).
+ * Fill the editor and ensure dirty chrome updates.
+ * CI Chromium has intermittently applied locator.fill() without reliable
+ * `input`/`change` delivery; set the value in-page and dispatch both events.
  * @param {import('playwright/test').Page} page
  * @param {string} text
  */
 export async function fillEditor(page, text) {
   const editor = page.locator("#editor");
-  await editor.fill(text);
-  await expect(editor).toHaveValue(text);
-  await editor.dispatchEvent("input");
+  // Set value in-page and fire input+change in one turn. locator.fill() has
+  // intermittently left #save-btn without is-dirty on CI Chromium.
+  await expect(async () => {
+    await editor.evaluate((el, value) => {
+      el.focus();
+      el.value = value;
+      el.dispatchEvent(
+        new InputEvent("input", {
+          bubbles: true,
+          inputType: "insertFromPaste",
+          data: value,
+        }),
+      );
+      el.dispatchEvent(new Event("change", { bubbles: true }));
+    }, text);
+    await expect(editor).toHaveValue(text);
+  }).toPass();
 }
 
 /**
