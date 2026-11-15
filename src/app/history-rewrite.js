@@ -142,14 +142,22 @@ export async function rewriteHistoryChain(kept, generation, pruneCandidateIds) {
 }
 
 export function acceptExternalContent() {
+  // Prefer the content offered for trust, not a later editor value. The dialog
+  // `close` handler can run after the user (or e2e) has already typed, and
+  // markCleanFromEditor() would then treat those edits as already saved.
+  const baseline =
+    state.pendingExternalContent != null
+      ? state.pendingExternalContent
+      : hooks.getMarkdownSource();
   const content = hooks.getMarkdownSource();
   state.preExternalSnapshot = null;
   hooks.setContentExternal(false);
   void hooks.persistDraft(content);
   void hooks.pushHistory(content);
   hooks.clearShareMarkdownFromUrl();
-  // Accept establishes a clean baseline (share URL, upload, or OS / picker open).
-  hooks.markCleanFromEditor();
+  state.savedSnapshot = baseline;
+  hooks.writeSavedSnapshot(hooks.currentDocKey(), baseline);
+  hooks.updateSaveButton();
   state.pendingExternalFromUrl = false;
   hooks.renderMarkdown(content);
   hooks.scheduleEditorHighlight();

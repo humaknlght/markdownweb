@@ -129,8 +129,7 @@ export async function onRemoteStorageChange(mirrorRaw) {
   state.applyingRemoteStorage = true;
   try {
     hooks.renderHistoryMenu();
-    if (state.contentIsExternal || state.guideSession || hooks.isDirty())
-      return;
+    if (shouldSkipRemoteDraftApply()) return;
     const myKey = currentDocKey();
     let remote = null;
     let remoteKey = null;
@@ -145,6 +144,8 @@ export async function onRemoteStorageChange(mirrorRaw) {
 
     if (remote == null && state.historyIdbReady) {
       const draft = await getDraft(myKey);
+      // Re-check after await: local typing must not be overwritten mid-flight.
+      if (shouldSkipRemoteDraftApply()) return;
       if (draft) {
         remote = draft.content;
         remoteKey = draft.docKey;
@@ -161,6 +162,7 @@ export async function onRemoteStorageChange(mirrorRaw) {
 
     if (remoteKey != null && remoteKey !== myKey) return;
     if (remote == null || remote === hooks.getMarkdownSource()) return;
+    if (shouldSkipRemoteDraftApply()) return;
     hooks.setEditorValue(remote);
     state.lastHistoryContent = remote;
     hooks.renderMarkdown(remote);
@@ -168,6 +170,10 @@ export async function onRemoteStorageChange(mirrorRaw) {
   } finally {
     state.applyingRemoteStorage = false;
   }
+}
+
+function shouldSkipRemoteDraftApply() {
+  return state.contentIsExternal || state.guideSession || hooks.isDirty();
 }
 
 hooks.currentDocKey = currentDocKey;
