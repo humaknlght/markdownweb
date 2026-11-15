@@ -115,7 +115,7 @@ export function promptGistPersonalAccessToken() {
     };
     const onClose = () => {
       gistPatModal.removeEventListener("close", onClose);
-      cancelBtn?.removeEventListener("click", onCancel);
+      cancelBtn.removeEventListener("click", onCancel);
       const value = gistPatModal.returnValue;
       if (value !== "connect") {
         resolve(null);
