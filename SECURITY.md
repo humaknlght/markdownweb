@@ -41,7 +41,8 @@ In scope:
 - Cross-site scripting or HTML injection that runs in the preview or the page after sanitization
 - Content Security Policy bypasses in the shipped headers or production build
 - Escape from the sandboxed preview iframe (`allow-same-origin` without `allow-scripts`) into the app chrome, or preview-document CSP bypasses that load remote subresources
-- Share-link or file-open handling that runs or keeps untrusted Markdown without the external-content prompt
+- Share-link, open-from-URL, or file-open handling that runs or keeps untrusted Markdown without the external-content prompt
+- Main-page Content Security Policy `connect-src` widened to fetch arbitrary hosts (remote URL open must use the isolated `url-fetch-helper/` surface)
 - Service worker behavior that can serve attacker-controlled cached content
 - Subresource Integrity or import-map checks that allow a script outside the intended allowlist
 - Production build or Apache header changes that weaken the controls above

@@ -23,6 +23,28 @@ export const widthSelect = document.getElementById("width-select");
 export const mermaidLookSelect = document.getElementById("mermaid-look-select");
 export const fileInput = document.getElementById("file-input");
 export const filesOpenFileBtn = document.getElementById("files-open-file-btn");
+export const openUrlDialog = document.getElementById("open-url-dialog");
+export const openUrlForm = document.getElementById("open-url-form");
+export const openUrlInput = document.getElementById("open-url-input");
+export const openUrlError = document.getElementById("open-url-error");
+export const openUrlStatus = document.getElementById("open-url-status");
+export const openUrlOpenBtn = document.getElementById("open-url-open-btn");
+export const openUrlPickFileBtn = document.getElementById(
+  "open-url-pick-file-btn",
+);
+export const openUrlMainPanel = document.getElementById("open-url-main-panel");
+export const openUrlFallbackPanel = document.getElementById(
+  "open-url-fallback-panel",
+);
+export const openUrlNeedAuth = document.getElementById("open-url-need-auth");
+export const openUrlDropZone = document.getElementById("open-url-drop-zone");
+export const openUrlLinkBtn = document.getElementById("open-url-link-btn");
+export const openUrlHostInput = document.getElementById("open-url-host-input");
+export const openUrlHostsList = document.getElementById("open-url-hosts-list");
+export const openUrlInboxBtn = document.getElementById("open-url-inbox-btn");
+export const openUrlInboxLatestBtn = document.getElementById(
+  "open-url-inbox-latest-btn",
+);
 export const shareDropdown = document.getElementById("share-dropdown");
 export const shareBtn = document.getElementById("share-btn");
 export const shareMenu = document.getElementById("share-menu");

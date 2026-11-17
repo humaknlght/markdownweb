@@ -38,13 +38,14 @@ export const ICON_FILES = ["assets/icon-192.png", "assets/icon-512.png"];
 export const DEV_PRECACHE = [
   "./",
   "./index.html",
-  // drive-helper/ is intentionally omitted — auth popup must hit the network
-  // for COEP-free / Google CSP headers (see buildServiceWorker fetch bypass).
+  // drive-helper/ + url-fetch-helper/ are intentionally omitted — helpers must
+  // hit the network for their own CSP / COEP (see buildServiceWorker bypass).
   "./privacy.html",
   "./styles/styles.css",
   "./styles/print.css",
   ...DEV_FIRST_PARTY_MODULES,
   "./drive/drive-helper.js",
+  "./url-fetch/url-fetch-helper.js",
   "./assets/fancy.avif",
   "./GUIDE.md",
   "./manifest.webmanifest",
@@ -152,13 +153,31 @@ export function buildManifest(iconNames) {
   })}\n`;
 }
 
+/**
+ * True when pathname is a helper directory index (network-only; own CSP).
+ * @param {string} pathname
+ * @param {string} dirName
+ */
+function isHelperDirPath(pathname, dirName) {
+  const parts = pathname.split("/").filter(Boolean);
+  const i = parts.indexOf(dirName);
+  if (i < 0) return false;
+  return parts.length === i + 1 || parts[i + 1] === "index.html";
+}
+
 /** True when the URL is under the COEP-free Google Drive auth helper directory. */
 export function isDriveHelperPath(pathname) {
-  const parts = pathname.split("/").filter(Boolean);
-  const i = parts.indexOf("drive-helper");
-  if (i < 0) return false;
-  // /…/drive-helper, /…/drive-helper/, /…/drive-helper/index.html
-  return parts.length === i + 1 || parts[i + 1] === "index.html";
+  return isHelperDirPath(pathname, "drive-helper");
+}
+
+/** True when the URL is under the URL-fetch helper directory. */
+export function isUrlFetchHelperPath(pathname) {
+  return isHelperDirPath(pathname, "url-fetch-helper");
+}
+
+/** Drive auth or URL-fetch helper — SW must not intercept. */
+export function isIsolatedHelperPath(pathname) {
+  return isDriveHelperPath(pathname) || isUrlFetchHelperPath(pathname);
 }
 
 /**
@@ -167,7 +186,7 @@ export function isDriveHelperPath(pathname) {
  * @param {string} pathname
  */
 export function isMutableShellPath(pathname) {
-  if (isDriveHelperPath(pathname)) return false;
+  if (isIsolatedHelperPath(pathname)) return false;
   const file = pathname.endsWith("/")
     ? "index.html"
     : pathname.split("/").pop() || "";
@@ -202,11 +221,14 @@ function isMutableShell(pathname) {
   );
 }
 
-function isDriveHelperPath(pathname) {
+function isIsolatedHelperPath(pathname) {
   const parts = pathname.split("/").filter(Boolean);
-  const i = parts.indexOf("drive-helper");
-  if (i < 0) return false;
-  return parts.length === i + 1 || parts[i + 1] === "index.html";
+  for (const dirName of ["drive-helper", "url-fetch-helper"]) {
+    const i = parts.indexOf(dirName);
+    if (i < 0) continue;
+    if (parts.length === i + 1 || parts[i + 1] === "index.html") return true;
+  }
+  return false;
 }
 
 self.addEventListener("install", (event) => {
@@ -253,9 +275,9 @@ self.addEventListener("fetch", (event) => {
   const sameOrigin = url.origin === self.location.origin;
   const isCdn = url.hostname === "cdn.jsdelivr.net";
 
-  // Never intercept the Drive auth helper. A cached navigation response for
-  // index.html (main CSP + COEP) was being served at this URL and blocked GIS.
-  if (isDriveHelperPath(url.pathname)) return;
+  // Never intercept isolated helpers. A cached navigation response for
+  // index.html (main CSP + COEP) would break Drive GIS / URL-fetch CSP.
+  if (isIsolatedHelperPath(url.pathname)) return;
 
   if (request.mode === "navigate") {
     event.respondWith(

@@ -52,6 +52,7 @@ import "./sections-fold-anim.js";
 import "./sections-outline.js";
 import "./files/bootstrap.js";
 import "./files/open-drop.js";
+import "./url-open.js";
 import "./open-export.js";
 import "./view-present.js";
 import "./view-present-chrome.js";

@@ -21,6 +21,8 @@ import {
   buildDriveHelperContentSecurityPolicy,
   buildDriveHelperScriptSrc,
   buildScriptSrc,
+  buildUrlFetchHelperContentSecurityPolicy,
+  buildUrlFetchHelperScriptSrc,
   inlineScriptHashes,
 } from "./csp.mjs";
 import { createStateHooksManglePlugin } from "./mangle-state-hooks.mjs";
@@ -50,6 +52,7 @@ const SCRIPT_SRC_PLACEHOLDER = "__SCRIPT_SRC__";
 const GUIDE_URL_PLACEHOLDER = "__GUIDE_URL__";
 const SW_URL_PLACEHOLDER = "__SW_URL__";
 const DRIVE_HELPER_CSP_PLACEHOLDER = "__DRIVE_HELPER_CSP__";
+const URL_FETCH_HELPER_CSP_PLACEHOLDER = "__URL_FETCH_HELPER_CSP__";
 
 function formatBytes(bytes) {
   if (bytes < 1024) return `${bytes} B`;
@@ -207,6 +210,7 @@ async function buildJs(guideUrl, dropsUrl, zenCssUrl) {
     entryPoints: [
       path.join(srcDir, "app", "app.js"),
       path.join(srcDir, "drive", "drive-helper.js"),
+      path.join(srcDir, "url-fetch", "url-fetch-helper.js"),
     ],
     bundle: true,
     minify: true,
@@ -232,6 +236,7 @@ async function buildJs(guideUrl, dropsUrl, zenCssUrl) {
   const chunks = [];
   let entry = null;
   let driveHelper = null;
+  let urlFetchHelper = null;
   /** @type {Set<string>} */
   const lazyChunkNames = new Set();
 
@@ -257,6 +262,11 @@ async function buildJs(guideUrl, dropsUrl, zenCssUrl) {
       const name = hashedName("drive-helper", ".js", hash);
       await writeFile(path.join(distDir, name), buffer);
       driveHelper = { bytes: buffer.length, name, hash };
+    } else if (base === "url-fetch-helper.js") {
+      const hash = contentHash(buffer);
+      const name = hashedName("url-fetch-helper", ".js", hash);
+      await writeFile(path.join(distDir, name), buffer);
+      urlFetchHelper = { bytes: buffer.length, name, hash };
     } else {
       const name = base;
       await writeFile(path.join(distDir, name), buffer);
@@ -274,6 +284,9 @@ async function buildJs(guideUrl, dropsUrl, zenCssUrl) {
   if (!driveHelper) {
     throw new Error("esbuild produced no drive-helper.js entry");
   }
+  if (!urlFetchHelper) {
+    throw new Error("esbuild produced no url-fetch-helper.js entry");
+  }
 
   const bundledInputs = Object.keys(result.metafile?.inputs || {}).length;
   return {
@@ -283,6 +296,7 @@ async function buildJs(guideUrl, dropsUrl, zenCssUrl) {
     chunks,
     bundledInputs,
     driveHelper,
+    urlFetchHelper,
   };
 }
 
@@ -382,6 +396,28 @@ async function buildDriveHelperHtml({ jsName }) {
   return { bytes: buffer.length, scriptSrc, csp };
 }
 
+async function buildUrlFetchHelperHtml({ jsName }) {
+  let html = await readFile(
+    path.join(srcDir, "url-fetch-helper", "index.html"),
+    "utf8",
+  );
+  html = html.replace(
+    /src="\.\.\/url-fetch\/url-fetch-helper\.js"/,
+    `src="../${jsName}"`,
+  );
+
+  const minified = await minifyStaticHtml(html);
+  const buffer = Buffer.from(minified, "utf8");
+  const outDir = path.join(distDir, "url-fetch-helper");
+  await mkdir(outDir, { recursive: true });
+  await writeFile(path.join(outDir, "index.html"), buffer);
+
+  const hashes = inlineScriptHashes(minified);
+  const scriptSrc = buildUrlFetchHelperScriptSrc(hashes);
+  const csp = buildUrlFetchHelperContentSecurityPolicy(scriptSrc);
+  return { bytes: buffer.length, scriptSrc, csp };
+}
+
 async function buildPrivacyHtml() {
   const html = await readFile(path.join(srcDir, "privacy.html"), "utf8");
   const minified = await minifyStaticHtml(html);
@@ -396,6 +432,7 @@ async function buildPwa({
   jsName,
   jsChunks,
   driveHelperJsName,
+  urlFetchHelperJsName,
   fancyName,
   guideName,
   iconResults,
@@ -413,12 +450,13 @@ async function buildPwa({
   const localPrecache = [
     "./",
     "./index.html",
-    // drive-helper/: network-only (SW bypass) so GIS gets the helper CSP.
+    // drive-helper/ + url-fetch-helper/: network-only (SW bypass) for helper CSP.
     "./privacy.html",
     `./${cssName}`,
     `./${printCssName}`,
     `./${jsName}`,
     `./${driveHelperJsName}`,
+    `./${urlFetchHelperJsName}`,
     ...chunkUrls,
     `./${fancyName}`,
     `./${guideName}`,
@@ -499,7 +537,12 @@ async function precompressAssets() {
   return results;
 }
 
-async function writeApacheConfig(scriptSrc, guideUrl, driveHelperCsp) {
+async function writeApacheConfig(
+  scriptSrc,
+  guideUrl,
+  driveHelperCsp,
+  urlFetchHelperCsp,
+) {
   let htaccess = await readFile(path.join(root, "public", ".htaccess"), "utf8");
   if (!htaccess.includes(SCRIPT_SRC_PLACEHOLDER)) {
     throw new Error(
@@ -528,9 +571,28 @@ async function writeApacheConfig(scriptSrc, guideUrl, driveHelperCsp) {
   await mkdir(path.join(distDir, "drive-helper"), { recursive: true });
   await writeFile(path.join(distDir, "drive-helper", ".htaccess"), helperHt);
 
+  let urlFetchHt = await readFile(
+    path.join(root, "public", "url-fetch-helper", ".htaccess"),
+    "utf8",
+  );
+  if (!urlFetchHt.includes(URL_FETCH_HELPER_CSP_PLACEHOLDER)) {
+    throw new Error(
+      `public/url-fetch-helper/.htaccess missing ${URL_FETCH_HELPER_CSP_PLACEHOLDER} placeholder`,
+    );
+  }
+  urlFetchHt = urlFetchHt.replaceAll(
+    URL_FETCH_HELPER_CSP_PLACEHOLDER,
+    urlFetchHelperCsp,
+  );
+  await mkdir(path.join(distDir, "url-fetch-helper"), { recursive: true });
+  await writeFile(
+    path.join(distDir, "url-fetch-helper", ".htaccess"),
+    urlFetchHt,
+  );
+
   await writeFile(
     path.join(distDir, "csp.json"),
-    `${JSON.stringify({ scriptSrc, guideUrl, driveHelperCsp }, null, 2)}\n`,
+    `${JSON.stringify({ scriptSrc, guideUrl, driveHelperCsp, urlFetchHelperCsp }, null, 2)}\n`,
   );
 
   await copyFile(
@@ -563,6 +625,7 @@ async function main() {
     jsName: js.name,
     jsChunks: js.chunks,
     driveHelperJsName: js.driveHelper.name,
+    urlFetchHelperJsName: js.urlFetchHelper.name,
     fancyName: image.name,
     guideName: guide.name,
     iconResults: icons,
@@ -579,8 +642,16 @@ async function main() {
   const driveHelperHtml = await buildDriveHelperHtml({
     jsName: js.driveHelper.name,
   });
+  const urlFetchHelperHtml = await buildUrlFetchHelperHtml({
+    jsName: js.urlFetchHelper.name,
+  });
   const privacyHtml = await buildPrivacyHtml();
-  await writeApacheConfig(html.scriptSrc, guide.url, driveHelperHtml.csp);
+  await writeApacheConfig(
+    html.scriptSrc,
+    guide.url,
+    driveHelperHtml.csp,
+    urlFetchHelperHtml.csp,
+  );
   // Optional host credentials — never required; gitignored when present under src/.
   try {
     await copyFile(
@@ -603,6 +674,7 @@ async function main() {
   console.log("Assets (content-hashed for cache busting)");
   console.log(`  index.html     ${formatBytes(html.bytes)}`);
   console.log(`  drive-helper/     ${formatBytes(driveHelperHtml.bytes)}`);
+  console.log(`  url-fetch-helper/ ${formatBytes(urlFetchHelperHtml.bytes)}`);
   console.log(`  privacy.html  ${formatBytes(privacyHtml.bytes)}`);
   console.log(
     `  ${css.styles.name.padEnd(22)} ${formatBytes(css.styles.bytes)}`,
@@ -616,6 +688,9 @@ async function main() {
   );
   console.log(
     `  ${js.driveHelper.name.padEnd(22)} ${formatBytes(js.driveHelper.bytes)}  (Drive helper)`,
+  );
+  console.log(
+    `  ${js.urlFetchHelper.name.padEnd(22)} ${formatBytes(js.urlFetchHelper.bytes)}  (URL fetch helper)`,
   );
   for (const chunk of js.chunks || []) {
     const tag = chunk.lazy ? "lazy Zen chunk" : "lazy chunk";

@@ -80,3 +80,30 @@ export function buildDriveHelperContentSecurityPolicy(scriptSrc) {
     "upgrade-insecure-requests",
   ].join("; ");
 }
+
+/** script-src for url-fetch-helper/ (same-origin modules only). */
+export function buildUrlFetchHelperScriptSrc(hashes = []) {
+  const parts = ["'self'", ...hashes];
+  return parts.join(" ");
+}
+
+/**
+ * CSP for url-fetch-helper/ — may connect to any https host.
+ * Framed same-origin only; ships COEP require-corp to match the embedder.
+ * @param {string} scriptSrc
+ */
+export function buildUrlFetchHelperContentSecurityPolicy(scriptSrc) {
+  return [
+    "default-src 'self'",
+    "base-uri 'self'",
+    "object-src 'none'",
+    "frame-ancestors 'self'",
+    "form-action 'self'",
+    `script-src ${scriptSrc}`,
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data:",
+    "font-src 'self'",
+    "connect-src 'self' https:",
+    "upgrade-insecure-requests",
+  ].join("; ");
+}

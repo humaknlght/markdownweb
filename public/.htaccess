@@ -183,7 +183,8 @@ FileETag MTime Size
   # FilesMatch cannot be unset reliably from a subdirectory — skip it instead.
   # (Evidence: helper was getting app CSP + Link prefetch → …/drive-helper/GUIDE.*.md.)
   <IfModule mod_setenvif.c>
-    SetEnvIf Request_URI "drive-helper" IS_DRIVE_HELPER
+    # Isolated helpers own their CSP/COEP (drive-helper + url-fetch-helper).
+    SetEnvIf Request_URI "drive-helper|url-fetch-helper" IS_DRIVE_HELPER
   </IfModule>
 
   # Parent public_html/.htaccess sets CSP / Speculation-Rules / Link / etc. inside

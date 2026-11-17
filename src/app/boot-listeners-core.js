@@ -79,7 +79,7 @@ export function setupBootCoreListeners() {
   });
 
   filesOpenFileBtn?.addEventListener("click", () => {
-    void hooks.openLocalFileChooser();
+    hooks.openUnifiedOpenDialog();
   });
   fileInput?.addEventListener("change", () => {
     const file = fileInput.files?.[0];

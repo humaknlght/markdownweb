@@ -68,9 +68,7 @@ export function handleAppKeydown(e) {
     !hooks.isGistFilesSource()
   ) {
     e.preventDefault();
-    // Use the gesture window (preview iframe when focused) so showOpenFilePicker
-    // still sees transient user activation.
-    void hooks.openLocalFileChooser({ pickerWindow: e.view || window });
+    hooks.openUnifiedOpenDialog();
     return;
   }
 

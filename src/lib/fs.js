@@ -5,6 +5,7 @@ const IDB_VERSION = 1;
 const IDB_STORE = "handles";
 const DIR_HANDLE_KEY = "directory";
 const FILE_HANDLE_KEY = "currentFile";
+const INBOX_HANDLE_KEY = "openInbox";
 
 export const EDITABLE_FILE_RE = /\.(md|markdown|mdown|mkd|txt|html|htm)$/i;
 
@@ -256,6 +257,70 @@ export async function loadStoredCurrentFileHandle() {
     /* ignore */
   }
   return null;
+}
+
+/**
+ * Pick and remember an "inbox" folder for Open-from-URL auth fallbacks.
+ * @returns {Promise<FileSystemDirectoryHandle|null>}
+ */
+export async function pickOpenInboxDirectory() {
+  if (typeof window.showDirectoryPicker !== "function") return null;
+  const handle = await window.showDirectoryPicker({ mode: "read" });
+  await idbSet(INBOX_HANDLE_KEY, handle);
+  return handle;
+}
+
+/**
+ * @returns {Promise<FileSystemDirectoryHandle|null>}
+ */
+export async function loadStoredOpenInboxDirectory() {
+  try {
+    const handle = await idbGet(INBOX_HANDLE_KEY);
+    if (handle && handle.kind === "directory")
+      return /** @type {FileSystemDirectoryHandle} */ (handle);
+  } catch {
+    /* ignore */
+  }
+  return null;
+}
+
+/**
+ * @returns {Promise<void>}
+ */
+export async function clearStoredOpenInboxDirectory() {
+  try {
+    await idbDelete(INBOX_HANDLE_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+/**
+ * Newest editable file in an inbox directory (by lastModified).
+ * @param {FileSystemDirectoryHandle} dir
+ * @returns {Promise<{ handle: FileSystemFileHandle, name: string, lastModified: number } | null>}
+ */
+export async function findLatestEditableInDirectory(dir) {
+  if (!dir) return null;
+  /** @type {{ handle: FileSystemFileHandle, name: string, lastModified: number } | null} */
+  let best = null;
+  for await (const [name, handle] of dir.entries()) {
+    if (handle.kind !== "file" || !EDITABLE_FILE_RE.test(name)) continue;
+    try {
+      const file = await /** @type {FileSystemFileHandle} */ (handle).getFile();
+      const lastModified = file.lastModified || 0;
+      if (!best || lastModified > best.lastModified) {
+        best = {
+          handle: /** @type {FileSystemFileHandle} */ (handle),
+          name,
+          lastModified,
+        };
+      }
+    } catch {
+      /* skip unreadable entries */
+    }
+  }
+  return best;
 }
 
 /**

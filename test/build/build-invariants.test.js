@@ -78,7 +78,10 @@ describe("production build invariants", { timeout: 180_000 }, () => {
       assert.match(ht, /FilesMatch "\^sw\\.js/);
       assert.match(ht, /Cache-Control "no-cache"/);
       assert.match(ht, /Cross-Origin-Embedder-Policy "require-corp"/);
-      assert.match(ht, /SetEnvIf Request_URI "drive-helper" IS_DRIVE_HELPER/);
+      assert.match(
+        ht,
+        /SetEnvIf Request_URI "drive-helper\|url-fetch-helper" IS_DRIVE_HELPER/,
+      );
       assert.match(ht, /env=!IS_DRIVE_HELPER/);
       const helperHt = await fs.readFile(
         path.join(dist, "drive-helper", ".htaccess"),
@@ -87,6 +90,14 @@ describe("production build invariants", { timeout: 180_000 }, () => {
       assert.doesNotMatch(helperHt, /__DRIVE_HELPER_CSP__/);
       assert.match(helperHt, /Cross-Origin-Embedder-Policy "unsafe-none"/);
       assert.match(helperHt, /accounts\.google\.com/);
+      const urlFetchHt = await fs.readFile(
+        path.join(dist, "url-fetch-helper", ".htaccess"),
+        "utf8",
+      );
+      assert.doesNotMatch(urlFetchHt, /__URL_FETCH_HELPER_CSP__/);
+      assert.match(urlFetchHt, /connect-src 'self' https:/);
+      assert.match(urlFetchHt, /X-Frame-Options "SAMEORIGIN"/);
+      assert.match(urlFetchHt, /Cross-Origin-Embedder-Policy "require-corp"/);
 
       const csp = JSON.parse(
         await fs.readFile(path.join(dist, "csp.json"), "utf8"),
@@ -94,14 +105,25 @@ describe("production build invariants", { timeout: 180_000 }, () => {
       assert.match(csp.guideUrl, /^\.\/GUIDE\.[a-f0-9]{8}\.md$/);
       assert.match(csp.driveHelperCsp, /accounts\.google\.com/);
       assert.doesNotMatch(csp.driveHelperCsp, /apis\.google\.com/);
+      assert.match(csp.urlFetchHelperCsp, /connect-src[^;]*https:/);
+      assert.doesNotMatch(JSON.stringify(csp), /github\.corp/);
 
       const files = await fs.readdir(dist);
       assert.ok(files.some((f) => /^app\.[a-f0-9]{8}\.js$/.test(f)));
       assert.ok(files.some((f) => /^drive-helper\.[a-f0-9]{8}\.js$/.test(f)));
+      assert.ok(
+        files.some((f) => /^url-fetch-helper\.[a-f0-9]{8}\.js$/.test(f)),
+      );
       assert.ok(files.includes("drive-helper"));
+      assert.ok(files.includes("url-fetch-helper"));
       const helperFiles = await fs.readdir(path.join(dist, "drive-helper"));
       assert.ok(helperFiles.includes("index.html"));
       assert.ok(helperFiles.includes(".htaccess"));
+      const urlFetchFiles = await fs.readdir(
+        path.join(dist, "url-fetch-helper"),
+      );
+      assert.ok(urlFetchFiles.includes("index.html"));
+      assert.ok(urlFetchFiles.includes(".htaccess"));
       assert.ok(!files.includes("google-drive-config.example.json"));
       assert.ok(files.some((f) => /^print\.[a-f0-9]{8}\.css$/.test(f)));
       assert.ok(files.some((f) => /^icon-192\.[a-f0-9]{8}\.png$/.test(f)));
