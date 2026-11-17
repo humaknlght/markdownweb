@@ -319,6 +319,7 @@ describe("static source invariants", () => {
     );
     assert.match(robots, /User-agent:\s*\*/);
     assert.match(robots, /Disallow:\s*\/drive-helper\//);
+    assert.match(robots, /Disallow:\s*\/url-fetch-helper\//);
     assert.match(
       robots,
       /Sitemap:\s*https:\/\/markdown\.ericperret\.org\/sitemap\.xml/,
@@ -332,6 +333,7 @@ describe("static source invariants", () => {
     assert.match(sitemap, /https:\/\/markdown\.ericperret\.org\//);
     assert.match(sitemap, /https:\/\/markdown\.ericperret\.org\/privacy\.html/);
     assert.doesNotMatch(sitemap, /drive-helper/);
+    assert.doesNotMatch(sitemap, /url-fetch-helper/);
     assert.doesNotMatch(sitemap, /dev\.ericperret\.org/);
   });
 
@@ -341,15 +343,26 @@ describe("static source invariants", () => {
     assert.match(ht, /robots\\.txt\|sitemap\\.xml/);
     assert.match(ht, /__SCRIPT_SRC__/);
     assert.match(ht, /__GUIDE_URL__/);
-    assert.match(ht, /SetEnvIf Request_URI "drive-helper" IS_DRIVE_HELPER/);
+    assert.match(
+      ht,
+      /SetEnvIf Request_URI "drive-helper\|url-fetch-helper" IS_DRIVE_HELPER/,
+    );
     assert.match(ht, /env=!IS_DRIVE_HELPER/);
     assert.doesNotMatch(ht, /__DRIVE_HELPER_CSP__/);
+    assert.doesNotMatch(ht, /__URL_FETCH_HELPER_CSP__/);
     const helperHt = await fs.readFile(
       path.join(root, "public/drive-helper/.htaccess"),
       "utf8",
     );
     assert.match(helperHt, /__DRIVE_HELPER_CSP__/);
     assert.match(helperHt, /Cross-Origin-Embedder-Policy "unsafe-none"/);
+    const urlFetchHt = await fs.readFile(
+      path.join(root, "public/url-fetch-helper/.htaccess"),
+      "utf8",
+    );
+    assert.match(urlFetchHt, /__URL_FETCH_HELPER_CSP__/);
+    assert.match(urlFetchHt, /X-Frame-Options "SAMEORIGIN"/);
+    assert.match(urlFetchHt, /Cross-Origin-Embedder-Policy "require-corp"/);
     assert.match(ht, /rel=prefetch/);
     assert.match(ht, /web-share=\(\)/);
     assert.match(ht, /fullscreen=\(self\)/);

@@ -144,6 +144,8 @@ test.describe("editor + render", () => {
     await openFreshApp(page);
     await page.locator("#files-toggle-btn").click();
     await page.locator("#files-open-file-btn").click();
+    await expect(page.locator("#open-url-dialog")).toBeVisible();
+    await page.locator("#open-url-pick-file-btn").click();
     await expect(page.locator("#external-modal")).toBeVisible();
     await expect(page.locator("#editor")).toHaveValue(/# Opened/);
     await page.locator("#external-modal .external-modal-accept").click();
@@ -209,6 +211,9 @@ test.describe("editor + render", () => {
       process.platform === "darwin" ? "Meta+o" : "Control+o",
     );
 
+    // Unified Open dialog (file or URL); Choose file uses showOpenFilePicker.
+    await expect(page.locator("#open-url-dialog")).toBeVisible();
+    await page.locator("#open-url-pick-file-btn").click();
     await expect
       .poll(async () => page.evaluate(() => window.__mdShortcutOpens))
       .toBeGreaterThan(0);
@@ -255,6 +260,8 @@ test.describe("editor + render", () => {
     await openFreshApp(page);
     await page.locator("#files-toggle-btn").click();
     await page.locator("#files-open-file-btn").click();
+    await expect(page.locator("#open-url-dialog")).toBeVisible();
+    await page.locator("#open-url-pick-file-btn").click();
     await expect(page.locator("#external-modal")).toBeVisible();
     await page.locator("#external-modal .external-modal-accept").click();
     // Wait for dialog `close` → acceptExternalContent before editing; otherwise

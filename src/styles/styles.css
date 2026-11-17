@@ -1624,6 +1624,99 @@ body.files-source-drive .gist-only:not(.cloud-only):not(.files-source-btn) {
   display: none;
 }
 
+.open-url-modal {
+  width: min(28rem, calc(100% - 2.5rem));
+}
+
+.open-url-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.open-url-error {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--chrome-danger, #cf222e);
+}
+
+.open-url-status {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--chrome-muted);
+}
+
+.open-url-need-auth {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.open-url-hosts {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-top: 0.25rem;
+}
+
+.open-url-host-row {
+  display: flex;
+  gap: 0.45rem;
+}
+
+.open-url-hosts-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.open-url-host-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.8125rem;
+}
+
+.open-url-actions {
+  flex-wrap: wrap;
+}
+
+.open-url-drop {
+  margin-top: 0.85rem;
+  padding: 0.85rem 1rem;
+  border: 1px dashed var(--chrome-border);
+  border-radius: 8px;
+  text-align: center;
+  font-size: 0.8125rem;
+  color: var(--chrome-muted);
+}
+
+.open-url-drop.is-dragover {
+  border-color: var(--chrome-text);
+  color: var(--chrome-text);
+  background: color-mix(in srgb, var(--chrome-text) 6%, transparent);
+}
+
+.open-url-drop-large {
+  margin: 0.85rem 0;
+  min-height: 5.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.9375rem;
+}
+
+.open-url-fallback-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-bottom: 0.35rem;
+}
+
 .gist-pat-form {
   display: flex;
   flex-direction: column;
@@ -1645,6 +1738,11 @@ body.files-source-drive .gist-only:not(.cloud-only):not(.files-source-btn) {
   color: inherit;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 0.85rem;
+}
+
+.open-url-host-row .gist-pat-input {
+  flex: 1;
+  min-width: 0;
 }
 
 .files-drawer-actions {

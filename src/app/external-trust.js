@@ -42,6 +42,21 @@ export function clearShareMarkdownFromUrl() {
   history.replaceState(null, "", url);
 }
 
+/** Strip open-from-URL `url` param from query and hash. */
+export function clearOpenUrlFromLocation() {
+  const url = new URL(window.location.href);
+  url.searchParams.delete("url");
+
+  if (url.hash.length > 1) {
+    const hashParams = new URLSearchParams(url.hash.slice(1));
+    hashParams.delete("url");
+    url.hash = hashParams.toString();
+  }
+
+  history.replaceState(null, "", url);
+}
+
 hooks.isExternalModalOpen = isExternalModalOpen;
 hooks.syncExternalModal = syncExternalModal;
 hooks.clearShareMarkdownFromUrl = clearShareMarkdownFromUrl;
+hooks.clearOpenUrlFromLocation = clearOpenUrlFromLocation;

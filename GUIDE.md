@@ -15,11 +15,14 @@ This guide covers how to use the app and every Markdown feature it supports.
 
 ### Opening files
 
-- **Open file** — In the Files drawer, use **Open file** (or `Ctrl`/`Cmd`+`O`) to load `.md`, `.markdown`, `.txt`, `.html`, or `.htm` files. On Chromium with the File System Access API, this uses the system file picker and keeps a handle so **Save** can update the same file.
+- **Open** — In the Files drawer, use the first action icon (or `Ctrl`/`Cmd`+`O`) to open a local file **or** paste an `https://` URL. On Chromium with the File System Access API, choosing a local file keeps a handle so **Save** can update the same path.
+- **Open from URL** — Public Markdown URLs (including **github.com** blob/raw and `raw.githubusercontent.com`) are fetched in a same-origin helper (main-page CSP is unchanged). Hosts must allow CORS. Private **github.com** (and optional enterprise hosts you add in the Open dialog) use the GitHub Contents API with a personal access token stored in this browser (same vault style as Gist; the token needs Contents read for those repos). Company hostnames stay in your browser only.
+- **Slack and other auth-gated links** — The app cannot read private Slack (or similar) URLs directly. The Open dialog switches to a download fallback: open the link, download the file, then drop it or use **Choose file**. On Chromium you can set an **inbox folder** and open the latest `.md` from it.
+- **Deep link** — `/#url=https://…/file.md` (or `?url=`) runs the same Open flow on load. Share params `md` / `mdz` take precedence when present.
 - **Drag and drop** — Drop a file onto the window to load it. When the browser provides a file handle, Save can write back to that path too.
 - **Open with (PWA)** — An installed app can register as a handler for `.md` / `.markdown` files.
 
-When Markdown arrives from a share link, upload, or OS file open, an **External content** dialog asks you to **Accept** or **Reject** it. Until you Accept, the preview stays blank and editor syntax highlighting is off — only the plain source is shown — so untrusted Markdown is not parsed. After **Accept**, the opened content is a clean baseline (not marked unsaved) until you edit it. Browsers without File System Access fall back to a plain file input; those opens cannot write back to the original path (Save becomes Save As).
+When Markdown arrives from a share link, remote URL, upload, or OS file open, an **External content** dialog asks you to **Accept** or **Reject** it. Until you Accept, the preview stays blank and editor syntax highlighting is off — only the plain source is shown — so untrusted Markdown is not parsed. After **Accept**, the opened content is a clean baseline (not marked unsaved) until you edit it. Browsers without File System Access fall back to a plain file input; those opens cannot write back to the original path (Save becomes Save As).
 
 ### Paste an image
 

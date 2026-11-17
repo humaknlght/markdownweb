@@ -153,6 +153,8 @@ export async function init() {
     hooks.setEditorValue(guide ?? "");
     state.lastHistoryContent = guide ?? "";
     hooks.setContentExternal(false);
+  } else if (await hooks.tryOpenUrlFromLocation()) {
+    urlIsExternal = true;
   } else {
     state.pendingExternalFromUrl = false;
     // Prefer IndexedDB draft for this doc; fall back to localStorage mirror; seed GUIDE once.

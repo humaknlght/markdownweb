@@ -28,6 +28,8 @@ import {
   buildDriveHelperContentSecurityPolicy,
   buildDriveHelperScriptSrc,
   buildScriptSrc,
+  buildUrlFetchHelperContentSecurityPolicy,
+  buildUrlFetchHelperScriptSrc,
   inlineScriptHashes,
 } from "./csp.mjs";
 import { injectDevLocalModulepreloads } from "./dev-module-graph.mjs";
@@ -78,6 +80,12 @@ async function resolveCspConfig() {
             : buildDriveHelperContentSecurityPolicy(
                 buildDriveHelperScriptSrc([]),
               ),
+        urlFetchHelperCsp:
+          typeof parsed.urlFetchHelperCsp === "string"
+            ? parsed.urlFetchHelperCsp
+            : buildUrlFetchHelperContentSecurityPolicy(
+                buildUrlFetchHelperScriptSrc([]),
+              ),
       };
     }
   } catch {
@@ -99,10 +107,14 @@ async function resolveCspConfig() {
     driveHelperCsp: buildDriveHelperContentSecurityPolicy(
       buildDriveHelperScriptSrc([]),
     ),
+    urlFetchHelperCsp: buildUrlFetchHelperContentSecurityPolicy(
+      buildUrlFetchHelperScriptSrc([]),
+    ),
   };
 }
 
-const { scriptSrc, guideUrl, driveHelperCsp } = await resolveCspConfig();
+const { scriptSrc, guideUrl, driveHelperCsp, urlFetchHelperCsp } =
+  await resolveCspConfig();
 const contentSecurityPolicy = buildContentSecurityPolicy(scriptSrc);
 
 const HTML_HEADERS = {
@@ -131,19 +143,39 @@ const DRIVE_HELPER_HTML_HEADERS = {
   "Referrer-Policy": "strict-origin-when-cross-origin",
 };
 
-/** True for HTML under the Drive auth helper directory (own CSP / no COEP). */
-function isDriveHelperHtml(logicalPath) {
+/** URL fetch helper iframe: COEP require-corp (must match embedder); https: connect-src. */
+const URL_FETCH_HELPER_HTML_HEADERS = {
+  "Cache-Control": "no-store",
+  "Permissions-Policy": HTML_HEADERS["Permissions-Policy"],
+  "Strict-Transport-Security": "max-age=31536000",
+  "Content-Security-Policy": urlFetchHelperCsp,
+  "X-Frame-Options": "SAMEORIGIN",
+  "Cross-Origin-Embedder-Policy": "require-corp",
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+};
+
+/**
+ * @param {string} logicalPath
+ * @param {string} dirName
+ */
+function isHelperHtml(logicalPath, dirName) {
   const parts = logicalPath.split(path.sep);
-  const i = parts.lastIndexOf("drive-helper");
+  const i = parts.lastIndexOf(dirName);
   if (i < 0 || i >= parts.length - 1) return false;
   const file = parts[parts.length - 1];
   return file === "index.html" || file.endsWith(".html");
 }
 
 function headersFor(logicalPath, encoding) {
-  if (isDriveHelperHtml(logicalPath)) {
+  if (isHelperHtml(logicalPath, "drive-helper")) {
     return buildHeaders(logicalPath, encoding, {
       htmlHeaders: DRIVE_HELPER_HTML_HEADERS,
+    });
+  }
+  if (isHelperHtml(logicalPath, "url-fetch-helper")) {
+    return buildHeaders(logicalPath, encoding, {
+      htmlHeaders: URL_FETCH_HELPER_HTML_HEADERS,
     });
   }
   return buildHeaders(logicalPath, encoding, { htmlHeaders: HTML_HEADERS });

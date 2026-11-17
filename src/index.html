@@ -717,7 +717,7 @@
             </div>
           </div>
           <div class="files-drawer-actions" id="files-section-actions">
-            <button type="button" class="btn svg-btn local-only" id="files-open-file-btn" title="Open file (Ctrl/Cmd+O)" aria-label="Open file">
+            <button type="button" class="btn svg-btn local-only" id="files-open-file-btn" title="Open file or URL (Ctrl/Cmd+O)" aria-label="Open file or URL">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
                 <path d="M4 22h14a2 2 0 0 0 2-2V7l-5-5H6a2 2 0 0 0-2 2v4" />
                 <path d="M14 2v4a2 2 0 0 0 2 2h4" />
@@ -1031,6 +1031,78 @@
   <div class="drop-overlay" id="drop-overlay" hidden aria-hidden="true">
     <p class="drop-overlay-card">Drop a Markdown file to load it</p>
   </div>
+
+  <dialog
+    class="external-modal open-url-modal"
+    id="open-url-dialog"
+    aria-labelledby="open-url-title"
+  >
+    <h2 class="external-modal-title" id="open-url-title">Open</h2>
+    <div id="open-url-main-panel">
+      <p class="external-modal-desc">
+        Paste an <code>https://</code> URL, or choose a local file. Private GitHub links need a personal access token with Contents access (saved in this browser like Gist).
+      </p>
+      <form id="open-url-form" class="open-url-form">
+        <label class="gist-pat-label" for="open-url-input">Paste a URL</label>
+        <input
+          type="url"
+          id="open-url-input"
+          class="gist-pat-input"
+          name="url"
+          placeholder="https://…"
+          autocomplete="off"
+          spellcheck="false"
+        />
+        <p class="open-url-error" id="open-url-error" hidden></p>
+        <p class="open-url-status" id="open-url-status" hidden></p>
+        <div class="open-url-need-auth" id="open-url-need-auth" hidden>
+          <button type="button" class="btn" id="open-url-connect-github-btn">
+            Connect GitHub token
+          </button>
+        </div>
+        <div class="open-url-hosts">
+          <label class="gist-pat-label" for="open-url-host-input">Enterprise host (optional)</label>
+          <div class="open-url-host-row">
+            <input
+              type="text"
+              id="open-url-host-input"
+              class="gist-pat-input"
+              placeholder="github.example.com"
+              autocomplete="off"
+              spellcheck="false"
+            />
+            <button type="button" class="btn" id="open-url-add-host-btn">Add</button>
+          </div>
+          <ul class="open-url-hosts-list" id="open-url-hosts-list"></ul>
+        </div>
+        <div class="external-modal-actions open-url-actions">
+          <button type="button" class="btn external-modal-reject" value="cancel">Cancel</button>
+          <button type="button" class="btn" id="open-url-pick-file-btn">Choose file</button>
+          <button type="submit" class="btn external-modal-accept" id="open-url-open-btn">Open</button>
+        </div>
+      </form>
+      <p class="open-url-drop" id="open-url-drop-zone">Drop a .md file here</p>
+    </div>
+    <div id="open-url-fallback-panel" hidden>
+      <p class="external-modal-desc">
+        This link needs a download in your browser (authentication or CORS). Download the file, then drop it here or choose it.
+      </p>
+      <div class="open-url-fallback-actions">
+        <button type="button" class="btn" id="open-url-link-btn">Open link</button>
+        <button type="button" class="btn" id="open-url-fallback-file-btn">Choose file</button>
+        <button type="button" class="btn" id="open-url-inbox-btn" hidden>Use inbox folder</button>
+        <button type="button" class="btn" id="open-url-inbox-latest-btn" hidden>
+          Open latest from inbox
+        </button>
+      </div>
+      <p class="open-url-drop open-url-drop-large" id="open-url-fallback-drop">
+        Drop .md here
+      </p>
+      <div class="external-modal-actions">
+        <button type="button" class="btn external-modal-reject" value="cancel">Cancel</button>
+      </div>
+    </div>
+  </dialog>
 
   <dialog
     class="external-modal"

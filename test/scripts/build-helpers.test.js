@@ -11,6 +11,8 @@ import {
   buildDriveHelperContentSecurityPolicy,
   buildDriveHelperScriptSrc,
   buildScriptSrc,
+  buildUrlFetchHelperContentSecurityPolicy,
+  buildUrlFetchHelperScriptSrc,
   extractInlineScripts,
   inlineScriptHashes,
   sha256Base64,
@@ -24,7 +26,9 @@ import {
   DEV_PRECACHE,
   ICON_FILES,
   isDriveHelperPath,
+  isIsolatedHelperPath,
   isMutableShellPath,
+  isUrlFetchHelperPath,
   precacheVersion,
 } from "../../scripts/pwa.mjs";
 import {
@@ -133,6 +137,15 @@ describe("csp.mjs", () => {
     assert.doesNotMatch(csp, /oauth2\.googleapis\.com/);
     assert.doesNotMatch(csp, /docs\.google\.com/);
   });
+
+  it("builds URL fetch helper CSP with https connect-src", () => {
+    const src = buildUrlFetchHelperScriptSrc([]);
+    assert.equal(src, "'self'");
+    const csp = buildUrlFetchHelperContentSecurityPolicy(src);
+    assert.match(csp, /connect-src[^;]*https:/);
+    assert.match(csp, /frame-ancestors 'self'/);
+    assert.doesNotMatch(csp, /accounts\.google\.com/);
+  });
 });
 
 describe("cdn-integrity.mjs", () => {
@@ -218,6 +231,8 @@ describe("pwa.mjs", () => {
     // Auth helper directory is network-only (not a mutable SW shell).
     assert.equal(isMutableShellPath("/drive-helper/"), false);
     assert.equal(isMutableShellPath("/drive-helper/index.html"), false);
+    assert.equal(isMutableShellPath("/url-fetch-helper/"), false);
+    assert.equal(isMutableShellPath("/url-fetch-helper/index.html"), false);
     assert.equal(isMutableShellPath("/google-drive-config.json"), true);
     assert.equal(isMutableShellPath("/github-gist-config.json"), true);
     assert.equal(isMutableShellPath("/"), true);
@@ -234,15 +249,19 @@ describe("pwa.mjs", () => {
       precacheUrls: ["./", "./index.html", "./privacy.html"],
       version: "test123",
     });
-    assert.match(sw, /function isDriveHelperPath/);
-    assert.match(sw, /if \(isDriveHelperPath\(url\.pathname\)\) return;/);
-    assert.match(sw, /parts\.indexOf\("drive-helper"\)/);
+    assert.match(sw, /function isIsolatedHelperPath/);
+    assert.match(sw, /if \(isIsolatedHelperPath\(url\.pathname\)\) return;/);
+    assert.match(sw, /url-fetch-helper/);
     assert.ok(!DEV_PRECACHE.includes("./drive-helper.html"));
     assert.ok(!DEV_PRECACHE.includes("./drive-helper/"));
+    assert.ok(!DEV_PRECACHE.includes("./url-fetch-helper/"));
     assert.equal(isDriveHelperPath("/drive-helper"), true);
     assert.equal(isDriveHelperPath("/drive-helper/"), true);
     assert.equal(isDriveHelperPath("/drive-helper/index.html"), true);
     assert.equal(isDriveHelperPath("/markdown/drive-helper/"), true);
+    assert.equal(isUrlFetchHelperPath("/url-fetch-helper/"), true);
+    assert.equal(isUrlFetchHelperPath("/url-fetch-helper/index.html"), true);
+    assert.equal(isIsolatedHelperPath("/url-fetch-helper/"), true);
     assert.equal(isDriveHelperPath("/index.html"), false);
   });
 
