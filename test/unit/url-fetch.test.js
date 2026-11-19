@@ -5,6 +5,7 @@ import {
   githubContentsApiUrl,
   githubRawContentUrl,
   parseGithubFileUrl,
+  tokenAllowedFor,
 } from "../../src/url-fetch/github-url.js";
 import {
   fileNameFromUrl,
@@ -128,5 +129,77 @@ describe("github-url", () => {
       "public",
     );
     assert.equal(classifyOpenUrl("https://example.com/x.md"), "public");
+  });
+});
+
+describe("tokenAllowedFor", () => {
+  it("sends the github.com token only to api.github.com", () => {
+    assert.equal(
+      tokenAllowedFor(
+        "https://api.github.com/repos/a/b/contents/x.md",
+        "github.com",
+      ),
+      true,
+    );
+    assert.equal(
+      tokenAllowedFor(
+        "https://github.evil.test/api/v3/repos/a/b/contents/x.md",
+        "github.com",
+      ),
+      false,
+    );
+    assert.equal(
+      tokenAllowedFor("https://api.github.com.evil.test/repos", "github.com"),
+      false,
+    );
+  });
+
+  it("sends an enterprise token only to that host's /api/v3", () => {
+    const host = "git.example.test";
+    assert.equal(
+      tokenAllowedFor(`https://${host}/api/v3/repos/a/b/contents/x.md`, host),
+      true,
+    );
+    assert.equal(tokenAllowedFor(`https://${host}/a/b/blob/x.md`, host), false);
+    assert.equal(
+      tokenAllowedFor("https://api.github.com/repos/a/b/contents/x.md", host),
+      false,
+    );
+    assert.equal(
+      tokenAllowedFor(`https://${host}.evil.test/api/v3/repos`, host),
+      false,
+    );
+    assert.equal(
+      tokenAllowedFor(`https://${host}:8443/api/v3/repos`, host),
+      false,
+    );
+    assert.equal(tokenAllowedFor(`http://${host}/api/v3/repos`, host), false);
+  });
+
+  it("matches the API URL built for parsed targets", () => {
+    const target = parseGithubFileUrl(
+      "https://git.example.test/org/repo/blob/main/a.md",
+      ["git.example.test"],
+    );
+    assert.ok(target);
+    assert.equal(
+      tokenAllowedFor(githubContentsApiUrl(target), target.host),
+      true,
+    );
+    assert.equal(
+      tokenAllowedFor(githubContentsApiUrl(target), "github.com"),
+      false,
+    );
+  });
+
+  it("never allows a token for raw.githubusercontent.com or empty hosts", () => {
+    assert.equal(
+      tokenAllowedFor(
+        "https://raw.githubusercontent.com/a/b/main/x.md",
+        "raw.githubusercontent.com",
+      ),
+      false,
+    );
+    assert.equal(tokenAllowedFor("https://api.github.com/repos", ""), false);
   });
 });

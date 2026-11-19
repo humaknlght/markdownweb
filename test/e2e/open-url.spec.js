@@ -50,6 +50,42 @@ test.describe("open from URL", () => {
     );
   });
 
+  test("enterprise host gets no token and asks for its own", async ({
+    page,
+  }) => {
+    await preparePage(page);
+    const host = "git.example.test";
+    /** @type {(string | undefined)[]} */
+    const authHeaders = [];
+    await page.route(`https://${host}/api/v3/**`, async (route) => {
+      authHeaders.push(route.request().headers().authorization);
+      await route.fulfill({
+        status: 404,
+        contentType: "application/json",
+        body: '{"message":"Not Found"}',
+        headers: { "Access-Control-Allow-Origin": "*" },
+      });
+    });
+    await page.goto("/");
+    await waitForAppReady(page);
+
+    await page.keyboard.press("ControlOrMeta+KeyO");
+    await expect(page.locator("#open-url-dialog")).toBeVisible();
+    await page.locator("#open-url-host-input").fill(host);
+    await page.locator("#open-url-add-host-btn").click();
+    await page
+      .locator("#open-url-input")
+      .fill(`https://${host}/org/repo/blob/main/README.md`);
+    await page.locator("#open-url-open-btn").click();
+
+    await expect(page.locator("#open-url-connect-github-btn")).toHaveText(
+      `Connect token for ${host}`,
+    );
+    await expect(page.locator("#open-url-error")).toContainText(host);
+    expect(authHeaders.length).toBeGreaterThan(0);
+    expect(authHeaders.every((h) => h === undefined)).toBe(true);
+  });
+
   test("Slack URL opens fallback panel in Open dialog", async ({ page }) => {
     await preparePage(page);
     await page.goto("/");

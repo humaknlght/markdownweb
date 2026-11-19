@@ -143,8 +143,7 @@ export function parseGithubFileUrl(value, extraHosts) {
     };
   }
 
-  const apiBase =
-    host === GITHUB_COM ? "https://api.github.com" : `https://${host}/api/v3`;
+  const apiBase = githubApiBase(host);
 
   // /owner/repo/(blob|raw|tree)/ref/path...
   const parts = url.pathname.split("/").filter(Boolean);
@@ -163,6 +162,35 @@ export function parseGithubFileUrl(value, extraHosts) {
     name: rest[rest.length - 1] || "untitled.md",
     host,
   };
+}
+
+/**
+ * REST API base for a GitHub or GitHub-compatible host.
+ * @param {string} host
+ * @returns {string}
+ */
+export function githubApiBase(host) {
+  const normalized = normalizeHost(host);
+  return normalized === GITHUB_COM
+    ? "https://api.github.com"
+    : `https://${normalized}/api/v3`;
+}
+
+/**
+ * Whether a token saved for `tokenHost` may be sent with a request to `requestUrl`.
+ * Tokens only ever go to the REST API of the host they were entered for.
+ * @param {string} requestUrl
+ * @param {string} tokenHost
+ * @returns {boolean}
+ */
+export function tokenAllowedFor(requestUrl, tokenHost) {
+  const url = parseHttpsUrl(requestUrl);
+  const host = normalizeHost(tokenHost);
+  if (!url || !host || host === RAW_GITHUBUSERCONTENT) return false;
+  const base = new URL(githubApiBase(host));
+  if (url.origin !== base.origin) return false;
+  if (base.pathname === "/") return true;
+  return url.pathname.startsWith(`${base.pathname}/`);
 }
 
 /**
