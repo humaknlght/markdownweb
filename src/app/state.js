@@ -37,6 +37,9 @@ export const openUrlFallbackPanel = document.getElementById(
   "open-url-fallback-panel",
 );
 export const openUrlNeedAuth = document.getElementById("open-url-need-auth");
+export const openUrlConnectGithubBtn = document.getElementById(
+  "open-url-connect-github-btn",
+);
 export const openUrlDropZone = document.getElementById("open-url-drop-zone");
 export const openUrlLinkBtn = document.getElementById("open-url-link-btn");
 export const openUrlHostInput = document.getElementById("open-url-host-input");

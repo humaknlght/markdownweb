@@ -463,8 +463,15 @@ export async function deriveVaultKey(credIdB64, saltB64) {
  * @param {number} expiresAt
  * @param {CryptoKey} key
  * @param {{ kind?: string, credId: string, salt: string }} meta
+ * @param {string} [storageKey]
  */
-export async function sealToken(token, expiresAt, key, meta) {
+export async function sealToken(
+  token,
+  expiresAt,
+  key,
+  meta,
+  storageKey = GIST_TOKEN_STORAGE_KEY,
+) {
   if (meta.kind === VAULT_KIND_IDB) {
     throw new Error("IndexedDB vault sealing is no longer supported");
   }
@@ -486,17 +493,18 @@ export async function sealToken(token, expiresAt, key, meta) {
     ct: b64(ct),
     expiresAt,
   };
-  localStorage.setItem(GIST_TOKEN_STORAGE_KEY, JSON.stringify(blob));
+  localStorage.setItem(storageKey, JSON.stringify(blob));
   writeVaultMeta(meta);
   return blob;
 }
 
 /**
  * @param {CryptoKey} key
+ * @param {string} [storageKey]
  * @returns {Promise<{ token: string, expiresAt: number } | null>}
  */
-export async function unsealToken(key) {
-  const raw = localStorage.getItem(GIST_TOKEN_STORAGE_KEY);
+export async function unsealToken(key, storageKey = GIST_TOKEN_STORAGE_KEY) {
+  const raw = localStorage.getItem(storageKey);
   if (!raw) return null;
   const parsed = JSON.parse(raw);
   if (
@@ -512,7 +520,7 @@ export async function unsealToken(key) {
   }
   const expiresAt = Number(parsed.expiresAt);
   if (!Number.isFinite(expiresAt) || Date.now() >= expiresAt) {
-    localStorage.removeItem(GIST_TOKEN_STORAGE_KEY);
+    localStorage.removeItem(storageKey);
     return null;
   }
   const iv = unb64(parsed.iv);
@@ -526,7 +534,7 @@ export async function unsealToken(key) {
   if (typeof payload?.token !== "string") return null;
   const tokenExpires = Number(payload.expiresAt);
   if (Number.isFinite(tokenExpires) && Date.now() >= tokenExpires) {
-    localStorage.removeItem(GIST_TOKEN_STORAGE_KEY);
+    localStorage.removeItem(storageKey);
     return null;
   }
   return {

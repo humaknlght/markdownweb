@@ -9,6 +9,7 @@ import {
   githubRawContentUrl,
   parseGithubFileUrl,
   readGithubCompatibleHosts,
+  tokenAllowedFor,
   writeGithubCompatibleHosts,
 } from "../url-fetch/github-url.js";
 import { fileNameFromUrl, parseHttpsUrl } from "../url-fetch/url-fetch-api.js";
@@ -16,6 +17,7 @@ import { fetchViaUrlHelper } from "../url-fetch/url-fetch-client.js";
 import { hooks } from "./hooks.js";
 import {
   fileInput,
+  openUrlConnectGithubBtn,
   openUrlDialog,
   openUrlDropZone,
   openUrlError,
@@ -35,18 +37,26 @@ import {
   state,
 } from "./state.js";
 import {
+  assertTokenNotSavedForOtherHost,
   ensureHandlePermission,
   findLatestEditableInDirectory,
   getGistAccessToken,
+  getGithubHostToken,
   hasSealedGistSession,
+  hasSealedGithubHostToken,
   isFsAccessSupported,
   loadStoredOpenInboxDirectory,
   pickOpenInboxDirectory,
   prepareGistTokenVault,
   readTextFileMeta,
+  removeGithubHostToken,
   setGistPersonalAccessToken,
+  setGithubHostToken,
   unlockGistAccessToken,
+  unlockGithubHostToken,
 } from "./vendor-deps.js";
+
+const GITHUB_COM = "github.com";
 
 /** @type {string} */
 let pendingFallbackUrl = "";
@@ -118,6 +128,7 @@ function renderHostsList() {
     remove.textContent = "Remove";
     remove.addEventListener("click", () => {
       writeGithubCompatibleHosts(hosts.filter((h) => h !== host));
+      removeGithubHostToken(host);
       renderHostsList();
     });
     li.append(label, remove);
@@ -138,22 +149,41 @@ async function refreshInboxButtons() {
 }
 
 /**
+ * Token saved for exactly this host: the Gist token for github.com, otherwise
+ * the per-host enterprise token. Never falls back to another host's token.
+ * @param {string} host
  * @returns {Promise<string | null>}
  */
-async function resolveGithubToken() {
-  const existing = getGistAccessToken();
+async function resolveTokenForHost(host) {
+  const isGithubCom = host === GITHUB_COM;
+  const existing = isGithubCom
+    ? getGistAccessToken()
+    : getGithubHostToken(host);
   if (existing) return existing;
-  if (hasSealedGistSession()) {
-    try {
-      const unlocked = await unlockGistAccessToken();
-      if (unlocked) return unlocked;
-    } catch (err) {
-      if (err?.name === "AbortError" || err?.name === "NotAllowedError") {
-        return null;
-      }
-    }
+  const sealed = isGithubCom
+    ? hasSealedGistSession()
+    : hasSealedGithubHostToken(host);
+  if (!sealed) return null;
+  try {
+    return isGithubCom
+      ? await unlockGistAccessToken()
+      : await unlockGithubHostToken(host);
+  } catch {
+    return null;
   }
-  return null;
+}
+
+/**
+ * @param {string} host
+ */
+function showNeedAuth(host) {
+  if (openUrlConnectGithubBtn) {
+    openUrlConnectGithubBtn.textContent =
+      host === GITHUB_COM
+        ? "Connect GitHub token"
+        : `Connect token for ${host}`;
+  }
+  if (openUrlNeedAuth) openUrlNeedAuth.hidden = false;
 }
 
 /**
@@ -261,8 +291,10 @@ async function openGithubContentsUrl(urlString) {
       }
     }
 
-    const token = await resolveGithubToken();
     const apiUrl = githubContentsApiUrl(target);
+    const token = tokenAllowedFor(apiUrl, target.host)
+      ? await resolveTokenForHost(target.host)
+      : null;
     try {
       return finishOk(
         await fetchViaUrlHelper(
@@ -276,13 +308,14 @@ async function openGithubContentsUrl(urlString) {
         err?.code === "unauthorized" ||
         (!token && err?.code === "not_found")
       ) {
-        if (openUrlNeedAuth) openUrlNeedAuth.hidden = false;
+        showNeedAuth(target.host);
+        const site = target.host === GITHUB_COM ? "GitHub" : target.host;
         setDialogError(
           token
-            ? "GitHub returned unauthorized — check the token scopes (Contents read)."
+            ? `${site} returned unauthorized — check the token scopes (Contents read).`
             : err?.code === "not_found"
-              ? "File not found, or the repository is private — connect a personal access token with Contents access."
-              : "Connect GitHub with a personal access token that can read this repository (Contents).",
+              ? `File not found, or the repository is private — connect a personal access token from ${site} with Contents access.`
+              : `Connect a personal access token from ${site} that can read this repository (Contents).`,
         );
         return "need_auth";
       }
@@ -444,32 +477,41 @@ function setupOpenUrlDialog() {
       hooks.showToast("Enterprise host saved in this browser");
     });
 
-  document
-    .getElementById("open-url-connect-github-btn")
-    ?.addEventListener("click", () => {
-      void (async () => {
-        const url = openUrlInput?.value?.trim() || "";
+  openUrlConnectGithubBtn?.addEventListener("click", () => {
+    void (async () => {
+      const url = openUrlInput?.value?.trim() || "";
+      const host = parseGithubFileUrl(url)?.host || GITHUB_COM;
+      try {
         try {
-          try {
-            await prepareGistTokenVault();
-          } catch (err) {
-            if (err?.name === "AbortError" || err?.name === "NotAllowedError")
-              return;
-          }
-          const pat = await hooks.promptGistPersonalAccessToken();
-          if (!pat) return;
-          await setGistPersonalAccessToken(pat);
-          hooks.showToast("GitHub token saved in this browser");
-          if (openUrlNeedAuth) openUrlNeedAuth.hidden = true;
-          setDialogError("");
-          if (url) await openMarkdownFromUrl(url);
+          await prepareGistTokenVault();
         } catch (err) {
           if (err?.name === "AbortError" || err?.name === "NotAllowedError")
             return;
-          hooks.showToast(err?.message || "Could not save GitHub token");
         }
-      })();
-    });
+        const pat = await hooks.promptGistPersonalAccessToken({ host });
+        if (!pat) return;
+        if (host === GITHUB_COM) {
+          await assertTokenNotSavedForOtherHost(pat, GITHUB_COM);
+          await setGistPersonalAccessToken(pat);
+          hooks.showToast("GitHub token saved in this browser");
+        } else {
+          await setGithubHostToken(host, pat);
+          hooks.showToast(`Token for ${host} saved in this browser`);
+        }
+        if (openUrlNeedAuth) openUrlNeedAuth.hidden = true;
+        setDialogError("");
+        if (url) await openMarkdownFromUrl(url);
+      } catch (err) {
+        if (err?.name === "AbortError" || err?.name === "NotAllowedError")
+          return;
+        if (err?.name === "TokenReuseError") {
+          setDialogError(err.message);
+          return;
+        }
+        hooks.showToast(err?.message || "Could not save GitHub token");
+      }
+    })();
+  });
 
   openUrlInboxBtn?.addEventListener("click", async () => {
     try {

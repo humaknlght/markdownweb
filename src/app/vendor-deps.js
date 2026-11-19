@@ -49,6 +49,15 @@ export {
 } from "../gist/github-gist.js";
 export { loadGithubGistConfig } from "../gist/github-gist-config.js";
 export {
+  assertTokenNotSavedForOtherHost,
+  clearSharedGithubTokenOnce,
+  getGithubHostToken,
+  hasSealedGithubHostToken,
+  removeGithubHostToken,
+  setGithubHostToken,
+  unlockGithubHostToken,
+} from "../gist/github-host-tokens.js";
+export {
   clearStoredDirectory,
   clearStoredOpenInboxDirectory,
   createFile,

@@ -2,6 +2,7 @@ import { MERMAID_LOOKS, STORAGE_KEYS, THEMES, WIDTHS } from "./constants.js";
 import { hooks } from "./hooks.js";
 import { panes, state } from "./state.js";
 import {
+  clearSharedGithubTokenOnce,
   getTip,
   githubGistEnabled,
   googleDriveEnabled,
@@ -69,6 +70,11 @@ export async function init() {
   state.driveConfigured = googleDriveEnabled();
   await loadGithubGistConfig();
   state.gistConfigured = githubGistEnabled();
+  if (clearSharedGithubTokenOnce()) {
+    hooks.showToast(
+      "GitHub token cleared after a security update — connect again when needed.",
+    );
+  }
   hooks.setupFilesDrawer();
   hooks.setupDocOutline();
   hooks.setupMermaidZoom();

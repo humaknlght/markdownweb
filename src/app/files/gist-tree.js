@@ -8,6 +8,7 @@ import {
   state,
 } from "../state.js";
 import {
+  assertTokenNotSavedForOtherHost,
   clearGistAccessToken,
   editableGistFiles,
   ensureGistAccessToken,
@@ -99,16 +100,49 @@ export async function refreshGistTree() {
 }
 
 /**
+ * Swap the PAT modal copy to name an enterprise host; returns a restore function.
+ * @param {string} host
+ * @returns {() => void}
+ */
+function labelPatModalForHost(host) {
+  const title = gistPatModal?.querySelector("#gist-pat-title");
+  const desc = gistPatModal?.querySelector("#gist-pat-desc");
+  if (!title || !desc) return () => {};
+  const savedTitle = title.textContent;
+  const savedDesc = [...desc.childNodes].map((n) => n.cloneNode(true));
+  title.textContent = `Connect ${host}`;
+  const code = document.createElement("code");
+  code.textContent = host;
+  desc.replaceChildren(
+    `Paste a personal access token created on ${host} with Contents read access. `,
+    "It stays in this browser (memory, optionally sealed with a passkey) and is only sent to ",
+    code,
+    ".",
+  );
+  return () => {
+    title.textContent = savedTitle;
+    desc.replaceChildren(...savedDesc);
+  };
+}
+
+/**
+ * @param {{ host?: string }} [opts] enterprise host the token is for (default github.com)
  * @returns {Promise<string | null>} PAT or null if cancelled
  */
-export function promptGistPersonalAccessToken() {
+export function promptGistPersonalAccessToken(opts = {}) {
+  const host = opts.host && opts.host !== "github.com" ? opts.host : "";
   return new Promise((resolve) => {
     if (!gistPatModal || typeof gistPatModal.showModal !== "function") {
-      const raw = window.prompt("GitHub personal access token (gist scope)");
+      const raw = window.prompt(
+        host
+          ? `Personal access token for ${host} (Contents read)`
+          : "GitHub personal access token (gist scope)",
+      );
       resolve(raw == null ? null : String(raw).trim() || null);
       return;
     }
     if (gistPatInput) gistPatInput.value = "";
+    const restoreCopy = host ? labelPatModalForHost(host) : () => {};
     const cancelBtn = gistPatModal.querySelector('button[value="cancel"]');
     const onCancel = () => {
       gistPatModal.close("cancel");
@@ -116,6 +150,7 @@ export function promptGistPersonalAccessToken() {
     const onClose = () => {
       gistPatModal.removeEventListener("close", onClose);
       cancelBtn.removeEventListener("click", onCancel);
+      restoreCopy();
       const value = gistPatModal.returnValue;
       if (value !== "connect") {
         resolve(null);
@@ -168,6 +203,7 @@ export async function connectGithubGist() {
         }
         const pat = await promptGistPersonalAccessToken();
         if (!pat) return;
+        await assertTokenNotSavedForOtherHost(pat, "github.com");
         await verifyGistToken(pat);
         await setGistPersonalAccessToken(pat);
       }
