@@ -176,59 +176,6 @@ export function relayoutFluidMermaidDiagrams() {
 }
 
 /**
- * Mermaid sometimes keeps `taskText` + middle anchoring when the label is wider
- * than the bar, but still parks `x` at the bar's right edge. That reads as a
- * large left gap inside the bar (common in readable width). Promote those
- * labels to outside-right placement.
- * @param {SVGElement} svg
- */
-export function fixMermaidGanttLabels(svg) {
-  if (svg.getAttribute("aria-roledescription") !== "gantt") return;
-  const bars = [...svg.querySelectorAll("rect")]
-    .map((r) => ({
-      className: r.getAttribute("class") || "",
-      x: Number(r.getAttribute("x")),
-      y: Number(r.getAttribute("y")),
-      w: Number(r.getAttribute("width")),
-      h: Number(r.getAttribute("height")),
-    }))
-    .filter(
-      (b) =>
-        /\b(task|active|done|crit)\b/i.test(b.className) &&
-        Number.isFinite(b.x) &&
-        Number.isFinite(b.w) &&
-        b.h >= 12 &&
-        b.h <= 28 &&
-        b.w > 0,
-    );
-
-  for (const text of svg.querySelectorAll("text")) {
-    const cls = text.getAttribute("class") || "";
-    if (!/\btaskText\b|\b(?:active|done|crit)Text\d/.test(cls)) continue;
-    if (/\btaskTextOutside(?:Left|Right)\b/.test(cls)) continue;
-
-    const widthMatch = cls.match(/\bwidth-([\d.]+)\b/);
-    const textW = widthMatch ? Number(widthMatch[1]) : 0;
-    const x = Number(text.getAttribute("x"));
-    const y = Number(text.getAttribute("y"));
-    if (!(textW > 0) || !Number.isFinite(x) || !Number.isFinite(y)) continue;
-
-    const bar = bars
-      .map((b) => ({ ...b, yDist: Math.abs(b.y + b.h / 2 - y) }))
-      .sort((a, b) => a.yDist - b.yDist)[0];
-    if (!bar || bar.yDist > bar.h || textW <= bar.w + 1) continue;
-
-    const barEnd = bar.x + bar.w;
-    const sec = cls.match(/\btaskText(\d)\b/)?.[1];
-    text.classList.add("taskTextOutsideRight");
-    if (sec != null) text.classList.add(`taskTextOutside${sec}`);
-    text.setAttribute("text-anchor", "start");
-    // Mermaid's outside-right offset is ~5px past the bar end.
-    text.setAttribute("x", String(barEnd + 5));
-  }
-}
-
-/**
  * Render Mermaid diagrams that still need it. Skips nodes that are not laid out
  * (`[hidden]` / `.md-section-folded`) unless `force` is set — those get a wrong
  * viewBox if measured while display:none. Call again when a slide/section is shown.
@@ -279,49 +226,37 @@ export async function renderMermaidDiagrams({ force = false } = {}) {
   // Defer narrow hosts (esp. gantt) — leave data-pending for resize retry.
   const nodes = candidates.filter((el) => hooks.mermaidHostWideEnough(el));
 
-  /** @type {{ el: HTMLElement, staging: HTMLElement }[]} */
-  const staged = [];
+  /** @type {Map<HTMLElement, { svg: string | null, scopeId: string, sourceSize: object | null }>} */
+  const results = new Map();
   try {
     if (nodes.length) {
       if (state.mermaidLook === "handDrawn")
         await hooks.ensureExcalifontLoaded();
       if (gen !== state.mermaidGen) return;
-      const mermaid = await hooks.loadMermaid();
-      if (gen !== state.mermaidGen) return;
-      mermaid.initialize(hooks.mermaidConfig());
-      // Run Mermaid in the parent document. Rendering into the sandboxed preview
-      // iframe yields empty SVGs (layout/sanitize against a foreign Document).
-      for (const el of nodes) {
+      // Mermaid + svg2roughjs run in the opaque-origin sandbox frame; only
+      // sanitized SVG markup comes back into the preview.
+      const items = nodes.map((el) => {
         hooks.rememberMermaidSource(el);
-        const staging = document.createElement("div");
-        staging.className = "mermaid";
-        staging.textContent = mermaidSources.get(el) ?? "";
-        staging.style.cssText = `position:absolute;left:-99999px;top:0;width:${Math.max(el.clientWidth, 1)}px;visibility:hidden;pointer-events:none;`;
-        document.body.appendChild(staging);
-        staged.push({ el, staging });
-      }
-      await mermaid.run({
-        nodes: staged.map((s) => s.staging),
-        suppressErrors: true,
+        return {
+          source: mermaidSources.get(el) ?? "",
+          width: Math.max(el.clientWidth, 1),
+        };
       });
-      for (const { el, staging } of staged) {
-        const srcSvg =
-          staging.querySelector(":scope > svg") ||
-          [...staging.querySelectorAll("svg")].find(
-            (node) => !node.closest(".mermaid-zoom-btn"),
-          );
-        if (srcSvg) {
-          const adopted = /** @type {SVGElement} */ (
-            el.ownerDocument.importNode(srcSvg, true)
-          );
-          el.replaceChildren(adopted);
-        }
-      }
+      const rendered = await hooks.renderMermaidInSandbox(items, {
+        sketch: hooks.mermaidNeedsSketch(),
+      });
+      if (gen !== state.mermaidGen) return;
+      nodes.forEach((el, i) => {
+        const result = rendered[i];
+        const svg = hooks.adoptSandboxMermaidSvg(result, el.ownerDocument);
+        if (!svg) return;
+        el.replaceChildren(svg);
+        results.set(el, result);
+      });
     }
   } catch {
-    /* invalid diagrams render into their nodes; import failures are ignored */
+    /* renderer load / timeout failures leave the diagram source visible */
   } finally {
-    for (const { staging } of staged) staging.remove();
     for (const undo of restore.reverse()) undo();
   }
 
@@ -329,18 +264,10 @@ export async function renderMermaidDiagrams({ force = false } = {}) {
   for (const el of nodes) {
     el.removeAttribute("data-pending");
     // Fresh SVG from this run — retag natural/fluid at the current host width.
-    let svg = el.querySelector(":scope > svg");
+    const svg = el.querySelector(":scope > svg");
     if (svg) {
-      fixMermaidGanttLabels(svg);
-      if (hooks.mermaidNeedsSketch()) {
-        try {
-          const sketched = await hooks.sketchMermaidSvg(svg);
-          if (gen !== state.mermaidGen) return;
-          if (sketched) svg = sketched;
-        } catch {
-          /* keep the classic Mermaid SVG if the sketcher fails to load */
-        }
-      }
+      const sourceSize = results.get(el)?.sourceSize;
+      if (sourceSize) hooks.finishSketchedMermaidSvg(svg, sourceSize);
       // Sketched SVGs already recorded natural size from the classic CSS box —
       // don't wipe it or syncMermaidSvgSizes will treat width=host as "fluid"
       // and stretch them again.
@@ -348,8 +275,8 @@ export async function renderMermaidDiagrams({ force = false } = {}) {
         delete svg.dataset.mermaidNatural;
         delete svg.dataset.mermaidFluid;
       }
-      // Mermaid bindFunctions attach JS listeners (lost on importNode into the
-      // sandboxed preview). Re-apply click hrefs as real SVG <a> links.
+      // Mermaid bindFunctions attach JS listeners that never cross the sandbox
+      // boundary. Re-apply click hrefs as real SVG <a> links.
       const srcForLinks = mermaidSources.get(el) ?? "";
       if (srcForLinks) hooks.linkMermaidSvgClicks?.(svg, srcForLinks);
     }
@@ -392,6 +319,5 @@ hooks.scheduleMermaidScale = scheduleMermaidScale;
 hooks.schedulePendingMermaidRender = schedulePendingMermaidRender;
 hooks.scheduleMermaidRelayout = scheduleMermaidRelayout;
 hooks.relayoutFluidMermaidDiagrams = relayoutFluidMermaidDiagrams;
-hooks.fixMermaidGanttLabels = fixMermaidGanttLabels;
 hooks.renderMermaidDiagrams = renderMermaidDiagrams;
 hooks.rerenderAllMermaidDiagrams = rerenderAllMermaidDiagrams;

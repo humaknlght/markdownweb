@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { collectDevFirstPartyModuleUrls } from "./dev-module-graph.mjs";
@@ -7,10 +8,37 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const srcDir = path.resolve(__dirname, "..", "src");
 const DEV_FIRST_PARTY_MODULES = collectDevFirstPartyModuleUrls(srcDir);
 
-/** CDN modules the app needs fully offline (import map). Mermaid ESM entry is
- * precached; diagram chunks are cached on first use by the service worker.
- * highlight.js language grammars (beyond markdown/xml) load on demand and are
- * cached by the SW after first use. */
+/** @param {string} url */
+export function isMermaidSandboxCdnUrl(url) {
+  return /\/npm\/(?:mermaid@|svg2roughjs@|roughjs@|points-on-|path-data-parser@|hachure-fill@)/.test(
+    url,
+  );
+}
+
+/** Full Mermaid / svg2roughjs graphs from the SRI manifest (for SW precache). */
+export function mermaidSandboxCdnGraphUrls(
+  integrity = JSON.parse(
+    readFileSync(path.join(srcDir, "cdn-integrity.json"), "utf8"),
+  ),
+) {
+  return Object.keys(integrity).filter(isMermaidSandboxCdnUrl);
+}
+
+/** CDN modules the app needs fully offline (import map). highlight.js language
+ * grammars (beyond markdown/xml) load on demand and are cached by the SW after
+ * first use. */
+/**
+ * Mermaid + svg2roughjs entry URLs. The opaque sandbox cannot use the SW or
+ * the parent HTTP cache; the app fetches these graphs (SRI) and feeds them
+ * into the frame as blob: modules. Entries stay in CDN_PRECACHE; the full
+ * graph is appended at build/dev from cdn-integrity.json.
+ */
+export const MERMAID_SANDBOX_CDN_ENTRIES = [
+  "https://cdn.jsdelivr.net/npm/mermaid@12.2.0/dist/mermaid.esm.min.mjs",
+  // RoughJS SVG sketch for Mermaid Hand-drawn look (all diagram types).
+  "https://cdn.jsdelivr.net/npm/svg2roughjs@3.2.3/+esm",
+];
+
 export const CDN_PRECACHE = [
   "https://cdn.jsdelivr.net/npm/marked@18.1.1/lib/marked.esm.js",
   "https://cdn.jsdelivr.net/npm/dompurify@3.4.17/dist/purify.es.mjs",
@@ -20,17 +48,15 @@ export const CDN_PRECACHE = [
   "https://cdn.jsdelivr.net/npm/gemoji@8.1.0/+esm",
   "https://cdn.jsdelivr.net/npm/yaml@2.9.1/+esm",
   "https://cdn.jsdelivr.net/npm/@octokit/rest@22.0.1/+esm",
-  "https://cdn.jsdelivr.net/npm/mermaid@12.2.0/dist/mermaid.esm.min.mjs",
+  ...MERMAID_SANDBOX_CDN_ENTRIES,
 ];
 
 /**
- * CDN modules loaded on demand (not SW-precached). Their full module graphs are
- * still hashed into `cdn-integrity.json` so dynamic `import()` is SRI-gated.
+ * CDN modules hashed into `cdn-integrity.json` for on-demand SRI loads but not
+ * entry-preached beyond what CDN_PRECACHE / the Mermaid graph cover. Kept as an
+ * alias of the Mermaid entries so the integrity walker still seeds that graph.
  */
-export const CDN_LAZY = [
-  // RoughJS SVG sketch for Mermaid Hand-drawn look (all diagram types).
-  "https://cdn.jsdelivr.net/npm/svg2roughjs@3.2.3/+esm",
-];
+export const CDN_LAZY = [...MERMAID_SANDBOX_CDN_ENTRIES];
 
 export const ICON_FILES = ["assets/icon-192.png", "assets/icon-512.png"];
 
@@ -38,8 +64,12 @@ export const ICON_FILES = ["assets/icon-192.png", "assets/icon-512.png"];
 export const DEV_PRECACHE = [
   "./",
   "./index.html",
-  // drive-helper/ + url-fetch-helper/ are intentionally omitted — helpers must
+  // drive-helper/ and url-fetch-helper/ are intentionally omitted — they must
   // hit the network for their own CSP / COEP (see buildServiceWorker bypass).
+  // mermaid-sandbox/ is precached so the opaque renderer shell works offline;
+  // Mermaid ESM still arrives via parent-fed blobs from the CDN graph below.
+  "./mermaid-sandbox/",
+  "./mermaid-sandbox/index.html",
   "./privacy.html",
   "./styles/styles.css",
   "./styles/print.css",
@@ -50,7 +80,7 @@ export const DEV_PRECACHE = [
   "./GUIDE.md",
   "./manifest.webmanifest",
   ...ICON_FILES.map((name) => `./${name}`),
-  ...CDN_PRECACHE,
+  ...new Set([...CDN_PRECACHE, ...mermaidSandboxCdnGraphUrls()]),
 ];
 
 function contentHash(buffer) {
@@ -175,7 +205,12 @@ export function isUrlFetchHelperPath(pathname) {
   return isHelperDirPath(pathname, "url-fetch-helper");
 }
 
-/** Drive auth or URL-fetch helper — SW must not intercept. */
+/** True when the URL is the opaque-origin Mermaid renderer page. */
+export function isMermaidSandboxPath(pathname) {
+  return isHelperDirPath(pathname, "mermaid-sandbox");
+}
+
+/** Drive auth or URL-fetch helper — SW must not intercept (fresh CSP / COEP). */
 export function isIsolatedHelperPath(pathname) {
   return isDriveHelperPath(pathname) || isUrlFetchHelperPath(pathname);
 }
@@ -276,7 +311,8 @@ self.addEventListener("fetch", (event) => {
   const isCdn = url.hostname === "cdn.jsdelivr.net";
 
   // Never intercept isolated helpers. A cached navigation response for
-  // index.html (main CSP + COEP) would break Drive GIS / URL-fetch CSP.
+  // index.html (main CSP + COEP) would break Drive GIS / URL-fetch / Mermaid
+  // sandbox CSP.
   if (isIsolatedHelperPath(url.pathname)) return;
 
   if (request.mode === "navigate") {

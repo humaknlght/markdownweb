@@ -81,6 +81,12 @@ export const PREVIEW_FRAME_CSP = buildPreviewFrameCsp("");
 export const PREVIEW_FRAME_SANDBOX = "allow-same-origin allow-popups";
 
 /**
+ * Mermaid zoom stage iframe: same-origin so the parent can write/measure the
+ * SVG; no `allow-scripts` so a sanitizer miss cannot run JS in the app origin.
+ */
+export const MERMAID_ZOOM_FRAME_SANDBOX = "allow-same-origin";
+
+/**
  * PDF print iframe: same as preview, plus `allow-modals` so `window.print()`
  * is not blocked by the sandbox (HTML `allow-modals` covers print dialogs).
  */
@@ -136,15 +142,22 @@ export const PRESENT_SWIPE_MIN_DX = 56;
 export const DRAWER_CLOSE_SWIPE_MIN_DX = 56;
 export const SPEECH_HIGHLIGHT = "speech-word";
 
-export const MERMAID_CDN =
-  "https://cdn.jsdelivr.net/npm/mermaid@12.2.0/dist/mermaid.esm.min.mjs";
 /**
- * RoughJS SVG sketcher for the Excalidraw (handDrawn) look.
- * Mermaid's native handDrawn uses dense hachure fills that fail WCAG (fill color
- * becomes stroke ink). We always render classic Mermaid, then sketch with solid fills.
+ * Mermaid and svg2roughjs (Excalidraw look) run in this opaque-origin frame,
+ * never in the app document. Pinned CDN URLs live in mermaid-sandbox/runtime.js.
  */
-export const SVG2ROUGH_CDN =
-  "https://cdn.jsdelivr.net/npm/svg2roughjs@3.2.3/+esm";
+export const MERMAID_SANDBOX_PATH = "./mermaid-sandbox/";
+/** No `allow-same-origin`: the renderer cannot reach app storage or DOM. */
+export const MERMAID_SANDBOX_FRAME_SANDBOX = "allow-scripts";
+export const MERMAID_SANDBOX_MESSAGE = "md-mermaid-sandbox";
+/** Includes SRI fetch of the Mermaid graph on first use (cold cache). */
+export const MERMAID_SANDBOX_READY_TIMEOUT_MS = 60_000;
+export const MERMAID_SANDBOX_RENDER_TIMEOUT_MS = 60_000;
+/** CDN entries the app fetches (SRI) and feeds into the sandbox as blob modules. */
+export const MERMAID_SANDBOX_CDN_ENTRIES = [
+  "https://cdn.jsdelivr.net/npm/mermaid@12.2.0/dist/mermaid.esm.min.mjs",
+  "https://cdn.jsdelivr.net/npm/svg2roughjs@3.2.3/+esm",
+];
 
 export const MERMAID_MIN_HOST_WIDTH = 48;
 export const MERMAID_MIN_GANTT_HOST_WIDTH = 220;

@@ -1,11 +1,13 @@
 import { hooks } from "../hooks.js";
 import {
   driveEntries,
+  editor,
   expandedPaths,
   filesTree,
   fsAccessSupported,
   fsEntries,
   gistEntries,
+  previewPane,
   state,
 } from "../state.js";
 import {
@@ -27,6 +29,14 @@ export async function finishOpenDocument(name, seq = state.openDocumentSeq) {
   if (seq !== state.openDocumentSeq) return;
   await hooks.persistDraft(hooks.getMarkdownSource());
   if (seq !== state.openDocumentSeq) return;
+  // setEditorValue leaves the caret at EOF; start a freshly opened doc at the
+  // top so sync-scroll / caret reveal cannot yank the preview to the bottom.
+  if (editor) {
+    editor.setSelectionRange(0, 0);
+    editor.scrollTop = 0;
+    hooks.invalidateCaretLineCache?.();
+  }
+  if (previewPane) previewPane.scrollTop = 0;
   hooks.renderMarkdown(hooks.getMarkdownSource());
   await hooks.pushHistory(hooks.getMarkdownSource());
   if (seq !== state.openDocumentSeq) return;

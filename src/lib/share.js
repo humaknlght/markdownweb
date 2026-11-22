@@ -69,16 +69,56 @@ export async function compressUtf8ToBase64Url(text) {
 }
 
 /**
+ * Upper bound on decoded share-URL content (`md` and `mdz`). Deflate can
+ * expand ~1000x, so a URL-sized `mdz` could otherwise inflate to gigabytes.
+ */
+export const SHARE_MAX_DECODED_BYTES = 5 * 1024 * 1024;
+
+/** Longest `md` value whose base64url decoding fits in the decoded limit. */
+const MD_MAX_PARAM_CHARS = Math.ceil(SHARE_MAX_DECODED_BYTES / 3) * 4;
+
+/**
+ * @param {Uint8Array} bytes
+ * @param {number} maxBytes
+ * @returns {Promise<Uint8Array>}
+ */
+async function inflateRawWithLimit(bytes, maxBytes) {
+  const reader = new Blob([bytes])
+    .stream()
+    .pipeThrough(new DecompressionStream("deflate-raw"))
+    .getReader();
+  /** @type {Uint8Array[]} */
+  const chunks = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maxBytes) {
+      await reader.cancel().catch(() => {});
+      throw new RangeError(`Decompressed payload exceeds ${maxBytes} bytes`);
+    }
+    chunks.push(value);
+  }
+  const out = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    out.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return out;
+}
+
+/**
  * @param {string} value
+ * @param {{ maxBytes?: number }} [opts]
  * @returns {Promise<string>}
  */
-export async function decompressBase64UrlToUtf8(value) {
-  const compressed = base64UrlToBytes(value);
-  const inflated = await pipeThroughCompression(
-    compressed,
-    DecompressionStream,
-    "deflate-raw",
-  );
+export async function decompressBase64UrlToUtf8(
+  value,
+  { maxBytes = SHARE_MAX_DECODED_BYTES } = {},
+) {
+  const inflated = await inflateRawWithLimit(base64UrlToBytes(value), maxBytes);
   return new TextDecoder().decode(inflated);
 }
 
@@ -88,6 +128,7 @@ export async function decompressBase64UrlToUtf8(value) {
  */
 export function decodeMdParam(md) {
   if (md == null || md === "") return null;
+  if (md.length > MD_MAX_PARAM_CHARS) return null;
   try {
     return base64UrlToUtf8(md);
   } catch {

@@ -172,6 +172,10 @@ function maybeRevealPreviewAfterHeightSettle() {
   // Drop stale anchors measured before the image/Mermaid height change.
   hooks.invalidateScrollAnchors?.();
   hooks.beginSyncDriver?.("editor");
+  // Re-align to the editor viewport first. Mermaid/image growth can leave the
+  // preview scrolled away from the editor (scroll anchoring / stale targets);
+  // caret reveal alone would keep an EOF caret pinned to the bottom.
+  hooks.syncPreviewFromEditor?.();
   // Bypass same-line skip so settle still re-reveals after geometry changes.
   state.lastCaretRevealLine = 0;
   hooks.revealPreviewForEditorCaret?.();

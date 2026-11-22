@@ -71,6 +71,8 @@ export async function loadHelpGuide() {
   hooks.updateSaveButton();
   hooks.setContentExternal(false);
   if (state.currentView !== "edit") hooks.setView("edit", { syncUrl: false });
+  editor.setSelectionRange(0, 0);
+  hooks.invalidateCaretLineCache?.();
   editor.scrollTop = 0;
   if (previewPane) previewPane.scrollTop = 0;
   hooks.schedulePreviewFrameHeight?.();

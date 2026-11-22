@@ -80,7 +80,7 @@ describe("production build invariants", { timeout: 180_000 }, () => {
       assert.match(ht, /Cross-Origin-Embedder-Policy "require-corp"/);
       assert.match(
         ht,
-        /SetEnvIf Request_URI "drive-helper\|url-fetch-helper" IS_DRIVE_HELPER/,
+        /SetEnvIf Request_URI "drive-helper\|url-fetch-helper\|mermaid-sandbox" IS_DRIVE_HELPER/,
       );
       assert.match(ht, /env=!IS_DRIVE_HELPER/);
       const helperHt = await fs.readFile(
@@ -98,6 +98,30 @@ describe("production build invariants", { timeout: 180_000 }, () => {
       assert.match(urlFetchHt, /connect-src 'self' https:/);
       assert.match(urlFetchHt, /X-Frame-Options "SAMEORIGIN"/);
       assert.match(urlFetchHt, /Cross-Origin-Embedder-Policy "require-corp"/);
+      const mermaidSandboxHt = await fs.readFile(
+        path.join(dist, "mermaid-sandbox", ".htaccess"),
+        "utf8",
+      );
+      assert.doesNotMatch(mermaidSandboxHt, /__MERMAID_SANDBOX_CSP__/);
+      assert.match(mermaidSandboxHt, /sandbox allow-scripts/);
+      assert.match(mermaidSandboxHt, /script-src blob: 'unsafe-inline'/);
+      const mermaidSandboxHtml = await fs.readFile(
+        path.join(dist, "mermaid-sandbox", "index.html"),
+        "utf8",
+      );
+      // html-minifier-terser minifyJS may drop the space after `:`.
+      assert.match(mermaidSandboxHtml, /action:\s*["']boot["']/);
+      assert.match(
+        mermaidSandboxHtml,
+        /mermaid@12\.2\.0\/dist\/mermaid\.esm\.min\.mjs/,
+      );
+      // No static remote/module tags in the shell. Dynamic JS may assign
+      // `.type = "importmap"` / `.src = blob:` after the parent feeds modules.
+      assert.doesNotMatch(mermaidSandboxHtml, /<script\b[^>]*\bsrc=/i);
+      assert.doesNotMatch(
+        mermaidSandboxHtml,
+        /<script\b[^>]*\btype=["']importmap["']/i,
+      );
 
       const csp = JSON.parse(
         await fs.readFile(path.join(dist, "csp.json"), "utf8"),
@@ -106,6 +130,8 @@ describe("production build invariants", { timeout: 180_000 }, () => {
       assert.match(csp.driveHelperCsp, /accounts\.google\.com/);
       assert.doesNotMatch(csp.driveHelperCsp, /apis\.google\.com/);
       assert.match(csp.urlFetchHelperCsp, /connect-src[^;]*https:/);
+      assert.match(csp.mermaidSandboxCsp, /sandbox allow-scripts/);
+      assert.match(csp.mermaidSandboxCsp, /script-src blob:/);
       assert.doesNotMatch(JSON.stringify(csp), /github\.corp/);
 
       const files = await fs.readdir(dist);

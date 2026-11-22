@@ -16,6 +16,7 @@ import "./mermaid/theme-css.js";
 import "./mermaid/color.js";
 import "./mermaid/sketch.js";
 import "./mermaid/load.js";
+import "./mermaid/sandbox.js";
 import "./mermaid/render.js";
 import "./mermaid/zoom.js";
 import "./mermaid/render-layout.js";

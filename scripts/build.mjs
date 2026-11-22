@@ -20,17 +20,23 @@ import { applyCdnIntegrity, loadCdnIntegrity } from "./cdn-integrity.mjs";
 import {
   buildDriveHelperContentSecurityPolicy,
   buildDriveHelperScriptSrc,
+  buildMermaidSandboxContentSecurityPolicy,
   buildScriptSrc,
   buildUrlFetchHelperContentSecurityPolicy,
   buildUrlFetchHelperScriptSrc,
   inlineScriptHashes,
 } from "./csp.mjs";
 import { createStateHooksManglePlugin } from "./mangle-state-hooks.mjs";
+import {
+  MERMAID_SANDBOX_DIR,
+  renderMermaidSandboxHtml,
+} from "./mermaid-sandbox.mjs";
 import { minifyPreviewFrameDocWrite } from "./minify-preview-frame-html.mjs";
 import {
   buildManifest,
   buildServiceWorker,
   CDN_PRECACHE,
+  mermaidSandboxCdnGraphUrls,
   precacheVersion,
 } from "./pwa.mjs";
 import { copyGuideTo } from "./sync-guide.mjs";
@@ -53,6 +59,7 @@ const GUIDE_URL_PLACEHOLDER = "__GUIDE_URL__";
 const SW_URL_PLACEHOLDER = "__SW_URL__";
 const DRIVE_HELPER_CSP_PLACEHOLDER = "__DRIVE_HELPER_CSP__";
 const URL_FETCH_HELPER_CSP_PLACEHOLDER = "__URL_FETCH_HELPER_CSP__";
+const MERMAID_SANDBOX_CSP_PLACEHOLDER = "__MERMAID_SANDBOX_CSP__";
 
 function formatBytes(bytes) {
   if (bytes < 1024) return `${bytes} B`;
@@ -418,6 +425,20 @@ async function buildUrlFetchHelperHtml({ jsName }) {
   return { bytes: buffer.length, scriptSrc, csp };
 }
 
+async function buildMermaidSandboxHtml() {
+  const html = await renderMermaidSandboxHtml(srcDir, await loadCdnIntegrity());
+  const minified = await minifyStaticHtml(html);
+  const buffer = Buffer.from(minified, "utf8");
+  const outDir = path.join(distDir, MERMAID_SANDBOX_DIR);
+  await mkdir(outDir, { recursive: true });
+  await writeFile(path.join(outDir, "index.html"), buffer);
+
+  const csp = buildMermaidSandboxContentSecurityPolicy(
+    inlineScriptHashes(minified),
+  );
+  return { bytes: buffer.length, csp };
+}
+
 async function buildPrivacyHtml() {
   const html = await readFile(path.join(srcDir, "privacy.html"), "utf8");
   const minified = await minifyStaticHtml(html);
@@ -450,7 +471,10 @@ async function buildPwa({
   const localPrecache = [
     "./",
     "./index.html",
-    // drive-helper/ + url-fetch-helper/: network-only (SW bypass) for helper CSP.
+    // drive-helper/, url-fetch-helper/: network-only (SW bypass) for helper CSP.
+    // mermaid-sandbox/ is precached so the opaque renderer shell works offline.
+    "./mermaid-sandbox/",
+    "./mermaid-sandbox/index.html",
     "./privacy.html",
     `./${cssName}`,
     `./${printCssName}`,
@@ -464,7 +488,13 @@ async function buildPwa({
     iconNames.icon192,
     iconNames.icon512,
   ];
-  const precacheUrls = [...localPrecache, ...CDN_PRECACHE];
+  const precacheUrls = [
+    ...new Set([
+      ...localPrecache,
+      ...CDN_PRECACHE,
+      ...mermaidSandboxCdnGraphUrls(await loadCdnIntegrity()),
+    ]),
+  ];
   const version = precacheVersion(precacheUrls);
 
   const manifest = buildManifest(iconNames);
@@ -542,6 +572,7 @@ async function writeApacheConfig(
   guideUrl,
   driveHelperCsp,
   urlFetchHelperCsp,
+  mermaidSandboxCsp,
 ) {
   let htaccess = await readFile(path.join(root, "public", ".htaccess"), "utf8");
   if (!htaccess.includes(SCRIPT_SRC_PLACEHOLDER)) {
@@ -590,9 +621,38 @@ async function writeApacheConfig(
     urlFetchHt,
   );
 
+  let mermaidSandboxHt = await readFile(
+    path.join(root, "public", MERMAID_SANDBOX_DIR, ".htaccess"),
+    "utf8",
+  );
+  if (!mermaidSandboxHt.includes(MERMAID_SANDBOX_CSP_PLACEHOLDER)) {
+    throw new Error(
+      `public/${MERMAID_SANDBOX_DIR}/.htaccess missing ${MERMAID_SANDBOX_CSP_PLACEHOLDER} placeholder`,
+    );
+  }
+  mermaidSandboxHt = mermaidSandboxHt.replaceAll(
+    MERMAID_SANDBOX_CSP_PLACEHOLDER,
+    mermaidSandboxCsp,
+  );
+  await mkdir(path.join(distDir, MERMAID_SANDBOX_DIR), { recursive: true });
+  await writeFile(
+    path.join(distDir, MERMAID_SANDBOX_DIR, ".htaccess"),
+    mermaidSandboxHt,
+  );
+
   await writeFile(
     path.join(distDir, "csp.json"),
-    `${JSON.stringify({ scriptSrc, guideUrl, driveHelperCsp, urlFetchHelperCsp }, null, 2)}\n`,
+    `${JSON.stringify(
+      {
+        scriptSrc,
+        guideUrl,
+        driveHelperCsp,
+        urlFetchHelperCsp,
+        mermaidSandboxCsp,
+      },
+      null,
+      2,
+    )}\n`,
   );
 
   await copyFile(
@@ -645,12 +705,14 @@ async function main() {
   const urlFetchHelperHtml = await buildUrlFetchHelperHtml({
     jsName: js.urlFetchHelper.name,
   });
+  const mermaidSandboxHtml = await buildMermaidSandboxHtml();
   const privacyHtml = await buildPrivacyHtml();
   await writeApacheConfig(
     html.scriptSrc,
     guide.url,
     driveHelperHtml.csp,
     urlFetchHelperHtml.csp,
+    mermaidSandboxHtml.csp,
   );
   // Optional host credentials — never required; gitignored when present under src/.
   try {
@@ -675,6 +737,7 @@ async function main() {
   console.log(`  index.html     ${formatBytes(html.bytes)}`);
   console.log(`  drive-helper/     ${formatBytes(driveHelperHtml.bytes)}`);
   console.log(`  url-fetch-helper/ ${formatBytes(urlFetchHelperHtml.bytes)}`);
+  console.log(`  mermaid-sandbox/  ${formatBytes(mermaidSandboxHtml.bytes)}`);
   console.log(`  privacy.html  ${formatBytes(privacyHtml.bytes)}`);
   console.log(
     `  ${css.styles.name.padEnd(22)} ${formatBytes(css.styles.bytes)}`,

@@ -1,14 +1,21 @@
-/** SRI allowlist from the page import map (injected at serve/build). */
-export function cdnIntegrityUrlSet() {
+/** SRI map from the page import map (injected at serve/build). */
+export function cdnIntegrityMap() {
   try {
     const el = document.querySelector('script[type="importmap"]');
     const map = JSON.parse(el?.textContent || "{}");
-    return new Set(Object.keys(map.integrity || {}));
+    const integrity = map.integrity || {};
+    return integrity && typeof integrity === "object" ? integrity : {};
   } catch {
-    return new Set();
+    return {};
   }
 }
+
+/** SRI allowlist from the page import map (injected at serve/build). */
+export function cdnIntegrityUrlSet() {
+  return new Set(Object.keys(cdnIntegrityMap()));
+}
 export const CDN_INTEGRITY_URLS = cdnIntegrityUrlSet();
+export const CDN_INTEGRITY = cdnIntegrityMap();
 
 /** Lazy-loaded export helpers — not needed until the user exports/prints. */
 let exportModulePromise;

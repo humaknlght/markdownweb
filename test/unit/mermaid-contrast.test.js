@@ -236,7 +236,18 @@ describe("Mermaid theme contrast (WCAG 2.2 AA)", () => {
       path.join(root, "src/app/constants.js"),
       "utf8",
     );
-    const mermaid = [color, sketch, load, themeCss, constants].join("\n");
+    const sandboxRuntime = await fs.readFile(
+      path.join(root, "src/mermaid-sandbox/runtime.js"),
+      "utf8",
+    );
+    const mermaid = [
+      color,
+      sketch,
+      load,
+      themeCss,
+      constants,
+      sandboxRuntime,
+    ].join("\n");
     const css = await fs.readFile(
       path.join(root, "src/styles/styles.css"),
       "utf8",

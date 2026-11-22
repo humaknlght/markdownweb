@@ -489,32 +489,42 @@ test.describe("editor + render", () => {
   test("document without diagrams does not request Mermaid after load", async ({
     page,
   }) => {
-    // Run before Mermaid-loading tests. Drop any SW (it precaches mermaid.esm)
-    // and ignore in-flight CDN work from earlier navigations before measuring.
+    // Run before Mermaid-loading tests. Settle on a no-diagram doc first so a
+    // GUIDE seed cannot leave an in-flight sandbox boot, then measure.
     await openFreshApp(page);
+    await page.locator("#editor").fill("# No diagrams\n\nJust text.");
+    await expect
+      .poll(async () => headingText(previewLocator(page, "h1")))
+      .toBe("No diagrams");
+    await expect(previewLocator(page, ".mermaid")).toHaveCount(0);
+    // GUIDE seed during boot may have created the frame; drop it before measuring.
+    await page.evaluate(() => {
+      document.getElementById("mermaid-sandbox-frame")?.remove();
+    });
+
     await page.evaluate(async () => {
       const regs = await navigator.serviceWorker?.getRegistrations?.();
       if (regs?.length) await Promise.all(regs.map((r) => r.unregister()));
     });
-    await page.waitForLoadState("networkidle");
-    await page.evaluate(() => performance.clearResourceTimings());
 
     const mermaidRequests = [];
     const onReq = (req) => {
-      // Nested ESM chunks mean loadMermaid() evaluated the library. The SW may
-      // precache the entry URL even when the doc has no diagrams — ignore that.
-      if (req.url().includes("chunks/mermaid")) mermaidRequests.push(req.url());
+      if (req.serviceWorker()) return;
+      if (req.url().includes("/mermaid-sandbox/")) {
+        mermaidRequests.push(req.url());
+      }
     };
     page.on("request", onReq);
     try {
-      await page.locator("#editor").fill("# No diagrams\n\nJust text.");
+      await page.locator("#editor").fill("# Still no diagrams\n\nJust text.");
       await expect
         .poll(async () => headingText(previewLocator(page, "h1")))
-        .toBe("No diagrams");
+        .toBe("Still no diagrams");
       await expect(previewLocator(page, ".mermaid")).toHaveCount(0);
       await page.waitForTimeout(400);
 
       expect(mermaidRequests, mermaidRequests.join("\n")).toEqual([]);
+      await expect(page.locator("#mermaid-sandbox-frame")).toHaveCount(0);
     } finally {
       page.off("request", onReq);
     }
@@ -530,6 +540,89 @@ test.describe("editor + render", () => {
     await expect(previewLocator(page, ".mermaid > svg")).toBeVisible({
       timeout: 20_000,
     });
+  });
+
+  test("mermaid runs only in the opaque-origin sandbox frame", async ({
+    page,
+  }) => {
+    await openFreshApp(page);
+    await page
+      .locator("#editor")
+      .fill("```mermaid\nflowchart LR\n  A[Start]-->B{Ok?}\n```");
+    await expect(previewLocator(page, ".mermaid > svg")).toBeVisible({
+      timeout: 20_000,
+    });
+    await expect(previewLocator(page, ".mermaid > svg")).toContainText("Start");
+
+    const info = await page.evaluate(() => {
+      const frame = document.getElementById("mermaid-sandbox-frame");
+      let contentDocument = "blocked";
+      try {
+        contentDocument = frame?.contentDocument ? "readable" : "null";
+      } catch {
+        contentDocument = "blocked";
+      }
+      const preview = document.getElementById("preview-frame")?.contentDocument;
+      const svg = preview?.querySelector(".mermaid > svg");
+      const styleText = [...(svg?.querySelectorAll("style") ?? [])]
+        .map((s) => s.textContent || "")
+        .join("\n");
+      return {
+        sandbox: frame?.getAttribute("sandbox") || "",
+        contentDocument,
+        // Parent may fetch Mermaid (SRI → postMessage feed) but must not run it.
+        parentImportedMermaid: performance
+          .getEntriesByType("resource")
+          .some(
+            (e) =>
+              /npm\/(?:mermaid|svg2roughjs)@/.test(e.name) &&
+              String(e.initiatorType || "") === "script",
+          ),
+        hasScript: !!svg?.querySelector("script"),
+        styleMentionsScope: !styleText || styleText.includes(`#${svg?.id}`),
+        styleLeaksBody: /(?:^|})\s*body\s*\{/m.test(styleText),
+      };
+    });
+    expect(info.sandbox).toBe("allow-scripts");
+    expect(info.contentDocument).not.toBe("readable");
+    expect(info.parentImportedMermaid).toBe(false);
+    expect(info.hasScript).toBe(false);
+    expect(info.styleMentionsScope).toBe(true);
+    expect(info.styleLeaksBody).toBe(false);
+  });
+
+  test("mermaid still renders after going offline", async ({
+    page,
+    context,
+  }) => {
+    await openFreshApp(page);
+    // Warm the parent-fed Mermaid graph (SW cache) while online.
+    await page
+      .locator("#editor")
+      .fill("```mermaid\nflowchart LR\n  Warm-->Cache\n```");
+    await expect(previewLocator(page, ".mermaid > svg")).toBeVisible({
+      timeout: 60_000,
+    });
+
+    await context.setOffline(true);
+    try {
+      // Tear down the opaque frame so the next render must re-boot it and
+      // re-fetch the graph from the SW cache (not the live network).
+      await page.evaluate(() => {
+        document.getElementById("mermaid-sandbox-frame")?.remove();
+      });
+      await page
+        .locator("#editor")
+        .fill("```mermaid\nflowchart LR\n  Offline-->Ok\n```");
+      await expect(previewLocator(page, ".mermaid > svg")).toBeVisible({
+        timeout: 60_000,
+      });
+      await expect(previewLocator(page, ".mermaid > svg")).toContainText(
+        "Offline",
+      );
+    } finally {
+      await context.setOffline(false);
+    }
   });
 
   test("mermaid gantt click href becomes a real SVG link", async ({ page }) => {
@@ -906,7 +999,12 @@ test.describe("editor + render", () => {
     await diagram.locator(".mermaid-zoom-btn").click();
     const zoomDialog = page.locator("#mermaid-zoom-dialog");
     await expect(zoomDialog).toBeVisible();
-    await expect(zoomDialog.locator(".mermaid-zoom-stage svg")).toBeVisible();
+    const zoomFrame = zoomDialog.frameLocator("#mermaid-zoom-stage");
+    await expect(zoomFrame.locator(".mermaid-zoom-scaler > svg")).toBeVisible();
+    await expect(page.locator("#mermaid-zoom-stage")).toHaveAttribute(
+      "sandbox",
+      "allow-same-origin",
+    );
 
     // Preview content stays put; only the dialog shows the enlarged diagram.
     await expect(previewHeading).toBeVisible();
@@ -914,9 +1012,11 @@ test.describe("editor + render", () => {
       previewLocator(page, "h1", { hasText: "After" }),
     ).toBeVisible();
 
-    const zoomSvg = zoomDialog.locator(".mermaid-zoom-stage svg");
+    const zoomSvg = zoomFrame.locator(".mermaid-zoom-scaler > svg");
     const before = await zoomSvg.evaluate((svg) => ({
-      level: document.querySelector("#mermaid-zoom-level")?.textContent ?? "",
+      level:
+        window.top?.document.querySelector("#mermaid-zoom-level")
+          ?.textContent ?? "",
       width: svg.getBoundingClientRect().width,
       transform: getComputedStyle(svg).transform,
       parentTransform: getComputedStyle(svg.parentElement).transform,
@@ -978,9 +1078,12 @@ test.describe("editor + render", () => {
     await expect(zoomDialog).toBeVisible();
 
     const report = await page.evaluate(() => {
-      const span = [
-        ...document.querySelectorAll("#mermaid-zoom-stage span"),
-      ].find((s) => s.textContent?.includes("Square shape"));
+      const stage = document.getElementById("mermaid-zoom-stage");
+      const doc = /** @type {HTMLIFrameElement | null} */ (stage)
+        ?.contentDocument;
+      const span = [...(doc?.querySelectorAll("span") ?? [])].find((s) =>
+        s.textContent?.includes("Square shape"),
+      );
       const fo = span?.closest("foreignObject");
       if (!span || !fo) return { ok: false, reason: "missing label" };
       const sr = span.getBoundingClientRect();
@@ -1491,5 +1594,105 @@ test.describe("editor + render", () => {
         { timeout: 20_000 },
       )
       .toBe(true);
+  });
+
+  test("sync scroll keeps preview at top when editor is at top with caret at EOF", async ({
+    page,
+  }) => {
+    // Reproduces opening a long file: textarea.value assignment leaves the
+    // caret at EOF while scrollTop stays 0; height-settle must not yank the
+    // preview to the bottom.
+    test.setTimeout(60_000);
+    await openFreshApp(page);
+    await page.setViewportSize({ width: 1400, height: 900 });
+
+    await page.locator("#sync-scroll-btn").click();
+    await expect(page.locator("#sync-scroll-btn")).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+
+    const tallJpeg = readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), "fixtures/tall-sync.jpg"),
+    );
+    const dataUri = `data:image/jpeg;base64,${tallJpeg.toString("base64")}`;
+    // Enough source lines that EOF is off-screen when the editor is scrolled
+    // to the top (mirrors opening a long file like a Mermaid gantt).
+    const filler = Array.from(
+      { length: 120 },
+      (_, i) => `Filler line ${i} keeps the caret off-screen.`,
+    );
+    const md = [
+      "# Top of document",
+      "",
+      `![tall](${dataUri})`,
+      "",
+      ...filler,
+      "",
+      "## Bottom heading",
+      "",
+      "BOTTOM_MARKER",
+      "",
+    ].join("\n");
+
+    await page.locator("#editor").evaluate((editor, text) => {
+      editor.value = text;
+      editor.dispatchEvent(new Event("input", { bubbles: true }));
+      // Mimic setEditorValue / file open: caret at EOF, viewport at top.
+      editor.setSelectionRange(text.length, text.length);
+      editor.scrollTop = 0;
+    }, md);
+
+    await expect
+      .poll(async () => previewLocator(page).textContent(), { timeout: 15_000 })
+      .toContain("BOTTOM_MARKER");
+
+    await expect
+      .poll(
+        async () =>
+          page.evaluate(() => {
+            const img = document
+              .getElementById("preview-frame")
+              ?.contentDocument?.querySelector("#preview img");
+            return img?.naturalHeight || 0;
+          }),
+        { timeout: 15_000 },
+      )
+      .toBeGreaterThan(1000);
+
+    await expect
+      .poll(
+        async () =>
+          page.evaluate(() => {
+            const editor = document.getElementById("editor");
+            const pane = document.getElementById("preview-pane");
+            if (!editor || !pane) return null;
+            const pMax = Math.max(0, pane.scrollHeight - pane.clientHeight);
+            return {
+              editorTop: editor.scrollTop,
+              previewTop: pane.scrollTop,
+              previewMax: pMax,
+            };
+          }),
+        { timeout: 10_000 },
+      )
+      .toMatchObject({
+        editorTop: 0,
+      });
+
+    const pos = await page.evaluate(() => {
+      const editor = document.getElementById("editor");
+      const pane = document.getElementById("preview-pane");
+      const pMax = Math.max(0, pane.scrollHeight - pane.clientHeight);
+      return {
+        editorTop: editor.scrollTop,
+        previewTop: pane.scrollTop,
+        previewMax: pMax,
+      };
+    });
+    expect(pos.previewMax).toBeGreaterThan(200);
+    expect(pos.editorTop).toBe(0);
+    // Preview must stay near the top — not pinned to the EOF / bottom marker.
+    expect(pos.previewTop).toBeLessThan(120);
   });
 });

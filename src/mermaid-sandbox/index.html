@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="robots" content="noindex" />
+  <title>Mermaid renderer — Markdown Editor</title>
+  <!-- serve/build inline bootstrap.js (with runtime.js embedded) so the CSP can
+       hash the classic boot script. Mermaid itself is loaded from parent-fed
+       blob: modules via a dynamic import map — not from the network here. -->
+  <style>
+    @font-face {
+      font-family: "Excalifont";
+      src:
+        url("https://cdn.jsdelivr.net/npm/excalifont@1.0.0/fonts/Excalifont-Regular.woff2")
+        format("woff2"),
+        url("https://cdn.jsdelivr.net/npm/excalifont@1.0.0/fonts/Excalifont-Regular.woff")
+        format("woff");
+      font-style: normal;
+      font-weight: 400;
+      font-display: swap;
+    }
+    html,
+    body {
+      margin: 0;
+    }
+    /* Same box rules as `.preview .mermaid svg` so sketch sizing matches. */
+    .mermaid > svg {
+      max-width: 100%;
+      height: auto;
+      display: block;
+      margin: 0 auto;
+    }
+  </style>
+</head>
+<body>
+  <script src="./bootstrap.js"></script>
+</body>
+</html>

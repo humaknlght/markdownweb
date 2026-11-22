@@ -4,6 +4,8 @@ Markdown Editor is a client-side app. Markdown is rendered in the browser; this 
 
 Accepted Markdown is painted into a sandboxed preview iframe (`allow-same-origin` + `allow-popups`, without `allow-scripts`) with its own Content Security Policy that blocks scripts and remote subresources. The temporary PDF print iframe uses the same base sandbox (plus `allow-modals` so `window.print()` works) and the exported HTML document carries the same CSP. DOMPurify and remote-media stripping remain defense in depth.
 
+Mermaid diagrams are rendered in a separate opaque-origin helper (`mermaid-sandbox/`, `sandbox="allow-scripts"` without `allow-same-origin`). The app document never `import()`s Mermaid or svg2roughjs; instead it fetches their SRI-pinned CDN graphs through the service worker (precached for offline), then feeds the sources into the helper over `postMessage`. The helper installs a blob: import map and evaluates the libraries only inside the opaque frame (`script-src blob: 'unsafe-inline'`; CSP includes `sandbox allow-scripts`). SVG markup returned over `postMessage` is size-capped, sanitized with DOMPurify (DOM-based `foreignObject` label preserve, allowlisted FO attrs only), and scoped so diagram `<style>` rules cannot restyle app chrome. The zoom surface is a separate `sandbox="allow-same-origin"` iframe (no `allow-scripts`) that re-sanitizes the SVG before display, so a sanitizer miss cannot execute in the app document.
+
 ## Supported versions
 
 Security fixes are applied on the default branch and deployed to [https://markdown.ericperret.org/](https://markdown.ericperret.org/). There are no maintained older releases.
@@ -41,6 +43,7 @@ In scope:
 - Cross-site scripting or HTML injection that runs in the preview or the page after sanitization
 - Content Security Policy bypasses in the shipped headers or production build
 - Escape from the sandboxed preview iframe (`allow-same-origin` without `allow-scripts`) into the app chrome, or preview-document CSP bypasses that load remote subresources
+- Escape from the Mermaid helper iframe (`allow-scripts` without `allow-same-origin`) into the app document, or delivery of executable markup through Mermaid SVG adoption
 - Share-link, open-from-URL, or file-open handling that runs or keeps untrusted Markdown without the external-content prompt
 - Main-page Content Security Policy `connect-src` widened to fetch arbitrary hosts (remote URL open must use the isolated `url-fetch-helper/` surface)
 - Service worker behavior that can serve attacker-controlled cached content

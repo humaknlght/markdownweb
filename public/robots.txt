@@ -2,5 +2,6 @@ User-agent: *
 Allow: /
 Disallow: /drive-helper/
 Disallow: /url-fetch-helper/
+Disallow: /mermaid-sandbox/
 
 Sitemap: https://markdown.ericperret.org/sitemap.xml

@@ -2,6 +2,7 @@ import createDOMPurify from "dompurify";
 import { PREVIEW_FRAME_CSP, PRINT_FRAME_SANDBOX } from "../app/constants.js";
 import { extractFrontmatter } from "../markdown/frontmatter.js";
 import { installMarkdownLinkHooks } from "./link-targets.js";
+import { sanitizeKeepingForeignObjects } from "./mermaid-svg.js";
 import { installSafeMediaHooks } from "./safe-media-uri.js";
 
 /** Generator / provenance stamped into every export. */
@@ -9,74 +10,6 @@ export const GENERATOR_URL = "https://markdown.ericperret.org/";
 
 /** @type {WeakSet<object>} */
 const purifyMediaHooksInstalled = new WeakSet();
-
-/** Tags blocked in standalone exports (phishing chrome / controls). */
-const EXPORT_FORBID_TAGS = [
-  "form",
-  "input",
-  "button",
-  "select",
-  "textarea",
-  "option",
-  "optgroup",
-  "fieldset",
-  "legend",
-];
-
-/**
- * DOMPurify's SVG profile keeps `<foreignObject>` but strips its XHTML
- * children — Mermaid flowchart/ER/journey labels live there. Stash those
- * subtrees, sanitize the shell + the HTML interiors separately, then restore.
- * @param {string} html
- * @param {ReturnType<typeof createDOMPurify>} purify
- * @returns {string}
- */
-function preserveMermaidForeignObjects(html, purify) {
-  /** @type {{ attrs: string, inner: string }[]} */
-  const stash = [];
-  const withPlaceholders = String(html).replace(
-    /<foreignObject(\s[^>]*)?>[\s\S]*?<\/foreignObject>/gi,
-    (match, attrs = "") => {
-      const innerMatch = match.match(
-        /^<foreignObject\b[^>]*>([\s\S]*)<\/foreignObject>$/i,
-      );
-      const inner = innerMatch ? innerMatch[1] : "";
-      const cleanInner = purify.sanitize(inner, {
-        USE_PROFILES: { html: true },
-        FORBID_TAGS: EXPORT_FORBID_TAGS,
-      });
-      const id = stash.length;
-      stash.push({ attrs: String(attrs || ""), inner: cleanInner });
-      // Keep width/height/x/y on the placeholder so layout survives sanitize.
-      const safeAttrs = String(attrs || "").trim();
-      return `<foreignObject${safeAttrs ? ` ${safeAttrs}` : ""} data-export-fo="${id}"></foreignObject>`;
-    },
-  );
-
-  let clean = purify.sanitize(withPlaceholders, {
-    USE_PROFILES: { html: true, svg: true },
-    ADD_TAGS: ["foreignObject"],
-    ADD_ATTR: ["data-export-fo"],
-    FORBID_TAGS: EXPORT_FORBID_TAGS,
-  });
-
-  clean = clean.replace(
-    /<foreignObject\b([^>]*?)data-export-fo="(\d+)"([^>]*)>\s*<\/foreignObject>/gi,
-    (_, before, id, after) => {
-      const entry = stash[Number(id)];
-      if (!entry) return "";
-      // Drop the placeholder attr; keep any other attrs DOMPurify left on the shell.
-      const shellAttrs = `${before} ${after}`
-        .replace(/\s*data-export-fo="\d+"/gi, "")
-        .replace(/\s+/g, " ")
-        .trim();
-      const attrs = shellAttrs ? ` ${shellAttrs}` : "";
-      return `<foreignObject${attrs}>${entry.inner}</foreignObject>`;
-    },
-  );
-
-  return clean;
-}
 
 /**
  * Re-sanitize preview HTML before embedding in standalone exports.
@@ -91,7 +24,7 @@ function sanitizeExportHtml(html) {
     installSafeMediaHooks(purify);
     purifyMediaHooksInstalled.add(purify);
   }
-  return preserveMermaidForeignObjects(html, purify);
+  return sanitizeKeepingForeignObjects(html, purify, undefined, root.document);
 }
 
 /**

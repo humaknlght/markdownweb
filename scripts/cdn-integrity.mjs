@@ -46,6 +46,7 @@ function collectModuleSpecifiers(source) {
   return [
     ...source.matchAll(/\bfrom\s*["']([^"']+)["']/g),
     ...source.matchAll(/\bimport\s*\(\s*["']([^"']+)["']\s*\)/g),
+    ...source.matchAll(/\bimport\s*["']([^"']+)["']/g),
   ]
     .map((match) => match[1])
     .filter(isModuleSpecifier);
@@ -131,26 +132,20 @@ async function mapPool(items, concurrency, worker) {
 export async function computeCdnIntegrity() {
   const integrity = {};
 
-  const mermaidEntry = CDN_PRECACHE.find((u) => u.includes("/mermaid@"));
-  if (!mermaidEntry) {
-    throw new Error("CDN_PRECACHE is missing the Mermaid entry URL");
+  if (!CDN_LAZY.some((u) => u.includes("/mermaid@"))) {
+    throw new Error("CDN_LAZY is missing the Mermaid entry URL");
   }
 
-  const graphEntries = [
-    mermaidEntry,
-    ...CDN_LAZY.filter((u) => u !== mermaidEntry),
-  ];
-  for (const entry of graphEntries) {
+  for (const entry of CDN_LAZY) {
     const graphFiles = await walkModuleGraph(entry);
     for (const [url, buffer] of graphFiles) {
       integrity[url] = sha384Integrity(buffer);
     }
   }
 
-  const seeds = CDN_PRECACHE.filter((u) => u !== mermaidEntry);
   const langUrls = await listHljsLanguageUrls();
   const remaining = [
-    ...new Set([...seeds, ...langUrls].filter((u) => !(u in integrity))),
+    ...new Set([...CDN_PRECACHE, ...langUrls].filter((u) => !(u in integrity))),
   ];
 
   const fetched = await mapPool(remaining, FETCH_CONCURRENCY, fetchBuffer);

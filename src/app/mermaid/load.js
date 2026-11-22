@@ -1,14 +1,11 @@
 import {
-  MERMAID_CDN,
-  MERMAID_HAND_FONT,
   MERMAID_MIN_GANTT_HOST_WIDTH,
   MERMAID_MIN_HOST_WIDTH,
-  SVG2ROUGH_CDN,
 } from "../constants.js";
 import { hooks } from "../hooks.js";
-import { CDN_INTEGRITY_URLS } from "../lazy-modules.js";
 import { mermaidSources, state } from "../state.js";
 
+/** Mermaid initialize() options; sent to the sandbox renderer per request. */
 export function mermaidConfig() {
   return {
     startOnLoad: false,
@@ -26,142 +23,25 @@ export function mermaidConfig() {
   };
 }
 
-export function initMermaid(mermaid) {
-  mermaid.startOnLoad = false;
-  mermaid.initialize(mermaidConfig());
-  return mermaid;
-}
-
-export function loadMermaid() {
-  // ESM entry + lazy chunks from jsDelivr (relative imports under dist/chunks/).
-  // Import-map integrity covers the entry and every nested chunk URL.
-  if (!CDN_INTEGRITY_URLS.has(MERMAID_CDN)) {
-    return Promise.reject(
-      new Error("Mermaid CDN URL missing SRI allowlist entry"),
-    );
-  }
-  state.mermaidModule ??= import(MERMAID_CDN).then((mod) => {
-    const mermaid = mod.default;
-    if (!mermaid?.initialize || !mermaid?.run) {
-      throw new Error("Mermaid failed to load");
-    }
-    return initMermaid(mermaid);
-  });
-  return state.mermaidModule;
-}
-
-export function loadSvg2Rough() {
-  if (!CDN_INTEGRITY_URLS.has(SVG2ROUGH_CDN)) {
-    return Promise.reject(
-      new Error("svg2roughjs CDN URL missing SRI allowlist entry"),
-    );
-  }
-  state.svg2roughModule ??= import(SVG2ROUGH_CDN).then((mod) => {
-    const Svg2Roughjs = mod.Svg2Roughjs;
-    if (typeof Svg2Roughjs !== "function") {
-      throw new Error("svg2roughjs failed to load");
-    }
-    return Svg2Roughjs;
-  });
-  return state.svg2roughModule;
-}
-
 /** True when Excalidraw look is on — every diagram is sketched via svg2roughjs. */
 export function mermaidNeedsSketch() {
   return state.mermaidLook === "handDrawn";
 }
 
 /**
- * Convert a rendered Mermaid SVG into a RoughJS sketch (Excalidraw-like).
- * Sketching runs in the parent document: svg2roughjs stack-overflows on SVG
- * nodes that live in the sandboxed preview iframe browsing context.
- * @param {SVGElement} svg
- * @returns {Promise<SVGElement | null>}
+ * Finish a RoughJS sketch from the sandbox once it sits in the preview.
+ * @param {SVGElement} sketched
+ * @param {{ cssWidth: number, cssHeight: number, viewBoxWidth: number, hostWidth: number }} sourceSize
+ *   Classic SVG box measured in the sandbox before sketching.
  */
-export async function sketchMermaidSvg(svg) {
-  const Svg2Roughjs = await loadSvg2Rough();
-  const ownerDoc = svg.ownerDocument || document;
-  const preBox = svg.getBoundingClientRect();
-  const srcClass = svg.getAttribute("class");
-  const srcViewBox = svg.getAttribute("viewBox");
-  const srcStyle = svg.querySelector("style");
-  const srcVb = (srcViewBox || "")
-    .trim()
-    .split(/[\s,]+/)
-    .map(Number);
-  const sourceSize = {
-    cssWidth: preBox.width,
-    cssHeight: preBox.height,
-    viewBoxWidth: srcVb.length === 4 && srcVb[2] > 0 ? srcVb[2] : 0,
-    hostWidth: svg.parentElement?.clientWidth ?? 0,
-  };
-
-  const staging = document.createElement("div");
-  const scratch = document.createElement("div");
-  for (const el of [staging, scratch]) {
-    el.hidden = true;
-    el.setAttribute("aria-hidden", "true");
-    document.body.appendChild(el);
-  }
-  try {
-    const source = /** @type {SVGSVGElement} */ (
-      document.importNode(svg, true)
-    );
-    if (preBox.width > 0) source.style.width = `${preBox.width}px`;
-    if (preBox.height > 0) source.style.height = `${preBox.height}px`;
-    staging.appendChild(source);
-
-    const converter = new Svg2Roughjs(scratch);
-    // Match Mermaid hand-drawn labels (Excalifont). Default Comic Sans is a joke.
-    converter.fontFamily = MERMAID_HAND_FONT;
-    converter.randomize = false;
-    converter.seed = 1;
-    converter.roughConfig = {
-      roughness: 1.2,
-      bowing: 1,
-      seed: 1,
-      // Solid fills keep node/note backgrounds — hachure reuses fill pastels as
-      // strokes, which fail WCAG against the diagram canvas on many themes.
-      fillStyle: "solid",
-    };
-    converter.svg = source;
-    await converter.sketch();
-    const sketchedParent = scratch.querySelector(":scope > svg");
-    if (!(sketchedParent instanceof SVGElement)) return null;
-
-    const sketched = /** @type {SVGElement} */ (
-      ownerDoc.importNode(sketchedParent, true)
-    );
-    sketched.dataset.mermaidSketched = "1";
-    // Keep class for theming. Size from the classic SVG's rendered CSS box —
-    // copying width="100%" would upscale tall viewBoxes and cause vertical scroll.
-    if (srcClass && !sketched.getAttribute("class")) {
-      sketched.setAttribute("class", srcClass);
-    }
-    if (!sketched.getAttribute("viewBox") && srcViewBox) {
-      sketched.setAttribute("viewBox", srcViewBox);
-    }
-    // svg2roughjs drops Mermaid's <style> (themeCSS, p{margin:0}) — copy it back
-    // so labels/theme rules still apply after sketch (and in the zoom dialog).
-    if (srcStyle && !sketched.querySelector("style")) {
-      sketched.insertBefore(
-        ownerDoc.importNode(srcStyle, true),
-        sketched.firstChild,
-      );
-    }
-    svg.replaceWith(sketched);
-    // Remap after insert — getComputedStyle on a detached sketch misses SVG
-    // <style> strokes (Mermaid edges), so WCAG var(--mermaid-*) paints never land.
-    hooks.normalizeMermaidHandDrawnColors(sketched);
-    // Fit after insert — getBBox() is wrong while the sketch sits in [hidden].
-    // tighten: drop asymmetric Mermaid/svg2roughjs gutters so drawings look centered.
-    hooks.fitMermaidSvgViewBox(sketched, { tighten: true });
-    hooks.sizeSketchedMermaidSvg(sketched, sourceSize);
-    return sketched;
-  } finally {
-    staging.remove();
-    scratch.remove();
-  }
+export function finishSketchedMermaidSvg(sketched, sourceSize) {
+  sketched.dataset.mermaidSketched = "1";
+  // Remap after insert — getComputedStyle on a detached sketch misses SVG
+  // <style> strokes (Mermaid edges), so WCAG var(--mermaid-*) paints never land.
+  hooks.normalizeMermaidHandDrawnColors(sketched);
+  // tighten: drop asymmetric Mermaid/svg2roughjs gutters so drawings look centered.
+  hooks.fitMermaidSvgViewBox(sketched, { tighten: true });
+  hooks.sizeSketchedMermaidSvg(sketched, sourceSize);
 }
 
 export function mermaidNodeIsVisible(el) {
@@ -192,11 +72,8 @@ export function mermaidHostWideEnough(el) {
 }
 
 hooks.mermaidConfig = mermaidConfig;
-hooks.initMermaid = initMermaid;
-hooks.loadMermaid = loadMermaid;
-hooks.loadSvg2Rough = loadSvg2Rough;
 hooks.mermaidNeedsSketch = mermaidNeedsSketch;
-hooks.sketchMermaidSvg = sketchMermaidSvg;
+hooks.finishSketchedMermaidSvg = finishSketchedMermaidSvg;
 hooks.mermaidNodeIsVisible = mermaidNodeIsVisible;
 hooks.mermaidSourceIsGantt = mermaidSourceIsGantt;
 hooks.mermaidHostWideEnough = mermaidHostWideEnough;
