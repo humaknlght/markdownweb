@@ -27,12 +27,17 @@ import {
   buildContentSecurityPolicy,
   buildDriveHelperContentSecurityPolicy,
   buildDriveHelperScriptSrc,
+  buildMermaidSandboxContentSecurityPolicy,
   buildScriptSrc,
   buildUrlFetchHelperContentSecurityPolicy,
   buildUrlFetchHelperScriptSrc,
   inlineScriptHashes,
 } from "./csp.mjs";
 import { injectDevLocalModulepreloads } from "./dev-module-graph.mjs";
+import {
+  MERMAID_SANDBOX_DIR,
+  renderMermaidSandboxHtml,
+} from "./mermaid-sandbox.mjs";
 import { buildDevServiceWorker } from "./pwa.mjs";
 import {
   headersFor as buildHeaders,
@@ -154,6 +159,30 @@ const URL_FETCH_HELPER_HTML_HEADERS = {
   "X-Content-Type-Options": "nosniff",
   "Referrer-Policy": "strict-origin-when-cross-origin",
 };
+
+/** Mermaid sandbox iframe: opaque origin via CSP sandbox; CSP added per response. */
+const MERMAID_SANDBOX_HTML_HEADERS = {
+  "Cache-Control": "no-cache",
+  "Permissions-Policy": HTML_HEADERS["Permissions-Policy"],
+  "Strict-Transport-Security": "max-age=31536000",
+  "X-Frame-Options": "SAMEORIGIN",
+  "Cross-Origin-Embedder-Policy": "require-corp",
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "no-referrer",
+};
+
+/**
+ * Sandbox HTML as served: src/ is transformed per request (SRI + inline
+ * runtime); dist/ is pre-baked by the build.
+ * @param {string} logicalPath
+ */
+async function loadMermaidSandboxHtml(logicalPath) {
+  const srcRoot = path.join(repoRoot, "src");
+  if (path.resolve(rootDir) === path.resolve(srcRoot)) {
+    return renderMermaidSandboxHtml(srcRoot, await loadCdnIntegrity());
+  }
+  return fs.readFile(logicalPath, "utf8");
+}
 
 /**
  * @param {string} logicalPath
@@ -362,6 +391,21 @@ async function handleRequest(req, res) {
         return;
       }
       throw err;
+    }
+
+    if (isHelperHtml(logicalPath, MERMAID_SANDBOX_DIR)) {
+      const html = await loadMermaidSandboxHtml(logicalPath);
+      const headers = buildHeaders(logicalPath, null, {
+        htmlHeaders: {
+          ...MERMAID_SANDBOX_HTML_HEADERS,
+          "Content-Security-Policy": buildMermaidSandboxContentSecurityPolicy(
+            inlineScriptHashes(html),
+          ),
+        },
+      });
+      res.writeHead(200, headers);
+      res.end(html);
+      return;
     }
 
     // Dev (src/): inject full CDN import-map integrity before serving.

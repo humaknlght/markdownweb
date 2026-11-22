@@ -110,6 +110,11 @@ export {
   isSameDocumentHref,
   shouldOpenLinkInNewTab,
 } from "../lib/link-targets.js";
+export {
+  normalizeSandboxResults,
+  parseSandboxMermaidSvg,
+  resanitizeMermaidSvgElement,
+} from "../lib/mermaid-svg.js";
 export { stripRemoteMediaAttributes } from "../lib/safe-media-uri.js";
 export {
   compressUtf8ToBase64Url,

@@ -357,8 +357,6 @@ export const state = {
   /** Scrollbar gutter last written onto the highlight layer. -1 = not yet measured. */
   highlightInsetX: -1,
   highlightInsetY: -1,
-  mermaidModule: undefined,
-  svg2roughModule: undefined,
   mermaidGen: 0,
   /** @type {"classic" | "handDrawn"} */
   mermaidLook: "classic",

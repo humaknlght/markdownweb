@@ -7,7 +7,17 @@ import {
   applyCdnIntegrity,
   loadCdnIntegrity,
 } from "../../scripts/cdn-integrity.mjs";
-import { CDN_LAZY, CDN_PRECACHE } from "../../scripts/pwa.mjs";
+import {
+  buildMermaidSandboxContentSecurityPolicy,
+  inlineScriptHashes,
+} from "../../scripts/csp.mjs";
+import { renderMermaidSandboxHtml } from "../../scripts/mermaid-sandbox.mjs";
+import {
+  CDN_LAZY,
+  CDN_PRECACHE,
+  MERMAID_SANDBOX_CDN_ENTRIES,
+  mermaidSandboxCdnGraphUrls,
+} from "../../scripts/pwa.mjs";
 
 const root = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -258,8 +268,17 @@ describe("static source invariants", () => {
       "expected svg2roughjs dependency roughjs in the SRI graph",
     );
 
-    const mermaidEntry = CDN_PRECACHE.find((u) => u.includes("/mermaid@"));
+    const mermaidEntry = CDN_LAZY.find((u) => u.includes("/mermaid@"));
     assert.ok(mermaidEntry);
+    assert.ok(
+      CDN_PRECACHE.some((u) => u.includes("/mermaid@")),
+      "Mermaid entry must be SW-precached so the parent can feed the sandbox offline",
+    );
+    assert.ok(
+      mermaidSandboxCdnGraphUrls().length >= 20,
+      "expected full Mermaid/svg2roughjs graph for offline precache",
+    );
+    assert.deepEqual(CDN_LAZY, MERMAID_SANDBOX_CDN_ENTRIES);
     const mermaidChunks = urls.filter((u) =>
       u.includes("/chunks/mermaid.esm.min/"),
     );
@@ -320,6 +339,7 @@ describe("static source invariants", () => {
     assert.match(robots, /User-agent:\s*\*/);
     assert.match(robots, /Disallow:\s*\/drive-helper\//);
     assert.match(robots, /Disallow:\s*\/url-fetch-helper\//);
+    assert.match(robots, /Disallow:\s*\/mermaid-sandbox\//);
     assert.match(
       robots,
       /Sitemap:\s*https:\/\/markdown\.ericperret\.org\/sitemap\.xml/,
@@ -345,11 +365,22 @@ describe("static source invariants", () => {
     assert.match(ht, /__GUIDE_URL__/);
     assert.match(
       ht,
-      /SetEnvIf Request_URI "drive-helper\|url-fetch-helper" IS_DRIVE_HELPER/,
+      /SetEnvIf Request_URI "drive-helper\|url-fetch-helper\|mermaid-sandbox" IS_DRIVE_HELPER/,
     );
     assert.match(ht, /env=!IS_DRIVE_HELPER/);
     assert.doesNotMatch(ht, /__DRIVE_HELPER_CSP__/);
     assert.doesNotMatch(ht, /__URL_FETCH_HELPER_CSP__/);
+    assert.doesNotMatch(ht, /__MERMAID_SANDBOX_CSP__/);
+    const mermaidSandboxHt = await fs.readFile(
+      path.join(root, "public/mermaid-sandbox/.htaccess"),
+      "utf8",
+    );
+    assert.match(mermaidSandboxHt, /__MERMAID_SANDBOX_CSP__/);
+    assert.match(mermaidSandboxHt, /X-Frame-Options "SAMEORIGIN"/);
+    assert.match(
+      mermaidSandboxHt,
+      /Cross-Origin-Embedder-Policy "require-corp"/,
+    );
     const helperHt = await fs.readFile(
       path.join(root, "public/drive-helper/.htaccess"),
       "utf8",
@@ -382,5 +413,66 @@ describe("static source invariants", () => {
     assert.match(ht, /api\.github\.com/);
     assert.match(ht, /img-src 'self' data: blob:/);
     assert.doesNotMatch(ht, /img-src 'self' data: blob: https:/);
+  });
+
+  it("loads Mermaid and svg2roughjs only inside the opaque-origin sandbox", async () => {
+    const allowCdnName = new Set([
+      "app/constants.js",
+      "app/mermaid/sandbox.js",
+      "lib/esm-cdn-graph.js",
+    ]);
+    for (const file of [
+      ...(await walkJsFiles(path.join(srcDir, "app"))),
+      ...(await walkJsFiles(path.join(srcDir, "lib"))),
+    ]) {
+      const rel = path.relative(srcDir, file);
+      if (allowCdnName.has(rel)) continue;
+      const code = stripJsComments(await fs.readFile(file, "utf8"));
+      assert.doesNotMatch(
+        code,
+        /npm\/(?:mermaid|svg2roughjs)@/,
+        `${rel} must not name Mermaid/svg2roughjs CDN URLs`,
+      );
+    }
+
+    const runtime = await fs.readFile(
+      path.join(srcDir, "mermaid-sandbox/runtime.js"),
+      "utf8",
+    );
+    const cdnUrls = [
+      ...runtime.matchAll(/"(https:\/\/cdn\.jsdelivr\.net\/[^"]+)"/g),
+    ].map((m) => m[1]);
+    assert.equal(cdnUrls.length, 2, cdnUrls.join("\n"));
+    assert.deepEqual(cdnUrls, MERMAID_SANDBOX_CDN_ENTRIES);
+
+    const constants = await fs.readFile(
+      path.join(srcDir, "app/constants.js"),
+      "utf8",
+    );
+    assert.match(
+      constants,
+      /MERMAID_SANDBOX_FRAME_SANDBOX = "allow-scripts";/,
+      "sandbox frame must not get allow-same-origin",
+    );
+
+    const html = await renderMermaidSandboxHtml(
+      srcDir,
+      await loadCdnIntegrity(),
+    );
+    assert.doesNotMatch(html, /<script\b[^>]*\bsrc=/i);
+    assert.doesNotMatch(html, /type=["']importmap["']/i);
+    assert.doesNotMatch(html, /__MERMAID_RUNTIME_PLACEHOLDER__/);
+    // Placeholder must be substituted with the runtime source (JSON-stringified).
+    assert.match(html, /const MESSAGE_TYPE = \\*"md-mermaid-sandbox\\*/);
+    assert.match(html, /action: "boot"/);
+
+    const csp = buildMermaidSandboxContentSecurityPolicy(
+      inlineScriptHashes(html),
+    );
+    assert.match(csp, /(?:^|; )sandbox allow-scripts(?:;|$)/);
+    assert.match(csp, /frame-ancestors 'self'/);
+    const scriptSrc = csp.match(/script-src ([^;]+)/)?.[1] || "";
+    assert.equal(scriptSrc, "blob: 'unsafe-inline'");
+    assert.doesNotMatch(scriptSrc, /cdn\.jsdelivr\.net|'self'|sha256/);
   });
 });

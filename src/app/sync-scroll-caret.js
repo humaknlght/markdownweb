@@ -165,7 +165,15 @@ export function revealPreviewForEditorCaret() {
     syncSlidesFromEditor({ preferCaret: true });
     return;
   }
-  const el = previewElementForLine(editorCaretLine());
+  const caretLine = editorCaretLine();
+  // setEditorValue / file open leave the caret at EOF while the textarea stays
+  // scrolled to the top. Revealing that off-screen caret yanks the preview to
+  // the bottom and breaks sync. Prefer the viewport-top line until the caret
+  // is actually on screen (same rule as slides).
+  const line = isEditorLineVisible(caretLine)
+    ? caretLine
+    : editorLineNearViewportTop();
+  const el = previewElementForLine(line);
   if (!el) return;
   // Expand collapsed ancestors so caret sync measures real geometry.
   hooks.ensurePreviewElementExpanded(el);

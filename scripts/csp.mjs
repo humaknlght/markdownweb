@@ -81,6 +81,32 @@ export function buildDriveHelperContentSecurityPolicy(scriptSrc) {
   ].join("; ");
 }
 
+/**
+ * CSP for mermaid-sandbox/ — the opaque-origin Mermaid / svg2roughjs renderer.
+ * `sandbox allow-scripts` keeps the document cross-origin to the app even if
+ * it is ever loaded without the iframe sandbox attribute. Scripts are the
+ * classic bootstrap, a dynamic inline import map (parent-fed CDN→blob remap),
+ * and blob: modules. `'unsafe-inline'` is required because the import map is
+ * built at runtime (hashes would disable it under CSP3); the opaque origin
+ * still confines any script. The frame never fetches script over the network.
+ * @param {string[]} [_hashes] Unused — kept for call-site compatibility.
+ */
+export function buildMermaidSandboxContentSecurityPolicy(_hashes = []) {
+  return [
+    "default-src 'none'",
+    "base-uri 'none'",
+    "object-src 'none'",
+    "frame-ancestors 'self'",
+    "form-action 'none'",
+    // blob: = runtime / Mermaid module blobs; unsafe-inline = bootstrap + import map.
+    "script-src blob: 'unsafe-inline'",
+    "style-src 'unsafe-inline'",
+    "img-src data:",
+    "font-src https://cdn.jsdelivr.net",
+    "sandbox allow-scripts",
+  ].join("; ");
+}
+
 /** script-src for url-fetch-helper/ (same-origin modules only). */
 export function buildUrlFetchHelperScriptSrc(hashes = []) {
   const parts = ["'self'", ...hashes];

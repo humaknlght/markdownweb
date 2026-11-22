@@ -10,6 +10,7 @@ import {
   buildContentSecurityPolicy,
   buildDriveHelperContentSecurityPolicy,
   buildDriveHelperScriptSrc,
+  buildMermaidSandboxContentSecurityPolicy,
   buildScriptSrc,
   buildUrlFetchHelperContentSecurityPolicy,
   buildUrlFetchHelperScriptSrc,
@@ -17,6 +18,7 @@ import {
   inlineScriptHashes,
   sha256Base64,
 } from "../../scripts/csp.mjs";
+import { inlineMermaidSandboxBootstrap } from "../../scripts/mermaid-sandbox.mjs";
 import { minifyPreviewFrameDocWrite } from "../../scripts/minify-preview-frame-html.mjs";
 import {
   buildDevServiceWorker,
@@ -27,6 +29,7 @@ import {
   ICON_FILES,
   isDriveHelperPath,
   isIsolatedHelperPath,
+  isMermaidSandboxPath,
   isMutableShellPath,
   isUrlFetchHelperPath,
   precacheVersion,
@@ -146,6 +149,54 @@ describe("csp.mjs", () => {
     assert.match(csp, /frame-ancestors 'self'/);
     assert.doesNotMatch(csp, /accounts\.google\.com/);
   });
+
+  it("builds Mermaid sandbox CSP with blob modules and no CDN scripts", () => {
+    const csp = buildMermaidSandboxContentSecurityPolicy(["'sha256-abc'"]);
+    assert.match(csp, /(?:^|; )sandbox allow-scripts(?:;|$)/);
+    assert.doesNotMatch(csp, /allow-same-origin/);
+    assert.match(csp, /script-src blob: 'unsafe-inline'(?:;|$)/);
+    assert.doesNotMatch(
+      csp.match(/script-src ([^;]+)/)[1],
+      /'self'|cdn\.jsdelivr|sha256/,
+    );
+    assert.match(csp, /default-src 'none'/);
+    assert.doesNotMatch(csp, /connect-src/);
+    assert.match(csp, /frame-ancestors 'self'/);
+  });
+});
+
+describe("mermaid-sandbox.mjs", () => {
+  it("inlines bootstrap.js with an embedded runtime string", () => {
+    const html =
+      '<head></head><body><script src="./bootstrap.js"></script></body>';
+    const bootstrap =
+      'const RUNTIME = "__MERMAID_RUNTIME_PLACEHOLDER__";\nboot();';
+    const out = inlineMermaidSandboxBootstrap(
+      html,
+      bootstrap,
+      "const a = '$&';\n",
+    );
+    assert.match(out, /<script>\nconst RUNTIME = "const a = '\$&';\\n";/);
+    assert.doesNotMatch(out, /__MERMAID_RUNTIME_PLACEHOLDER__/);
+    assert.equal(extractInlineScripts(out).length, 1);
+  });
+
+  it("rejects a missing tag or a script that would close the script", () => {
+    assert.throws(() =>
+      inlineMermaidSandboxBootstrap(
+        "<body></body>",
+        'const RUNTIME = "__MERMAID_RUNTIME_PLACEHOLDER__";',
+        "x",
+      ),
+    );
+    assert.throws(() =>
+      inlineMermaidSandboxBootstrap(
+        '<script src="./bootstrap.js"></script>',
+        'const RUNTIME = "__MERMAID_RUNTIME_PLACEHOLDER__";',
+        "'</script><script>alert(1)'",
+      ),
+    );
+  });
 });
 
 describe("cdn-integrity.mjs", () => {
@@ -263,6 +314,14 @@ describe("pwa.mjs", () => {
     assert.equal(isUrlFetchHelperPath("/url-fetch-helper/index.html"), true);
     assert.equal(isIsolatedHelperPath("/url-fetch-helper/"), true);
     assert.equal(isDriveHelperPath("/index.html"), false);
+    assert.doesNotMatch(sw, /mermaid-sandbox/);
+    assert.ok(DEV_PRECACHE.includes("./mermaid-sandbox/"));
+    assert.ok(DEV_PRECACHE.includes("./mermaid-sandbox/index.html"));
+    assert.equal(isMermaidSandboxPath("/mermaid-sandbox/"), true);
+    assert.equal(isMermaidSandboxPath("/mermaid-sandbox/index.html"), true);
+    assert.equal(isIsolatedHelperPath("/markdown/mermaid-sandbox/"), false);
+    assert.equal(isMutableShellPath("/mermaid-sandbox/index.html"), true);
+    assert.equal(isMermaidSandboxPath("/mermaid-sandbox/runtime.js"), false);
   });
 
   it("versions precache lists deterministically", () => {

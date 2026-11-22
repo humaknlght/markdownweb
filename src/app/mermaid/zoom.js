@@ -1,4 +1,9 @@
-import { MERMAID_ZOOM_BTN_SVG, MERMAID_ZOOM_STEP } from "../constants.js";
+import {
+  buildPreviewFrameCsp,
+  MERMAID_ZOOM_BTN_SVG,
+  MERMAID_ZOOM_FRAME_SANDBOX,
+  MERMAID_ZOOM_STEP,
+} from "../constants.js";
 import { hooks } from "../hooks.js";
 import {
   mermaidZoomCloseBtn,
@@ -14,6 +19,82 @@ import {
 import { clampMermaidZoom, mermaidZoomViewBox } from "./zoom-utils.js";
 
 export { clampMermaidZoom, mermaidZoomViewBox };
+
+/** @returns {Document | null} */
+function zoomStageDocument() {
+  const frame = mermaidZoomStage;
+  if (frame?.tagName !== "IFRAME") return null;
+  try {
+    return frame.contentDocument;
+  } catch {
+    return null;
+  }
+}
+
+/** @returns {SVGSVGElement | null} */
+function zoomStageSvg() {
+  const svg = zoomStageDocument()?.querySelector(".mermaid-zoom-scaler > svg");
+  if (svg?.namespaceURI !== "http://www.w3.org/2000/svg") return null;
+  return /** @type {SVGSVGElement} */ (svg);
+}
+
+/** Theme tokens the zoom iframe needs (it does not inherit parent CSS). */
+function zoomStageCssVariables() {
+  const cs = getComputedStyle(document.documentElement);
+  /** @type {string[]} */
+  const parts = [];
+  for (const name of cs) {
+    if (
+      name.startsWith("--mermaid") ||
+      name.startsWith("--chrome") ||
+      name.startsWith("--preview")
+    ) {
+      const value = cs.getPropertyValue(name).trim();
+      if (value) parts.push(`${name}:${value}`);
+    }
+  }
+  return parts.join(";");
+}
+
+/**
+ * Reset the no-script zoom iframe and return its document for writing.
+ * @returns {Document | null}
+ */
+function prepareZoomStageDocument() {
+  const frame = mermaidZoomStage;
+  if (frame?.tagName !== "IFRAME") return null;
+  if (frame.getAttribute("sandbox") !== MERMAID_ZOOM_FRAME_SANDBOX) {
+    frame.setAttribute("sandbox", MERMAID_ZOOM_FRAME_SANDBOX);
+  }
+  const doc = frame.contentDocument;
+  if (!doc) return null;
+  const csp = buildPreviewFrameCsp(window.location.origin).replaceAll(
+    '"',
+    "&quot;",
+  );
+  const vars = zoomStageCssVariables();
+  doc.open();
+  doc.write(
+    '<!DOCTYPE html><html lang="en"><head>' +
+      '<meta charset="UTF-8" />' +
+      '<meta http-equiv="Content-Security-Policy" content="' +
+      csp +
+      '" />' +
+      "<style>" +
+      ":root{" +
+      vars +
+      "}" +
+      "html,body{margin:0;min-height:100%;background:var(--mermaid-bg,#fff);color:var(--mermaid-fg,#333);font-family:var(--mermaid-font,system-ui,sans-serif)}" +
+      "body{padding:1rem;box-sizing:border-box}" +
+      ".mermaid-zoom-scaler{margin:0 auto;width:max-content;max-width:none}" +
+      ".mermaid-zoom-scaler > svg{display:block;max-width:none;height:auto;background:var(--mermaid-bg,#fff);font-family:var(--mermaid-font,system-ui,sans-serif)}" +
+      "foreignObject,foreignObject div,foreignObject span,foreignObject p{font-family:var(--mermaid-font,system-ui,sans-serif)}" +
+      "foreignObject p,foreignObject div{margin:0}" +
+      "</style></head><body></body></html>",
+  );
+  doc.close();
+  return doc;
+}
 
 export function ensureMermaidZoomControls(host) {
   if (!host.querySelector(":scope > svg")) {
@@ -36,9 +117,8 @@ export function ensureMermaidZoomControls(host) {
  * looks blurry when zoomed.
  */
 export function applyMermaidZoom() {
-  const svg = mermaidZoomStage?.querySelector(".mermaid-zoom-scaler > svg");
-  // Don't use instanceof — the node may have been imported from the preview iframe.
-  if (svg?.namespaceURI !== "http://www.w3.org/2000/svg") return;
+  const svg = zoomStageSvg();
+  if (!svg) return;
   if (!(state.mermaidZoomBaseW > 0)) return;
   state.mermaidZoomFactor = clampMermaidZoom(state.mermaidZoomFactor);
   const w = state.mermaidZoomBaseW * state.mermaidZoomFactor;
@@ -81,13 +161,16 @@ export function openMermaidZoom(host) {
   state.mermaidZoomBaseH = Math.max(pre.height, 0);
   state.mermaidZoomFactor = 1;
 
-  // Preview lives in a sandboxed iframe — import into the parent document so
-  // the dialog owns the node (cloneNode alone keeps the iframe realm).
-  const clone = /** @type {SVGElement} */ (
-    srcSvg.ownerDocument === document
-      ? srcSvg.cloneNode(true)
-      : document.importNode(srcSvg, true)
-  );
+  const stageDoc = prepareZoomStageDocument();
+  if (!stageDoc?.body) return;
+
+  // Re-sanitize into the zoom iframe document — never import preview nodes
+  // directly into a scriptable browsing context.
+  const clone =
+    hooks.resanitizeMermaidSvgForZoom?.(srcSvg, stageDoc) ||
+    /** @type {SVGSVGElement | null} */ (null);
+  if (!clone) return;
+
   // Keep (or synthesize) viewBox; zoom changes display width/height so the
   // browser re-rasters vectors + foreignObject labels crisply together.
   clone.setAttribute(
@@ -100,19 +183,31 @@ export function openMermaidZoom(host) {
   clone.setAttribute("width", String(Math.round(state.mermaidZoomBaseW)));
   clone.removeAttribute("height");
 
-  const scaler = document.createElement("div");
+  const scaler = stageDoc.createElement("div");
   scaler.className = "mermaid-zoom-scaler";
   scaler.appendChild(clone);
+  stageDoc.body.replaceChildren(scaler);
 
-  mermaidZoomStage.replaceChildren(scaler);
   applyMermaidZoom();
   mermaidZoomDialog.showModal();
+
+  // Wheel over the SVG stays inside the iframe — listen there.
+  stageDoc.addEventListener(
+    "wheel",
+    (e) => {
+      if (!mermaidZoomDialog?.open) return;
+      if (!(e.ctrlKey || e.metaKey)) return;
+      e.preventDefault();
+      stepMermaidZoom(e.deltaY < 0 ? MERMAID_ZOOM_STEP : -MERMAID_ZOOM_STEP);
+    },
+    { passive: false },
+  );
 
   // After layout, fit to stage width (viewBox keeps aspect via height:auto).
   requestAnimationFrame(() => {
     if (!mermaidZoomDialog?.open) return;
-    const laidOut = scaler.querySelector("svg")?.getBoundingClientRect().height;
-    if (laidOut > 0) state.mermaidZoomBaseH = laidOut;
+    const laidOut = zoomStageSvg()?.getBoundingClientRect().height;
+    if (laidOut && laidOut > 0) state.mermaidZoomBaseH = laidOut;
     fitMermaidZoom();
     mermaidZoomStage.focus({ preventScroll: true });
   });
@@ -124,7 +219,8 @@ export function closeMermaidZoom() {
 }
 
 export function onMermaidZoomDialogClose() {
-  mermaidZoomStage?.replaceChildren();
+  const doc = zoomStageDocument();
+  doc?.body?.replaceChildren();
   state.mermaidZoomBaseW = 0;
   state.mermaidZoomBaseH = 0;
   state.mermaidZoomFactor = 1;
@@ -159,16 +255,6 @@ export function setupMermaidZoom() {
     // when the dialog is sized under the viewport.
     if (e.target === mermaidZoomDialog) closeMermaidZoom();
   });
-  mermaidZoomStage?.addEventListener(
-    "wheel",
-    (e) => {
-      if (!mermaidZoomDialog?.open) return;
-      if (!(e.ctrlKey || e.metaKey)) return;
-      e.preventDefault();
-      stepMermaidZoom(e.deltaY < 0 ? MERMAID_ZOOM_STEP : -MERMAID_ZOOM_STEP);
-    },
-    { passive: false },
-  );
   mermaidZoomDialog?.addEventListener("keydown", (e) => {
     if (!mermaidZoomDialog.open) return;
     if (e.key === "+" || e.key === "=") {

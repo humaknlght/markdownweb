@@ -1303,15 +1303,16 @@
       <button type="button" class="btn" id="mermaid-zoom-reset" title="Reset zoom" aria-label="Reset zoom">Reset</button>
       <button type="button" class="btn" id="mermaid-zoom-close" title="Close" aria-label="Close">Close</button>
     </div>
-    <!-- biome-ignore-start lint/a11y/noNoninteractiveTabindex: role=application zoom surface; focused on open -->
-    <div
+    <!-- No allow-scripts: zoomed SVG stays non-executable even if sanitization misses. -->
+    <!-- biome-ignore-start lint/a11y/noNoninteractiveTabindex: focused zoom surface for keyboard shortcuts -->
+    <iframe
       class="mermaid-zoom-stage"
       id="mermaid-zoom-stage"
-      role="application"
-      aria-label="Diagram zoom view"
+      title="Diagram zoom view"
+      sandbox="allow-same-origin"
       tabindex="0"
-    ></div>
-    <!-- biome-ignore-end lint/a11y/noNoninteractiveTabindex: role=application zoom surface; focused on open -->
+    ></iframe>
+    <!-- biome-ignore-end lint/a11y/noNoninteractiveTabindex: focused zoom surface for keyboard shortcuts -->
   </dialog>
 
   <div class="toast" id="toast" hidden role="status"></div>

@@ -8,6 +8,7 @@ import {
   decodeMdzParam,
   decompressBase64UrlToUtf8,
   readShareParams,
+  SHARE_MAX_DECODED_BYTES,
 } from "../../src/lib/share.js";
 
 describe("share encoding", () => {
@@ -26,12 +27,41 @@ describe("share encoding", () => {
     assert.equal(await decodeMdzParam(encoded), text);
   });
 
+  it("rejects mdz payloads that inflate past the size limit", async () => {
+    const bomb = await compressUtf8ToBase64Url(
+      "a".repeat(SHARE_MAX_DECODED_BYTES + 1),
+    );
+    assert.ok(bomb.length < 20_000);
+    await assert.rejects(decompressBase64UrlToUtf8(bomb), RangeError);
+    assert.equal(await decodeMdzParam(bomb), null);
+  });
+
+  it("honors a custom inflate limit at the boundary", async () => {
+    const encoded = await compressUtf8ToBase64Url("x".repeat(1000));
+    assert.equal(
+      await decompressBase64UrlToUtf8(encoded, { maxBytes: 1000 }),
+      "x".repeat(1000),
+    );
+    await assert.rejects(
+      decompressBase64UrlToUtf8(encoded, { maxBytes: 999 }),
+      RangeError,
+    );
+  });
+
   it("decodes md as base64url, then URI, then raw", () => {
     const text = "plain markdown";
     const b64 = bytesToBase64Url(new TextEncoder().encode(text));
     assert.equal(decodeMdParam(b64), text);
     assert.equal(decodeMdParam(encodeURIComponent("a b")), "a b");
     assert.equal(decodeMdParam(""), null);
+  });
+
+  it("rejects md values that would decode past the size limit", () => {
+    const atLimit = bytesToBase64Url(
+      new Uint8Array(SHARE_MAX_DECODED_BYTES).fill(0x61),
+    );
+    assert.equal(decodeMdParam(atLimit)?.length, SHARE_MAX_DECODED_BYTES);
+    assert.equal(decodeMdParam(`${atLimit}AAAA`), null);
   });
 
   it("prefers mdz and validates theme/view against allow-lists", async () => {

@@ -2306,6 +2306,9 @@ html[data-line-wrap="off"] #ai-proof-editor {
 .preview-pane {
   position: relative;
   overflow: auto;
+  /* Tall Mermaid/images growing in the iframe must not scroll-anchor the
+     pane away from the editor-driven sync position. */
+  overflow-anchor: none;
   background: var(--preview-bg, #fff);
 }
 
@@ -2649,18 +2652,14 @@ html[data-mermaid-look="handDrawn"] {
 
 .mermaid-zoom-stage {
   flex: 1 1 auto;
+  align-self: stretch;
+  width: 100%;
   min-height: 0;
-  overflow: auto;
-  padding: 1rem;
+  border: 0;
+  padding: 0;
   background: var(--mermaid-bg);
   outline: none;
   overscroll-behavior: contain;
-  -webkit-overflow-scrolling: touch;
-}
-
-.mermaid-zoom-stage foreignObject p,
-.mermaid-zoom-stage foreignObject div {
-  margin: 0;
 }
 
 .preview .mermaid text,
@@ -2672,16 +2671,6 @@ html[data-mermaid-look="handDrawn"] {
 .preview .mermaid foreignObject div,
 .preview .mermaid foreignObject span,
 .preview .mermaid foreignObject p {
-  font-family: var(--mermaid-font);
-}
-
-.preview .mermaid-zoom-stage,
-.preview .mermaid-zoom-stage text,
-.preview .mermaid-zoom-stage tspan,
-.preview .mermaid-zoom-stage foreignObject,
-.preview .mermaid-zoom-stage foreignObject div,
-.preview .mermaid-zoom-stage foreignObject span,
-.preview .mermaid-zoom-stage foreignObject p {
   font-family: var(--mermaid-font);
 }
 
