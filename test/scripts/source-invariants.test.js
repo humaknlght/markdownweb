@@ -459,12 +459,14 @@ describe("static source invariants", () => {
       srcDir,
       await loadCdnIntegrity(),
     );
+    // No static remote/module tags in the shell. Bootstrap may assign
+    // `.type = "importmap"` dynamically after the parent feeds modules.
     assert.doesNotMatch(html, /<script\b[^>]*\bsrc=/i);
-    assert.doesNotMatch(html, /type=["']importmap["']/i);
+    assert.doesNotMatch(html, /<script\b[^>]*\btype=["']importmap["']/i);
     assert.doesNotMatch(html, /__MERMAID_RUNTIME_PLACEHOLDER__/);
     // Placeholder must be substituted with the runtime source (JSON-stringified).
     assert.match(html, /const MESSAGE_TYPE = \\*"md-mermaid-sandbox\\*/);
-    assert.match(html, /action: "boot"/);
+    assert.match(html, /action:\s*["']boot["']/);
 
     const csp = buildMermaidSandboxContentSecurityPolicy(
       inlineScriptHashes(html),

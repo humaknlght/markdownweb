@@ -172,16 +172,26 @@ const MERMAID_SANDBOX_HTML_HEADERS = {
 };
 
 /**
- * Sandbox HTML as served: src/ is transformed per request (SRI + inline
- * runtime); dist/ is pre-baked by the build.
- * @param {string} logicalPath
+ * Sandbox HTML as served: src/ is transformed per request (inline runtime);
+ * dist/ is pre-baked by the build. Always reads a fixed path under rootDir —
+ * never a request-derived path (CodeQL js/path-injection).
  */
-async function loadMermaidSandboxHtml(logicalPath) {
+async function loadMermaidSandboxHtml() {
   const srcRoot = path.join(repoRoot, "src");
   if (path.resolve(rootDir) === path.resolve(srcRoot)) {
     return renderMermaidSandboxHtml(srcRoot, await loadCdnIntegrity());
   }
-  return fs.readFile(logicalPath, "utf8");
+  const sandboxHtmlPath = path.resolve(
+    rootDir,
+    MERMAID_SANDBOX_DIR,
+    "index.html",
+  );
+  // Inline containment check at the fs sink (CodeQL js/path-injection).
+  const rel = path.relative(rootDir, sandboxHtmlPath);
+  if (rel.startsWith("..") || path.isAbsolute(rel)) {
+    throw new Error("mermaid-sandbox path escaped root");
+  }
+  return fs.readFile(sandboxHtmlPath, "utf8");
 }
 
 /**
@@ -394,7 +404,16 @@ async function handleRequest(req, res) {
     }
 
     if (isHelperHtml(logicalPath, MERMAID_SANDBOX_DIR)) {
-      const html = await loadMermaidSandboxHtml(logicalPath);
+      // Only the sandbox shell is served; other paths under the dir 404.
+      if (path.basename(logicalPath) !== "index.html") {
+        res.writeHead(404, {
+          "Content-Type": "text/plain; charset=utf-8",
+          "Cross-Origin-Resource-Policy": CORP,
+        });
+        res.end("Not Found");
+        return;
+      }
+      const html = await loadMermaidSandboxHtml();
       const headers = buildHeaders(logicalPath, null, {
         htmlHeaders: {
           ...MERMAID_SANDBOX_HTML_HEADERS,

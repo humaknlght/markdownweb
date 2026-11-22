@@ -109,13 +109,19 @@ describe("production build invariants", { timeout: 180_000 }, () => {
         path.join(dist, "mermaid-sandbox", "index.html"),
         "utf8",
       );
-      assert.match(mermaidSandboxHtml, /action: "boot"/);
+      // html-minifier-terser minifyJS may drop the space after `:`.
+      assert.match(mermaidSandboxHtml, /action:\s*["']boot["']/);
       assert.match(
         mermaidSandboxHtml,
         /mermaid@12\.2\.0\/dist\/mermaid\.esm\.min\.mjs/,
       );
+      // No static remote/module tags in the shell. Dynamic JS may assign
+      // `.type = "importmap"` / `.src = blob:` after the parent feeds modules.
       assert.doesNotMatch(mermaidSandboxHtml, /<script\b[^>]*\bsrc=/i);
-      assert.doesNotMatch(mermaidSandboxHtml, /type=["']importmap["']/i);
+      assert.doesNotMatch(
+        mermaidSandboxHtml,
+        /<script\b[^>]*\btype=["']importmap["']/i,
+      );
 
       const csp = JSON.parse(
         await fs.readFile(path.join(dist, "csp.json"), "utf8"),
