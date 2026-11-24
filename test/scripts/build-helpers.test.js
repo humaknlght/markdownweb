@@ -129,6 +129,8 @@ describe("csp.mjs", () => {
     assert.match(csp, /connect-src[^;]*www\.googleapis\.com/);
     assert.match(csp, /connect-src[^;]*api\.github\.com/);
     assert.doesNotMatch(csp, /apis\.google\.com/);
+    assert.match(csp, /style-src 'self'(?:;|$)/);
+    assert.doesNotMatch(csp, /style-src[^;]*unsafe-inline/);
   });
 
   it("builds Drive helper CSP without a Google script host", () => {
@@ -337,6 +339,7 @@ describe("pwa.mjs", () => {
         DEV_PRECACHE.includes("./app/hooks.js"),
     );
     assert.ok(DEV_PRECACHE.includes("./styles/styles.css"));
+    assert.ok(DEV_PRECACHE.includes("./styles/privacy.css"));
     for (const url of CDN_PRECACHE) {
       assert.ok(DEV_PRECACHE.includes(url));
     }

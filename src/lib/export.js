@@ -713,8 +713,7 @@ function printHtmlDocument(html) {
     iframe.setAttribute("aria-hidden", "true");
     // Match the preview frame sandbox; allow-modals is required for win.print().
     iframe.setAttribute("sandbox", PRINT_FRAME_SANDBOX);
-    iframe.style.cssText =
-      "position:fixed;right:0;bottom:0;width:0;height:0;border:0;opacity:0;pointer-events:none;";
+    iframe.className = "print-export-frame";
     document.body.appendChild(iframe);
 
     const win = iframe.contentWindow;

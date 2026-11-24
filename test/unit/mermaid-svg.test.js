@@ -3,11 +3,14 @@ import { describe, it } from "node:test";
 import createDOMPurify from "dompurify";
 import { JSDOM } from "jsdom";
 import {
+  adoptMermaidSvgStyles,
+  filterScopedCssText,
   normalizeSandboxResults,
   parseSandboxMermaidSvg,
   resanitizeMermaidSvgElement,
   sanitizeKeepingForeignObjects,
   scopeMermaidSvgStyles,
+  splitCssTopLevelRules,
   splitScopedSelectorList,
 } from "../../src/lib/mermaid-svg.js";
 
@@ -85,6 +88,39 @@ describe("splitScopedSelectorList", () => {
   });
 });
 
+describe("filterScopedCssText / splitCssTopLevelRules", () => {
+  it("keeps scoped rules and keyframes without CSSOM", () => {
+    const css = filterScopedCssText(
+      [
+        "#mermaid-3 .task0{fill:red}",
+        "#mermaid-3{font-size:16px}",
+        "body{display:none}",
+        "#mermaid-30 .x{color:red}",
+        "#mermaid-3 .a, .toolbar{color:red}",
+        "#mermaid-3 ~ .app{color:red}",
+        "@keyframes dash{to{stroke-dashoffset:0}}",
+      ].join("\n"),
+      "#mermaid-3",
+    );
+    assert.match(css, /#mermaid-3 \.task0/);
+    assert.match(css, /#mermaid-3\{/);
+    assert.match(css, /@keyframes dash/);
+    assert.doesNotMatch(css, /body/);
+    assert.doesNotMatch(css, /mermaid-30/);
+    assert.doesNotMatch(css, /toolbar/);
+    assert.doesNotMatch(css, /\.app/);
+  });
+
+  it("splits braces inside strings without truncating rules", () => {
+    const rules = splitCssTopLevelRules(
+      '#mermaid-1 [data-x="{a}"]{fill:red}#mermaid-1 .b{stroke:blue}',
+    );
+    assert.equal(rules.length, 2);
+    assert.match(rules[0], /data-x/);
+    assert.match(rules[1], /\.b/);
+  });
+});
+
 describe("scopeMermaidSvgStyles", () => {
   it("keeps only rules under the diagram id plus keyframes", () => {
     const { doc } = setup();
@@ -111,6 +147,35 @@ describe("scopeMermaidSvgStyles", () => {
     assert.doesNotMatch(css, /\.app/);
   });
 
+  it("falls back to text filtering when the CSSOM sheet is unavailable", () => {
+    const { doc } = setup();
+    const svg = svgWithStyle(
+      doc,
+      "#mermaid-3 .task0{fill:#1588a8}body{display:none}",
+    );
+    const impl = svg.ownerDocument.implementation;
+    const orig = impl.createHTMLDocument.bind(impl);
+    impl.createHTMLDocument = () => {
+      const d = orig("");
+      const create = d.createElement.bind(d);
+      d.createElement = (name, options) => {
+        const el = create(name, options);
+        if (String(name).toLowerCase() === "style") {
+          Object.defineProperty(el, "sheet", {
+            configurable: true,
+            get: () => null,
+          });
+        }
+        return el;
+      };
+      return d;
+    };
+    scopeMermaidSvgStyles(svg, "mermaid-3");
+    const css = svg.querySelector("style").textContent;
+    assert.match(css, /#mermaid-3 \.task0\{fill:#1588a8\}/);
+    assert.doesNotMatch(css, /body/);
+  });
+
   it("drops all styles when the scope id is not a Mermaid diagram id", () => {
     const { doc } = setup();
     for (const scopeId of ["editor", "mermaid-zoom-stage", "", "mermaid-1 x"]) {
@@ -118,6 +183,42 @@ describe("scopeMermaidSvgStyles", () => {
       scopeMermaidSvgStyles(svg, scopeId);
       assert.equal(svg.querySelector("style"), null, scopeId);
     }
+  });
+});
+
+describe("adoptMermaidSvgStyles", () => {
+  it("mirrors SVG CSS into a constructable sheet when style.sheet is null", () => {
+    const { window: win, doc } = setup();
+    /** @type {string[]} */
+    const synced = [];
+    class FakeSheet {
+      replaceSync(css) {
+        synced.push(String(css));
+      }
+    }
+    win.CSSStyleSheet = FakeSheet;
+    /** @type {FakeSheet[]} */
+    const adopted = [];
+    Object.defineProperty(doc, "adoptedStyleSheets", {
+      configurable: true,
+      get: () => adopted,
+      set: (next) => {
+        adopted.length = 0;
+        adopted.push(...next);
+      },
+    });
+    const svg = svgWithStyle(doc, "#mermaid-3 .task0{fill:#1588a8!important}");
+    doc.body.appendChild(svg);
+    Object.defineProperty(svg.querySelector("style"), "sheet", {
+      configurable: true,
+      get: () => null,
+    });
+
+    adoptMermaidSvgStyles(svg);
+
+    assert.equal(adopted.length, 1);
+    assert.ok(adopted[0] instanceof FakeSheet);
+    assert.match(synced.join("\n"), /#mermaid-3 \.task0\{fill:#1588a8/);
   });
 });
 

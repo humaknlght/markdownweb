@@ -1,3 +1,4 @@
+import { clearRule, setRootVars, setRule } from "../../lib/dynamic-style.js";
 import { DRAWER_CLOSE_SWIPE_MIN_DX, STORAGE_KEYS } from "../constants.js";
 import { hooks } from "../hooks.js";
 import {
@@ -10,6 +11,8 @@ import {
   panes,
   state,
 } from "../state.js";
+
+const FILES_DRAWER_WIDTH_SELECTOR = "#files-drawer";
 
 export function filesDrawerToggleNoun() {
   return fsAccessSupported || state.driveConfigured || state.gistConfigured
@@ -97,7 +100,7 @@ export function setFilesDrawerOpen(
   if (!state.filesDrawerOpen) {
     state.drawerCloseDrag = null;
     document.body.classList.remove("files-drawer-dragging");
-    if (!preserveDragWidth) filesDrawer?.style.removeProperty("width");
+    if (!preserveDragWidth) clearRule(FILES_DRAWER_WIDTH_SELECTOR);
   }
   if (persist) {
     try {
@@ -165,7 +168,7 @@ export function onDrawerCloseDragPointerMove(e) {
     0,
     Math.min(state.drawerCloseDrag.width, state.drawerCloseDrag.width + dx),
   );
-  filesDrawer.style.width = `${next}px`;
+  setRule(FILES_DRAWER_WIDTH_SELECTOR, { width: `${next}px` });
 }
 
 export function finishDrawerCloseDrag(e, { cancelled = false } = {}) {
@@ -178,7 +181,7 @@ export function finishDrawerCloseDrag(e, { cancelled = false } = {}) {
 
   if (!filesDrawer || !active || cancelled) {
     document.body.classList.remove("files-drawer-dragging");
-    filesDrawer?.style.removeProperty("width");
+    clearRule(FILES_DRAWER_WIDTH_SELECTOR);
     return;
   }
 
@@ -186,16 +189,16 @@ export function finishDrawerCloseDrag(e, { cancelled = false } = {}) {
     currentWidth < startWidth * 0.5 || dx <= -DRAWER_CLOSE_SWIPE_MIN_DX;
 
   // Re-enable transitions while still at the dragged width, then settle.
-  filesDrawer.style.width = `${currentWidth}px`;
+  setRule(FILES_DRAWER_WIDTH_SELECTOR, { width: `${currentWidth}px` });
   document.body.classList.remove("files-drawer-dragging");
   void filesDrawer.offsetWidth;
 
   if (shouldClose) {
     setFilesDrawerOpen(false, { preserveDragWidth: true });
-    filesDrawer.style.removeProperty("width");
+    clearRule(FILES_DRAWER_WIDTH_SELECTOR);
   } else {
     // Snap the drawer back open under the panes.
-    filesDrawer.style.removeProperty("width");
+    clearRule(FILES_DRAWER_WIDTH_SELECTOR);
   }
 }
 
@@ -253,8 +256,10 @@ export function openFilesContextMenu(x, y, target) {
   const rect = filesContextMenu.getBoundingClientRect();
   const left = Math.min(x, window.innerWidth - rect.width - 8);
   const top = Math.min(y, window.innerHeight - rect.height - 8);
-  filesContextMenu.style.left = `${Math.max(8, left)}px`;
-  filesContextMenu.style.top = `${Math.max(8, top)}px`;
+  setRootVars({
+    "--files-menu-left": `${Math.max(8, left)}px`,
+    "--files-menu-top": `${Math.max(8, top)}px`,
+  });
 }
 
 hooks.filesDrawerToggleNoun = filesDrawerToggleNoun;

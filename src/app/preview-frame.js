@@ -1,3 +1,4 @@
+import { setRootVars } from "../lib/dynamic-style.js";
 import {
   buildPreviewFrameCsp,
   PREVIEW_FRAME_CSP,
@@ -5,6 +6,7 @@ import {
 } from "./constants.js";
 import { hooks } from "./hooks.js";
 import { measurePreviewFrameContentHeight } from "./preview-frame-height.js";
+import { adoptPreviewFrameReset } from "./preview-frame-reset.js";
 import {
   preview,
   previewFrame,
@@ -142,7 +144,10 @@ export function syncPreviewFrameHeight() {
   const prevWidth = Number(frame.dataset.mdFrameWidth || 0);
   const nextWidth = frame.getBoundingClientRect().width;
   const nextHeight = `${height}px`;
-  if (frame.style.height !== nextHeight) frame.style.height = nextHeight;
+  if (frame.dataset.mdFrameHeight !== nextHeight) {
+    frame.dataset.mdFrameHeight = nextHeight;
+    setRootVars({ "--preview-frame-height": nextHeight });
+  }
   frame.dataset.mdFrameWidth = String(nextWidth);
   // Width recovery (narrow → readable) must retry Mermaid hosts left pending.
   if (
@@ -279,8 +284,15 @@ export function initPreviewFrame() {
 </body>
 </html>`);
   doc.close();
+  // open() can replace the document. The inline <style> above does not apply
+  // under the parent style-src policy; the constructable sheet does.
+  const live = frame.contentDocument;
+  if (!live) {
+    throw new Error("Preview frame document unavailable");
+  }
+  adoptPreviewFrameReset(live);
 
-  const article = doc.getElementById("preview");
+  const article = live.getElementById("preview");
   if (!article) {
     throw new Error("Preview article missing inside frame");
   }
@@ -299,11 +311,11 @@ export function initPreviewFrame() {
       hooks.scheduleMermaidScale?.();
     });
     previewResizeObserver.observe(article);
-    if (doc.body) previewResizeObserver.observe(doc.body);
+    if (live.body) previewResizeObserver.observe(live.body);
     previewResizeObserver.observe(frame);
   }
 
-  const link = doc.querySelector('link[rel="stylesheet"]:not(#zen-theme-css)');
+  const link = live.querySelector('link[rel="stylesheet"]:not(#zen-theme-css)');
   if (link) {
     link.addEventListener("load", () => schedulePreviewFrameHeight());
     link.addEventListener("error", () => schedulePreviewFrameHeight());

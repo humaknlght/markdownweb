@@ -16,7 +16,13 @@ import {
   preview,
   state,
 } from "../state.js";
-import { clampMermaidZoom, mermaidZoomViewBox } from "./zoom-utils.js";
+import {
+  adoptZoomStageCss,
+  clampMermaidZoom,
+  mermaidZoomViewBox,
+  zoomStageCssText,
+  zoomStageVariableDeclarations,
+} from "./zoom-utils.js";
 
 export { clampMermaidZoom, mermaidZoomViewBox };
 
@@ -38,26 +44,10 @@ function zoomStageSvg() {
   return /** @type {SVGSVGElement} */ (svg);
 }
 
-/** Theme tokens the zoom iframe needs (it does not inherit parent CSS). */
-function zoomStageCssVariables() {
-  const cs = getComputedStyle(document.documentElement);
-  /** @type {string[]} */
-  const parts = [];
-  for (const name of cs) {
-    if (
-      name.startsWith("--mermaid") ||
-      name.startsWith("--chrome") ||
-      name.startsWith("--preview")
-    ) {
-      const value = cs.getPropertyValue(name).trim();
-      if (value) parts.push(`${name}:${value}`);
-    }
-  }
-  return parts.join(";");
-}
-
 /**
  * Reset the no-script zoom iframe and return its document for writing.
+ * Theme CSS is adopted, not written as `<style>`: this frame inherits the
+ * parent `style-src 'self'` policy, which blocks inline styles.
  * @returns {Document | null}
  */
 function prepareZoomStageDocument() {
@@ -72,7 +62,6 @@ function prepareZoomStageDocument() {
     '"',
     "&quot;",
   );
-  const vars = zoomStageCssVariables();
   doc.open();
   doc.write(
     '<!DOCTYPE html><html lang="en"><head>' +
@@ -80,20 +69,21 @@ function prepareZoomStageDocument() {
       '<meta http-equiv="Content-Security-Policy" content="' +
       csp +
       '" />' +
-      "<style>" +
-      ":root{" +
-      vars +
-      "}" +
-      "html,body{margin:0;min-height:100%;background:var(--mermaid-bg,#fff);color:var(--mermaid-fg,#333);font-family:var(--mermaid-font,system-ui,sans-serif)}" +
-      "body{padding:1rem;box-sizing:border-box}" +
-      ".mermaid-zoom-scaler{margin:0 auto;width:max-content;max-width:none}" +
-      ".mermaid-zoom-scaler > svg{display:block;max-width:none;height:auto;background:var(--mermaid-bg,#fff);font-family:var(--mermaid-font,system-ui,sans-serif)}" +
-      "foreignObject,foreignObject div,foreignObject span,foreignObject p{font-family:var(--mermaid-font,system-ui,sans-serif)}" +
-      "foreignObject p,foreignObject div{margin:0}" +
-      "</style></head><body></body></html>",
+      "</head><body></body></html>",
   );
   doc.close();
-  return doc;
+  // open() can replace the document object; style the one now in the frame.
+  const live = frame.contentDocument;
+  if (!live?.body) return null;
+  const css = zoomStageCssText(
+    zoomStageVariableDeclarations(getComputedStyle(document.documentElement)),
+  );
+  if (!adoptZoomStageCss(live, css)) {
+    const style = live.createElement("style");
+    style.textContent = css;
+    live.head?.appendChild(style);
+  }
+  return live;
 }
 
 export function ensureMermaidZoomControls(host) {
@@ -187,6 +177,13 @@ export function openMermaidZoom(host) {
   scaler.className = "mermaid-zoom-scaler";
   scaler.appendChild(clone);
   stageDoc.body.replaceChildren(scaler);
+
+  // foreignObject HTML ignores the iframe's author CSS; inline margin is allowed here.
+  for (const node of clone.querySelectorAll(
+    "foreignObject p, foreignObject div",
+  )) {
+    /** @type {HTMLElement} */ (node).style.margin = "0";
+  }
 
   applyMermaidZoom();
   mermaidZoomDialog.showModal();

@@ -70,6 +70,8 @@ export function restoreMermaidRenders(bySource) {
       // A morph may have kept this host and its SVG. Replacing it with a clone
       // would drop the zoom control and repaint the diagram on every keystroke.
       if (!el.querySelector(":scope > svg")) el.replaceChildren(reuse.svg);
+      const svg = el.querySelector(":scope > svg");
+      if (svg) hooks.adoptMermaidSvgStyles?.(svg);
       el.style.minHeight = "";
       el.removeAttribute("data-pending");
       continue;

@@ -1328,12 +1328,14 @@ test.describe("editor + render", () => {
     const readSync = () =>
       page.evaluate(() => {
         const editor = document.getElementById("editor");
-        const transform =
-          document.querySelector("#editor-highlight code")?.style.transform ||
-          "";
-        const match = /translate\(([-0-9.]+)px,\s*([-0-9.]+)px\)/.exec(
-          transform,
-        );
+        const code = document.querySelector("#editor-highlight code");
+        const transform = code ? getComputedStyle(code).transform : "";
+        const match =
+          transform && transform !== "none"
+            ? /matrix\(1,\s*0,\s*0,\s*1,\s*([-0-9.]+),\s*([-0-9.]+)\)/.exec(
+                transform,
+              ) || /translate\(([-0-9.]+)px,\s*([-0-9.]+)px\)/.exec(transform)
+            : null;
         return {
           editor: editor.scrollTop,
           translateY: match ? Number(match[2]) : null,

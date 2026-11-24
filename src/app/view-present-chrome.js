@@ -1,3 +1,4 @@
+import { setRawBlock } from "../lib/dynamic-style.js";
 import {
   PRESENT_CHROME_IDLE_MS,
   PRESENT_SWIPE_MIN_DX,
@@ -5,6 +6,8 @@ import {
 } from "./constants.js";
 import { hooks } from "./hooks.js";
 import { presentChrome, state } from "./state.js";
+
+const PRINT_ORIENTATION_BLOCK = "print-orientation";
 
 export function getFullscreenElement() {
   return document.fullscreenElement || document.webkitFullscreenElement || null;
@@ -129,22 +132,26 @@ export function enterSlidesMode() {
 
 /** Landscape pages when printing a slide deck; clear afterward so edit print stays default. */
 export function syncPrintPageOrientation() {
-  let el = document.getElementById("print-orientation-style");
-  if (!el) {
-    el = document.createElement("style");
-    el.id = "print-orientation-style";
-    document.head.appendChild(el);
-  }
   const landscape =
     state.currentView === "slides" || state.currentView === "present";
-  el.textContent = landscape
-    ? "@media print { @page { size: landscape; margin: 0.5in; } }"
-    : "";
+  if (landscape) {
+    document.documentElement.setAttribute(
+      "data-print-orientation",
+      "landscape",
+    );
+  } else {
+    document.documentElement.removeAttribute("data-print-orientation");
+  }
+  // @page cannot key off HTML attrs; use the adopted sheet instead of <style>.
+  setRawBlock(
+    PRINT_ORIENTATION_BLOCK,
+    landscape ? "@media print{@page{size:landscape;margin:0.5in}}" : null,
+  );
 }
 
 export function clearPrintPageOrientation() {
-  const el = document.getElementById("print-orientation-style");
-  if (el) el.textContent = "";
+  document.documentElement.removeAttribute("data-print-orientation");
+  setRawBlock(PRINT_ORIENTATION_BLOCK, null);
 }
 
 export function exitPresentMode() {

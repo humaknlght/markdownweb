@@ -256,9 +256,95 @@ function selectorStaysInScope(selector, prefix) {
 }
 
 /**
+ * Split a stylesheet into top-level rules without CSSOM. Used when
+ * `style.sheet` is null (common under a parent CSP `style-src` without
+ * `'unsafe-inline'`: `createHTMLDocument` probes cannot parse inline CSS).
+ * @param {string} cssText
+ * @returns {string[]}
+ */
+export function splitCssTopLevelRules(cssText) {
+  /** @type {string[]} */
+  const rules = [];
+  const text = String(cssText);
+  let i = 0;
+  while (i < text.length) {
+    while (i < text.length && /\s/.test(text[i])) i++;
+    if (i >= text.length) break;
+    if (text.startsWith("/*", i)) {
+      const end = text.indexOf("*/", i + 2);
+      i = end < 0 ? text.length : end + 2;
+      continue;
+    }
+    const start = i;
+    let quote = "";
+    let depth = 0;
+    let sawBrace = false;
+    for (; i < text.length; i++) {
+      const ch = text[i];
+      if (quote) {
+        if (ch === "\\") {
+          i++;
+          continue;
+        }
+        if (ch === quote) quote = "";
+        continue;
+      }
+      if (ch === '"' || ch === "'") {
+        quote = ch;
+        continue;
+      }
+      if (ch === "{") {
+        depth++;
+        sawBrace = true;
+        continue;
+      }
+      if (ch === "}") {
+        depth--;
+        if (sawBrace && depth === 0) {
+          i++;
+          break;
+        }
+      }
+    }
+    const chunk = text.slice(start, i).trim();
+    if (chunk) rules.push(chunk);
+  }
+  return rules;
+}
+
+/**
+ * Keep `@keyframes` and rules whose selectors all stay under `#scopeId`.
+ * @param {string} cssText
+ * @param {string} prefix `#mermaid-N`
+ * @returns {string}
+ */
+export function filterScopedCssText(cssText, prefix) {
+  /** @type {string[]} */
+  const kept = [];
+  for (const rule of splitCssTopLevelRules(cssText)) {
+    if (/^@keyframes\s/i.test(rule)) {
+      kept.push(rule);
+      continue;
+    }
+    if (rule.startsWith("@")) continue;
+    const brace = rule.indexOf("{");
+    if (brace < 0) continue;
+    const selectors = splitScopedSelectorList(rule.slice(0, brace));
+    if (selectors?.every((sel) => selectorStaysInScope(sel, prefix))) {
+      kept.push(rule);
+    }
+  }
+  return kept.join("\n");
+}
+
+/**
  * Keep only `<style>` rules that target the diagram's own subtree
  * (`#mermaid-N …`) plus `@keyframes`. The SVG is shown in the zoom iframe and
  * may be exported, so unscoped rules must not restyle host chrome.
+ *
+ * Prefers CSSOM when `style.sheet` is available. Falls back to text filtering
+ * when the probe sheet is null/empty — otherwise Mermaid gantt (class-only
+ * fills, no presentation attributes) renders as a solid black box.
  * @param {Element} svg
  * @param {string} scopeId Mermaid's root SVG id from the classic render.
  */
@@ -272,30 +358,131 @@ export function scopeMermaidSvgStyles(svg, scopeId) {
   const prefix = `#${scopeId}`;
   const scratch = svg.ownerDocument.implementation.createHTMLDocument("");
   for (const style of styles) {
+    const raw = style.textContent || "";
+    if (!raw.trim()) {
+      style.textContent = "";
+      continue;
+    }
     const probe = scratch.createElement("style");
-    probe.textContent = style.textContent || "";
+    probe.textContent = raw;
     scratch.head.appendChild(probe);
+    const ruleList = probe.sheet?.cssRules;
     /** @type {string[]} */
     const kept = [];
-    for (const rule of probe.sheet?.cssRules ?? []) {
-      if (
-        rule.type === CSS_KEYFRAMES_RULE ||
-        /^@keyframes\s/i.test(rule.cssText)
-      ) {
-        kept.push(rule.cssText);
-        continue;
+    if (ruleList && ruleList.length > 0) {
+      for (const rule of ruleList) {
+        if (
+          rule.type === CSS_KEYFRAMES_RULE ||
+          /^@keyframes\s/i.test(rule.cssText)
+        ) {
+          kept.push(rule.cssText);
+          continue;
+        }
+        if (rule.type !== CSS_STYLE_RULE) continue;
+        const selectors = splitScopedSelectorList(
+          /** @type {CSSStyleRule} */ (rule).selectorText,
+        );
+        if (selectors?.every((sel) => selectorStaysInScope(sel, prefix))) {
+          kept.push(rule.cssText);
+        }
       }
-      if (rule.type !== CSS_STYLE_RULE) continue;
-      const selectors = splitScopedSelectorList(
-        /** @type {CSSStyleRule} */ (rule).selectorText,
-      );
-      if (selectors?.every((sel) => selectorStaysInScope(sel, prefix))) {
-        kept.push(rule.cssText);
-      }
+      style.textContent = kept.join("\n");
+    } else {
+      // CSP / createHTMLDocument: sheet never materializes — do not empty the
+      // stylesheet (that blacked out gantt bars that rely on class fills).
+      style.textContent = filterScopedCssText(raw, prefix);
     }
     probe.remove();
-    style.textContent = kept.join("\n");
   }
+}
+
+/** Restores themeCSS foreignObject rules dropped by {@link scopeMermaidSvgStyles}. */
+function injectMermaidForeignObjectThemePatch(svg, scopeId) {
+  if (!MERMAID_SCOPE_ID_RE.test(scopeId)) return;
+  const style = svg.ownerDocument.createElementNS(SVG_NS, "style");
+  const prefix = `#${scopeId}`;
+  style.textContent = [
+    `${prefix} foreignObject p,${prefix} foreignObject div,${prefix} .edgeLabel p,${prefix} .nodeLabel p{margin:0!important}`,
+    `${prefix} .labelBkg,${prefix} span.edgeLabel,${prefix} .edgeLabel .labelBkg,${prefix} .edgeLabel p,${prefix} .edgeLabel span{background-color:var(--mermaid-label-bg)!important}`,
+    `${prefix} .edgeLabel foreignObject p,${prefix} .edgeLabel foreignObject span{color:var(--mermaid-fg)!important}`,
+  ].join("");
+  // Append so these override retained scoped Mermaid rules (margin on node labels).
+  svg.appendChild(style);
+}
+
+/** Preview/zoom docs → scopeId → constructable sheet (survives style-src without SVG CSSOM). */
+/** @type {WeakMap<Document, Map<string, CSSStyleSheet>>} */
+const mermaidDocSheets = new WeakMap();
+
+/**
+ * Mermaid paints gantt (etc.) via class rules in `<style>`. Under a strict parent
+ * CSP, SVG `<style>` often has `sheet === null`, so fills default to black even
+ * when the CSS text is present. Mirror the CSS into a constructable stylesheet
+ * on the owner document (allowed like `dynamic-style.js` under `style-src 'self'`).
+ * @param {Element} svg
+ */
+export function adoptMermaidSvgStyles(svg) {
+  const doc = svg?.ownerDocument;
+  const view = doc?.defaultView;
+  const scopeId = String(svg?.id || "");
+  if (!doc || !view || !MERMAID_SCOPE_ID_RE.test(scopeId)) return;
+  if (typeof view.CSSStyleSheet !== "function") return;
+
+  const css = [...svg.querySelectorAll("style")]
+    .map((el) => el.textContent || "")
+    .filter((t) => t.trim())
+    .join("\n");
+  if (!css) return;
+
+  // Live SVG CSSOM already applies — nothing to mirror.
+  const inline = svg.querySelector("style");
+  if (inline?.sheet && inline.sheet.cssRules.length > 0) return;
+
+  let byId = mermaidDocSheets.get(doc);
+  if (!byId) {
+    byId = new Map();
+    mermaidDocSheets.set(doc, byId);
+  }
+
+  // Drop sheets for diagrams no longer in this document.
+  for (const [id, stale] of byId) {
+    if (id === scopeId) continue;
+    if (doc.getElementById(id)) continue;
+    byId.delete(id);
+    try {
+      doc.adoptedStyleSheets = doc.adoptedStyleSheets.filter(
+        (s) => s !== stale,
+      );
+    } catch {
+      /* ignore */
+    }
+  }
+
+  let sheet = byId.get(scopeId);
+  if (!sheet) {
+    try {
+      sheet = new view.CSSStyleSheet();
+      doc.adoptedStyleSheets = [...doc.adoptedStyleSheets, sheet];
+      byId.set(scopeId, sheet);
+    } catch {
+      return;
+    }
+  }
+  try {
+    sheet.replaceSync(css);
+  } catch {
+    /* ignore invalid CSS from sandbox */
+  }
+}
+
+/** Keep diagram id for scoping when zoom re-sanitizes (outerHTML drops no-id roots). */
+function mermaidScopeIdFromSvg(svg) {
+  if (MERMAID_SCOPE_ID_RE.test(svg.id)) return svg.id;
+  for (const style of svg.querySelectorAll("style")) {
+    const match = style.textContent?.match(/#(mermaid-\d+)\b/);
+    if (match && MERMAID_SCOPE_ID_RE.test(match[1])) return match[1];
+  }
+  return "";
 }
 
 /**
@@ -375,8 +562,13 @@ export function parseSandboxMermaidSvg(result, doc, purify) {
       : MERMAID_SCOPE_ID_RE.test(svg.id)
         ? svg.id
         : "";
+  if (scopeId && svg.id !== scopeId) svg.id = scopeId;
   scopeMermaidSvgStyles(svg, scopeId);
-  return /** @type {SVGSVGElement} */ (doc.importNode(svg, true));
+  injectMermaidForeignObjectThemePatch(svg, scopeId);
+  const adopted = /** @type {SVGSVGElement} */ (doc.importNode(svg, true));
+  // Adopt after import so the sheet attaches to the live preview/zoom document.
+  adoptMermaidSvgStyles(adopted);
+  return adopted;
 }
 
 /**
@@ -393,6 +585,6 @@ export function resanitizeMermaidSvgElement(svg, doc, purify) {
   }
   const markup = svg.outerHTML;
   if (!markup || markup.length > MERMAID_SVG_MAX_CHARS) return null;
-  const scopeId = MERMAID_SCOPE_ID_RE.test(svg.id) ? svg.id : "";
+  const scopeId = mermaidScopeIdFromSvg(svg);
   return parseSandboxMermaidSvg({ svg: markup, scopeId }, doc, purify);
 }

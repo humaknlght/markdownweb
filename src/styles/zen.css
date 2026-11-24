@@ -97,6 +97,10 @@ html[data-theme="zen"] body {
   display: block;
 }
 
+#zen-canvas.zen-canvas-fallback {
+  background: #0b1c24;
+}
+
 html[data-theme="zen"] .toolbar,
 html[data-theme="zen"] .site-intro,
 html[data-theme="zen"] .panes,

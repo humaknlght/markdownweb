@@ -1,9 +1,9 @@
+import { setRule } from "../lib/dynamic-style.js";
 import { EDITOR_HIGHLIGHT_MAX } from "./constants.js";
 import { hooks } from "./hooks.js";
 import {
   collapsedSections,
   editor,
-  editorHighlight,
   editorHighlightCode,
   state,
 } from "./state.js";
@@ -76,7 +76,9 @@ export function syncEditorHighlightScroll({ insets = false } = {}) {
     if (dx !== state.highlightInsetX || dy !== state.highlightInsetY) {
       state.highlightInsetX = dx;
       state.highlightInsetY = dy;
-      editorHighlight.style.inset = `0 ${dx}px ${dy}px 0`;
+      setRule("#editor-highlight", {
+        inset: `0 ${dx}px ${dy}px 0`,
+      });
     }
   }
   const left = editor.scrollLeft;
@@ -87,7 +89,9 @@ export function syncEditorHighlightScroll({ insets = false } = {}) {
   state.highlightSyncTop = top;
   // Translate the highlight content instead of scrolling the layer — keeps
   // browser Find from moving a second scrollport out of sync with #editor.
-  editorHighlightCode.style.transform = `translate(${-left}px, ${-top}px)`;
+  setRule("#editor-highlight code", {
+    transform: `translate(${-left}px, ${-top}px)`,
+  });
 }
 
 export function setEditorValue(text) {

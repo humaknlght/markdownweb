@@ -1,3 +1,4 @@
+import { setRule } from "../lib/dynamic-style.js";
 import { STORAGE_KEYS } from "./constants.js";
 import { hooks } from "./hooks.js";
 import {
@@ -13,6 +14,8 @@ import {
   state,
   syncScrollBtn,
 } from "./state.js";
+
+const LINE_MIRROR_SELECTOR = ".line-mirror";
 
 export function scrollRatio(el) {
   const max = el.scrollHeight - el.clientHeight;
@@ -61,11 +64,8 @@ export function offsetWithin(el, container) {
 export function ensureLineMirror() {
   if (state.lineMirror) return state.lineMirror;
   state.lineMirror = document.createElement("div");
+  state.lineMirror.className = "line-mirror";
   state.lineMirror.setAttribute("aria-hidden", "true");
-  state.lineMirror.style.cssText =
-    "position:absolute;visibility:hidden;pointer-events:none;height:auto;" +
-    "overflow:hidden;white-space:pre-wrap;overflow-wrap:break-word;word-wrap:break-word;" +
-    "top:0;left:-99999px;z-index:-1;";
   document.body.appendChild(state.lineMirror);
   return state.lineMirror;
 }
@@ -74,36 +74,33 @@ export function ensureLineMirror() {
 export function measureEditorLineTops() {
   const mirror = ensureLineMirror();
   const cs = getComputedStyle(editor);
-  const copyProps = [
-    "boxSizing",
-    "borderTopWidth",
-    "borderRightWidth",
-    "borderBottomWidth",
-    "borderLeftWidth",
-    "fontFamily",
-    "fontSize",
-    "fontWeight",
-    "fontStyle",
-    "fontVariant",
-    "letterSpacing",
-    "lineHeight",
-    "textTransform",
-    "wordSpacing",
-    "textIndent",
-    "paddingTop",
-    "paddingRight",
-    "paddingBottom",
-    "paddingLeft",
-    "tabSize",
-  ];
-  for (const prop of copyProps) {
-    mirror.style[prop] = cs[prop];
-  }
-  // Match editor wrap so sync-scroll anchors stay aligned when wrapping is off.
-  mirror.style.whiteSpace = cs.whiteSpace;
-  mirror.style.overflowWrap = cs.overflowWrap;
-  mirror.style.wordWrap = cs.wordWrap;
-  mirror.style.width = `${editor.clientWidth}px`;
+  // Match editor metrics so sync-scroll anchors stay aligned when wrapping changes.
+  setRule(LINE_MIRROR_SELECTOR, {
+    "box-sizing": cs.boxSizing,
+    "border-top-width": cs.borderTopWidth,
+    "border-right-width": cs.borderRightWidth,
+    "border-bottom-width": cs.borderBottomWidth,
+    "border-left-width": cs.borderLeftWidth,
+    "font-family": cs.fontFamily,
+    "font-size": cs.fontSize,
+    "font-weight": cs.fontWeight,
+    "font-style": cs.fontStyle,
+    "font-variant": cs.fontVariant,
+    "letter-spacing": cs.letterSpacing,
+    "line-height": cs.lineHeight,
+    "text-transform": cs.textTransform,
+    "word-spacing": cs.wordSpacing,
+    "text-indent": cs.textIndent,
+    "padding-top": cs.paddingTop,
+    "padding-right": cs.paddingRight,
+    "padding-bottom": cs.paddingBottom,
+    "padding-left": cs.paddingLeft,
+    "tab-size": cs.tabSize,
+    "white-space": cs.whiteSpace,
+    "overflow-wrap": cs.overflowWrap,
+    "word-wrap": cs.wordWrap,
+    width: `${editor.clientWidth}px`,
+  });
 
   const lines = editor.value.split("\n");
   mirror.replaceChildren();
@@ -271,7 +268,9 @@ export function isProofreadPreviewActive() {
 
 export function syncProofEditorHighlightScroll() {
   if (!aiProofEditor || !aiProofHighlight || !aiProofHighlightCode) return;
-  aiProofHighlightCode.style.transform = `translate(${-aiProofEditor.scrollLeft}px, ${-aiProofEditor.scrollTop}px)`;
+  setRule("#ai-proof-highlight code", {
+    transform: `translate(${-aiProofEditor.scrollLeft}px, ${-aiProofEditor.scrollTop}px)`,
+  });
 }
 
 export function syncPreviewFromEditor() {

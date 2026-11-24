@@ -111,6 +111,7 @@ export {
   shouldOpenLinkInNewTab,
 } from "../lib/link-targets.js";
 export {
+  adoptMermaidSvgStyles,
   normalizeSandboxResults,
   parseSandboxMermaidSvg,
   resanitizeMermaidSvgElement,

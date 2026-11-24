@@ -413,6 +413,8 @@ describe("static source invariants", () => {
     assert.match(ht, /api\.github\.com/);
     assert.match(ht, /img-src 'self' data: blob:/);
     assert.doesNotMatch(ht, /img-src 'self' data: blob: https:/);
+    assert.match(ht, /style-src 'self';/);
+    assert.doesNotMatch(ht, /style-src 'self' 'unsafe-inline'/);
   });
 
   it("loads Mermaid and svg2roughjs only inside the opaque-origin sandbox", async () => {

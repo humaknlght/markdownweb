@@ -1,3 +1,4 @@
+import { setRootVars } from "../lib/dynamic-style.js";
 import { NARROW_MQ, STORAGE_KEYS } from "./constants.js";
 import { hooks } from "./hooks.js";
 import {
@@ -47,9 +48,7 @@ export function isStackedLayout() {
 
 export function applySplit(percent, { persist = true } = {}) {
   state.splitPercent = clampSplit(Number(percent) || 50);
-  panes.style.setProperty("--split", `${state.splitPercent}%`);
-  // Head boot sets --split on <html>; drop it once panes owns the live value.
-  document.documentElement.style.removeProperty("--split");
+  setRootVars({ "--split": `${state.splitPercent}%` });
   splitter.setAttribute(
     "aria-valuenow",
     String(Math.round(state.splitPercent)),

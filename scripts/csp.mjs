@@ -48,7 +48,8 @@ export function buildContentSecurityPolicy(scriptSrc) {
     "frame-ancestors 'none'",
     "form-action 'self'",
     `script-src ${scriptSrc}`,
-    "style-src 'self' 'unsafe-inline'",
+    // No 'unsafe-inline': dynamic CSS uses a constructable stylesheet + classes.
+    "style-src 'self'",
     // No https: — Markdown preview must not phone home via remote images.
     "img-src 'self' data: blob:",
     "media-src 'self' data: blob:",
