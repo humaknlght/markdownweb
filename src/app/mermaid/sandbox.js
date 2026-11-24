@@ -11,6 +11,7 @@ import {
 import { hooks } from "../hooks.js";
 import { CDN_INTEGRITY } from "../lazy-modules.js";
 import {
+  adoptMermaidSvgStyles,
   DOMPurify,
   normalizeSandboxResults,
   parseSandboxMermaidSvg,
@@ -74,8 +75,7 @@ function ensureSandboxFrame() {
     iframe.setAttribute("aria-hidden", "true");
     iframe.tabIndex = -1;
     // Laid out (not display:none) so Mermaid can measure text; never visible.
-    iframe.style.cssText =
-      "position:fixed;left:0;top:0;width:100vw;height:100vh;border:0;visibility:hidden;pointer-events:none;z-index:-1;";
+    iframe.className = "mermaid-measure-frame";
 
     /** @param {MessageEvent} event */
     const onMessage = (event) => {
@@ -273,4 +273,7 @@ export function resanitizeMermaidSvgForZoom(svg, doc) {
 
 hooks.renderMermaidInSandbox = renderMermaidInSandbox;
 hooks.adoptSandboxMermaidSvg = adoptSandboxMermaidSvg;
+hooks.adoptMermaidSvgStyles = adoptMermaidSvgStyles;
 hooks.resanitizeMermaidSvgForZoom = resanitizeMermaidSvgForZoom;
+
+export { adoptMermaidSvgStyles };

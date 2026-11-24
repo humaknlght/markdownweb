@@ -1,3 +1,4 @@
+import { setRootVars, setRule } from "../../lib/dynamic-style.js";
 import { hooks } from "../hooks.js";
 import {
   aiProofEditor,
@@ -238,18 +239,15 @@ export function installAiDialogs(s, api) {
   function syncProofDockClearance() {
     const dialog = aiProofreadDialog;
     if (!dialog?.open) {
-      document.documentElement.style.removeProperty(
-        "--ai-proof-dock-clearance",
-      );
+      setRootVars({ "--ai-proof-dock-clearance": null });
       return;
     }
     const height = Math.ceil(dialog.getBoundingClientRect().height);
     // Match dock `bottom: 1rem` plus a small gap above the dialog.
     const clearance = height + 24;
-    document.documentElement.style.setProperty(
-      "--ai-proof-dock-clearance",
-      `${Math.max(clearance, 96)}px`,
-    );
+    setRootVars({
+      "--ai-proof-dock-clearance": `${Math.max(clearance, 96)}px`,
+    });
   }
 
   function showProofreadPreview(originalSlice, correctedSlice) {
@@ -296,7 +294,9 @@ export function installAiDialogs(s, api) {
     if (!aiProofEditor || !aiProofHighlight) return;
     const dx = aiProofEditor.offsetWidth - aiProofEditor.clientWidth;
     const dy = aiProofEditor.offsetHeight - aiProofEditor.clientHeight;
-    aiProofHighlight.style.inset = `0 ${dx}px ${dy}px 0`;
+    setRule("#ai-proof-highlight", {
+      inset: `0 ${dx}px ${dy}px 0`,
+    });
     hooks.syncProofEditorHighlightScroll();
   }
 

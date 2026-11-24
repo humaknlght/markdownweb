@@ -1418,8 +1418,55 @@ a.btn {
   border: 0;
   background: transparent;
   /* Height is set from content so #preview-pane remains the scroll container. */
-  height: 1px;
+  height: var(--preview-frame-height, 1px);
   vertical-align: top;
+}
+
+/* Helper iframes — static layout (no element.style; CSP style-src 'self'). */
+.visually-hidden-frame {
+  position: absolute;
+  width: 0;
+  height: 0;
+  border: 0;
+  clip: rect(0, 0, 0, 0);
+  overflow: hidden;
+}
+
+.mermaid-measure-frame {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 100vw;
+  height: 100vh;
+  border: 0;
+  visibility: hidden;
+  pointer-events: none;
+  z-index: -1;
+}
+
+.print-export-frame {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  width: 0;
+  height: 0;
+  border: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.line-mirror {
+  position: absolute;
+  visibility: hidden;
+  pointer-events: none;
+  height: auto;
+  overflow: hidden;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+  top: 0;
+  left: -99999px;
+  z-index: -1;
 }
 
 body[data-ai-proof-preview="1"] .ai-proof-editor-wrap {
@@ -1908,6 +1955,8 @@ body.files-source-drive .gist-only:not(.cloud-only):not(.files-source-btn) {
   position: fixed;
   z-index: 120;
   min-width: 10rem;
+  left: var(--files-menu-left, 0);
+  top: var(--files-menu-top, 0);
 }
 
 .outline-header {
@@ -2674,6 +2723,25 @@ html[data-mermaid-look="handDrawn"] {
   font-family: var(--mermaid-font);
 }
 
+.preview .mermaid foreignObject p,
+.preview .mermaid foreignObject div {
+  margin: 0;
+}
+
+/* Flowchart edge labels use foreignObject HTML. scopeMermaidSvgStyles keeps only
+   #mermaid-N rules in the SVG, so unscoped themeCSS chip paints live here. */
+.preview .mermaid .labelBkg,
+.preview .mermaid span.edgeLabel,
+.preview .mermaid .edgeLabel .labelBkg,
+.preview .mermaid .edgeLabel span {
+  background-color: var(--mermaid-label-bg);
+}
+
+.preview .mermaid .edgeLabel p {
+  margin: 0;
+  background-color: var(--mermaid-label-bg);
+}
+
 .preview .mermaid-zoom-btn {
   position: absolute;
   top: 0.4rem;
@@ -2808,13 +2876,6 @@ html[data-mermaid-look="handDrawn"] {
   margin: 0 auto;
   width: max-content;
   max-width: none;
-}
-
-/* Mermaid node labels use <p> inside foreignObject. Outside .preview the UA
-   margin-top:1em clips text (svg2roughjs also drops Mermaid's p{margin:0} style). */
-
-.preview .mermaid foreignObject p {
-  margin: 0;
 }
 
 .preview .hljs-comment,

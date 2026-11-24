@@ -157,6 +157,43 @@ export function normalizeMermaidHandDrawnColors(svg) {
 }
 
 /**
+ * Mermaid centers diagram titles without wrapping. On fluid gantt (and other
+ * full-width) diagrams a long title overflows the viewBox and reads as a
+ * clipped banner across the chart. Constrain it with SVG textLength so theme
+ * CSS font-size still applies.
+ *
+ * @param {SVGElement} svg
+ * @param {{ pad?: number }} [opts]
+ */
+export function fitMermaidDiagramTitle(svg, { pad = 16 } = {}) {
+  // Duck-type: `instanceof SVGElement` fails across JSDOM realms / plain Node.
+  if (!svg || String(svg.tagName).toLowerCase() !== "svg") return;
+  const title = svg.querySelector("text.titleText, .titleText");
+  if (!title) return;
+  const rawVb = String(svg.getAttribute("viewBox") || "")
+    .trim()
+    .split(/[\s,]+/)
+    .map(Number);
+  if (rawVb.length !== 4 || !rawVb.every((n) => Number.isFinite(n))) return;
+  const vw = rawVb[2];
+  if (!(vw > 0)) return;
+  const maxW = Math.max(vw - pad * 2, 1);
+  let bb;
+  try {
+    bb = title.getBBox();
+  } catch {
+    return;
+  }
+  if (!(bb?.width > maxW)) {
+    title.removeAttribute("textLength");
+    title.removeAttribute("lengthAdjust");
+    return;
+  }
+  title.setAttribute("textLength", String(maxW));
+  title.setAttribute("lengthAdjust", "spacingAndGlyphs");
+}
+
+/**
  * Fit viewBox around sketched content (RoughJS strokes bow outside Mermaid's
  * box). Uses the root SVG bbox — per-element boxes from svg2roughjs can report
  * huge empty extents (pie labels) that inflate the canvas and cause scrollbars.
@@ -306,5 +343,6 @@ export function sizeSketchedMermaidSvg(sketched, sourceSize) {
 }
 
 hooks.normalizeMermaidHandDrawnColors = normalizeMermaidHandDrawnColors;
+hooks.fitMermaidDiagramTitle = fitMermaidDiagramTitle;
 hooks.fitMermaidSvgViewBox = fitMermaidSvgViewBox;
 hooks.sizeSketchedMermaidSvg = sizeSketchedMermaidSvg;

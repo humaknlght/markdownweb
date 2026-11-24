@@ -275,6 +275,11 @@ export async function renderMermaidDiagrams({ force = false } = {}) {
         delete svg.dataset.mermaidNatural;
         delete svg.dataset.mermaidFluid;
       }
+      // Long gantt titles overflow the fluid viewBox; constrain after insert so
+      // getBBox reflects the live SVG (must be connected).
+      hooks.fitMermaidDiagramTitle?.(svg);
+      // Re-apply constructable CSS if SVG <style> CSSOM is blocked (black gantt).
+      hooks.adoptMermaidSvgStyles?.(svg);
       // Mermaid bindFunctions attach JS listeners that never cross the sandbox
       // boundary. Re-apply click hrefs as real SVG <a> links.
       const srcForLinks = mermaidSources.get(el) ?? "";

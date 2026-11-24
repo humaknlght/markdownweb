@@ -73,6 +73,7 @@ export const DEV_PRECACHE = [
   "./privacy.html",
   "./styles/styles.css",
   "./styles/print.css",
+  "./styles/privacy.css",
   ...DEV_FIRST_PARTY_MODULES,
   "./drive/drive-helper.js",
   "./url-fetch/url-fetch-helper.js",

@@ -821,7 +821,7 @@ export function startZenBackdrop(opts = {}) {
   });
 
   if (!gl) {
-    canvas.style.background = "#0b1c24";
+    canvas.classList.add("zen-canvas-fallback");
     runtime = {
       canvas,
       gl: null,

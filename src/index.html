@@ -136,7 +136,11 @@
         if (!Number.isFinite(split)) split = 50;
         if (split < 15) split = 15;
         if (split > 85) split = 85;
-        root.style.setProperty("--split", `${split}%`);
+        // Constructable sheet — style-src 'self' (no element.style / unsafe-inline).
+        const bootSheet = new CSSStyleSheet();
+        bootSheet.replaceSync(`:root{--split:${split}%}`);
+        document.adoptedStyleSheets = [...document.adoptedStyleSheets, bootSheet];
+        globalThis.__MD_DYNAMIC_STYLE_SHEET__ = bootSheet;
 
         const authoring = view === "edit" || view === "slides";
         if (localStorage.getItem("md-editor:editor-collapsed") === "1") {

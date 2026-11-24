@@ -200,7 +200,8 @@ async function buildCss(fancyFileName) {
   });
   const print = await minifyCssFile("print.css");
   const zen = await minifyCssFile("zen.css");
-  return { styles, print, zen };
+  const privacy = await minifyCssFile("privacy.css");
+  return { styles, print, zen, privacy };
 }
 
 async function buildJs(guideUrl, dropsUrl, zenCssUrl) {
@@ -439,8 +440,12 @@ async function buildMermaidSandboxHtml() {
   return { bytes: buffer.length, csp };
 }
 
-async function buildPrivacyHtml() {
-  const html = await readFile(path.join(srcDir, "privacy.html"), "utf8");
+async function buildPrivacyHtml(privacyCssName) {
+  let html = await readFile(path.join(srcDir, "privacy.html"), "utf8");
+  html = html.replace(
+    /href="styles\/privacy\.css"/,
+    `href="${privacyCssName}"`,
+  );
   const minified = await minifyStaticHtml(html);
   const buffer = Buffer.from(minified, "utf8");
   await writeFile(path.join(distDir, "privacy.html"), buffer);
@@ -450,6 +455,7 @@ async function buildPrivacyHtml() {
 async function buildPwa({
   cssName,
   printCssName,
+  privacyCssName,
   jsName,
   jsChunks,
   driveHelperJsName,
@@ -478,6 +484,7 @@ async function buildPwa({
     "./privacy.html",
     `./${cssName}`,
     `./${printCssName}`,
+    `./${privacyCssName}`,
     `./${jsName}`,
     `./${driveHelperJsName}`,
     `./${urlFetchHelperJsName}`,
@@ -682,6 +689,7 @@ async function main() {
   const pwa = await buildPwa({
     cssName: css.styles.name,
     printCssName: css.print.name,
+    privacyCssName: css.privacy.name,
     jsName: js.name,
     jsChunks: js.chunks,
     driveHelperJsName: js.driveHelper.name,
@@ -706,7 +714,7 @@ async function main() {
     jsName: js.urlFetchHelper.name,
   });
   const mermaidSandboxHtml = await buildMermaidSandboxHtml();
-  const privacyHtml = await buildPrivacyHtml();
+  const privacyHtml = await buildPrivacyHtml(css.privacy.name);
   await writeApacheConfig(
     html.scriptSrc,
     guide.url,
@@ -743,6 +751,9 @@ async function main() {
     `  ${css.styles.name.padEnd(22)} ${formatBytes(css.styles.bytes)}`,
   );
   console.log(`  ${css.print.name.padEnd(22)} ${formatBytes(css.print.bytes)}`);
+  console.log(
+    `  ${css.privacy.name.padEnd(22)} ${formatBytes(css.privacy.bytes)}`,
+  );
   console.log(
     `  ${css.zen.name.padEnd(22)} ${formatBytes(css.zen.bytes)}  (lazy Zen theme)`,
   );

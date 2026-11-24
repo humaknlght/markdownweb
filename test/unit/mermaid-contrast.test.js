@@ -256,10 +256,16 @@ describe("Mermaid theme contrast (WCAG 2.2 AA)", () => {
     assert.match(mermaid, /function normalizeMermaidHandDrawnColors/);
     assert.match(mermaid, /function mermaidTextInkVarForFill/);
     assert.match(mermaid, /function fitMermaidSvgViewBox/);
+    assert.match(mermaid, /function fitMermaidDiagramTitle/);
     assert.match(
       mermaid,
       /(?:hooks\.)?fitMermaidSvgViewBox\(sketched,\s*\{\s*tighten:\s*true\s*\}\)/,
     );
+    const renderLayout = await fs.readFile(
+      path.join(root, "src/app/mermaid/render-layout.js"),
+      "utf8",
+    );
+    assert.match(renderLayout, /hooks\.fitMermaidDiagramTitle\?\.\(svg\)/);
     assert.match(
       mermaid,
       /themeVariables:\s*(?:hooks\.)?mermaidThemeVariablesFromCss\(\)/,

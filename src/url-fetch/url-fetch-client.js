@@ -28,8 +28,7 @@ function ensureHelperFrame() {
     iframe.title = "URL fetch helper";
     iframe.setAttribute("aria-hidden", "true");
     iframe.tabIndex = -1;
-    iframe.style.cssText =
-      "position:absolute;width:0;height:0;border:0;clip:rect(0,0,0,0);overflow:hidden;";
+    iframe.className = "visually-hidden-frame";
 
     const timer = window.setTimeout(() => {
       cleanup();
