@@ -66,9 +66,6 @@ jobs:
       - name: Install Apache
         run: sudo apt-get update && sudo apt-get install -y apache2
 
-      - name: Install Apache
-        run: sudo apt-get update && sudo apt-get install -y apache2
-
       - name: Install Playwright browsers
         run: |
           echo 'Acquire::Retries "3";' | sudo tee /etc/apt/apt.conf.d/80-retries

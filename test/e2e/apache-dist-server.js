@@ -198,20 +198,28 @@ async function renderConfig(opts) {
     );
   }
 
-  const mime = [
+  const mimeCandidates = [
+    "/etc/mime.types",
     "/etc/apache2/mime.types",
     "/private/etc/apache2/mime.types",
     "/etc/httpd/mime.types",
   ];
-  let typesConfig = "";
-  for (const candidate of mime) {
+  let mimeTypes = "";
+  for (const candidate of mimeCandidates) {
     try {
       await fs.access(candidate);
-      typesConfig = `TypesConfig "${candidate}"`;
+      mimeTypes = candidate;
       break;
     } catch {
       /* try the next location */
     }
+  }
+  if (!mimeTypes) {
+    mimeTypes = path.join(opts.tmp, "mime.types");
+    await fs.writeFile(
+      mimeTypes,
+      "text/html html htm\ntext/css css\ntext/javascript js mjs\napplication/javascript js\n",
+    );
   }
 
   return `ServerName 127.0.0.1
@@ -220,7 +228,7 @@ PidFile "${path.join(opts.tmp, "httpd.pid")}"
 ErrorLog "${opts.errorLog}"
 LogLevel warn
 Mutex file:${opts.tmp}
-${typesConfig}
+TypesConfig "${mimeTypes}"
 
 ${loads.join("\n")}
 
