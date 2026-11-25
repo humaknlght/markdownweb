@@ -183,9 +183,13 @@ FileETag MTime Size
   # FilesMatch cannot be unset reliably from a subdirectory — skip it instead.
   # (Evidence: helper was getting app CSP + Link prefetch → …/drive-helper/GUIDE.*.md.)
   <IfModule mod_setenvif.c>
-    # Isolated helpers own their CSP/COEP (drive-helper, url-fetch-helper,
-    # mermaid-sandbox).
+    # Isolated helpers own their CSP. COEP is re-applied below in this same
+    # FilesMatch: a subdirectory Header set runs too early and loses to the
+    # unset, which left mermaid-sandbox without COEP and the browser blocked it.
     SetEnvIf Request_URI "drive-helper|url-fetch-helper|mermaid-sandbox" IS_DRIVE_HELPER
+    SetEnvIf Request_URI "mermaid-sandbox" IS_MERMAID_SANDBOX
+    SetEnvIf Request_URI "url-fetch-helper" IS_URL_FETCH_HELPER
+    SetEnvIf Request_URI "drive-helper" IS_DRIVE_AUTH_HELPER
   </IfModule>
 
   # Parent public_html/.htaccess sets CSP / Speculation-Rules / Link / etc. inside
@@ -218,6 +222,10 @@ FileETag MTime Size
     Header always set Link "<__GUIDE_URL__>;rel=prefetch" env=!IS_DRIVE_HELPER
     Header set X-Frame-Options "DENY" env=!IS_DRIVE_HELPER
     Header always set Cross-Origin-Embedder-Policy "require-corp" env=!IS_DRIVE_HELPER
+    # Same files scope as the unset above, so these win for embedded helpers.
+    Header always set Cross-Origin-Embedder-Policy "require-corp" env=IS_MERMAID_SANDBOX
+    Header always set Cross-Origin-Embedder-Policy "require-corp" env=IS_URL_FETCH_HELPER
+    Header always set Cross-Origin-Embedder-Policy "unsafe-none" env=IS_DRIVE_AUTH_HELPER
     Header set X-Content-Type-Options "nosniff" env=!IS_DRIVE_HELPER
     Header always set Referrer-Policy "strict-origin-when-cross-origin" env=!IS_DRIVE_HELPER
     # Chrome Writing Assistance origin trials for https://markdown.ericperret.org

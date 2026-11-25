@@ -367,6 +367,22 @@ describe("static source invariants", () => {
       ht,
       /SetEnvIf Request_URI "drive-helper\|url-fetch-helper\|mermaid-sandbox" IS_DRIVE_HELPER/,
     );
+    assert.match(
+      ht,
+      /SetEnvIf Request_URI "mermaid-sandbox" IS_MERMAID_SANDBOX/,
+    );
+    assert.match(
+      ht,
+      /Cross-Origin-Embedder-Policy "require-corp" env=IS_MERMAID_SANDBOX/,
+    );
+    assert.match(
+      ht,
+      /Cross-Origin-Embedder-Policy "require-corp" env=IS_URL_FETCH_HELPER/,
+    );
+    assert.match(
+      ht,
+      /Cross-Origin-Embedder-Policy "unsafe-none" env=IS_DRIVE_AUTH_HELPER/,
+    );
     assert.match(ht, /env=!IS_DRIVE_HELPER/);
     assert.doesNotMatch(ht, /__DRIVE_HELPER_CSP__/);
     assert.doesNotMatch(ht, /__URL_FETCH_HELPER_CSP__/);
