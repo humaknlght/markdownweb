@@ -33,14 +33,14 @@ gh api -X PUT "repos/$FULL/topics" \
 EOF
 
 echo "==> Branch protection on main (require CI)"
-# Context name is the job name from .github/workflows/ci.yml ("test")
+# Context names are job names from .github/workflows/ci.yml
 gh api -X PUT "repos/$FULL/branches/main/protection" \
   -H "Accept: application/vnd.github+json" \
   --input - <<'EOF' >/dev/null
 {
   "required_status_checks": {
     "strict": true,
-    "contexts": ["test"]
+    "contexts": ["test", "audit"]
   },
   "enforce_admins": false,
   "required_pull_request_reviews": null,
