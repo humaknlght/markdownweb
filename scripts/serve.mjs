@@ -411,7 +411,8 @@ async function handleRequest(req, res) {
 
     // Dev (src/): synthesize sw.js so production builds never dirty a tracked file.
     if (path.resolve(logicalPath) === path.resolve(srcSwPath)) {
-      const data = Buffer.from(buildDevServiceWorker(), "utf8");
+      const sandbox = await devMermaidSandboxBuild();
+      const data = Buffer.from(buildDevServiceWorker([sandbox.url]), "utf8");
       const headers = headersFor(logicalPath, null);
       const etag = strongEtag(data, null);
       headers.ETag = etag;

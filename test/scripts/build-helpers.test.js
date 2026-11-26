@@ -471,6 +471,11 @@ describe("pwa.mjs", () => {
     assert.match(a, /\.\/app\/app\.js/);
     // Must not embed hashed dist asset names.
     assert.doesNotMatch(a, /\.\/app\.[0-9a-f]{8}\.js/);
+    const withSandbox = buildDevServiceWorker([
+      "./mermaid-sandbox/index.a1b2c3d4.html",
+    ]);
+    assert.match(withSandbox, /\.\/mermaid-sandbox\/index\.a1b2c3d4\.html/);
+    assert.notEqual(a, withSandbox);
   });
 });
 

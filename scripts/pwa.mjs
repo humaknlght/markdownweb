@@ -92,10 +92,14 @@ function contentHash(buffer) {
  * Service worker for the src/dev server. Versioned from DEV_PRECACHE only so
  * production builds (hashed dist assets) do not rewrite a tracked src/sw.js.
  */
-export function buildDevServiceWorker() {
+/**
+ * @param {string[]} [extraPrecacheUrls] Dev-only URLs such as the hashed sandbox document.
+ */
+export function buildDevServiceWorker(extraPrecacheUrls = []) {
+  const precacheUrls = [...DEV_PRECACHE, ...extraPrecacheUrls];
   return buildServiceWorker({
-    precacheUrls: DEV_PRECACHE,
-    version: `dev-${precacheVersion(DEV_PRECACHE)}`,
+    precacheUrls,
+    version: `dev-${precacheVersion(precacheUrls)}`,
   });
 }
 
