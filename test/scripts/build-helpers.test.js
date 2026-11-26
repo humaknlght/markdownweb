@@ -345,6 +345,7 @@ describe("pwa.mjs", () => {
     assert.equal(isIsolatedHelperPath("/url-fetch-helper/"), true);
     assert.equal(isDriveHelperPath("/index.html"), false);
     assert.match(sw, /function isMermaidSandboxNavigation/);
+    assert.match(sw, /if \(isMermaidSandboxNavigation\(url\.pathname\)\)/);
     assert.match(sw, /respondMermaidNavigation\(request, CACHE\)/);
     assert.match(sw, /\.\/mermaid-sandbox\//);
     assert.ok(DEV_PRECACHE.includes("./mermaid-sandbox/"));
@@ -410,12 +411,8 @@ describe("pwa.mjs", () => {
       onLine: true,
       timeoutMs: 20,
       caches,
-      fetch: (_request, init) =>
-        new Promise((_resolve, reject) => {
-          init.signal.addEventListener("abort", () => {
-            reject(new DOMException("aborted", "AbortError"));
-          });
-        }),
+      // Offline emulation can leave fetch pending and ignore AbortSignal.
+      fetch: () => new Promise(() => {}),
     });
     assert.equal(await response.text(), "cached-sandbox");
   });

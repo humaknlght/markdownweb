@@ -253,11 +253,20 @@ export async function respondMermaidNavigation(request, cacheName, deps = {}) {
     return (await matchCached()) || ResponseImpl.error();
   }
 
-  const ac = new AbortController();
-  const timer = setTimeout(() => ac.abort(), timeoutMs);
+  // Chromium's offline emulation can leave fetch() pending and ignore abort,
+  // which wedges the iframe navigation. Race a timer instead of the signal.
+  let timer;
+  const pending = Promise.resolve()
+    .then(() => fetchImpl(request))
+    .then((fresh) => {
+      if (!fresh?.ok) throw new Error(String(fresh?.status || "fetch"));
+      return fresh;
+    });
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error("timeout")), timeoutMs);
+  });
   try {
-    const fresh = await fetchImpl(request, { signal: ac.signal });
-    if (!fresh.ok) throw new Error(String(fresh.status));
+    const fresh = await Promise.race([pending, timeout]);
     try {
       const cache = await cachesImpl.open(cacheName);
       // URL string, not the navigation Request — Cache.put rejects mode "navigate".
@@ -267,6 +276,7 @@ export async function respondMermaidNavigation(request, cacheName, deps = {}) {
     }
     return fresh;
   } catch {
+    pending.catch(() => {});
     return (await matchCached()) || ResponseImpl.error();
   } finally {
     clearTimeout(timer);
@@ -388,7 +398,9 @@ self.addEventListener("fetch", (event) => {
   // still load when the worker's own fetch is offline.
   if (isIsolatedHelperPath(url.pathname)) return;
 
-  if (request.mode === "navigate" && isMermaidSandboxNavigation(url.pathname)) {
+  // Any mode: a sandboxed iframe document request is not always "navigate",
+  // and the mutable-shell path below has no timeout when fetch stalls.
+  if (isMermaidSandboxNavigation(url.pathname)) {
     event.respondWith(respondMermaidNavigation(request, CACHE));
     return;
   }
