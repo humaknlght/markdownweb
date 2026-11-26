@@ -583,7 +583,10 @@ test.describe("editor + render", () => {
         styleLeaksBody: /(?:^|})\s*body\s*\{/m.test(styleText),
       };
     });
-    expect(info.sandbox).toBe("allow-scripts");
+    // No iframe sandbox attribute: that makes the navigation a unique origin
+    // and Chromium fails it while offline before the service worker can answer.
+    // The response CSP `sandbox allow-scripts` is what makes this frame opaque.
+    expect(info.sandbox).toBe("");
     expect(info.contentDocument).not.toBe("readable");
     expect(info.parentImportedMermaid).toBe(false);
     expect(info.hasScript).toBe(false);

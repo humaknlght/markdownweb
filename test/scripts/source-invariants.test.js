@@ -472,6 +472,15 @@ describe("static source invariants", () => {
       /MERMAID_SANDBOX_FRAME_SANDBOX = "allow-scripts";/,
       "sandbox frame must not get allow-same-origin",
     );
+    const sandboxClient = await fs.readFile(
+      path.join(srcDir, "app/mermaid/sandbox.js"),
+      "utf8",
+    );
+    assert.doesNotMatch(
+      sandboxClient,
+      /setAttribute\(\s*["']sandbox["']/,
+      "iframe sandbox attribute makes offline navigations fail before the service worker",
+    );
 
     const html = await renderMermaidSandboxHtml(
       srcDir,

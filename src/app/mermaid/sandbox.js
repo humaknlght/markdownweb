@@ -2,7 +2,6 @@ import { fetchEsmCdnGraph } from "../../lib/esm-cdn-graph.js";
 import {
   MERMAID_HAND_FONT,
   MERMAID_SANDBOX_CDN_ENTRIES,
-  MERMAID_SANDBOX_FRAME_SANDBOX,
   MERMAID_SANDBOX_MESSAGE,
   MERMAID_SANDBOX_PATH,
   MERMAID_SANDBOX_READY_TIMEOUT_MS,
@@ -69,7 +68,10 @@ function ensureSandboxFrame() {
   const modulesPromise = loadSandboxModules();
   sandboxReady = new Promise((resolve, reject) => {
     const iframe = document.createElement("iframe");
-    iframe.setAttribute("sandbox", MERMAID_SANDBOX_FRAME_SANDBOX);
+    // Do not set the iframe sandbox attribute. Chromium treats that navigation
+    // as a unique-origin request and, while offline, fails it before the
+    // service worker can answer. The response CSP `sandbox allow-scripts`
+    // still gives the loaded document an opaque origin.
     iframe.id = "mermaid-sandbox-frame";
     iframe.title = "Mermaid renderer";
     iframe.setAttribute("aria-hidden", "true");

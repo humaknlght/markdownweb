@@ -240,13 +240,23 @@ export async function respondMermaidNavigation(request, cacheName, deps = {}) {
   const matchCached = async () => {
     // ignoreVary: the sandbox response is stored with Vary: Accept-Encoding,
     // and a navigation request does not send the same header as install.
+    // Match URL strings only. caches.match(navigationRequest) throws because
+    // the request mode is "navigate", which skips the precache keys below.
     const loose = { ignoreVary: true, ignoreSearch: true };
-    return (
-      (await cachesImpl.match(request, loose)) ||
-      (await cachesImpl.match("./mermaid-sandbox/", loose)) ||
-      (await cachesImpl.match("./mermaid-sandbox/index.html", loose)) ||
-      null
-    );
+    const urls = [
+      "./mermaid-sandbox/",
+      "./mermaid-sandbox/index.html",
+      request.url,
+    ];
+    for (const url of urls) {
+      try {
+        const hit = await cachesImpl.match(url, loose);
+        if (hit) return hit;
+      } catch {
+        /* a navigate-mode Request is not a valid cache key */
+      }
+    }
+    return null;
   };
 
   if (onLine === false) {

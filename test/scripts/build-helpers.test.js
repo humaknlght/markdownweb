@@ -357,6 +357,27 @@ describe("pwa.mjs", () => {
     assert.equal(isMermaidSandboxPath("/mermaid-sandbox/runtime.js"), false);
   });
 
+  it("still finds the sandbox cache when an earlier match throws", async () => {
+    const sandbox = new Response("sandbox-doc", { status: 200 });
+    const request = new Request("https://app.test/mermaid-sandbox/");
+    const { caches } = memoryCache({
+      [request.url]: sandbox,
+    });
+    const match = caches.match.bind(caches);
+    caches.match = async (key, options) => {
+      if (key !== request.url) throw new TypeError("navigate");
+      return match(key, options);
+    };
+    const response = await respondMermaidNavigation(request, "md-editor-test", {
+      onLine: false,
+      caches,
+      fetch: async () => {
+        throw new Error("offline");
+      },
+    });
+    assert.equal(await response.text(), "sandbox-doc");
+  });
+
   it("serves the precached mermaid sandbox when the worker is offline", async () => {
     const sandbox = new Response("sandbox-doc", {
       status: 200,
