@@ -49,7 +49,7 @@ export function expectedCoep(urlPath) {
 
 /**
  * Every HTML document in dist, plus the directory URL for each index.html.
- * Directory URLs are what production iframes request (`/mermaid-sandbox/`).
+ * The Mermaid iframe requests `index.<hash>.html`, named by the app shell.
  * @param {string} distDir
  * @returns {Promise<string[]>}
  */

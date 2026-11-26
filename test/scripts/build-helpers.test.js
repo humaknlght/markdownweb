@@ -355,6 +355,14 @@ describe("pwa.mjs", () => {
     assert.equal(isIsolatedHelperPath("/markdown/mermaid-sandbox/"), false);
     assert.equal(isMutableShellPath("/mermaid-sandbox/index.html"), true);
     assert.equal(isMermaidSandboxPath("/mermaid-sandbox/runtime.js"), false);
+    assert.equal(
+      isMermaidSandboxPath("/mermaid-sandbox/index.a1b2c3d4.html"),
+      true,
+    );
+    assert.equal(
+      isMermaidSandboxPath("/mermaid-sandbox/index.notahash.html"),
+      false,
+    );
   });
 
   it("still finds the sandbox cache when an earlier match throws", async () => {

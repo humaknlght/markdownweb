@@ -43,6 +43,25 @@ function isSandboxMessage(event, win) {
   );
 }
 
+const MERMAID_SANDBOX_URL_PLACEHOLDER = "__MERMAID_SANDBOX_URL__";
+
+/** Unreplaced placeholder keeps `./mermaid-sandbox/`. Dev and production name the hashed file. */
+function resolveMermaidSandboxPath() {
+  try {
+    const configured = window.__MD_MERMAID_SANDBOX__;
+    if (
+      typeof configured === "string" &&
+      configured &&
+      configured !== MERMAID_SANDBOX_URL_PLACEHOLDER
+    ) {
+      return configured;
+    }
+  } catch {
+    /* ignore */
+  }
+  return MERMAID_SANDBOX_PATH;
+}
+
 function resetSandboxFrame() {
   sandboxFrame?.remove();
   sandboxFrame = null;
@@ -128,7 +147,10 @@ function ensureSandboxFrame() {
       window.removeEventListener("message", onMessage);
     };
     window.addEventListener("message", onMessage);
-    iframe.src = new URL(MERMAID_SANDBOX_PATH, window.location.href).href;
+    iframe.src = new URL(
+      resolveMermaidSandboxPath(),
+      window.location.href,
+    ).href;
     document.body.appendChild(iframe);
   });
   return sandboxReady;

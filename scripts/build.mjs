@@ -60,6 +60,7 @@ const SW_URL_PLACEHOLDER = "__SW_URL__";
 const DRIVE_HELPER_CSP_PLACEHOLDER = "__DRIVE_HELPER_CSP__";
 const URL_FETCH_HELPER_CSP_PLACEHOLDER = "__URL_FETCH_HELPER_CSP__";
 const MERMAID_SANDBOX_CSP_PLACEHOLDER = "__MERMAID_SANDBOX_CSP__";
+const MERMAID_SANDBOX_URL_PLACEHOLDER = "__MERMAID_SANDBOX_URL__";
 
 function formatBytes(bytes) {
   if (bytes < 1024) return `${bytes} B`;
@@ -316,6 +317,7 @@ async function buildHtml({
   icon192Name,
   icon512Name,
   swUrl,
+  mermaidSandboxUrl,
 }) {
   let html = await readFile(path.join(srcDir, "index.html"), "utf8");
   const cdnIntegrity = await loadCdnIntegrity();
@@ -332,7 +334,13 @@ async function buildHtml({
   if (!html.includes(SW_URL_PLACEHOLDER)) {
     throw new Error(`src/index.html missing ${SW_URL_PLACEHOLDER} placeholder`);
   }
+  if (!html.includes(MERMAID_SANDBOX_URL_PLACEHOLDER)) {
+    throw new Error(
+      `src/index.html missing ${MERMAID_SANDBOX_URL_PLACEHOLDER} placeholder`,
+    );
+  }
   html = html.replaceAll(SW_URL_PLACEHOLDER, swUrl);
+  html = html.replaceAll(MERMAID_SANDBOX_URL_PLACEHOLDER, mermaidSandboxUrl);
 
   const minified = await minifyHtml(html, {
     collapseBooleanAttributes: true,
@@ -430,14 +438,22 @@ async function buildMermaidSandboxHtml() {
   const html = await renderMermaidSandboxHtml(srcDir, await loadCdnIntegrity());
   const minified = await minifyStaticHtml(html);
   const buffer = Buffer.from(minified, "utf8");
+  const hash = contentHash(buffer);
+  const name = hashedName("index", ".html", hash);
   const outDir = path.join(distDir, MERMAID_SANDBOX_DIR);
   await mkdir(outDir, { recursive: true });
-  await writeFile(path.join(outDir, "index.html"), buffer);
+  await writeFile(path.join(outDir, name), buffer);
 
   const csp = buildMermaidSandboxContentSecurityPolicy(
     inlineScriptHashes(minified),
   );
-  return { bytes: buffer.length, csp };
+  return {
+    bytes: buffer.length,
+    csp,
+    hash,
+    name,
+    url: `./${MERMAID_SANDBOX_DIR}/${name}`,
+  };
 }
 
 async function buildPrivacyHtml(privacyCssName) {
@@ -463,6 +479,7 @@ async function buildPwa({
   fancyName,
   guideName,
   iconResults,
+  mermaidSandboxUrl,
 }) {
   const icon192 = iconResults.find((icon) => icon.base === "icon-192.png");
   const icon512 = iconResults.find((icon) => icon.base === "icon-512.png");
@@ -478,9 +495,8 @@ async function buildPwa({
     "./",
     "./index.html",
     // drive-helper/, url-fetch-helper/: network-only (SW bypass) for helper CSP.
-    // mermaid-sandbox/ is precached so the opaque renderer shell works offline.
-    "./mermaid-sandbox/",
-    "./mermaid-sandbox/index.html",
+    // The content-hashed sandbox document is immutable; index.html names it.
+    mermaidSandboxUrl,
     "./privacy.html",
     `./${cssName}`,
     `./${printCssName}`,
@@ -686,6 +702,7 @@ async function main() {
   const js = await buildJs(guide.url, `./${drops.name}`, `./${css.zen.name}`);
   const icon192 = icons.find((icon) => icon.base === "icon-192.png");
   const icon512 = icons.find((icon) => icon.base === "icon-512.png");
+  const mermaidSandboxHtml = await buildMermaidSandboxHtml();
   const pwa = await buildPwa({
     cssName: css.styles.name,
     printCssName: css.print.name,
@@ -697,6 +714,7 @@ async function main() {
     fancyName: image.name,
     guideName: guide.name,
     iconResults: icons,
+    mermaidSandboxUrl: mermaidSandboxHtml.url,
   });
   const html = await buildHtml({
     cssName: css.styles.name,
@@ -706,6 +724,7 @@ async function main() {
     icon192Name: icon192.name,
     icon512Name: icon512.name,
     swUrl: pwa.swUrl,
+    mermaidSandboxUrl: mermaidSandboxHtml.url,
   });
   const driveHelperHtml = await buildDriveHelperHtml({
     jsName: js.driveHelper.name,
@@ -713,7 +732,6 @@ async function main() {
   const urlFetchHelperHtml = await buildUrlFetchHelperHtml({
     jsName: js.urlFetchHelper.name,
   });
-  const mermaidSandboxHtml = await buildMermaidSandboxHtml();
   const privacyHtml = await buildPrivacyHtml(css.privacy.name);
   await writeApacheConfig(
     html.scriptSrc,
@@ -745,7 +763,9 @@ async function main() {
   console.log(`  index.html     ${formatBytes(html.bytes)}`);
   console.log(`  drive-helper/     ${formatBytes(driveHelperHtml.bytes)}`);
   console.log(`  url-fetch-helper/ ${formatBytes(urlFetchHelperHtml.bytes)}`);
-  console.log(`  mermaid-sandbox/  ${formatBytes(mermaidSandboxHtml.bytes)}`);
+  console.log(
+    `  ${mermaidSandboxHtml.name.padEnd(22)} ${formatBytes(mermaidSandboxHtml.bytes)}  (mermaid sandbox)`,
+  );
   console.log(`  privacy.html  ${formatBytes(privacyHtml.bytes)}`);
   console.log(
     `  ${css.styles.name.padEnd(22)} ${formatBytes(css.styles.bytes)}`,

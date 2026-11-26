@@ -105,10 +105,30 @@ describe("production build invariants", { timeout: 180_000 }, () => {
       assert.doesNotMatch(mermaidSandboxHt, /__MERMAID_SANDBOX_CSP__/);
       assert.match(mermaidSandboxHt, /sandbox allow-scripts/);
       assert.match(mermaidSandboxHt, /script-src blob: 'unsafe-inline'/);
+      const sandboxDir = path.join(dist, "mermaid-sandbox");
+      const sandboxFiles = await fs.readdir(sandboxDir);
+      const sandboxName = sandboxFiles.find((name) =>
+        /^index\.[a-f0-9]{8}\.html$/.test(name),
+      );
+      assert.ok(sandboxName, "content-hashed mermaid sandbox document");
+      assert.ok(!sandboxFiles.includes("index.html"));
+      assert.match(
+        html,
+        new RegExp(
+          `window\\.__MD_MERMAID_SANDBOX__="\\./mermaid-sandbox/${sandboxName}"`,
+        ),
+      );
+      assert.doesNotMatch(html, /__MERMAID_SANDBOX_URL__/);
       const mermaidSandboxHtml = await fs.readFile(
-        path.join(dist, "mermaid-sandbox", "index.html"),
+        path.join(sandboxDir, sandboxName),
         "utf8",
       );
+      assert.match(
+        mermaidSandboxHt,
+        /Cache-Control "public, max-age=31536000, immutable"/,
+      );
+      const sw = await fs.readFile(path.join(dist, "sw.js"), "utf8");
+      assert.match(sw, new RegExp(`\\./mermaid-sandbox/${sandboxName}`));
       // html-minifier-terser minifyJS may drop the space after `:`.
       assert.match(mermaidSandboxHtml, /action:\s*["']boot["']/);
       assert.match(

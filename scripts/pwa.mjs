@@ -208,7 +208,22 @@ export function isUrlFetchHelperPath(pathname) {
 
 /** True when the URL is the opaque-origin Mermaid renderer page. */
 export function isMermaidSandboxPath(pathname) {
-  return isHelperDirPath(pathname, "mermaid-sandbox");
+  return isMermaidSandboxNavigation(pathname);
+}
+
+/**
+ * Renderer document: the dev directory / `index.html`, or the content-hashed
+ * `index.<hash>.html` named by the app shell.
+ * @param {string} pathname
+ */
+export function isMermaidSandboxNavigation(pathname) {
+  const parts = pathname.split("/").filter(Boolean);
+  const i = parts.indexOf("mermaid-sandbox");
+  if (i < 0) return false;
+  if (parts.length === i + 1) return true;
+  if (parts.length !== i + 2) return false;
+  const file = parts[i + 1];
+  return file === "index.html" || /^index\.[a-f0-9]{8}\.html$/i.test(file);
 }
 
 /**
@@ -349,12 +364,7 @@ function isIsolatedHelperPath(pathname) {
   return false;
 }
 
-function isMermaidSandboxNavigation(pathname) {
-  const parts = pathname.split("/").filter(Boolean);
-  const i = parts.indexOf("mermaid-sandbox");
-  if (i < 0) return false;
-  return parts.length === i + 1 || parts[i + 1] === "index.html";
-}
+${isMermaidSandboxNavigation.toString()}
 
 ${respondMermaidNavigation.toString()}
 

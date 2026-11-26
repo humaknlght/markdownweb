@@ -193,6 +193,10 @@ describe("static source invariants", () => {
       "import map must precede modulepreload links",
     );
     assert.match(html, /window\.__MD_SW__="__SW_URL__"/);
+    assert.match(
+      html,
+      /window\.__MD_MERMAID_SANDBOX__="__MERMAID_SANDBOX_URL__"/,
+    );
     assert.match(html, /marked@18\.1\.1/);
     assert.match(html, /dompurify@3\.4\.17/);
     assert.match(html, /gemoji@8\.1\.0/);
