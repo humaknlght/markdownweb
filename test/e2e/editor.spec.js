@@ -611,14 +611,13 @@ test.describe("editor + render", () => {
       await page.evaluate(() => {
         document.getElementById("mermaid-sandbox-frame")?.remove();
       });
-      await page
-        .locator("#editor")
-        .fill("```mermaid\nflowchart LR\n  Offline-->Ok\n```");
-      await expect(previewLocator(page, ".mermaid > svg")).toBeVisible({
-        timeout: 60_000,
-      });
+      await fillEditor(page, "```mermaid\nflowchart LR\n  Offline-->Ok\n```");
+      // The previous diagram's SVG is still visible until this paint finishes.
+      // Re-booting the sandbox frame is offline-cache-only, so wait on the
+      // new label rather than the stale SVG.
       await expect(previewLocator(page, ".mermaid > svg")).toContainText(
         "Offline",
+        { timeout: 60_000 },
       );
     } finally {
       await context.setOffline(false);

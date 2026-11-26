@@ -211,6 +211,68 @@ export function isMermaidSandboxPath(pathname) {
   return isHelperDirPath(pathname, "mermaid-sandbox");
 }
 
+/**
+ * Serve the opaque Mermaid renderer document.
+ *
+ * The page is precached. While the tab is online the network wins, so dev
+ * edits show up. While offline — including when `fetch` stalls because the
+ * worker itself is emulated offline — the precached document is returned.
+ * Falling back to the app `index.html` would boot the wrong CSP and the
+ * renderer would never post `boot`.
+ *
+ * @param {Request} request
+ * @param {string} cacheName
+ * @param {{
+ *   fetch?: typeof fetch,
+ *   caches?: CacheStorage,
+ *   onLine?: boolean,
+ *   timeoutMs?: number,
+ *   Response?: typeof Response,
+ * }} [deps]
+ */
+export async function respondMermaidNavigation(request, cacheName, deps = {}) {
+  const fetchImpl = deps.fetch ?? fetch;
+  const cachesImpl = deps.caches ?? caches;
+  const onLine = deps.onLine ?? navigator.onLine;
+  const timeoutMs = deps.timeoutMs ?? 4000;
+  const ResponseImpl = deps.Response ?? Response;
+
+  const matchCached = async () => {
+    // ignoreVary: the sandbox response is stored with Vary: Accept-Encoding,
+    // and a navigation request does not send the same header as install.
+    const loose = { ignoreVary: true, ignoreSearch: true };
+    return (
+      (await cachesImpl.match(request, loose)) ||
+      (await cachesImpl.match("./mermaid-sandbox/", loose)) ||
+      (await cachesImpl.match("./mermaid-sandbox/index.html", loose)) ||
+      null
+    );
+  };
+
+  if (onLine === false) {
+    return (await matchCached()) || ResponseImpl.error();
+  }
+
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), timeoutMs);
+  try {
+    const fresh = await fetchImpl(request, { signal: ac.signal });
+    if (!fresh.ok) throw new Error(String(fresh.status));
+    try {
+      const cache = await cachesImpl.open(cacheName);
+      // URL string, not the navigation Request — Cache.put rejects mode "navigate".
+      await cache.put(request.url, fresh.clone());
+    } catch {
+      /* the install precache still covers the next offline boot */
+    }
+    return fresh;
+  } catch {
+    return (await matchCached()) || ResponseImpl.error();
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /** Drive auth or URL-fetch helper — SW must not intercept (fresh CSP / COEP). */
 export function isIsolatedHelperPath(pathname) {
   return isDriveHelperPath(pathname) || isUrlFetchHelperPath(pathname);
@@ -267,6 +329,15 @@ function isIsolatedHelperPath(pathname) {
   return false;
 }
 
+function isMermaidSandboxNavigation(pathname) {
+  const parts = pathname.split("/").filter(Boolean);
+  const i = parts.indexOf("mermaid-sandbox");
+  if (i < 0) return false;
+  return parts.length === i + 1 || parts[i + 1] === "index.html";
+}
+
+${respondMermaidNavigation.toString()}
+
 self.addEventListener("install", (event) => {
   event.waitUntil(
     (async () => {
@@ -312,9 +383,15 @@ self.addEventListener("fetch", (event) => {
   const isCdn = url.hostname === "cdn.jsdelivr.net";
 
   // Never intercept isolated helpers. A cached navigation response for
-  // index.html (main CSP + COEP) would break Drive GIS / URL-fetch / Mermaid
-  // sandbox CSP.
+  // index.html (main CSP + COEP) would break Drive GIS / URL-fetch CSP.
+  // mermaid-sandbox/ is intercepted on purpose: it is precached and must
+  // still load when the worker's own fetch is offline.
   if (isIsolatedHelperPath(url.pathname)) return;
+
+  if (request.mode === "navigate" && isMermaidSandboxNavigation(url.pathname)) {
+    event.respondWith(respondMermaidNavigation(request, CACHE));
+    return;
+  }
 
   if (request.mode === "navigate") {
     event.respondWith(

@@ -33,6 +33,7 @@ import {
   isMutableShellPath,
   isUrlFetchHelperPath,
   precacheVersion,
+  respondMermaidNavigation,
 } from "../../scripts/pwa.mjs";
 import {
   headersFor,
@@ -230,6 +231,33 @@ describe("cdn-integrity.mjs", () => {
   });
 });
 
+/**
+ * @param {Record<string, Response>} [initial]
+ */
+function memoryCache(initial = {}) {
+  const store = new Map(Object.entries(initial));
+  /** @type {string[]} */
+  const puts = [];
+  return {
+    puts,
+    caches: {
+      async match(key) {
+        const id = typeof key === "string" ? key : key.url;
+        return store.get(id) ?? null;
+      },
+      async open() {
+        return {
+          async put(key, value) {
+            const id = typeof key === "string" ? key : key.url;
+            puts.push(id);
+            store.set(id, value);
+          },
+        };
+      },
+    },
+  };
+}
+
 describe("pwa.mjs", () => {
   it("pins CDN precache URLs and icon names", () => {
     assert.ok(CDN_PRECACHE.length >= 6);
@@ -316,7 +344,9 @@ describe("pwa.mjs", () => {
     assert.equal(isUrlFetchHelperPath("/url-fetch-helper/index.html"), true);
     assert.equal(isIsolatedHelperPath("/url-fetch-helper/"), true);
     assert.equal(isDriveHelperPath("/index.html"), false);
-    assert.doesNotMatch(sw, /mermaid-sandbox/);
+    assert.match(sw, /function isMermaidSandboxNavigation/);
+    assert.match(sw, /respondMermaidNavigation\(request, CACHE\)/);
+    assert.match(sw, /\.\/mermaid-sandbox\//);
     assert.ok(DEV_PRECACHE.includes("./mermaid-sandbox/"));
     assert.ok(DEV_PRECACHE.includes("./mermaid-sandbox/index.html"));
     assert.equal(isMermaidSandboxPath("/mermaid-sandbox/"), true);
@@ -324,6 +354,70 @@ describe("pwa.mjs", () => {
     assert.equal(isIsolatedHelperPath("/markdown/mermaid-sandbox/"), false);
     assert.equal(isMutableShellPath("/mermaid-sandbox/index.html"), true);
     assert.equal(isMermaidSandboxPath("/mermaid-sandbox/runtime.js"), false);
+  });
+
+  it("serves the precached mermaid sandbox when the worker is offline", async () => {
+    const sandbox = new Response("sandbox-doc", {
+      status: 200,
+      headers: { "content-type": "text/html" },
+    });
+    const appShell = new Response("app-shell", {
+      status: 200,
+      headers: { "content-type": "text/html" },
+    });
+    const { caches, puts } = memoryCache({
+      "https://app.test/mermaid-sandbox/": sandbox,
+      "./index.html": appShell,
+    });
+    let fetches = 0;
+    const request = new Request("https://app.test/mermaid-sandbox/");
+    const response = await respondMermaidNavigation(request, "md-editor-test", {
+      onLine: false,
+      caches,
+      fetch: async () => {
+        fetches += 1;
+        throw new Error("offline");
+      },
+    });
+    assert.equal(fetches, 0);
+    assert.equal(puts.length, 0);
+    assert.equal(await response.text(), "sandbox-doc");
+  });
+
+  it("does not store a sandbox navigation on the app shell cache key", async () => {
+    const { caches, puts } = memoryCache();
+    const request = new Request("https://app.test/mermaid-sandbox/");
+    const response = await respondMermaidNavigation(request, "md-editor-test", {
+      onLine: true,
+      caches,
+      fetch: async () =>
+        new Response("fresh-sandbox", {
+          status: 200,
+          headers: { "content-type": "text/html" },
+        }),
+    });
+    assert.equal(await response.text(), "fresh-sandbox");
+    assert.deepEqual(puts, ["https://app.test/mermaid-sandbox/"]);
+  });
+
+  it("uses the precached sandbox when the offline fetch stalls", async () => {
+    const sandbox = new Response("cached-sandbox", { status: 200 });
+    const { caches } = memoryCache({
+      "./mermaid-sandbox/": sandbox,
+    });
+    const request = new Request("https://app.test/mermaid-sandbox/index.html");
+    const response = await respondMermaidNavigation(request, "md-editor-test", {
+      onLine: true,
+      timeoutMs: 20,
+      caches,
+      fetch: (_request, init) =>
+        new Promise((_resolve, reject) => {
+          init.signal.addEventListener("abort", () => {
+            reject(new DOMException("aborted", "AbortError"));
+          });
+        }),
+    });
+    assert.equal(await response.text(), "cached-sandbox");
   });
 
   it("versions precache lists deterministically", () => {
