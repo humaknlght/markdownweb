@@ -400,6 +400,43 @@ async function readTextIfExists(filePath) {
   }
 }
 
+/**
+ * src/ has no index.<hash>.html on disk. Serve the in-memory build so the
+ * iframe URL from index.html is a real 200, not a 404 the service worker
+ * cannot turn into a document.
+ * @param {string} logicalPath
+ * @param {import("node:http").ServerResponse} res
+ */
+async function tryServeDevHashedMermaidSandbox(logicalPath, res) {
+  const servingSrc =
+    path.resolve(rootDir) === path.resolve(path.dirname(srcIndexPath));
+  if (!servingSrc) return false;
+  if (!isHelperHtml(logicalPath, MERMAID_SANDBOX_DIR)) return false;
+  const base = path.basename(logicalPath);
+  if (!/^index\.[a-f0-9]{8}\.html$/i.test(base)) return false;
+  const build = await devMermaidSandboxBuild();
+  if (base.toLowerCase() !== build.name) {
+    res.writeHead(404, {
+      "Content-Type": "text/plain; charset=utf-8",
+      "Cross-Origin-Resource-Policy": CORP,
+    });
+    res.end("Not Found");
+    return true;
+  }
+  const headers = buildHeaders(logicalPath, null, {
+    htmlHeaders: {
+      ...MERMAID_SANDBOX_HTML_HEADERS,
+      "Cache-Control": "public, max-age=31536000, immutable",
+      "Content-Security-Policy": buildMermaidSandboxContentSecurityPolicy(
+        inlineScriptHashes(build.html),
+      ),
+    },
+  });
+  res.writeHead(200, headers);
+  res.end(build.html);
+  return true;
+}
+
 async function handleRequest(req, res) {
   try {
     let logicalPath = safeResolve(req.url || "/");
@@ -445,6 +482,8 @@ async function handleRequest(req, res) {
       if (err.code === "ENOENT") {
         // When serving src/, GUIDE.md may only exist at the repo root.
         if (await tryServeGuide(logicalPath, res)) return;
+        // Dev sandbox HTML is generated in memory at index.<hash>.html.
+        if (await tryServeDevHashedMermaidSandbox(logicalPath, res)) return;
         res.writeHead(404, {
           "Content-Type": "text/plain; charset=utf-8",
           "Cross-Origin-Resource-Policy": CORP,

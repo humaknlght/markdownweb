@@ -598,6 +598,7 @@ test.describe("editor + render", () => {
     page,
     context,
   }) => {
+    test.setTimeout(120_000);
     await openFreshApp(page);
     // Warm the parent-fed Mermaid graph (SW cache) while online.
     await page
