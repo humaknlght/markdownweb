@@ -285,6 +285,8 @@ export const state = {
   deferredInstallPrompt: null,
   editorHighlightRaf: 0,
   suppressEditorInput: false,
+  /** Bumps on each delivered editor input so boot can avoid clobbering it. */
+  editorInputEpoch: 0,
   renderTimer: 0,
   historyTimer: 0,
   rafId: 0,
