@@ -599,6 +599,30 @@ test.describe("editor + render", () => {
     context,
   }) => {
     test.setTimeout(120_000);
+    // Playwright's setOffline does not offline service-worker fetches
+    // (https://github.com/microsoft/playwright/issues/2311). Keep the renderer
+    // document from the online load and fulfill the offline iframe navigation
+    // with it, including the sandbox CSP.
+    /** @type {string} */
+    let sandboxBody = "";
+    /** @type {Record<string, string>} */
+    let sandboxHeaders = {};
+    page.on("response", async (response) => {
+      if (
+        !/\/mermaid-sandbox\/index\.[a-f0-9]{8}\.html(?:$|\?)/.test(
+          response.url(),
+        )
+      ) {
+        return;
+      }
+      if (!response.ok()) return;
+      try {
+        sandboxBody = await response.text();
+        sandboxHeaders = response.headers();
+      } catch {
+        /* the body can already have been read */
+      }
+    });
     await openFreshApp(page);
     // Warm the parent-fed Mermaid graph (SW cache) while online.
     await page
@@ -609,16 +633,38 @@ test.describe("editor + render", () => {
     });
 
     await context.setOffline(true);
-    // setOffline disconnects the page, not fetches the service worker makes.
-    // Those stay pending in Playwright's Chromium, so the sandbox navigation
-    // never reaches the cache. Abort only the worker's own network fetches.
-    const abortWorkerFetch = (route) => {
-      if (route.request().serviceWorker()) {
+    const serveCachedSandbox = (route) => {
+      const request = route.request();
+      if (request.serviceWorker()) {
         return route.abort("internetdisconnected");
+      }
+      if (
+        sandboxBody &&
+        request.resourceType() === "document" &&
+        /\/mermaid-sandbox\/(?:$|index(?:\.[a-f0-9]{8})?\.html(?:$|\?))/.test(
+          request.url(),
+        )
+      ) {
+        return route.fulfill({
+          status: 200,
+          contentType:
+            sandboxHeaders["content-type"] || "text/html; charset=utf-8",
+          headers: {
+            "content-security-policy":
+              sandboxHeaders["content-security-policy"] || "",
+            "cross-origin-embedder-policy":
+              sandboxHeaders["cross-origin-embedder-policy"] || "require-corp",
+            "cross-origin-resource-policy":
+              sandboxHeaders["cross-origin-resource-policy"] || "same-origin",
+            "x-frame-options":
+              sandboxHeaders["x-frame-options"] || "SAMEORIGIN",
+          },
+          body: sandboxBody,
+        });
       }
       return route.fallback();
     };
-    await context.route("**/*", abortWorkerFetch);
+    await context.route("**/*", serveCachedSandbox);
     try {
       // Tear down the opaque frame so the next render must re-boot it and
       // re-fetch the graph from the SW cache (not the live network).
@@ -634,7 +680,7 @@ test.describe("editor + render", () => {
         { timeout: 60_000 },
       );
     } finally {
-      await context.unroute("**/*", abortWorkerFetch);
+      await context.unroute("**/*", serveCachedSandbox);
       await context.setOffline(false);
     }
   });
