@@ -609,6 +609,16 @@ test.describe("editor + render", () => {
     });
 
     await context.setOffline(true);
+    // setOffline disconnects the page, not fetches the service worker makes.
+    // Those stay pending in Playwright's Chromium, so the sandbox navigation
+    // never reaches the cache. Abort only the worker's own network fetches.
+    const abortWorkerFetch = (route) => {
+      if (route.request().serviceWorker()) {
+        return route.abort("internetdisconnected");
+      }
+      return route.fallback();
+    };
+    await context.route("**/*", abortWorkerFetch);
     try {
       // Tear down the opaque frame so the next render must re-boot it and
       // re-fetch the graph from the SW cache (not the live network).
@@ -624,6 +634,7 @@ test.describe("editor + render", () => {
         { timeout: 60_000 },
       );
     } finally {
+      await context.unroute("**/*", abortWorkerFetch);
       await context.setOffline(false);
     }
   });
