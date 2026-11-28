@@ -256,11 +256,18 @@ export async function respondMermaidNavigation(request, cacheName, deps = {}) {
   const timeoutMs = deps.timeoutMs ?? 4000;
   const ResponseImpl = deps.Response ?? Response;
 
+  const isSandboxDocument = (response) => {
+    const csp = response?.headers?.get("content-security-policy") || "";
+    return csp.includes("sandbox");
+  };
+
   const matchCached = async () => {
     // ignoreVary: the sandbox response is stored with Vary: Accept-Encoding,
     // and a navigation request does not send the same header as install.
     // Match URL strings only. caches.match(navigationRequest) throws because
     // the request mode is "navigate", which skips the precache keys below.
+    // Skip the app shell. Its CSP is frame-ancestors 'none', and Chromium
+    // 159 reports that as ERR_BLOCKED_BY_RESPONSE inside the iframe.
     const loose = { ignoreVary: true, ignoreSearch: true };
     const urls = [
       "./mermaid-sandbox/",
@@ -270,7 +277,7 @@ export async function respondMermaidNavigation(request, cacheName, deps = {}) {
     for (const url of urls) {
       try {
         const hit = await cachesImpl.match(url, loose);
-        if (hit) return hit;
+        if (hit && isSandboxDocument(hit)) return hit;
       } catch {
         /* a navigate-mode Request is not a valid cache key */
       }
@@ -296,6 +303,7 @@ export async function respondMermaidNavigation(request, cacheName, deps = {}) {
   });
   try {
     const fresh = await Promise.race([pending, timeout]);
+    if (!isSandboxDocument(fresh)) throw new Error("not sandbox");
     try {
       const cache = await cachesImpl.open(cacheName);
       // URL string, not the navigation Request — Cache.put rejects mode "navigate".

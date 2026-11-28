@@ -366,7 +366,10 @@ describe("pwa.mjs", () => {
   });
 
   it("still finds the sandbox cache when an earlier match throws", async () => {
-    const sandbox = new Response("sandbox-doc", { status: 200 });
+    const sandbox = new Response("sandbox-doc", {
+      status: 200,
+      headers: { "content-security-policy": "sandbox allow-scripts" },
+    });
     const request = new Request("https://app.test/mermaid-sandbox/");
     const { caches } = memoryCache({
       [request.url]: sandbox,
@@ -386,10 +389,37 @@ describe("pwa.mjs", () => {
     assert.equal(await response.text(), "sandbox-doc");
   });
 
+  it("does not return the app shell for a sandbox navigation", async () => {
+    const appShell = new Response("app-shell", {
+      status: 200,
+      headers: { "content-security-policy": "frame-ancestors 'none'" },
+    });
+    const sandbox = new Response("sandbox-doc", {
+      status: 200,
+      headers: { "content-security-policy": "sandbox allow-scripts" },
+    });
+    const { caches } = memoryCache({
+      "./mermaid-sandbox/": appShell,
+      "./mermaid-sandbox/index.html": sandbox,
+    });
+    const request = new Request("https://app.test/mermaid-sandbox/");
+    const response = await respondMermaidNavigation(request, "md-editor-test", {
+      onLine: false,
+      caches,
+      fetch: async () => {
+        throw new Error("offline");
+      },
+    });
+    assert.equal(await response.text(), "sandbox-doc");
+  });
+
   it("serves the precached mermaid sandbox when the worker is offline", async () => {
     const sandbox = new Response("sandbox-doc", {
       status: 200,
-      headers: { "content-type": "text/html" },
+      headers: {
+        "content-type": "text/html",
+        "content-security-policy": "sandbox allow-scripts",
+      },
     });
     const appShell = new Response("app-shell", {
       status: 200,
@@ -423,7 +453,10 @@ describe("pwa.mjs", () => {
       fetch: async () =>
         new Response("fresh-sandbox", {
           status: 200,
-          headers: { "content-type": "text/html" },
+          headers: {
+            "content-type": "text/html",
+            "content-security-policy": "sandbox allow-scripts",
+          },
         }),
     });
     assert.equal(await response.text(), "fresh-sandbox");
@@ -431,7 +464,10 @@ describe("pwa.mjs", () => {
   });
 
   it("uses the precached sandbox when the offline fetch stalls", async () => {
-    const sandbox = new Response("cached-sandbox", { status: 200 });
+    const sandbox = new Response("cached-sandbox", {
+      status: 200,
+      headers: { "content-security-policy": "sandbox allow-scripts" },
+    });
     const { caches } = memoryCache({
       "./mermaid-sandbox/": sandbox,
     });
