@@ -20,9 +20,12 @@ test.describe("production Apache COEP", () => {
       urls.length,
       "dist has no HTML documents; run npm run build",
     ).toBeGreaterThan(0);
-    expect(urls, "directory index URLs are what iframes request").toContain(
-      "/mermaid-sandbox/",
-    );
+    expect(
+      urls.some((url) =>
+        /^\/mermaid-sandbox\/index\.[a-f0-9]{8}\.html$/.test(url),
+      ),
+      "production iframe loads the content-hashed sandbox document",
+    ).toBe(true);
 
     const server = await startDistApache(distDir);
     /** @type {string[]} */

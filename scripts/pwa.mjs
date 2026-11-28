@@ -92,10 +92,14 @@ function contentHash(buffer) {
  * Service worker for the src/dev server. Versioned from DEV_PRECACHE only so
  * production builds (hashed dist assets) do not rewrite a tracked src/sw.js.
  */
-export function buildDevServiceWorker() {
+/**
+ * @param {string[]} [extraPrecacheUrls] Dev-only URLs such as the hashed sandbox document.
+ */
+export function buildDevServiceWorker(extraPrecacheUrls = []) {
+  const precacheUrls = [...DEV_PRECACHE, ...extraPrecacheUrls];
   return buildServiceWorker({
-    precacheUrls: DEV_PRECACHE,
-    version: `dev-${precacheVersion(DEV_PRECACHE)}`,
+    precacheUrls,
+    version: `dev-${precacheVersion(precacheUrls)}`,
   });
 }
 
@@ -208,7 +212,117 @@ export function isUrlFetchHelperPath(pathname) {
 
 /** True when the URL is the opaque-origin Mermaid renderer page. */
 export function isMermaidSandboxPath(pathname) {
-  return isHelperDirPath(pathname, "mermaid-sandbox");
+  return isMermaidSandboxNavigation(pathname);
+}
+
+/**
+ * Renderer document: the dev directory / `index.html`, or the content-hashed
+ * `index.<hash>.html` named by the app shell.
+ * @param {string} pathname
+ */
+export function isMermaidSandboxNavigation(pathname) {
+  const parts = pathname.split("/").filter(Boolean);
+  const i = parts.indexOf("mermaid-sandbox");
+  if (i < 0) return false;
+  if (parts.length === i + 1) return true;
+  if (parts.length !== i + 2) return false;
+  const file = parts[i + 1];
+  return file === "index.html" || /^index\.[a-f0-9]{8}\.html$/i.test(file);
+}
+
+/**
+ * Serve the opaque Mermaid renderer document.
+ *
+ * The page is precached. Return that document before any network fetch.
+ * Playwright's Chromium can leave `navigator.onLine` true in the worker
+ * while the page is offline, and `fetch` of the navigation then never
+ * settles — including the timeout — so the iframe stays on the previous
+ * diagram. A content-hashed URL misses this cache after the file changes,
+ * so dev edits still revalidate. Falling back to the app `index.html`
+ * would boot the wrong CSP and the renderer would never post `boot`.
+ *
+ * @param {Request} request
+ * @param {string} cacheName
+ * @param {{
+ *   fetch?: typeof fetch,
+ *   caches?: CacheStorage,
+ *   onLine?: boolean,
+ *   timeoutMs?: number,
+ *   Response?: typeof Response,
+ * }} [deps]
+ */
+export async function respondMermaidNavigation(request, cacheName, deps = {}) {
+  const fetchImpl = deps.fetch ?? fetch;
+  const cachesImpl = deps.caches ?? caches;
+  const onLine = deps.onLine ?? navigator.onLine;
+  const timeoutMs = deps.timeoutMs ?? 4000;
+  const ResponseImpl = deps.Response ?? Response;
+
+  const isSandboxDocument = (response) => {
+    const csp = response?.headers?.get("content-security-policy") || "";
+    // The app shell is frame-ancestors 'none'. The sandbox policy also
+    // contains 'none' (default-src), so that token alone is not the shell.
+    // A cache hit may omit Content-Security-Policy; the mermaid URL is enough.
+    return !/frame-ancestors\s+'none'/.test(csp);
+  };
+
+  const matchCached = async () => {
+    // ignoreVary: the sandbox response is stored with Vary: Accept-Encoding,
+    // and a navigation request does not send the same header as install.
+    // Match URL strings only. caches.match(navigationRequest) throws because
+    // the request mode is "navigate", which skips the precache keys below.
+    // Skip the app shell. Its CSP is frame-ancestors 'none', and Chromium
+    // 159 reports that as ERR_BLOCKED_BY_RESPONSE inside the iframe.
+    const loose = { ignoreVary: true, ignoreSearch: true };
+    const urls = [
+      request.url,
+      "./mermaid-sandbox/index.html",
+      "./mermaid-sandbox/",
+    ];
+    for (const url of urls) {
+      try {
+        const hit = await cachesImpl.match(url, loose);
+        if (hit && isSandboxDocument(hit)) return hit;
+      } catch {
+        /* a navigate-mode Request is not a valid cache key */
+      }
+    }
+    return null;
+  };
+
+  const cached = await matchCached();
+  if (cached) return cached;
+  if (onLine === false) return ResponseImpl.error();
+
+  // A navigate Request can stay pending forever under offline emulation.
+  // Fetch the URL string, and still race a timer for a cache miss.
+  let timer;
+  const pending = Promise.resolve()
+    .then(() => fetchImpl(request.url))
+    .then((fresh) => {
+      if (!fresh?.ok) throw new Error(String(fresh?.status || "fetch"));
+      return fresh;
+    });
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error("timeout")), timeoutMs);
+  });
+  try {
+    const fresh = await Promise.race([pending, timeout]);
+    if (!isSandboxDocument(fresh)) throw new Error("not sandbox");
+    try {
+      const cache = await cachesImpl.open(cacheName);
+      // URL string, not the navigation Request — Cache.put rejects mode "navigate".
+      await cache.put(request.url, fresh.clone());
+    } catch {
+      /* the install precache still covers the next offline boot */
+    }
+    return fresh;
+  } catch {
+    pending.catch(() => {});
+    return (await matchCached()) || ResponseImpl.error();
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 /** Drive auth or URL-fetch helper — SW must not intercept (fresh CSP / COEP). */
@@ -267,24 +381,41 @@ function isIsolatedHelperPath(pathname) {
   return false;
 }
 
+${isMermaidSandboxNavigation.toString()}
+
+${respondMermaidNavigation.toString()}
+
 self.addEventListener("install", (event) => {
+  // Activate before the CDN list finishes. A hung jsDelivr fetch would
+  // otherwise keep this worker in "installing", so the page goes offline
+  // with no controller and the Mermaid iframe never reloads.
+  self.skipWaiting();
+  const put = async (cache, url) => {
+    const timer = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error("timeout")), 8000);
+    });
+    try {
+      const response = await Promise.race([
+        fetch(url, {
+          mode: "cors",
+          credentials: "omit",
+          cache: "reload",
+        }),
+        timer,
+      ]);
+      if (response.ok) await cache.put(url, response);
+    } catch {
+      /* one failed asset must not block install */
+    }
+  };
   event.waitUntil(
     (async () => {
       const cache = await caches.open(CACHE);
-      await Promise.all(
-        PRECACHE.map(async (url) => {
-          try {
-            const response = await fetch(url, {
-              mode: "cors",
-              credentials: "omit",
-              cache: "reload",
-            });
-            if (response.ok) await cache.put(url, response);
-          } catch {
-            /* one failed CDN/asset must not block install */
-          }
-        })
-      );
+      const local = PRECACHE.filter((url) => !url.startsWith("https://"));
+      await Promise.all(local.map((url) => put(cache, url)));
+      // CDN graphs are filled by the controlling fetch handler on first use.
+      const remote = PRECACHE.filter((url) => url.startsWith("https://"));
+      void Promise.all(remote.map((url) => put(cache, url)));
     })()
   );
 });
@@ -312,9 +443,34 @@ self.addEventListener("fetch", (event) => {
   const isCdn = url.hostname === "cdn.jsdelivr.net";
 
   // Never intercept isolated helpers. A cached navigation response for
-  // index.html (main CSP + COEP) would break Drive GIS / URL-fetch / Mermaid
-  // sandbox CSP.
+  // index.html (main CSP + COEP) would break Drive GIS / URL-fetch CSP.
+  // mermaid-sandbox/ is intercepted on purpose: it is precached and must
+  // still load when the worker's own fetch is offline.
   if (isIsolatedHelperPath(url.pathname)) return;
+
+  // Any mode: a sandboxed iframe document request is not always "navigate",
+  // and the mutable-shell path below has no timeout when fetch stalls.
+  if (isMermaidSandboxNavigation(url.pathname)) {
+    event.respondWith(
+      (async () => {
+        // The page records offline here because Playwright's setOffline does
+        // not make this worker's navigator.onLine false, and its fetch then
+        // never settles. A flag avoids that fetch and serves the cache.
+        let pageOffline = false;
+        try {
+          pageOffline = !!(await caches.match("/md-offline"));
+        } catch {
+          pageOffline = false;
+        }
+        return respondMermaidNavigation(
+          request,
+          CACHE,
+          pageOffline ? { onLine: false } : {},
+        );
+      })()
+    );
+    return;
+  }
 
   if (request.mode === "navigate") {
     event.respondWith(

@@ -22,8 +22,6 @@ export const MERMAID_SVG_MAX_CHARS = 5 * 1024 * 1024;
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 const MERMAID_SCOPE_ID_RE = /^mermaid-\d+$/;
-const CSS_STYLE_RULE = 1;
-const CSS_KEYFRAMES_RULE = 7;
 
 /** Layout / class attrs kept on `<foreignObject>` shells (no event handlers). */
 const FO_ATTR_ALLOW = new Set([
@@ -356,43 +354,12 @@ export function scopeMermaidSvgStyles(svg, scopeId) {
     return;
   }
   const prefix = `#${scopeId}`;
-  const scratch = svg.ownerDocument.implementation.createHTMLDocument("");
   for (const style of styles) {
     const raw = style.textContent || "";
-    if (!raw.trim()) {
-      style.textContent = "";
-      continue;
-    }
-    const probe = scratch.createElement("style");
-    probe.textContent = raw;
-    scratch.head.appendChild(probe);
-    const ruleList = probe.sheet?.cssRules;
-    /** @type {string[]} */
-    const kept = [];
-    if (ruleList && ruleList.length > 0) {
-      for (const rule of ruleList) {
-        if (
-          rule.type === CSS_KEYFRAMES_RULE ||
-          /^@keyframes\s/i.test(rule.cssText)
-        ) {
-          kept.push(rule.cssText);
-          continue;
-        }
-        if (rule.type !== CSS_STYLE_RULE) continue;
-        const selectors = splitScopedSelectorList(
-          /** @type {CSSStyleRule} */ (rule).selectorText,
-        );
-        if (selectors?.every((sel) => selectorStaysInScope(sel, prefix))) {
-          kept.push(rule.cssText);
-        }
-      }
-      style.textContent = kept.join("\n");
-    } else {
-      // CSP / createHTMLDocument: sheet never materializes — do not empty the
-      // stylesheet (that blacked out gantt bars that rely on class fills).
-      style.textContent = filterScopedCssText(raw, prefix);
-    }
-    probe.remove();
+    // Do not probe with a `<style>` element. createHTMLDocument inherits
+    // style-src 'self', so inserting one only logs a CSP violation and the
+    // sheet stays null. Text filtering keeps the same scoped rules.
+    style.textContent = raw.trim() ? filterScopedCssText(raw, prefix) : "";
   }
 }
 
@@ -420,23 +387,30 @@ const mermaidDocSheets = new WeakMap();
  * when the CSS text is present. Mirror the CSS into a constructable stylesheet
  * on the owner document (allowed like `dynamic-style.js` under `style-src 'self'`).
  * @param {Element} svg
+ * @param {string} [cssText] CSS to mirror when the SVG no longer contains
+ *   `<style>` elements (those elements are blocked by `style-src 'self'`).
  */
-export function adoptMermaidSvgStyles(svg) {
+export function adoptMermaidSvgStyles(svg, cssText) {
   const doc = svg?.ownerDocument;
   const view = doc?.defaultView;
   const scopeId = String(svg?.id || "");
   if (!doc || !view || !MERMAID_SCOPE_ID_RE.test(scopeId)) return;
   if (typeof view.CSSStyleSheet !== "function") return;
 
-  const css = [...svg.querySelectorAll("style")]
-    .map((el) => el.textContent || "")
-    .filter((t) => t.trim())
-    .join("\n");
-  if (!css) return;
+  const css =
+    typeof cssText === "string"
+      ? cssText
+      : [...svg.querySelectorAll("style")]
+          .map((el) => el.textContent || "")
+          .filter((t) => t.trim())
+          .join("\n");
+  if (!css.trim()) return;
 
   // Live SVG CSSOM already applies — nothing to mirror.
-  const inline = svg.querySelector("style");
-  if (inline?.sheet && inline.sheet.cssRules.length > 0) return;
+  if (typeof cssText !== "string") {
+    const inline = svg.querySelector("style");
+    if (inline?.sheet && inline.sheet.cssRules.length > 0) return;
+  }
 
   let byId = mermaidDocSheets.get(doc);
   if (!byId) {
@@ -536,6 +510,59 @@ export function normalizeSandboxResults(
 }
 
 /**
+ * Style attributes are blocked by the preview's `style-src 'self'` (and a
+ * hash would also need `'unsafe-hashes'`). Move safe declarations onto a
+ * scoped class before the markup is parsed into that document.
+ * @param {string} html
+ * @param {string} scopeId
+ * @returns {{ html: string, css: string }}
+ */
+function liftStyleAttributes(html, scopeId) {
+  const styleAttrRe =
+    /<([a-zA-Z][\w:.-]*)([^>]*?)\sstyle\s*=\s*(?:"([^"]*)"|'([^']*)')([^>]*?)(\/?)>/g;
+  const scoped = MERMAID_SCOPE_ID_RE.test(scopeId);
+  let n = 0;
+  /** @type {string[]} */
+  const rules = [];
+  const stripped = String(html).replace(
+    styleAttrRe,
+    (_match, tag, before, dq, sq, after, slash) => {
+      const value = String(dq ?? sq ?? "").trim();
+      const attrs = `${before}${after}`;
+      const unsafe =
+        !value ||
+        /[{}]|\/\*|\*\//.test(value) ||
+        /url\s*\(|expression\s*\(|-moz-binding/i.test(value);
+      if (!scoped || unsafe) return `<${tag}${attrs}${slash}>`;
+      const cls = `md-mstyle-${n++}`;
+      rules.push(`#${scopeId}.${cls},#${scopeId} .${cls}{${value}}`);
+      if (/\sclass\s*=\s*"/.test(attrs)) {
+        return `<${tag}${attrs.replace(/(\sclass\s*=\s*")/, `$1${cls} `)}${slash}>`;
+      }
+      if (/\sclass\s*=\s*'/.test(attrs)) {
+        return `<${tag}${attrs.replace(/(\sclass\s*=\s*')/, `$1${cls} `)}${slash}>`;
+      }
+      return `<${tag}${attrs} class="${cls}"${slash}>`;
+    },
+  );
+  return { html: stripped, css: rules.join("") };
+}
+
+/**
+ * @param {Element} svg
+ * @param {string} css
+ */
+function appendDiagramCss(svg, css) {
+  if (!css) return;
+  let style = svg.querySelector("style");
+  if (!style) {
+    style = svg.ownerDocument.createElementNS(SVG_NS, "style");
+    svg.appendChild(style);
+  }
+  style.textContent = `${style.textContent || ""}${css}`;
+}
+
+/**
  * Sanitize sandbox SVG markup and parse it into `doc`.
  * @param {{ svg: string | null, scopeId: string }} result
  * @param {Document} doc
@@ -550,8 +577,13 @@ export function parseSandboxMermaidSvg(result, doc, purify) {
     UNTRUSTED_FORBID_TAGS,
     doc,
   );
+  const scopeHint =
+    MERMAID_SCOPE_ID_RE.test(result.scopeId) && result.scopeId
+      ? result.scopeId
+      : (String(clean).match(/\bid\s*=\s*["'](mermaid-\d+)["']/)?.[1] ?? "");
+  const lifted = liftStyleAttributes(clean, scopeHint);
   const tpl = doc.createElement("template");
-  tpl.innerHTML = clean;
+  tpl.innerHTML = lifted.html;
   const svg = tpl.content.firstElementChild;
   if (svg?.localName !== "svg" || svg.namespaceURI !== SVG_NS) {
     return null;
@@ -565,9 +597,16 @@ export function parseSandboxMermaidSvg(result, doc, purify) {
   if (scopeId && svg.id !== scopeId) svg.id = scopeId;
   scopeMermaidSvgStyles(svg, scopeId);
   injectMermaidForeignObjectThemePatch(svg, scopeId);
+  appendDiagramCss(svg, lifted.css);
+  // `<style>` in the live preview is blocked by style-src 'self'. Keep the
+  // text for the constructable sheet and import the SVG without those nodes.
+  const css = [...svg.querySelectorAll("style")]
+    .map((el) => el.textContent || "")
+    .filter((text) => text.trim())
+    .join("\n");
+  for (const style of [...svg.querySelectorAll("style")]) style.remove();
   const adopted = /** @type {SVGSVGElement} */ (doc.importNode(svg, true));
-  // Adopt after import so the sheet attaches to the live preview/zoom document.
-  adoptMermaidSvgStyles(adopted);
+  adoptMermaidSvgStyles(adopted, css);
   return adopted;
 }
 

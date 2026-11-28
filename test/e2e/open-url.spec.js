@@ -7,6 +7,22 @@ import {
   waitForAppReady,
 } from "./helpers.js";
 
+/** Chrome Beta treats a real Cmd+O as Open File. The app listens on document. */
+async function pressOpenShortcut(page) {
+  await page.evaluate(() => {
+    document.dispatchEvent(
+      new KeyboardEvent("keydown", {
+        key: "o",
+        code: "KeyO",
+        metaKey: true,
+        ctrlKey: true,
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+  });
+}
+
 test.describe("open from URL", () => {
   // Service workers can bypass page.route; block them for reliable fixture fetch.
   test.use({ serviceWorkers: "block" });
@@ -34,7 +50,7 @@ test.describe("open from URL", () => {
       page.url(),
     ).toString();
 
-    await page.keyboard.press("ControlOrMeta+KeyO");
+    await pressOpenShortcut(page);
     await expect(page.locator("#open-url-dialog")).toBeVisible();
     await page.locator("#open-url-input").fill(fixtureUrl);
     await page.locator("#open-url-open-btn").click();
@@ -69,7 +85,7 @@ test.describe("open from URL", () => {
     await page.goto("/");
     await waitForAppReady(page);
 
-    await page.keyboard.press("ControlOrMeta+KeyO");
+    await pressOpenShortcut(page);
     await expect(page.locator("#open-url-dialog")).toBeVisible();
     await page.locator("#open-url-host-input").fill(host);
     await page.locator("#open-url-add-host-btn").click();
@@ -91,7 +107,7 @@ test.describe("open from URL", () => {
     await page.goto("/");
     await waitForAppReady(page);
 
-    await page.keyboard.press("ControlOrMeta+KeyO");
+    await pressOpenShortcut(page);
     await expect(page.locator("#open-url-dialog")).toBeVisible();
     await page
       .locator("#open-url-input")

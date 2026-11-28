@@ -266,6 +266,52 @@ describe("parseSandboxMermaidSvg", () => {
     assert.doesNotMatch(html, /javascript:/i);
   });
 
+  it("moves style attributes into scoped CSS before the preview parses them", () => {
+    const { window: win, doc, purify } = setup();
+    /** @type {string[]} */
+    const synced = [];
+    class FakeSheet {
+      /** @param {string} css */
+      replaceSync(css) {
+        synced.push(String(css));
+      }
+    }
+    win.CSSStyleSheet = FakeSheet;
+    /** @type {FakeSheet[]} */
+    const adopted = [];
+    Object.defineProperty(doc, "adoptedStyleSheets", {
+      configurable: true,
+      get: () => adopted,
+      set: (next) => {
+        adopted.length = 0;
+        adopted.push(...next);
+      },
+    });
+    const svg = parseSandboxMermaidSvg(
+      {
+        svg:
+          '<svg xmlns="http://www.w3.org/2000/svg" id="mermaid-4" style="max-width: 100%;">' +
+          '<foreignObject width="10" height="10"><div xmlns="http://www.w3.org/1999/xhtml" style="display: inline-block; white-space: nowrap;">' +
+          '<span class="nodeLabel">Hi</span></div></foreignObject></svg>',
+        scopeId: "mermaid-4",
+      },
+      doc,
+      purify,
+    );
+    assert.ok(svg);
+    assert.equal(svg.getAttribute("style"), null);
+    assert.equal(svg.querySelector("[style]"), null);
+    assert.equal(svg.querySelector("style"), null);
+    assert.match(
+      synced.join("\n"),
+      /#mermaid-4\.md-mstyle-0,#mermaid-4 \.md-mstyle-0\{max-width: 100%;\}/,
+    );
+    assert.match(
+      synced.join("\n"),
+      /#mermaid-4\.md-mstyle-1,#mermaid-4 \.md-mstyle-1\{display: inline-block; white-space: nowrap;\}/,
+    );
+  });
+
   it("returns null for missing or non-SVG markup", () => {
     const { doc, purify } = setup();
     assert.equal(

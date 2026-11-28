@@ -1,3 +1,4 @@
+import { patchElementDecls } from "../../lib/doc-style.js";
 import { hooks } from "../hooks.js";
 import {
   mermaidHeightCache,
@@ -60,7 +61,7 @@ export function syncMermaidSvgSizes() {
 
     let natural = Number(svg.dataset.mermaidNatural);
     if (!Number.isFinite(natural) || natural <= 0) {
-      const rawMax = String(svg.style.maxWidth || "").trim();
+      const rawMax = String(svg.dataset.mermaidMax || "").trim();
       // parseFloat("100%") === 100 — never treat percentages as px naturals.
       const fromStyle = /%$/.test(rawMax) ? NaN : parseFloat(rawMax);
       natural =
@@ -79,13 +80,18 @@ export function syncMermaidSvgSizes() {
       // size until a debounced Mermaid re-run lays out at the new width.
       // Never tear down a good gantt SVG just to re-run into a too-narrow host.
       if (Math.abs(hostW - natural) >= 16) {
-        svg.style.maxWidth = `${Math.min(natural, hostW)}px`;
+        const next = Math.min(natural, hostW);
+        svg.dataset.mermaidMax = String(next);
+        patchElementDecls(svg, { "max-width": `${next}px` });
         if (hooks.mermaidHostWideEnough(host)) needsRelayout = true;
       } else {
-        svg.style.maxWidth = `${hostW}px`;
+        svg.dataset.mermaidMax = String(hostW);
+        patchElementDecls(svg, { "max-width": `${hostW}px` });
       }
     } else {
-      svg.style.maxWidth = `${Math.min(natural, hostW)}px`;
+      const next = Math.min(natural, hostW);
+      svg.dataset.mermaidMax = String(next);
+      patchElementDecls(svg, { "max-width": `${next}px` });
     }
   }
   if (needsRelayout) scheduleMermaidRelayout();
@@ -162,7 +168,7 @@ export function relayoutFluidMermaidDiagrams() {
   state.mermaidGen += 1;
   for (const el of targets) {
     const prevH = el.clientHeight;
-    if (prevH > 0) el.style.minHeight = `${prevH}px`;
+    if (prevH > 0) patchElementDecls(el, { "min-height": `${prevH}px` });
     el.removeAttribute("data-processed");
     el.textContent = mermaidSources.get(el) ?? "";
     // Source was just written back; keep the WeakMap entry for the next pass.
@@ -170,7 +176,7 @@ export function relayoutFluidMermaidDiagrams() {
   }
   void renderMermaidDiagrams().finally(() => {
     for (const el of targets) {
-      if (preview.contains(el)) el.style.minHeight = "";
+      if (preview.contains(el)) patchElementDecls(el, { "min-height": "" });
     }
   });
 }
@@ -286,7 +292,7 @@ export async function renderMermaidDiagrams({ force = false } = {}) {
       if (srcForLinks) hooks.linkMermaidSvgClicks?.(svg, srcForLinks);
     }
     // Release the paint reservation now that the real SVG owns layout.
-    el.style.minHeight = "";
+    patchElementDecls(el, { "min-height": "" });
     const src = mermaidSources.get(el);
     const h = el.offsetHeight;
     if (src && h > 0) mermaidHeightCache.set(hooks.mermaidReuseKey(src), h);
@@ -306,14 +312,14 @@ export function rerenderAllMermaidDiagrams() {
   for (const el of hosts) {
     hooks.rememberMermaidSource(el);
     const prevH = el.clientHeight;
-    if (prevH > 0) el.style.minHeight = `${prevH}px`;
+    if (prevH > 0) patchElementDecls(el, { "min-height": `${prevH}px` });
     el.removeAttribute("data-processed");
     el.textContent = mermaidSources.get(el) ?? "";
     el.setAttribute("data-pending", "");
   }
   return renderMermaidDiagrams().finally(() => {
     for (const el of hosts) {
-      if (preview.contains(el)) el.style.minHeight = "";
+      if (preview.contains(el)) patchElementDecls(el, { "min-height": "" });
     }
   });
 }

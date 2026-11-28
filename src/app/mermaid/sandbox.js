@@ -2,7 +2,6 @@ import { fetchEsmCdnGraph } from "../../lib/esm-cdn-graph.js";
 import {
   MERMAID_HAND_FONT,
   MERMAID_SANDBOX_CDN_ENTRIES,
-  MERMAID_SANDBOX_FRAME_SANDBOX,
   MERMAID_SANDBOX_MESSAGE,
   MERMAID_SANDBOX_PATH,
   MERMAID_SANDBOX_READY_TIMEOUT_MS,
@@ -44,6 +43,66 @@ function isSandboxMessage(event, win) {
   );
 }
 
+const MERMAID_SANDBOX_URL_PLACEHOLDER = "__MERMAID_SANDBOX_URL__";
+
+/** Unreplaced placeholder keeps `./mermaid-sandbox/`. Dev and production name the hashed file. */
+function resolveMermaidSandboxPath() {
+  try {
+    const configured = window.__MD_MERMAID_SANDBOX__;
+    if (
+      typeof configured === "string" &&
+      configured &&
+      configured !== MERMAID_SANDBOX_URL_PLACEHOLDER
+    ) {
+      return configured;
+    }
+  } catch {
+    /* ignore */
+  }
+  return MERMAID_SANDBOX_PATH;
+}
+
+const PAGE_OFFLINE_CACHE = "md-editor-offline";
+const PAGE_OFFLINE_URL = "/md-offline";
+const PAGE_SANDBOX_CACHE = "md-editor-mermaid";
+
+/** Tell the service worker the page is offline without relying on its onLine flag. */
+async function notePageOfflineState() {
+  if (typeof caches === "undefined") return;
+  try {
+    const cache = await caches.open(PAGE_OFFLINE_CACHE);
+    if (navigator.onLine === false) {
+      await cache.put(PAGE_OFFLINE_URL, new Response("1"));
+    } else {
+      await cache.delete(PAGE_OFFLINE_URL);
+    }
+  } catch {
+    /* a missing Cache API still leaves the network path */
+  }
+}
+
+/** Keep a copy of the renderer document the worker can match by URL. */
+async function rememberSandboxDocument(url) {
+  if (typeof caches === "undefined" || navigator.onLine === false) return;
+  try {
+    const response = await fetch(url, { cache: "reload" });
+    if (!response.ok) return;
+    const cache = await caches.open(PAGE_SANDBOX_CACHE);
+    await cache.put(url, response);
+  } catch {
+    /* the service worker precache is the other copy */
+  }
+}
+
+if (typeof window !== "undefined") {
+  window.addEventListener("offline", () => {
+    void notePageOfflineState();
+  });
+  window.addEventListener("online", () => {
+    void notePageOfflineState();
+  });
+}
+
 function resetSandboxFrame() {
   sandboxFrame?.remove();
   sandboxFrame = null;
@@ -62,74 +121,129 @@ function loadSandboxModules() {
   return sandboxModulesPromise;
 }
 
+/**
+ * The offline re-boot only works once this worker controls the page and can
+ * answer the iframe navigation from cache. Install used to wait on every CDN
+ * module, so CI rendered the first diagram over the network and then went
+ * offline before the worker activated.
+ * @returns {Promise<void>}
+ */
+function waitForServiceWorkerControl() {
+  if (typeof navigator === "undefined" || !navigator.serviceWorker) {
+    return Promise.resolve();
+  }
+  const sw = navigator.serviceWorker;
+  const timed = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  return Promise.race([sw.ready.catch(() => null), timed(5000)]).then(
+    async () => {
+      if (sw.controller) return;
+      try {
+        const reg = await sw.getRegistration();
+        reg?.waiting?.postMessage("SKIP_WAITING");
+        reg?.installing?.postMessage("SKIP_WAITING");
+      } catch {
+        /* registration can be missing in tests that block workers */
+      }
+      if (sw.controller) return;
+      await new Promise((resolve) => {
+        let timer = 0;
+        const finish = () => {
+          clearTimeout(timer);
+          sw.removeEventListener("controllerchange", finish);
+          resolve();
+        };
+        timer = setTimeout(finish, 2000);
+        sw.addEventListener("controllerchange", finish);
+      });
+    },
+  );
+}
+
 /** @returns {Promise<HTMLIFrameElement>} */
 function ensureSandboxFrame() {
   if (sandboxReady) return sandboxReady;
-  // Start the SRI graph fetch immediately so it overlaps the iframe boot.
-  const modulesPromise = loadSandboxModules();
   sandboxReady = new Promise((resolve, reject) => {
-    const iframe = document.createElement("iframe");
-    iframe.setAttribute("sandbox", MERMAID_SANDBOX_FRAME_SANDBOX);
-    iframe.id = "mermaid-sandbox-frame";
-    iframe.title = "Mermaid renderer";
-    iframe.setAttribute("aria-hidden", "true");
-    iframe.tabIndex = -1;
-    // Laid out (not display:none) so Mermaid can measure text; never visible.
-    iframe.className = "mermaid-measure-frame";
+    waitForServiceWorkerControl().then(async () => {
+      // Fetch the SRI graph only after the worker controls the page so the
+      // offline re-boot can read those modules back from the SW cache.
+      const modulesPromise = loadSandboxModules();
+      const url = new URL(resolveMermaidSandboxPath(), window.location.href)
+        .href;
+      await notePageOfflineState();
+      await rememberSandboxDocument(url);
+      startSandboxFrame(modulesPromise, resolve, reject);
+    }, reject);
+  });
+  return sandboxReady;
+}
 
-    /** @param {MessageEvent} event */
-    const onMessage = (event) => {
-      if (!isSandboxMessage(event, iframe.contentWindow)) return;
-      if (event.data.action === "error") {
-        cleanup();
-        iframe.remove();
-        sandboxReady = null;
-        reject(
-          new Error(String(event.data.error || "Mermaid renderer failed")),
-        );
-        return;
-      }
-      if (event.data.action === "boot") {
-        modulesPromise
-          .then((modules) => {
-            iframe.contentWindow?.postMessage(
-              {
-                type: MERMAID_SANDBOX_MESSAGE,
-                action: "modules",
-                modules,
-              },
-              "*",
-            );
-          })
-          .catch((err) => {
-            cleanup();
-            iframe.remove();
-            sandboxReady = null;
-            reject(err);
-          });
-        return;
-      }
-      if (event.data.action !== "ready") return;
-      cleanup();
-      sandboxFrame = iframe;
-      resolve(iframe);
-    };
-    const fail = () => {
+/**
+ * @param {Promise<Record<string, string>>} modulesPromise
+ * @param {(frame: HTMLIFrameElement) => void} resolve
+ * @param {(err: Error) => void} reject
+ */
+function startSandboxFrame(modulesPromise, resolve, reject) {
+  const iframe = document.createElement("iframe");
+  // Do not set the iframe sandbox attribute. Chromium treats that navigation
+  // as a unique-origin request and, while offline, fails it before the
+  // service worker can answer. The response CSP `sandbox allow-scripts`
+  // still gives the loaded document an opaque origin.
+  iframe.id = "mermaid-sandbox-frame";
+  iframe.title = "Mermaid renderer";
+  iframe.setAttribute("aria-hidden", "true");
+  iframe.tabIndex = -1;
+  // Laid out (not display:none) so Mermaid can measure text; never visible.
+  iframe.className = "mermaid-measure-frame";
+
+  /** @param {MessageEvent} event */
+  const onMessage = (event) => {
+    if (!isSandboxMessage(event, iframe.contentWindow)) return;
+    if (event.data.action === "error") {
       cleanup();
       iframe.remove();
       sandboxReady = null;
-      reject(new Error("Mermaid renderer failed to load"));
-    };
-    const timer = window.setTimeout(fail, MERMAID_SANDBOX_READY_TIMEOUT_MS);
-    const cleanup = () => {
-      window.clearTimeout(timer);
-      window.removeEventListener("message", onMessage);
-    };
-    window.addEventListener("message", onMessage);
-    iframe.src = new URL(MERMAID_SANDBOX_PATH, window.location.href).href;
-    document.body.appendChild(iframe);
-  });
-  return sandboxReady;
+      reject(new Error(String(event.data.error || "Mermaid renderer failed")));
+      return;
+    }
+    if (event.data.action === "boot") {
+      modulesPromise
+        .then((modules) => {
+          iframe.contentWindow?.postMessage(
+            {
+              type: MERMAID_SANDBOX_MESSAGE,
+              action: "modules",
+              modules,
+            },
+            "*",
+          );
+        })
+        .catch((err) => {
+          cleanup();
+          iframe.remove();
+          sandboxReady = null;
+          reject(err);
+        });
+      return;
+    }
+    if (event.data.action !== "ready") return;
+    cleanup();
+    sandboxFrame = iframe;
+    resolve(iframe);
+  };
+  const fail = () => {
+    cleanup();
+    iframe.remove();
+    sandboxReady = null;
+    reject(new Error("Mermaid renderer failed to load"));
+  };
+  const timer = window.setTimeout(fail, MERMAID_SANDBOX_READY_TIMEOUT_MS);
+  const cleanup = () => {
+    window.clearTimeout(timer);
+    window.removeEventListener("message", onMessage);
+  };
+  window.addEventListener("message", onMessage);
+  iframe.src = new URL(resolveMermaidSandboxPath(), window.location.href).href;
+  document.body.appendChild(iframe);
 }
 
 /** `--mermaid-*` custom property names declared in the app stylesheets. */

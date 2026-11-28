@@ -33,6 +33,7 @@ import {
   isMutableShellPath,
   isUrlFetchHelperPath,
   precacheVersion,
+  respondMermaidNavigation,
 } from "../../scripts/pwa.mjs";
 import {
   headersFor,
@@ -65,6 +66,17 @@ describe("minify-preview-frame-html.mjs", () => {
     assert.match(after, /\$\{cssHref\}/);
     assert.doesNotMatch(after, /Shared styles\.css/);
     assert.match(after, /id="preview"/);
+  });
+
+  it("does not put a style element or element.style in the preview frame", async () => {
+    const src = await fs.readFile(
+      path.join(repoRoot, "src/app/preview-frame.js"),
+      "utf8",
+    );
+    const code = src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+    // Parent style-src 'self' blocks both. The reset sheet paints the frame.
+    assert.doesNotMatch(code, /<style[\s>]/);
+    assert.doesNotMatch(code, /\.style\b/);
   });
 
   it("throws when the template is missing", async () => {
@@ -230,6 +242,33 @@ describe("cdn-integrity.mjs", () => {
   });
 });
 
+/**
+ * @param {Record<string, Response>} [initial]
+ */
+function memoryCache(initial = {}) {
+  const store = new Map(Object.entries(initial));
+  /** @type {string[]} */
+  const puts = [];
+  return {
+    puts,
+    caches: {
+      async match(key) {
+        const id = typeof key === "string" ? key : key.url;
+        return store.get(id) ?? null;
+      },
+      async open() {
+        return {
+          async put(key, value) {
+            const id = typeof key === "string" ? key : key.url;
+            puts.push(id);
+            store.set(id, value);
+          },
+        };
+      },
+    },
+  };
+}
+
 describe("pwa.mjs", () => {
   it("pins CDN precache URLs and icon names", () => {
     assert.ok(CDN_PRECACHE.length >= 6);
@@ -316,7 +355,14 @@ describe("pwa.mjs", () => {
     assert.equal(isUrlFetchHelperPath("/url-fetch-helper/index.html"), true);
     assert.equal(isIsolatedHelperPath("/url-fetch-helper/"), true);
     assert.equal(isDriveHelperPath("/index.html"), false);
-    assert.doesNotMatch(sw, /mermaid-sandbox/);
+    assert.match(sw, /function isMermaidSandboxNavigation/);
+    assert.match(sw, /if \(isMermaidSandboxNavigation\(url\.pathname\)\)/);
+    assert.match(sw, /respondMermaidNavigation\(\s*request,\s*CACHE,/);
+    assert.match(sw, /self\.skipWaiting\(\)/);
+    assert.match(sw, /caches\.match\("\/md-offline"\)/);
+    assert.match(sw, /onLine: false/);
+    assert.match(sw, /!url\.startsWith\("https:\/\/"\)/);
+    assert.match(sw, /\.\/mermaid-sandbox\//);
     assert.ok(DEV_PRECACHE.includes("./mermaid-sandbox/"));
     assert.ok(DEV_PRECACHE.includes("./mermaid-sandbox/index.html"));
     assert.equal(isMermaidSandboxPath("/mermaid-sandbox/"), true);
@@ -324,6 +370,188 @@ describe("pwa.mjs", () => {
     assert.equal(isIsolatedHelperPath("/markdown/mermaid-sandbox/"), false);
     assert.equal(isMutableShellPath("/mermaid-sandbox/index.html"), true);
     assert.equal(isMermaidSandboxPath("/mermaid-sandbox/runtime.js"), false);
+    assert.equal(
+      isMermaidSandboxPath("/mermaid-sandbox/index.a1b2c3d4.html"),
+      true,
+    );
+    assert.equal(
+      isMermaidSandboxPath("/mermaid-sandbox/index.notahash.html"),
+      false,
+    );
+  });
+
+  it("still finds the sandbox cache when an earlier match throws", async () => {
+    const sandbox = new Response("sandbox-doc", {
+      status: 200,
+      headers: { "content-security-policy": "sandbox allow-scripts" },
+    });
+    const request = new Request("https://app.test/mermaid-sandbox/");
+    const { caches } = memoryCache({
+      [request.url]: sandbox,
+    });
+    const match = caches.match.bind(caches);
+    caches.match = async (key, options) => {
+      if (key !== request.url) throw new TypeError("navigate");
+      return match(key, options);
+    };
+    const response = await respondMermaidNavigation(request, "md-editor-test", {
+      onLine: false,
+      caches,
+      fetch: async () => {
+        throw new Error("offline");
+      },
+    });
+    assert.equal(await response.text(), "sandbox-doc");
+  });
+
+  it("keeps a sandbox document whose policy also says default-src none", async () => {
+    const sandbox = new Response("sandbox-doc", {
+      status: 200,
+      headers: {
+        "content-security-policy":
+          "default-src 'none'; frame-ancestors 'self'; sandbox allow-scripts",
+      },
+    });
+    const request = new Request("https://app.test/mermaid-sandbox/index.html");
+    const { caches } = memoryCache({
+      "./mermaid-sandbox/index.html": sandbox,
+    });
+    const response = await respondMermaidNavigation(request, "md-editor-test", {
+      onLine: false,
+      caches,
+      fetch: async () => {
+        throw new Error("offline");
+      },
+    });
+    assert.equal(await response.text(), "sandbox-doc");
+  });
+
+  it("uses a cached sandbox response when its CSP header was dropped", async () => {
+    const sandbox = new Response("sandbox-doc", { status: 200 });
+    const request = new Request("https://app.test/mermaid-sandbox/");
+    const { caches } = memoryCache({
+      [request.url]: sandbox,
+    });
+    let fetches = 0;
+    const response = await respondMermaidNavigation(request, "md-editor-test", {
+      onLine: true,
+      caches,
+      fetch: () => {
+        fetches += 1;
+        return new Promise(() => {});
+      },
+    });
+    assert.equal(fetches, 0);
+    assert.equal(await response.text(), "sandbox-doc");
+  });
+
+  it("does not return the app shell for a sandbox navigation", async () => {
+    const appShell = new Response("app-shell", {
+      status: 200,
+      headers: { "content-security-policy": "frame-ancestors 'none'" },
+    });
+    const sandbox = new Response("sandbox-doc", {
+      status: 200,
+      headers: { "content-security-policy": "sandbox allow-scripts" },
+    });
+    const { caches } = memoryCache({
+      "./mermaid-sandbox/": appShell,
+      "./mermaid-sandbox/index.html": sandbox,
+    });
+    const request = new Request("https://app.test/mermaid-sandbox/");
+    const response = await respondMermaidNavigation(request, "md-editor-test", {
+      onLine: false,
+      caches,
+      fetch: async () => {
+        throw new Error("offline");
+      },
+    });
+    assert.equal(await response.text(), "sandbox-doc");
+  });
+
+  it("serves the precached mermaid sandbox when the worker is offline", async () => {
+    const sandbox = new Response("sandbox-doc", {
+      status: 200,
+      headers: {
+        "content-type": "text/html",
+        "content-security-policy": "sandbox allow-scripts",
+      },
+    });
+    const appShell = new Response("app-shell", {
+      status: 200,
+      headers: { "content-type": "text/html" },
+    });
+    const { caches, puts } = memoryCache({
+      "https://app.test/mermaid-sandbox/": sandbox,
+      "./index.html": appShell,
+    });
+    let fetches = 0;
+    const request = new Request("https://app.test/mermaid-sandbox/");
+    const response = await respondMermaidNavigation(request, "md-editor-test", {
+      onLine: false,
+      caches,
+      fetch: async () => {
+        fetches += 1;
+        throw new Error("offline");
+      },
+    });
+    assert.equal(fetches, 0);
+    assert.equal(puts.length, 0);
+    assert.equal(await response.text(), "sandbox-doc");
+  });
+
+  it("does not store a sandbox navigation on the app shell cache key", async () => {
+    const { caches, puts } = memoryCache();
+    const request = new Request("https://app.test/mermaid-sandbox/");
+    const response = await respondMermaidNavigation(request, "md-editor-test", {
+      onLine: true,
+      caches,
+      fetch: async () =>
+        new Response("fresh-sandbox", {
+          status: 200,
+          headers: {
+            "content-type": "text/html",
+            "content-security-policy": "sandbox allow-scripts",
+          },
+        }),
+    });
+    assert.equal(await response.text(), "fresh-sandbox");
+    assert.deepEqual(puts, ["https://app.test/mermaid-sandbox/"]);
+  });
+
+  it("returns the precached sandbox without fetching while the worker still looks online", async () => {
+    const sandbox = new Response("cached-sandbox", {
+      status: 200,
+      headers: { "content-security-policy": "sandbox allow-scripts" },
+    });
+    const { caches } = memoryCache({
+      "./mermaid-sandbox/": sandbox,
+    });
+    let fetches = 0;
+    const request = new Request("https://app.test/mermaid-sandbox/index.html");
+    const response = await respondMermaidNavigation(request, "md-editor-test", {
+      onLine: true,
+      timeoutMs: 20,
+      caches,
+      fetch: () => {
+        fetches += 1;
+        return new Promise(() => {});
+      },
+    });
+    assert.equal(fetches, 0);
+    assert.equal(await response.text(), "cached-sandbox");
+  });
+
+  it("does not wait forever when nothing is cached and fetch stalls", async () => {
+    const { caches } = memoryCache();
+    const request = new Request("https://app.test/mermaid-sandbox/");
+    const response = await respondMermaidNavigation(request, "md-editor-test", {
+      onLine: true,
+      timeoutMs: 20,
+      caches,
+      fetch: () => new Promise(() => {}),
+    });
+    assert.equal(response.type, "error");
   });
 
   it("versions precache lists deterministically", () => {
@@ -351,6 +579,11 @@ describe("pwa.mjs", () => {
     assert.match(a, /\.\/app\/app\.js/);
     // Must not embed hashed dist asset names.
     assert.doesNotMatch(a, /\.\/app\.[0-9a-f]{8}\.js/);
+    const withSandbox = buildDevServiceWorker([
+      "./mermaid-sandbox/index.a1b2c3d4.html",
+    ]);
+    assert.match(withSandbox, /\.\/mermaid-sandbox\/index\.a1b2c3d4\.html/);
+    assert.notEqual(a, withSandbox);
   });
 });
 

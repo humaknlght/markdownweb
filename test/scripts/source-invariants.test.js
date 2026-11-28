@@ -193,6 +193,10 @@ describe("static source invariants", () => {
       "import map must precede modulepreload links",
     );
     assert.match(html, /window\.__MD_SW__="__SW_URL__"/);
+    assert.match(
+      html,
+      /window\.__MD_MERMAID_SANDBOX__="__MERMAID_SANDBOX_URL__"/,
+    );
     assert.match(html, /marked@18\.1\.1/);
     assert.match(html, /dompurify@3\.4\.17/);
     assert.match(html, /gemoji@8\.1\.0/);
@@ -471,6 +475,15 @@ describe("static source invariants", () => {
       constants,
       /MERMAID_SANDBOX_FRAME_SANDBOX = "allow-scripts";/,
       "sandbox frame must not get allow-same-origin",
+    );
+    const sandboxClient = await fs.readFile(
+      path.join(srcDir, "app/mermaid/sandbox.js"),
+      "utf8",
+    );
+    assert.doesNotMatch(
+      sandboxClient,
+      /setAttribute\(\s*["']sandbox["']/,
+      "iframe sandbox attribute makes offline navigations fail before the service worker",
     );
 
     const html = await renderMermaidSandboxHtml(

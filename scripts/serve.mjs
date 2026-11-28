@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { execFile } from "node:child_process";
+import { createHash } from "node:crypto";
 import fs from "node:fs/promises";
 /**
  * Local static server that mirrors public/.htaccess security headers
@@ -59,14 +60,47 @@ const repoRoot = path.resolve(__dirname, "..");
 const srcIndexPath = path.join(repoRoot, "src", "index.html");
 const srcSwPath = path.join(repoRoot, "src", "sw.js");
 
+const MERMAID_SANDBOX_URL_PLACEHOLDER = "__MERMAID_SANDBOX_URL__";
+
+/**
+ * In-memory dev build of the sandbox document. The URL includes the content
+ * hash, so the iframe can cache it as immutable and reload it while offline.
+ * @type {{ hash: string, html: string, name: string, url: string } | null}
+ */
+let devSandboxBuild = null;
+
+async function devMermaidSandboxBuild() {
+  const html = await renderMermaidSandboxHtml(path.dirname(srcIndexPath));
+  const hash = createHash("sha256").update(html).digest("hex").slice(0, 8);
+  if (devSandboxBuild?.hash === hash) return devSandboxBuild;
+  const name = `index.${hash}.html`;
+  devSandboxBuild = {
+    hash,
+    html,
+    name,
+    url: `./${MERMAID_SANDBOX_DIR}/${name}`,
+  };
+  return devSandboxBuild;
+}
+
 /** Transformed index.html for src/ (CDN SRI injected). Dist is pre-baked.
  *  Re-read on each request so src/ edits show up without restarting the server. */
 async function loadSrcIndexHtmlWithSri() {
-  const [html, integrity] = await Promise.all([
+  const [html, integrity, sandbox] = await Promise.all([
     fs.readFile(srcIndexPath, "utf8"),
     loadCdnIntegrity(),
+    devMermaidSandboxBuild(),
   ]);
-  const withSri = applyCdnIntegrity(html, integrity);
+  if (!html.includes(MERMAID_SANDBOX_URL_PLACEHOLDER)) {
+    throw new Error(
+      `src/index.html missing ${MERMAID_SANDBOX_URL_PLACEHOLDER} placeholder`,
+    );
+  }
+  const withSandbox = html.replaceAll(
+    MERMAID_SANDBOX_URL_PLACEHOLDER,
+    sandbox.url,
+  );
+  const withSri = applyCdnIntegrity(withSandbox, integrity);
   return injectDevLocalModulepreloads(withSri, path.join(repoRoot, "src"));
 }
 
@@ -187,6 +221,23 @@ async function loadMermaidSandboxHtml() {
     "index.html",
   );
   // Inline containment check at the fs sink (CodeQL js/path-injection).
+  const rel = path.relative(rootDir, sandboxHtmlPath);
+  if (rel.startsWith("..") || path.isAbsolute(rel)) {
+    throw new Error("mermaid-sandbox path escaped root");
+  }
+  return fs.readFile(sandboxHtmlPath, "utf8");
+}
+
+/**
+ * Production sandbox document. `base` is `index.<hash>.html` from a fixed
+ * directory — never a request path joined as-is.
+ * @param {string} base
+ */
+async function readHashedMermaidSandboxHtml(base) {
+  if (!/^index\.[a-f0-9]{8}\.html$/i.test(base)) {
+    throw new Error("refusing non-hashed mermaid sandbox name");
+  }
+  const sandboxHtmlPath = path.resolve(rootDir, MERMAID_SANDBOX_DIR, base);
   const rel = path.relative(rootDir, sandboxHtmlPath);
   if (rel.startsWith("..") || path.isAbsolute(rel)) {
     throw new Error("mermaid-sandbox path escaped root");
@@ -349,6 +400,43 @@ async function readTextIfExists(filePath) {
   }
 }
 
+/**
+ * src/ has no index.<hash>.html on disk. Serve the in-memory build so the
+ * iframe URL from index.html is a real 200, not a 404 the service worker
+ * cannot turn into a document.
+ * @param {string} logicalPath
+ * @param {import("node:http").ServerResponse} res
+ */
+async function tryServeDevHashedMermaidSandbox(logicalPath, res) {
+  const servingSrc =
+    path.resolve(rootDir) === path.resolve(path.dirname(srcIndexPath));
+  if (!servingSrc) return false;
+  if (!isHelperHtml(logicalPath, MERMAID_SANDBOX_DIR)) return false;
+  const base = path.basename(logicalPath);
+  if (!/^index\.[a-f0-9]{8}\.html$/i.test(base)) return false;
+  const build = await devMermaidSandboxBuild();
+  if (base.toLowerCase() !== build.name) {
+    res.writeHead(404, {
+      "Content-Type": "text/plain; charset=utf-8",
+      "Cross-Origin-Resource-Policy": CORP,
+    });
+    res.end("Not Found");
+    return true;
+  }
+  const headers = buildHeaders(logicalPath, null, {
+    htmlHeaders: {
+      ...MERMAID_SANDBOX_HTML_HEADERS,
+      "Cache-Control": "public, max-age=31536000, immutable",
+      "Content-Security-Policy": buildMermaidSandboxContentSecurityPolicy(
+        inlineScriptHashes(build.html),
+      ),
+    },
+  });
+  res.writeHead(200, headers);
+  res.end(build.html);
+  return true;
+}
+
 async function handleRequest(req, res) {
   try {
     let logicalPath = safeResolve(req.url || "/");
@@ -360,7 +448,8 @@ async function handleRequest(req, res) {
 
     // Dev (src/): synthesize sw.js so production builds never dirty a tracked file.
     if (path.resolve(logicalPath) === path.resolve(srcSwPath)) {
-      const data = Buffer.from(buildDevServiceWorker(), "utf8");
+      const sandbox = await devMermaidSandboxBuild();
+      const data = Buffer.from(buildDevServiceWorker([sandbox.url]), "utf8");
       const headers = headersFor(logicalPath, null);
       const etag = strongEtag(data, null);
       headers.ETag = etag;
@@ -393,6 +482,8 @@ async function handleRequest(req, res) {
       if (err.code === "ENOENT") {
         // When serving src/, GUIDE.md may only exist at the repo root.
         if (await tryServeGuide(logicalPath, res)) return;
+        // Dev sandbox HTML is generated in memory at index.<hash>.html.
+        if (await tryServeDevHashedMermaidSandbox(logicalPath, res)) return;
         res.writeHead(404, {
           "Content-Type": "text/plain; charset=utf-8",
           "Cross-Origin-Resource-Policy": CORP,
@@ -404,8 +495,10 @@ async function handleRequest(req, res) {
     }
 
     if (isHelperHtml(logicalPath, MERMAID_SANDBOX_DIR)) {
-      // Only the sandbox shell is served; other paths under the dir 404.
-      if (path.basename(logicalPath) !== "index.html") {
+      // Dev shell is index.html. Production is index.<content-hash>.html.
+      const base = path.basename(logicalPath);
+      const hashed = /^index\.[a-f0-9]{8}\.html$/i.test(base);
+      if (base !== "index.html" && !hashed) {
         res.writeHead(404, {
           "Content-Type": "text/plain; charset=utf-8",
           "Cross-Origin-Resource-Policy": CORP,
@@ -413,10 +506,41 @@ async function handleRequest(req, res) {
         res.end("Not Found");
         return;
       }
-      const html = await loadMermaidSandboxHtml();
+      const servingSrc =
+        path.resolve(rootDir) === path.resolve(path.dirname(srcIndexPath));
+      let html;
+      try {
+        if (hashed && servingSrc) {
+          const build = await devMermaidSandboxBuild();
+          if (base.toLowerCase() !== build.name) {
+            res.writeHead(404, {
+              "Content-Type": "text/plain; charset=utf-8",
+              "Cross-Origin-Resource-Policy": CORP,
+            });
+            res.end("Not Found");
+            return;
+          }
+          html = build.html;
+        } else {
+          html = hashed
+            ? await readHashedMermaidSandboxHtml(base)
+            : await loadMermaidSandboxHtml();
+        }
+      } catch (err) {
+        if (err?.code !== "ENOENT") throw err;
+        res.writeHead(404, {
+          "Content-Type": "text/plain; charset=utf-8",
+          "Cross-Origin-Resource-Policy": CORP,
+        });
+        res.end("Not Found");
+        return;
+      }
       const headers = buildHeaders(logicalPath, null, {
         htmlHeaders: {
           ...MERMAID_SANDBOX_HTML_HEADERS,
+          "Cache-Control": hashed
+            ? "public, max-age=31536000, immutable"
+            : "no-cache",
           "Content-Security-Policy": buildMermaidSandboxContentSecurityPolicy(
             inlineScriptHashes(html),
           ),

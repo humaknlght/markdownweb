@@ -1,3 +1,4 @@
+import { patchElementDecls } from "../../lib/doc-style.js";
 import { MERMAID_HAND_FONT } from "../constants.js";
 import { hooks } from "../hooks.js";
 import { state } from "../state.js";
@@ -134,9 +135,9 @@ export function setMermaidPaintVar(el, attr, cssVarName) {
   const value = `var(${cssVarName})`;
   el.setAttribute(attr, value);
   // Requirement / edge paths often get stroke from SVG <style>, which wins over
-  // presentation attributes — force the theme token.
+  // presentation attributes. element.style is blocked by style-src 'self'.
   if (el instanceof SVGElement) {
-    el.style.setProperty(attr, value, "important");
+    patchElementDecls(el, { [attr]: `${value} !important` });
   }
 }
 

@@ -147,7 +147,13 @@ export const SPEECH_HIGHLIGHT = "speech-word";
  * never in the app document. Pinned CDN URLs live in mermaid-sandbox/runtime.js.
  */
 export const MERMAID_SANDBOX_PATH = "./mermaid-sandbox/";
-/** No `allow-same-origin`: the renderer cannot reach app storage or DOM. */
+/**
+ * Opaque origin comes from the sandbox document's CSP (`sandbox allow-scripts`),
+ * not from an iframe `sandbox` attribute. The attribute would make the
+ * navigation a unique-origin request, which Chromium fails while offline
+ * before the service worker can respond. This value is the policy that CSP
+ * must keep: scripts, and never `allow-same-origin`.
+ */
 export const MERMAID_SANDBOX_FRAME_SANDBOX = "allow-scripts";
 export const MERMAID_SANDBOX_MESSAGE = "md-mermaid-sandbox";
 /** Includes SRI fetch of the Mermaid graph on first use (cold cache). */
