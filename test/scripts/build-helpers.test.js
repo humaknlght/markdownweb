@@ -358,6 +358,8 @@ describe("pwa.mjs", () => {
     assert.match(sw, /function isMermaidSandboxNavigation/);
     assert.match(sw, /if \(isMermaidSandboxNavigation\(url\.pathname\)\)/);
     assert.match(sw, /respondMermaidNavigation\(request, CACHE\)/);
+    assert.match(sw, /self\.skipWaiting\(\)/);
+    assert.match(sw, /!url\.startsWith\("https:\/\/"\)/);
     assert.match(sw, /\.\/mermaid-sandbox\//);
     assert.ok(DEV_PRECACHE.includes("./mermaid-sandbox/"));
     assert.ok(DEV_PRECACHE.includes("./mermaid-sandbox/index.html"));

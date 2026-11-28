@@ -80,80 +80,125 @@ function loadSandboxModules() {
   return sandboxModulesPromise;
 }
 
+/**
+ * The offline re-boot only works once this worker controls the page and can
+ * answer the iframe navigation from cache. Install used to wait on every CDN
+ * module, so CI rendered the first diagram over the network and then went
+ * offline before the worker activated.
+ * @returns {Promise<void>}
+ */
+function waitForServiceWorkerControl() {
+  if (typeof navigator === "undefined" || !navigator.serviceWorker) {
+    return Promise.resolve();
+  }
+  const sw = navigator.serviceWorker;
+  const timed = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  return Promise.race([sw.ready.catch(() => null), timed(5000)]).then(
+    async () => {
+      if (sw.controller) return;
+      try {
+        const reg = await sw.getRegistration();
+        reg?.waiting?.postMessage("SKIP_WAITING");
+        reg?.installing?.postMessage("SKIP_WAITING");
+      } catch {
+        /* registration can be missing in tests that block workers */
+      }
+      if (sw.controller) return;
+      await new Promise((resolve) => {
+        let timer = 0;
+        const finish = () => {
+          clearTimeout(timer);
+          sw.removeEventListener("controllerchange", finish);
+          resolve();
+        };
+        timer = setTimeout(finish, 2000);
+        sw.addEventListener("controllerchange", finish);
+      });
+    },
+  );
+}
+
 /** @returns {Promise<HTMLIFrameElement>} */
 function ensureSandboxFrame() {
   if (sandboxReady) return sandboxReady;
-  // Start the SRI graph fetch immediately so it overlaps the iframe boot.
-  const modulesPromise = loadSandboxModules();
   sandboxReady = new Promise((resolve, reject) => {
-    const iframe = document.createElement("iframe");
-    // Do not set the iframe sandbox attribute. Chromium treats that navigation
-    // as a unique-origin request and, while offline, fails it before the
-    // service worker can answer. The response CSP `sandbox allow-scripts`
-    // still gives the loaded document an opaque origin.
-    iframe.id = "mermaid-sandbox-frame";
-    iframe.title = "Mermaid renderer";
-    iframe.setAttribute("aria-hidden", "true");
-    iframe.tabIndex = -1;
-    // Laid out (not display:none) so Mermaid can measure text; never visible.
-    iframe.className = "mermaid-measure-frame";
+    waitForServiceWorkerControl().then(() => {
+      // Fetch the SRI graph only after the worker controls the page so the
+      // offline re-boot can read those modules back from the SW cache.
+      const modulesPromise = loadSandboxModules();
+      startSandboxFrame(modulesPromise, resolve, reject);
+    }, reject);
+  });
+  return sandboxReady;
+}
 
-    /** @param {MessageEvent} event */
-    const onMessage = (event) => {
-      if (!isSandboxMessage(event, iframe.contentWindow)) return;
-      if (event.data.action === "error") {
-        cleanup();
-        iframe.remove();
-        sandboxReady = null;
-        reject(
-          new Error(String(event.data.error || "Mermaid renderer failed")),
-        );
-        return;
-      }
-      if (event.data.action === "boot") {
-        modulesPromise
-          .then((modules) => {
-            iframe.contentWindow?.postMessage(
-              {
-                type: MERMAID_SANDBOX_MESSAGE,
-                action: "modules",
-                modules,
-              },
-              "*",
-            );
-          })
-          .catch((err) => {
-            cleanup();
-            iframe.remove();
-            sandboxReady = null;
-            reject(err);
-          });
-        return;
-      }
-      if (event.data.action !== "ready") return;
-      cleanup();
-      sandboxFrame = iframe;
-      resolve(iframe);
-    };
-    const fail = () => {
+/**
+ * @param {Promise<Record<string, string>>} modulesPromise
+ * @param {(frame: HTMLIFrameElement) => void} resolve
+ * @param {(err: Error) => void} reject
+ */
+function startSandboxFrame(modulesPromise, resolve, reject) {
+  const iframe = document.createElement("iframe");
+  // Do not set the iframe sandbox attribute. Chromium treats that navigation
+  // as a unique-origin request and, while offline, fails it before the
+  // service worker can answer. The response CSP `sandbox allow-scripts`
+  // still gives the loaded document an opaque origin.
+  iframe.id = "mermaid-sandbox-frame";
+  iframe.title = "Mermaid renderer";
+  iframe.setAttribute("aria-hidden", "true");
+  iframe.tabIndex = -1;
+  // Laid out (not display:none) so Mermaid can measure text; never visible.
+  iframe.className = "mermaid-measure-frame";
+
+  /** @param {MessageEvent} event */
+  const onMessage = (event) => {
+    if (!isSandboxMessage(event, iframe.contentWindow)) return;
+    if (event.data.action === "error") {
       cleanup();
       iframe.remove();
       sandboxReady = null;
-      reject(new Error("Mermaid renderer failed to load"));
-    };
-    const timer = window.setTimeout(fail, MERMAID_SANDBOX_READY_TIMEOUT_MS);
-    const cleanup = () => {
-      window.clearTimeout(timer);
-      window.removeEventListener("message", onMessage);
-    };
-    window.addEventListener("message", onMessage);
-    iframe.src = new URL(
-      resolveMermaidSandboxPath(),
-      window.location.href,
-    ).href;
-    document.body.appendChild(iframe);
-  });
-  return sandboxReady;
+      reject(new Error(String(event.data.error || "Mermaid renderer failed")));
+      return;
+    }
+    if (event.data.action === "boot") {
+      modulesPromise
+        .then((modules) => {
+          iframe.contentWindow?.postMessage(
+            {
+              type: MERMAID_SANDBOX_MESSAGE,
+              action: "modules",
+              modules,
+            },
+            "*",
+          );
+        })
+        .catch((err) => {
+          cleanup();
+          iframe.remove();
+          sandboxReady = null;
+          reject(err);
+        });
+      return;
+    }
+    if (event.data.action !== "ready") return;
+    cleanup();
+    sandboxFrame = iframe;
+    resolve(iframe);
+  };
+  const fail = () => {
+    cleanup();
+    iframe.remove();
+    sandboxReady = null;
+    reject(new Error("Mermaid renderer failed to load"));
+  };
+  const timer = window.setTimeout(fail, MERMAID_SANDBOX_READY_TIMEOUT_MS);
+  const cleanup = () => {
+    window.clearTimeout(timer);
+    window.removeEventListener("message", onMessage);
+  };
+  window.addEventListener("message", onMessage);
+  iframe.src = new URL(resolveMermaidSandboxPath(), window.location.href).href;
+  document.body.appendChild(iframe);
 }
 
 /** `--mermaid-*` custom property names declared in the app stylesheets. */

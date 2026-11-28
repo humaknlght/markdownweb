@@ -383,23 +383,36 @@ ${isMermaidSandboxNavigation.toString()}
 ${respondMermaidNavigation.toString()}
 
 self.addEventListener("install", (event) => {
+  // Activate before the CDN list finishes. A hung jsDelivr fetch would
+  // otherwise keep this worker in "installing", so the page goes offline
+  // with no controller and the Mermaid iframe never reloads.
+  self.skipWaiting();
+  const put = async (cache, url) => {
+    const timer = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error("timeout")), 8000);
+    });
+    try {
+      const response = await Promise.race([
+        fetch(url, {
+          mode: "cors",
+          credentials: "omit",
+          cache: "reload",
+        }),
+        timer,
+      ]);
+      if (response.ok) await cache.put(url, response);
+    } catch {
+      /* one failed asset must not block install */
+    }
+  };
   event.waitUntil(
     (async () => {
       const cache = await caches.open(CACHE);
-      await Promise.all(
-        PRECACHE.map(async (url) => {
-          try {
-            const response = await fetch(url, {
-              mode: "cors",
-              credentials: "omit",
-              cache: "reload",
-            });
-            if (response.ok) await cache.put(url, response);
-          } catch {
-            /* one failed CDN/asset must not block install */
-          }
-        })
-      );
+      const local = PRECACHE.filter((url) => !url.startsWith("https://"));
+      await Promise.all(local.map((url) => put(cache, url)));
+      // CDN graphs are filled by the controlling fetch handler on first use.
+      const remote = PRECACHE.filter((url) => url.startsWith("https://"));
+      void Promise.all(remote.map((url) => put(cache, url)));
     })()
   );
 });
