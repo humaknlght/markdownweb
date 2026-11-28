@@ -15,6 +15,16 @@ import {
 } from "./vendor-deps.js";
 
 export async function init() {
+  try {
+    await bootEditor();
+  } finally {
+    // is-booting drops before the draft restore. This is the "restore finished" signal.
+    document.documentElement.dataset.boot = "ready";
+  }
+}
+
+async function bootEditor() {
+  const editorEpochAtBoot = state.editorInputEpoch;
   // Preview article lives inside a sandboxed iframe; bind it before any paint/UI.
   hooks.initPreviewFrame();
 
@@ -174,14 +184,24 @@ export async function init() {
           await setDraft(legacy, hooks.currentDocKey());
       }
     }
-    if (draft == null) {
+    if (draft == null && state.editorInputEpoch === editorEpochAtBoot) {
       draft = await hooks.getDefaultGuide();
-      seededFromGuide = Boolean(draft);
+      seededFromGuide =
+        state.editorInputEpoch === editorEpochAtBoot && Boolean(draft);
     }
-    await hooks.persistDraft(draft ?? "");
-    hooks.setEditorValue(draft ?? "");
-    state.lastHistoryContent = draft ?? "";
-    hooks.setContentExternal(false);
+    // A fill during the IndexedDB / GUIDE await must win. Applying the restored
+    // draft afterwards puts the GUIDE heading back over the text just entered.
+    if (state.editorInputEpoch === editorEpochAtBoot) {
+      await hooks.persistDraft(draft ?? "");
+    }
+    if (state.editorInputEpoch !== editorEpochAtBoot) {
+      seededFromGuide = false;
+      await hooks.persistDraft(hooks.getMarkdownSource());
+    } else {
+      hooks.setEditorValue(draft ?? "");
+      state.lastHistoryContent = draft ?? "";
+      hooks.setContentExternal(false);
+    }
   }
 
   // Dirty = editor differs from last disk save or accepted URL baseline.

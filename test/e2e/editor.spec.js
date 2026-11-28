@@ -334,7 +334,7 @@ test.describe("editor + render", () => {
   }) => {
     await openFreshApp(page);
 
-    await page.locator("#editor").fill("# Keep working\n\nDo not clobber me.");
+    await fillEditor(page, "# Keep working\n\nDo not clobber me.");
     await expect
       .poll(async () => headingText(previewLocator(page, "h1")))
       .toBe("Keep working");

@@ -223,6 +223,11 @@ export async function waitForAppReady(page) {
   await page.waitForFunction(
     () => !document.documentElement.classList.contains("is-booting"),
   );
+  // Draft/GUIDE restore finishes after is-booting is cleared. Filling before
+  // that lets the restore overwrite the editor and leave the GUIDE heading up.
+  await page.waitForFunction(
+    () => document.documentElement.dataset.boot === "ready",
+  );
   await page.locator("#editor").waitFor({ state: "attached" });
   // Sandboxed preview article is created in initPreviewFrame().
   await page.waitForFunction(() => {

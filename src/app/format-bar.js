@@ -13,6 +13,7 @@ import {
 
 export function onEditorInput() {
   if (state.suppressEditorInput) return;
+  state.editorInputEpoch += 1;
   hooks.syncCollapsedDataUris();
   const source = hooks.getMarkdownSource();
   // Hold draft/history until Accept so Reject can fully discard untrusted content.
