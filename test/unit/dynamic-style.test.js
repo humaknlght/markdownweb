@@ -27,7 +27,17 @@ describe("dynamic-style", () => {
       "<!DOCTYPE html><html><body></body></html>",
     );
     win.CSSStyleSheet = FakeSheet;
-    win.document.adoptedStyleSheets = [];
+    /** @type {FakeSheet[]} */
+    const adopted = [];
+    // jsdom 31 type-checks the real setter and rejects FakeSheet.
+    Object.defineProperty(win.document, "adoptedStyleSheets", {
+      configurable: true,
+      get: () => adopted,
+      set: (next) => {
+        adopted.length = 0;
+        adopted.push(...next);
+      },
+    });
     return win;
   }
 
