@@ -451,7 +451,24 @@ self.addEventListener("fetch", (event) => {
   // Any mode: a sandboxed iframe document request is not always "navigate",
   // and the mutable-shell path below has no timeout when fetch stalls.
   if (isMermaidSandboxNavigation(url.pathname)) {
-    event.respondWith(respondMermaidNavigation(request, CACHE));
+    event.respondWith(
+      (async () => {
+        // The page records offline here because Playwright's setOffline does
+        // not make this worker's navigator.onLine false, and its fetch then
+        // never settles. A flag avoids that fetch and serves the cache.
+        let pageOffline = false;
+        try {
+          pageOffline = !!(await caches.match("/md-offline"));
+        } catch {
+          pageOffline = false;
+        }
+        return respondMermaidNavigation(
+          request,
+          CACHE,
+          pageOffline ? { onLine: false } : {},
+        );
+      })()
+    );
     return;
   }
 

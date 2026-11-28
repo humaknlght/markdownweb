@@ -357,8 +357,10 @@ describe("pwa.mjs", () => {
     assert.equal(isDriveHelperPath("/index.html"), false);
     assert.match(sw, /function isMermaidSandboxNavigation/);
     assert.match(sw, /if \(isMermaidSandboxNavigation\(url\.pathname\)\)/);
-    assert.match(sw, /respondMermaidNavigation\(request, CACHE\)/);
+    assert.match(sw, /respondMermaidNavigation\(\s*request,\s*CACHE,/);
     assert.match(sw, /self\.skipWaiting\(\)/);
+    assert.match(sw, /caches\.match\("\/md-offline"\)/);
+    assert.match(sw, /onLine: false/);
     assert.match(sw, /!url\.startsWith\("https:\/\/"\)/);
     assert.match(sw, /\.\/mermaid-sandbox\//);
     assert.ok(DEV_PRECACHE.includes("./mermaid-sandbox/"));

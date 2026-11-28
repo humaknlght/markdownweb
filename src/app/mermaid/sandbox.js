@@ -62,6 +62,47 @@ function resolveMermaidSandboxPath() {
   return MERMAID_SANDBOX_PATH;
 }
 
+const PAGE_OFFLINE_CACHE = "md-editor-offline";
+const PAGE_OFFLINE_URL = "/md-offline";
+const PAGE_SANDBOX_CACHE = "md-editor-mermaid";
+
+/** Tell the service worker the page is offline without relying on its onLine flag. */
+async function notePageOfflineState() {
+  if (typeof caches === "undefined") return;
+  try {
+    const cache = await caches.open(PAGE_OFFLINE_CACHE);
+    if (navigator.onLine === false) {
+      await cache.put(PAGE_OFFLINE_URL, new Response("1"));
+    } else {
+      await cache.delete(PAGE_OFFLINE_URL);
+    }
+  } catch {
+    /* a missing Cache API still leaves the network path */
+  }
+}
+
+/** Keep a copy of the renderer document the worker can match by URL. */
+async function rememberSandboxDocument(url) {
+  if (typeof caches === "undefined" || navigator.onLine === false) return;
+  try {
+    const response = await fetch(url, { cache: "reload" });
+    if (!response.ok) return;
+    const cache = await caches.open(PAGE_SANDBOX_CACHE);
+    await cache.put(url, response);
+  } catch {
+    /* the service worker precache is the other copy */
+  }
+}
+
+if (typeof window !== "undefined") {
+  window.addEventListener("offline", () => {
+    void notePageOfflineState();
+  });
+  window.addEventListener("online", () => {
+    void notePageOfflineState();
+  });
+}
+
 function resetSandboxFrame() {
   sandboxFrame?.remove();
   sandboxFrame = null;
@@ -122,10 +163,14 @@ function waitForServiceWorkerControl() {
 function ensureSandboxFrame() {
   if (sandboxReady) return sandboxReady;
   sandboxReady = new Promise((resolve, reject) => {
-    waitForServiceWorkerControl().then(() => {
+    waitForServiceWorkerControl().then(async () => {
       // Fetch the SRI graph only after the worker controls the page so the
       // offline re-boot can read those modules back from the SW cache.
       const modulesPromise = loadSandboxModules();
+      const url = new URL(resolveMermaidSandboxPath(), window.location.href)
+        .href;
+      await notePageOfflineState();
+      await rememberSandboxDocument(url);
       startSandboxFrame(modulesPromise, resolve, reject);
     }, reject);
   });
