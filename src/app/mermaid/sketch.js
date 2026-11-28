@@ -1,3 +1,4 @@
+import { patchElementDecls } from "../../lib/doc-style.js";
 import { hooks } from "../hooks.js";
 
 export function normalizeMermaidHandDrawnColors(svg) {
@@ -145,14 +146,16 @@ export function normalizeMermaidHandDrawnColors(svg) {
       continue;
     const note = Boolean(label.closest?.(".noteText, .note"));
     if (note) {
-      label.style.setProperty("color", `var(${varByRole.noteFg})`, "important");
+      patchElementDecls(label, {
+        color: `var(${varByRole.noteFg}) !important`,
+      });
       continue;
     }
     const behind = hooks.mermaidLabelBackgroundRgb(label) || nodeBgRgb || bgRgb;
     const inkVar = behind
       ? hooks.mermaidTextInkVarForFill(behind, tokens, varByRole)
       : varByRole.fg;
-    label.style.setProperty("color", `var(${inkVar})`, "important");
+    patchElementDecls(label, { color: `var(${inkVar}) !important` });
   }
 }
 
@@ -303,9 +306,8 @@ export function sizeSketchedMermaidSvg(sketched, sourceSize) {
   const vbW = vb.length === 4 && vb[2] > 0 ? vb[2] : NaN;
   const srcVbW = sourceSize?.viewBoxWidth;
 
-  // Do not set style.maxWidth = "100%": syncMermaidSvgSizes parseFloat → 100px lock.
-  sketched.style.removeProperty("max-width");
-  sketched.style.height = "auto";
+  // Do not set max-width: 100%: syncMermaidSvgSizes parseFloat → 100px lock.
+  patchElementDecls(sketched, { "max-width": "", height: "auto" });
   delete sketched.dataset.mermaidNatural;
   delete sketched.dataset.mermaidFluid;
 

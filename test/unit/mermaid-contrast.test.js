@@ -277,7 +277,10 @@ describe("Mermaid theme contrast (WCAG 2.2 AA)", () => {
     assert.match(mermaid, /surfaceToInk/);
     assert.match(mermaid, /var\(--mermaid-node-border\)/);
     assert.match(mermaid, /path\.edge-thickness-normal/);
-    assert.match(mermaid, /setProperty\(attr,\s*value,\s*["']important["']\)/);
+    assert.match(
+      mermaid,
+      /patchElementDecls\(el,\s*\{\s*\[attr\]:\s*`\$\{value\} !important`\s*\}\)/,
+    );
     assert.match(css, /font-family:\s*"Excalifont"/);
     assert.match(css, /excalifont@1\.0\.0/);
     assert.match(css, /data-mermaid-look="handDrawn"/);

@@ -1,3 +1,4 @@
+import { patchElementDecls } from "../../lib/doc-style.js";
 import { hooks } from "../hooks.js";
 import {
   mermaidHeightCache,
@@ -72,13 +73,13 @@ export function restoreMermaidRenders(bySource) {
       if (!el.querySelector(":scope > svg")) el.replaceChildren(reuse.svg);
       const svg = el.querySelector(":scope > svg");
       if (svg) hooks.adoptMermaidSvgStyles?.(svg);
-      el.style.minHeight = "";
+      patchElementDecls(el, { "min-height": "" });
       el.removeAttribute("data-pending");
       continue;
     }
     el.setAttribute("data-pending", "");
     const h = mermaidHeightCache.get(key);
-    if (h > 0) el.style.minHeight = `${h}px`;
+    if (h > 0) patchElementDecls(el, { "min-height": `${h}px` });
   }
 }
 

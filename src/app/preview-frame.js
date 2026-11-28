@@ -122,15 +122,9 @@ export function syncPreviewFrameChrome() {
   // Print must come after zen.css so equal-specificity print rules win in
   // @media print (zen tokens are not print-wrapped).
   syncPreviewFramePrintCss();
-  // Pane background lives on parent `.preview-pane` (and fancy/zen glass).
-  // Keep the framed document transparent so app `body` / fancy page rules
-  // from the shared stylesheet cannot repaint chrome or photo inside it.
-  if (doc.body) {
-    doc.body.style.background = "transparent";
-    doc.body.style.backgroundImage = "none";
-  }
-  dst.style.background = "transparent";
-  dst.style.backgroundImage = "none";
+  // Transparency is in the adopted reset sheet. This about:blank frame
+  // inherits style-src 'self', so element.style is blocked and would only
+  // log a CSP violation.
 }
 
 /**
@@ -258,34 +252,14 @@ export function initPreviewFrame() {
   <meta charset="utf-8">
   <meta http-equiv="Content-Security-Policy" content="${frameCsp}">
   <link rel="stylesheet" href="${cssHref}">
-  <style>
-    /*
-      Shared styles.css also styles the app shell (body chrome-bg, fancy/zen
-      page photo). Neutralize those here so parent .preview-pane owns the
-      background — matching the pre-iframe paint model.
-    */
-    html.md-preview-frame,
-    html.md-preview-frame body {
-      margin: 0 !important;
-      padding: 0 !important;
-      height: auto !important;
-      min-height: 0 !important;
-      display: block !important;
-      overflow: hidden !important;
-      color: inherit;
-      background: transparent !important;
-      background-image: none !important;
-      background-color: transparent !important;
-    }
-  </style>
 </head>
 <body>
   <article class="preview" id="preview"></article>
 </body>
 </html>`);
   doc.close();
-  // open() can replace the document. The inline <style> above does not apply
-  // under the parent style-src policy; the constructable sheet does.
+  // open() can replace the document. Parent style-src 'self' blocks a written
+  // <style> and element.style here; the constructable reset sheet does not.
   const live = frame.contentDocument;
   if (!live) {
     throw new Error("Preview frame document unavailable");
