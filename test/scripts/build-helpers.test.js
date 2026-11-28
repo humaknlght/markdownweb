@@ -68,6 +68,17 @@ describe("minify-preview-frame-html.mjs", () => {
     assert.match(after, /id="preview"/);
   });
 
+  it("does not put a style element or element.style in the preview frame", async () => {
+    const src = await fs.readFile(
+      path.join(repoRoot, "src/app/preview-frame.js"),
+      "utf8",
+    );
+    const code = src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+    // Parent style-src 'self' blocks both. The reset sheet paints the frame.
+    assert.doesNotMatch(code, /<style[\s>]/);
+    assert.doesNotMatch(code, /\.style\b/);
+  });
+
   it("throws when the template is missing", async () => {
     await assert.rejects(
       () => minifyPreviewFrameDocWrite("export function init() {}"),
@@ -463,7 +474,7 @@ describe("pwa.mjs", () => {
     assert.deepEqual(puts, ["https://app.test/mermaid-sandbox/"]);
   });
 
-  it("uses the precached sandbox when the offline fetch stalls", async () => {
+  it("returns the precached sandbox without fetching while the worker still looks online", async () => {
     const sandbox = new Response("cached-sandbox", {
       status: 200,
       headers: { "content-security-policy": "sandbox allow-scripts" },
@@ -471,15 +482,31 @@ describe("pwa.mjs", () => {
     const { caches } = memoryCache({
       "./mermaid-sandbox/": sandbox,
     });
+    let fetches = 0;
     const request = new Request("https://app.test/mermaid-sandbox/index.html");
     const response = await respondMermaidNavigation(request, "md-editor-test", {
       onLine: true,
       timeoutMs: 20,
       caches,
-      // Offline emulation can leave fetch pending and ignore AbortSignal.
+      fetch: () => {
+        fetches += 1;
+        return new Promise(() => {});
+      },
+    });
+    assert.equal(fetches, 0);
+    assert.equal(await response.text(), "cached-sandbox");
+  });
+
+  it("does not wait forever when nothing is cached and fetch stalls", async () => {
+    const { caches } = memoryCache();
+    const request = new Request("https://app.test/mermaid-sandbox/");
+    const response = await respondMermaidNavigation(request, "md-editor-test", {
+      onLine: true,
+      timeoutMs: 20,
+      caches,
       fetch: () => new Promise(() => {}),
     });
-    assert.equal(await response.text(), "cached-sandbox");
+    assert.equal(response.type, "error");
   });
 
   it("versions precache lists deterministically", () => {

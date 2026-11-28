@@ -233,11 +233,13 @@ export function isMermaidSandboxNavigation(pathname) {
 /**
  * Serve the opaque Mermaid renderer document.
  *
- * The page is precached. While the tab is online the network wins, so dev
- * edits show up. While offline — including when `fetch` stalls because the
- * worker itself is emulated offline — the precached document is returned.
- * Falling back to the app `index.html` would boot the wrong CSP and the
- * renderer would never post `boot`.
+ * The page is precached. Return that document before any network fetch.
+ * Playwright's Chromium can leave `navigator.onLine` true in the worker
+ * while the page is offline, and `fetch` of the navigation then never
+ * settles — including the timeout — so the iframe stays on the previous
+ * diagram. A content-hashed URL misses this cache after the file changes,
+ * so dev edits still revalidate. Falling back to the app `index.html`
+ * would boot the wrong CSP and the renderer would never post `boot`.
  *
  * @param {Request} request
  * @param {string} cacheName
@@ -270,9 +272,9 @@ export async function respondMermaidNavigation(request, cacheName, deps = {}) {
     // 159 reports that as ERR_BLOCKED_BY_RESPONSE inside the iframe.
     const loose = { ignoreVary: true, ignoreSearch: true };
     const urls = [
-      "./mermaid-sandbox/",
-      "./mermaid-sandbox/index.html",
       request.url,
+      "./mermaid-sandbox/index.html",
+      "./mermaid-sandbox/",
     ];
     for (const url of urls) {
       try {
@@ -285,15 +287,15 @@ export async function respondMermaidNavigation(request, cacheName, deps = {}) {
     return null;
   };
 
-  if (onLine === false) {
-    return (await matchCached()) || ResponseImpl.error();
-  }
+  const cached = await matchCached();
+  if (cached) return cached;
+  if (onLine === false) return ResponseImpl.error();
 
-  // Chromium's offline emulation can leave fetch() pending and ignore abort,
-  // which wedges the iframe navigation. Race a timer instead of the signal.
+  // A navigate Request can stay pending forever under offline emulation.
+  // Fetch the URL string, and still race a timer for a cache miss.
   let timer;
   const pending = Promise.resolve()
-    .then(() => fetchImpl(request))
+    .then(() => fetchImpl(request.url))
     .then((fresh) => {
       if (!fresh?.ok) throw new Error(String(fresh?.status || "fetch"));
       return fresh;
