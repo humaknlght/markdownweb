@@ -402,6 +402,47 @@ describe("pwa.mjs", () => {
     assert.equal(await response.text(), "sandbox-doc");
   });
 
+  it("keeps a sandbox document whose policy also says default-src none", async () => {
+    const sandbox = new Response("sandbox-doc", {
+      status: 200,
+      headers: {
+        "content-security-policy":
+          "default-src 'none'; frame-ancestors 'self'; sandbox allow-scripts",
+      },
+    });
+    const request = new Request("https://app.test/mermaid-sandbox/index.html");
+    const { caches } = memoryCache({
+      "./mermaid-sandbox/index.html": sandbox,
+    });
+    const response = await respondMermaidNavigation(request, "md-editor-test", {
+      onLine: false,
+      caches,
+      fetch: async () => {
+        throw new Error("offline");
+      },
+    });
+    assert.equal(await response.text(), "sandbox-doc");
+  });
+
+  it("uses a cached sandbox response when its CSP header was dropped", async () => {
+    const sandbox = new Response("sandbox-doc", { status: 200 });
+    const request = new Request("https://app.test/mermaid-sandbox/");
+    const { caches } = memoryCache({
+      [request.url]: sandbox,
+    });
+    let fetches = 0;
+    const response = await respondMermaidNavigation(request, "md-editor-test", {
+      onLine: true,
+      caches,
+      fetch: () => {
+        fetches += 1;
+        return new Promise(() => {});
+      },
+    });
+    assert.equal(fetches, 0);
+    assert.equal(await response.text(), "sandbox-doc");
+  });
+
   it("does not return the app shell for a sandbox navigation", async () => {
     const appShell = new Response("app-shell", {
       status: 200,

@@ -260,7 +260,10 @@ export async function respondMermaidNavigation(request, cacheName, deps = {}) {
 
   const isSandboxDocument = (response) => {
     const csp = response?.headers?.get("content-security-policy") || "";
-    return csp.includes("sandbox");
+    // The app shell is frame-ancestors 'none'. The sandbox policy also
+    // contains 'none' (default-src), so that token alone is not the shell.
+    // A cache hit may omit Content-Security-Policy; the mermaid URL is enough.
+    return !/frame-ancestors\s+'none'/.test(csp);
   };
 
   const matchCached = async () => {
